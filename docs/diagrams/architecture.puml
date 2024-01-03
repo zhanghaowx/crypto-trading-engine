@@ -1,0 +1,61 @@
+@startuml
+!theme sketchy-outline
+skinparam useBetaStyle true
+title A Possible Architecture of a Crypto Trading Engine
+
+rectangle "Exchange (Coinbase, Binance, ...)" as Exchange #aqua
+rectangle "Exchange Simulator (Local)" as ExchangeSimulator #tomato
+
+package "Market Data" as MD {
+}
+
+rectangle "\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\tData Layer\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t" as DataLayer #lightgreen {
+}
+
+package "Strategy" {
+  component Instruments
+  component "Valuation (PricingLib)" as Valuation
+  component "Strategy Core Logic, Algorithms, ..." as Algorithm
+  component "Position Manager" as PositionManager
+}
+
+note left of Strategy
+    - Strategy trades only 1 instrument at a time
+    - Multithreading ability isn't strictly required
+end note
+
+package RiskControl {
+  component "Order Frequency Check\nDuplicate Orders Check\nPrice Bands Check\nInflight Orders Count Check\nMax Cash Value Check\nMax Delta Check"
+  component "..."
+}
+
+package "Market Access (FIX/Binary)" as MA {
+}
+
+package "[Optional] DeltaPool" as DeltaPool {
+  component HedgingStrategy {
+  }
+}
+
+package "Database\nLogs\nClickhouse\nDatabricks" as DataStorage {
+
+}
+
+MD -d-> DataLayer
+DataLayer -d-> Valuation
+DataLayer -d-> Instruments
+DataLayer -d-> PositionManager
+Instruments -d-> Algorithm
+PositionManager -d-> Algorithm
+Valuation -d-> Algorithm : "Pricing"
+Algorithm -d-> MA : "Order Insert/Amend/Cancel"
+MA -u-> Algorithm : "ACK"
+Algorithm -d-> ExchangeSimulator : "Mock Orders"
+Algorithm -r-> RiskControl : "Verify before Every Order"
+MA -d-> Exchange : "FIX/Binary Protocol Messages"
+Exchange -u-> MA : "ACK/Fill/Unsolicited Cancel"
+MA -u-> DeltaPool : "Fill"
+DataLayer -u-> DataStorage : "Bookkeeping"
+Strategy -u-> DataLayer : "Logging and Internal Data for Analysis"
+
+@enduml
