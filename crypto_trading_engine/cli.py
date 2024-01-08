@@ -10,7 +10,9 @@ Be creative! do whatever you want!
 import asyncio
 
 from crypto_trading_engine.core.health_monitor.heartbeat import Heartbeater
-from crypto_trading_engine.core.health_monitor.heartbeat_monitor import HeartbeatMonitor
+from crypto_trading_engine.core.health_monitor.heartbeat_monitor import (
+    HeartbeatMonitor,
+)
 
 
 async def main():  # pragma: no cover
