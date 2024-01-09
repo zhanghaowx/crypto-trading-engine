@@ -54,30 +54,36 @@ class Heartbeat:
 
 
 class Heartbeater:
-    """
-    Heartbeater is the component that sends Heartbeat messages to
-    HeartbeatMonitor for issue reporting.
-
-    Heartbeat is a type of health monitor method that asks components to send a
-    special type of message (heartbeat) at a fixed internal. This could be used
-    to monitor if all your dependent components are working properly.
-    """
-
     def __init__(
-        self, name: str = "anonymous", interval_in_seconds: float = 1
+        self, name: str = "anonymous", interval_in_seconds: float = 5
     ):
+        """
+        *Heartbeater* is the component that sends *Heartbeat* messages to
+        *HeartbeatMonitor* for issue reporting.
+
+        *Heartbeat* is a type of health monitor method that asks components
+        to send a special type of message (heartbeat) at a fixed internal.
+        This could be used to monitor if all your dependent components are
+        working properly.
+
+        Components may choose different ways to send heartbeats. For example,
+        a market data component might choose to only send a heartbeat when
+        receiving a channel heartbeat from the exchange. Another component
+        might choose to send a heartbeat every 1 second.
+
+        Args:
+            name: Name of the component who sends heartbeats
+            interval_in_seconds: Interval in seconds to send heartbeats
+            periodically. Use 0 to disable the schedule and send heartbeats
+            manually.
+        """
         self._name = name
         self._interval_in_seconds = interval_in_seconds
         self._heartbeat_signal = signal("heartbeat")
         self._issues = [Heartbeat(HeartbeatLevel.NORMAL)]
-        assert (
-            self._interval_in_seconds > 0
-        ), "Please set interval_in_seconds to be a positive number in seconds!"
-        assert len(self._issues) > 0, (
-            "Please put at least one Heartbeat(NORMAL, " ") in the issue list!"
-        )
 
-        asyncio.create_task(self._start_heartbeating())
+        if self._interval_in_seconds > 0:
+            asyncio.create_task(self._start_heartbeating())
 
     def heartbeat_signal(self):
         """
@@ -120,7 +126,23 @@ class Heartbeater:
         self._issues = [x for x in self._issues if x.message != message]
         self._issues.sort()
 
+    def send_heartbeat(self):
+        """
+        Manually sends a heartbeat out
+
+        Returns:
+            None
+        """
+        assert len(self._issues) > 0, (
+            "Please have at least one Heartbeat in the list "
+            "before sending it out!"
+        )
+        self._heartbeat_signal.send(self._name, heartbeat=self._issues[-1])
+
     async def _start_heartbeating(self):
+        assert (
+            self._interval_in_seconds > 0
+        ), "Please set interval_in_seconds to be a positive number in seconds!"
         while True:
-            self._heartbeat_signal.send(self._name, heartbeat=self._issues[-1])
+            self.send_heartbeat()
             await asyncio.sleep(self._interval_in_seconds)
