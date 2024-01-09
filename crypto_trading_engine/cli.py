@@ -7,11 +7,9 @@ Be creative! do whatever you want!
 - Start a web application
 - Import things from your .base module
 """
-import asyncio
-
-from crypto_trading_engine.core.health_monitor.heartbeat import Heartbeater
-from crypto_trading_engine.core.health_monitor.heartbeat_monitor import (
-    HeartbeatMonitor,
+from crypto_trading_engine.market_data.coinbase.public_feed import (
+    CoinbaseEnvironment,
+    CoinbasePublicFeed,
 )
 
 
@@ -31,8 +29,5 @@ async def main():  # pragma: no cover
         * List all available tasks
         * Run an application (Flask, FastAPI, Django, etc.)
     """
-    heartbeater = Heartbeater(1)
-    monitor = HeartbeatMonitor()
-    heartbeater.heartbeat_signal().connect(monitor.on_heartbeat)
-    while True:
-        await asyncio.sleep(1)  # Keep the main thread alive
+    md = CoinbasePublicFeed(CoinbaseEnvironment.PRODUCTION)
+    await md.connect(["ETH-USD"])

@@ -1,3 +1,7 @@
 # Core
 ## Event-driven programming library
 blinker
+
+# MarketData
+## Needed by exchanges who use websockets to disseminate market data
+websockets
