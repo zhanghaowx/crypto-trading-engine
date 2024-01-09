@@ -14,7 +14,10 @@ class HeartbeatLevel(Enum):
 
 class Heartbeat:
     def __init__(
-        self, level: HeartbeatLevel = HeartbeatLevel.NORMAL, message: str = ""
+        self,
+        level: HeartbeatLevel = HeartbeatLevel.NORMAL,
+        message: str = "",
+        report_time: datetime = datetime.now(),
     ):
         """
         A heartbeat is a message emitted by an observable to notify the
@@ -26,13 +29,21 @@ class Heartbeat:
         """
         self.level = level
         self.message = message
-        self.report_time = datetime.now()
+        self.report_time = report_time
         assert (self.level == HeartbeatLevel.NORMAL) or (
             len(self.message) > 0
         ), (
             f"Please add additional message if the heartbeat level is "
             f"{self.level}"
         )
+
+    def __lt__(self, other):
+        if self.level.value < other.level.value:
+            return True
+        elif self.level.value == other.level.value:
+            return self.report_time < other.report_time
+
+        return False
 
     def __repr__(self):
         return (
@@ -52,7 +63,10 @@ class Heartbeater:
     to monitor if all your dependent components are working properly.
     """
 
-    def __init__(self, interval_in_seconds: int):
+    def __init__(
+        self, name: str = "anonymous", interval_in_seconds: float = 1
+    ):
+        self._name = name
         self._interval_in_seconds = interval_in_seconds
         self._heartbeat_signal = signal("heartbeat")
         self._issues = [Heartbeat(HeartbeatLevel.NORMAL)]
@@ -71,9 +85,7 @@ class Heartbeater:
         """
         return self._heartbeat_signal
 
-    def raise_issue(
-        self, level: HeartbeatLevel = HeartbeatLevel.NORMAL, message: str = ""
-    ):
+    def add_issue(self, level: HeartbeatLevel, message: str):
         """
         Add an issue to the issue list.
 
@@ -85,25 +97,30 @@ class Heartbeater:
             Index of the newly inserted issue. This index could be used to
             clear the issue later on.
         """
+        assert level.value > HeartbeatLevel.NORMAL.value, (
+            "Please report only severe issues that exceed "
+            "the normal severity level!"
+        )
+        assert len(message) > 0, "Please add details to your issue"
         self._issues.append(Heartbeat(level, message))
-        self._issues.sort(key=lambda x: (x.level, x.report_time))
+        self._issues.sort()
         return len(self._issues) - 1
 
-    def clear_issue(self, index: int):
+    def remove_issue(self, message: str):
         """
-        Remove an issue from the issue list.
+        Remove an issue from the issue list when it is back to normal.
 
         Args:
-            index: Index of the issue to be cleared
+            message: Additional details about this issue
 
         Returns:
             None
         """
-        del self._issues[index]
+        assert len(message) > 0, "Cannot remove the NORMAL heartbeat!"
+        self._issues = [x for x in self._issues if x.message != message]
+        self._issues.sort()
 
     async def _start_heartbeating(self):
         while True:
-            self._heartbeat_signal.send(
-                "anonymous", heartbeat=self._issues[-1]
-            )
+            self._heartbeat_signal.send(self._name, heartbeat=self._issues[-1])
             await asyncio.sleep(self._interval_in_seconds)

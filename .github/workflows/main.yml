@@ -52,8 +52,7 @@ jobs:
         uses: codecov/codecov-action@v3
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-        with:
-          disable_default_path_fixes: yes
+        # with:
           # fail_ci_if_error: true
 
   tests_mac:
