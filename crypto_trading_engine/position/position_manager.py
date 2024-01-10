@@ -13,7 +13,7 @@ class PositionManager:
         """
         Manages all bought securities and their positions
         """
-        self.positions: dict[str, Position] = {}
+        self.positions = dict[str, Position]()
 
     def on_buy(self, symbol: str, price: float, quantity: float):
         """

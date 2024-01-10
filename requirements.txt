@@ -4,15 +4,23 @@
 pytz
 types-pytz # Linter Fix
 
+## Network
+requests
+types-requests
+
 ## Event-driven programming library
 blinker
 
 # Strategy
 
-## Analysis
+## Data Analysis
 pandas
 
-# MarketData
+# MarketAccess
+
+## Coinbase
+cryptography
+PyJWT
 
 ## Needed by exchanges who use websockets to disseminate market data
 websockets

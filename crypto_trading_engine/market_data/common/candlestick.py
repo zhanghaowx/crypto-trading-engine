@@ -8,7 +8,7 @@ class Candlestick:
     def __init__(self, start: datetime, duration_in_seconds: float):
         """
         Candlestick displays the high, low, open, and close price of a
-        security/crypto currency for a specific period.
+        security/cryptocurrency for a specific period.
 
         Args:
             start: Start time that the candlestick represents
@@ -16,7 +16,9 @@ class Candlestick:
                                  candlestick represents
         """
         self.start_time: datetime = start
-        self.end_time: datetime = start + timedelta(seconds=duration_in_seconds)
+        self.end_time: datetime = start + timedelta(
+            seconds=duration_in_seconds
+        )
         self.open: float = 0.0
         self.high: float = 0.0
         self.low: float = float("inf")
@@ -55,7 +57,10 @@ class Candlestick:
             True if trade is successfully added to the candlestick. Otherwise
             False
         """
-        if transaction_time < self.start_time or transaction_time > self.end_time:
+        if (
+            transaction_time < self.start_time
+            or transaction_time > self.end_time
+        ):
             return False
 
         if self.volume == 0.0:
