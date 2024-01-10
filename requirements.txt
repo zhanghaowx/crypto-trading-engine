@@ -1,6 +1,7 @@
 # Core
 ## Timezone
 pytz
+types-pytz # Linter Fix
 
 ## Event-driven programming library
 blinker
