@@ -92,31 +92,3 @@ docs:             ## Build the documentation.
 	@echo "building documentation ..."
 	@$(ENV_PREFIX)mkdocs build
 	URL="site/index.html"; xdg-open $$URL || sensible-browser $$URL || x-www-browser $$URL || gnome-open $$URL || open $$URL
-
-.PHONY: switch-to-poetry
-switch-to-poetry: ## Switch to poetry package manager.
-	@echo "Switching to poetry ..."
-	@if ! poetry --version > /dev/null; then echo 'poetry is required, install from https://python-poetry.org/'; exit 1; fi
-	@rm -rf .venv
-	@poetry init --no-interaction --name=a_flask_test --author=rochacbruno
-	@echo "" >> pyproject.toml
-	@echo "[tool.poetry.scripts]" >> pyproject.toml
-	@echo "crypto_trading_engine = 'crypto_trading_engine.__main__:main'" >> pyproject.toml
-	@cat requirements.txt | while read in; do poetry add --no-interaction "$${in}"; done
-	@cat requirements-test.txt | while read in; do poetry add --no-interaction "$${in}" --dev; done
-	@poetry install --no-interaction
-	@mkdir -p .github/backup
-	@mv requirements* .github/backup
-	@mv setup.py .github/backup
-	@echo "You have switched to https://python-poetry.org/ package manager."
-	@echo "Please run 'poetry shell' or 'poetry run crypto_trading_engine'"
-
-.PHONY: init
-init:             ## Initialize the project based on an application template.
-	@./.github/init.sh
-
-
-# This project has been generated from rochacbruno/python-project-template
-# __author__ = 'rochacbruno'
-# __repo__ = https://github.com/rochacbruno/python-project-template
-# __sponsor__ = https://github.com/sponsors/rochacbruno/
