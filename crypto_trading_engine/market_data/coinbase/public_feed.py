@@ -103,13 +103,13 @@ class CoinbasePublicFeed(Heartbeater):
                     elif response["type"] == "subscriptions":
                         pass
 
-                    elif response["type"] == "ticker":
+                    elif response["type"] == "heartbeat":
                         self.events.channel_heartbeat.send(
                             self.events.channel_heartbeat, payload=response
                         )
                         self.send_heartbeat()
 
-                    elif response["type"] == "heartbeat":
+                    elif response["type"] == "ticker":
                         self.events.ticker.send(
                             self.events.ticker, payload=response
                         )

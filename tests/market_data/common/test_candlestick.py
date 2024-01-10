@@ -46,6 +46,20 @@ class TestCandlestick(unittest.IsolatedAsyncioTestCase):
             )
         )
 
+    async def test_candlestick_is_completed(self):
+        now = datetime.utcnow()
+
+        candle = Candlestick(now, 1)
+        self.assertFalse(candle.is_completed(now))
+
+        self.assertTrue(
+            candle.add_trade(
+                trade_price=1.23, trade_quantity=2.34, transaction_time=now
+            )
+        )
+        self.assertFalse(candle.is_completed(now - timedelta(seconds=1)))
+        self.assertTrue(candle.is_completed(now + timedelta(seconds=1)))
+
     async def test_candlestick_with_1_trade(self):
         now = datetime.utcnow()
         candle = Candlestick(now, 1)

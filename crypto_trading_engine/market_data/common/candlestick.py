@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta
 
+import pytz
+
 
 class Candlestick:
     def __init__(self, start: datetime, duration_in_seconds: float):
@@ -39,7 +41,7 @@ class Candlestick:
         self,
         trade_price: float,
         trade_quantity: float,
-        transaction_time: datetime = datetime.utcnow(),
+        transaction_time: datetime = datetime.now(pytz.utc),
     ):
         """
         Adds a new trade which falls in the time range of the candlestick.
@@ -68,3 +70,10 @@ class Candlestick:
         self.close = trade_price
         self.volume += trade_quantity
         return True
+
+    def is_completed(self, now: datetime = datetime.now(pytz.utc)):
+        """
+        Returns:
+            Whether the candlestick is completed or it is still being built
+        """
+        return now >= self.end_time

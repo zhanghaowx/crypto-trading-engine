@@ -1,6 +1,8 @@
 import unittest
 from unittest.mock import patch, AsyncMock, Mock
 
+import websockets
+
 from crypto_trading_engine.market_data.coinbase.public_feed import (
     CoinbasePublicFeed,
     CoinbaseEnvironment,
@@ -8,6 +10,11 @@ from crypto_trading_engine.market_data.coinbase.public_feed import (
 
 
 class TestCandlestick(unittest.IsolatedAsyncioTestCase):
+    unknown_feed = """
+    {
+        "type":"unknown"
+    }
+    """
     heartbeat_feed = """
     {
         "type":"heartbeat"
@@ -111,11 +118,9 @@ class TestCandlestick(unittest.IsolatedAsyncioTestCase):
 
         # Assertions
         self.assertEqual(
-            mock_websocket.__aenter__.return_value.recv.call_count, 2
+            2, mock_websocket.__aenter__.return_value.recv.call_count
         )
-        self.assertEqual(
-            feed.events.
-        )
+        self.assertEqual(1, feed.events.channel_heartbeat.send.call_count)
 
     @patch("websockets.connect")
     async def test_subscriptions_feed(self, mock_connect):
@@ -132,13 +137,13 @@ class TestCandlestick(unittest.IsolatedAsyncioTestCase):
 
         mock_connect.return_value = await async_context_manager()
 
-        await CoinbasePublicFeed(CoinbaseEnvironment.SANDBOX).connect(
-            ["ETH-USD"]
-        )
+        feed = CoinbasePublicFeed(CoinbaseEnvironment.SANDBOX)
+        feed.events = Mock()
+        await feed.connect(["ETH-USD"])
 
         # Assertions
         self.assertEqual(
-            mock_websocket.__aenter__.return_value.recv.call_count, 2
+            2, mock_websocket.__aenter__.return_value.recv.call_count
         )
 
     @patch("websockets.connect")
@@ -156,14 +161,15 @@ class TestCandlestick(unittest.IsolatedAsyncioTestCase):
 
         mock_connect.return_value = await async_context_manager()
 
-        await CoinbasePublicFeed(CoinbaseEnvironment.SANDBOX).connect(
-            ["ETH-USD"]
-        )
+        feed = CoinbasePublicFeed(CoinbaseEnvironment.SANDBOX)
+        feed.events = Mock()
+        await feed.connect(["ETH-USD"])
 
         # Assertions
         self.assertEqual(
-            mock_websocket.__aenter__.return_value.recv.call_count, 2
+            2, mock_websocket.__aenter__.return_value.recv.call_count
         )
+        self.assertEqual(1, feed.events.ticker.send.call_count)
 
     @patch("websockets.connect")
     async def test_match_feed(self, mock_connect):
@@ -180,11 +186,59 @@ class TestCandlestick(unittest.IsolatedAsyncioTestCase):
 
         mock_connect.return_value = await async_context_manager()
 
-        await CoinbasePublicFeed(CoinbaseEnvironment.SANDBOX).connect(
-            ["ETH-USD"]
-        )
+        feed = CoinbasePublicFeed(CoinbaseEnvironment.SANDBOX)
+        feed.events = Mock()
+        await feed.connect(["ETH-USD"])
 
         # Assertions
         self.assertEqual(
-            mock_websocket.__aenter__.return_value.recv.call_count, 2
+            2, mock_websocket.__aenter__.return_value.recv.call_count
+        )
+        self.assertEqual(1, feed.events.candlestick.send.call_count)
+
+    @patch("websockets.connect")
+    async def test_unknown_feed(self, mock_connect):
+        # Create a mock websocket object
+        mock_websocket = AsyncMock()
+        mock_websocket.__aenter__.return_value.recv.side_effect = [
+            TestCandlestick.unknown_feed,
+            TestCandlestick.error,
+        ]
+
+        # Set up the mock context manager
+        async def async_context_manager(*args, **kwargs):
+            return mock_websocket
+
+        mock_connect.return_value = await async_context_manager()
+
+        feed = CoinbasePublicFeed(CoinbaseEnvironment.SANDBOX)
+        feed.events = Mock()
+        await feed.connect(["ETH-USD"])
+
+        # Assertions
+        self.assertEqual(
+            2, mock_websocket.__aenter__.return_value.recv.call_count
+        )
+
+    @patch("websockets.connect")
+    async def test_exception(self, mock_connect):
+        # Create a mock websocket object
+        mock_websocket = AsyncMock()
+        mock_websocket.__aenter__.return_value.recv.side_effect = [
+            websockets.exceptions.ConnectionClosedError(rcvd=None, sent=None),
+        ]
+
+        # Set up the mock context manager
+        async def async_context_manager(*args, **kwargs):
+            return mock_websocket
+
+        mock_connect.return_value = await async_context_manager()
+
+        feed = CoinbasePublicFeed(CoinbaseEnvironment.SANDBOX)
+        feed.events = Mock()
+        await feed.connect(["ETH-USD"])
+
+        # Assertions
+        self.assertEqual(
+            1, mock_websocket.__aenter__.return_value.recv.call_count
         )
