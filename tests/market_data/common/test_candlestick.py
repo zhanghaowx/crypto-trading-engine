@@ -1,6 +1,8 @@
 import unittest
 from datetime import datetime, timedelta
 
+import pytz
+
 from crypto_trading_engine.market_data.common.candlestick import Candlestick
 
 
@@ -36,7 +38,7 @@ class TestCandlestick(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_candlestick_add_trade_failure(self):
-        now = datetime.utcnow()
+        now = datetime.now(pytz.utc)
         candle = Candlestick(now, 1)
         self.assertFalse(
             candle.add_trade(
@@ -47,7 +49,7 @@ class TestCandlestick(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_candlestick_is_completed(self):
-        now = datetime.utcnow()
+        now = datetime.now(pytz.utc)
 
         candle = Candlestick(now, 1)
         self.assertFalse(candle.is_completed(now))
@@ -60,8 +62,65 @@ class TestCandlestick(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(candle.is_completed(now - timedelta(seconds=1)))
         self.assertTrue(candle.is_completed(now + timedelta(seconds=1)))
 
+    async def test_candlestick_is_bullish_bearish(self):
+        now = datetime.now(pytz.utc)
+
+        candle = Candlestick(now, 1)
+        self.assertFalse(candle.is_bullish())
+        self.assertFalse(candle.is_bearish())
+
+        self.assertTrue(
+            candle.add_trade(
+                trade_price=1.0, trade_quantity=2.0, transaction_time=now
+            )
+        )
+        self.assertFalse(candle.is_bullish())
+        self.assertFalse(candle.is_bearish())
+
+        self.assertTrue(
+            candle.add_trade(
+                trade_price=2.0, trade_quantity=2.0, transaction_time=now
+            )
+        )
+        self.assertTrue(candle.is_bullish())
+        self.assertFalse(candle.is_bearish())
+
+        self.assertTrue(
+            candle.add_trade(
+                trade_price=0.9, trade_quantity=2.0, transaction_time=now
+            )
+        )
+        self.assertFalse(candle.is_bullish())
+        self.assertTrue(candle.is_bearish())
+
+    async def test_candlestick_return_percentage(self):
+        now = datetime.now(pytz.utc)
+
+        candle = Candlestick(now, 1)
+
+        self.assertTrue(
+            candle.add_trade(
+                trade_price=1.0, trade_quantity=2.0, transaction_time=now
+            )
+        )
+        self.assertEqual(candle.return_percentage(), 0.0)
+
+        self.assertTrue(
+            candle.add_trade(
+                trade_price=2.0, trade_quantity=2.0, transaction_time=now
+            )
+        )
+        self.assertEqual(candle.return_percentage(), 1.0)
+
+        self.assertTrue(
+            candle.add_trade(
+                trade_price=0.1, trade_quantity=2.0, transaction_time=now
+            )
+        )
+        self.assertEqual(candle.return_percentage(), -0.9)
+
     async def test_candlestick_with_1_trade(self):
-        now = datetime.utcnow()
+        now = datetime.now(pytz.utc)
         candle = Candlestick(now, 1)
         self.assertTrue(
             candle.add_trade(
@@ -76,7 +135,7 @@ class TestCandlestick(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(candle.volume, 2.34)
 
     async def test_candlestick_with_multi_trade(self):
-        now = datetime.utcnow()
+        now = datetime.now(pytz.utc)
         candle = Candlestick(now, 1)
         self.assertTrue(
             candle.add_trade(

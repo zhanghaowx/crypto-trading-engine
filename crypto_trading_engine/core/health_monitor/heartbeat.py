@@ -1,7 +1,9 @@
 import asyncio
 from datetime import datetime
 from enum import Enum
+from typing import Union
 
+import pytz
 from blinker import signal
 
 
@@ -17,7 +19,7 @@ class Heartbeat:
         self,
         level: HeartbeatLevel = HeartbeatLevel.NORMAL,
         message: str = "",
-        report_time: datetime = datetime.utcnow(),
+        report_time: Union[datetime, None] = None,
     ):
         """
         A heartbeat is a message emitted by an observable to notify the
@@ -29,7 +31,9 @@ class Heartbeat:
         """
         self.level = level
         self.message = message
-        self.report_time = report_time
+        self.report_time = (
+            report_time if report_time else datetime.now(pytz.utc)
+        )
         assert (self.level == HeartbeatLevel.NORMAL) or (
             len(self.message) > 0
         ), (

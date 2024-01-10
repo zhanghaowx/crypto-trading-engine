@@ -1,11 +1,5 @@
-"""CLI interface for crypto_trading_engine project.
-
-Be creative! do whatever you want!
-
-- Install click or typer and create a CLI app
-- Use builtin argparse
-- Start a web application
-- Import things from your .base module
+"""
+CLI interface for crypto_trading_engine project.
 """
 import logging
 
@@ -13,29 +7,30 @@ from crypto_trading_engine.market_data.coinbase.public_feed import (
     CoinbaseEnvironment,
     CoinbasePublicFeed,
 )
+from crypto_trading_engine.strategy.bull_flag_strategy import BullFlagStrategy
 
 
 async def main():  # pragma: no cover
     """
-    The main function executes on commands:
-    `python -m crypto_trading_engine` and `$ crypto_trading_engine `.
-
-    This is your program's entry point.
-
-    You can change this function to do whatever you want.
-    Examples:
-        * Run a test suite
-        * Run a server
-        * Do some other stuff
-        * Run a command line application (Click, Typer, ArgParse)
-        * List all available tasks
-        * Run an application (Flask, FastAPI, Django, etc.)
+    Connects different components, starts the engine and runs a strategy.
     """
+
+    # Logging setup
     logging.basicConfig(
         filename="crypto.log",
         filemode="w",
         format="[%(asctime)s][%(name)s][%(levelname)s] - %(message)s",
         level=logging.INFO,
     )
-    md = CoinbasePublicFeed(CoinbaseEnvironment.PRODUCTION)
-    await md.connect(["ETH-USD"])
+
+    # Marketdata Setup
+    md = CoinbasePublicFeed(
+        env=CoinbaseEnvironment.PRODUCTION, candlestick_interval_in_seconds=60
+    )
+    md_connection = md.connect(["ETH-USD"])
+
+    # Strategy Setup
+    strategy = BullFlagStrategy(min_return_of_active_candlesticks=0.0001)
+    md.events.candlestick.connect(strategy.on_candlestick)
+
+    await md_connection

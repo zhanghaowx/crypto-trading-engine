@@ -58,12 +58,16 @@ class CoinbasePublicFeed(Heartbeater):
         matches = signal("matches")
         candlestick = signal("calculated candlestick")
 
-    def __init__(self, env: CoinbaseEnvironment = CoinbaseEnvironment.SANDBOX):
+    def __init__(
+        self,
+        env: CoinbaseEnvironment = CoinbaseEnvironment.SANDBOX,
+        candlestick_interval_in_seconds: int = 60,
+    ):
         super().__init__(type(self).__name__, interval_in_seconds=0)
         self.events = CoinbasePublicFeed.Events()
         self._env = env
         self._candlestick_generator = CandlestickGenerator(
-            interval_in_seconds=60
+            interval_in_seconds=candlestick_interval_in_seconds
         )
 
     async def connect(self, product_ids: list[str]):
@@ -144,8 +148,8 @@ class CoinbasePublicFeed(Heartbeater):
                             side=MarketSide(response["side"]),
                             price=float(response["price"]),
                             quantity=float(response["size"]),
-                            transaction_time=datetime.strptime(
-                                response["time"], "%Y-%m-%dT%H:%M:%S.%f%z"
+                            transaction_time=datetime.fromisoformat(
+                                response["time"]
                             ),
                         )
                         logging.info(f"Received Trade: {trade}")

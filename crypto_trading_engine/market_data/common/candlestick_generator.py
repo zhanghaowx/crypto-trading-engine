@@ -31,6 +31,7 @@ class CandlestickGenerator:
                     f"Generated Completed Candlestick: "
                     f"{self.current_candlestick}"
                 )
+                assert self.current_candlestick.is_completed()
                 candlesticks.append(self.current_candlestick)
 
             # Calculate the start time of the new candlestick

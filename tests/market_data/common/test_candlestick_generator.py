@@ -1,5 +1,5 @@
 import unittest
-from datetime import datetime
+from datetime import datetime, timezone
 
 from crypto_trading_engine.core.side import MarketSide
 from crypto_trading_engine.market_data.common.candlestick_generator import (
@@ -28,6 +28,7 @@ class TestCandlestickGenerator(unittest.IsolatedAsyncioTestCase):
                 minute=0,
                 second=second,
                 microsecond=0,
+                tzinfo=timezone.utc,
             ),
         )
 

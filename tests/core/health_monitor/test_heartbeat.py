@@ -22,20 +22,20 @@ class HeartbeatTestSubscriber:
 class TestHeartbeater(unittest.IsolatedAsyncioTestCase):
     async def test_sort_heartbeat(self):
         heartbeats = [
-            Heartbeat(HeartbeatLevel.WARN, "Hello", 0),
-            Heartbeat(HeartbeatLevel.NORMAL, "", 1),
+            Heartbeat(HeartbeatLevel.WARN, "Hello", 1),
+            Heartbeat(HeartbeatLevel.NORMAL, "", 2),
         ]
         heartbeats.sort()
 
         self.assertEqual(
             str(heartbeats[0]),
             "Heartbeat: level=HeartbeatLevel.NORMAL, message=None, "
-            "report_time=1",
+            "report_time=2",
         )
         self.assertEqual(
             str(heartbeats[1]),
             "Heartbeat: level=HeartbeatLevel.WARN, message=Hello, "
-            "report_time=0",
+            "report_time=1",
         )
 
     async def test_default_heartbeat(self):

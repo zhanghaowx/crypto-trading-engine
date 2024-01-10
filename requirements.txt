@@ -1,4 +1,5 @@
 # Core
+
 ## Timezone
 pytz
 types-pytz # Linter Fix
@@ -6,6 +7,12 @@ types-pytz # Linter Fix
 ## Event-driven programming library
 blinker
 
+# Strategy
+
+## Analysis
+pandas
+
 # MarketData
+
 ## Needed by exchanges who use websockets to disseminate market data
 websockets

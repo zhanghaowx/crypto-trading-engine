@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from typing import Union
 
 import pytz
 
@@ -41,7 +42,7 @@ class Candlestick:
         self,
         trade_price: float,
         trade_quantity: float,
-        transaction_time: datetime = datetime.now(pytz.utc),
+        transaction_time: datetime,
     ):
         """
         Adds a new trade which falls in the time range of the candlestick.
@@ -71,9 +72,31 @@ class Candlestick:
         self.volume += trade_quantity
         return True
 
-    def is_completed(self, now: datetime = datetime.now(pytz.utc)):
+    def is_completed(self, now: Union[datetime, None] = None):
         """
         Returns:
             Whether the candlestick is completed or it is still being built
         """
-        return now >= self.end_time
+
+        return (now if now else datetime.now(pytz.utc)) >= self.end_time
+
+    def is_bullish(self):
+        """
+        Returns:
+            Whether the candlestick represents a bullish market
+        """
+        return self.close > self.open
+
+    def is_bearish(self):
+        """
+        Returns:
+            Whether the candlestick represents a bearish market
+        """
+        return self.close < self.open
+
+    def return_percentage(self):
+        """
+        Returns:
+            Rate of return if buy one share at open and sell at close
+        """
+        return (self.close - self.open) / self.open
