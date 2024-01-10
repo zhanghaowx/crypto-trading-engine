@@ -1,0 +1,91 @@
+import unittest
+from datetime import datetime, timedelta
+
+from crypto_trading_engine.market_data.common.candlestick import Candlestick
+
+
+class TestCandlestick(unittest.IsolatedAsyncioTestCase):
+    async def test_candlestick(self):
+        now = datetime(
+            year=2024,
+            month=1,
+            day=1,
+            hour=0,
+            minute=0,
+            second=0,
+            microsecond=0,
+        )
+
+        candle = Candlestick(now, 1)
+
+        self.assertEqual(candle.open, 0.0)
+        self.assertEqual(candle.high, 0.0)
+        self.assertEqual(candle.low, float("inf"))
+        self.assertEqual(candle.close, 0.0)
+        self.assertEqual(candle.volume, 0.0)
+        self.assertEqual(
+            str(candle),
+            "Candlestick("
+            "Open=0.0, "
+            "High=0.0, "
+            "Low=inf, "
+            "Close=0.0, "
+            "Volume=0.0, "
+            "StartTime=2024-01-01 00:00:00, "
+            "EndTime=2024-01-01 00:00:01)",
+        )
+
+    async def test_candlestick_add_trade_failure(self):
+        now = datetime.utcnow()
+        candle = Candlestick(now, 1)
+        self.assertFalse(
+            candle.add_trade(
+                trade_price=1.23,
+                trade_quantity=2.34,
+                transaction_time=now + timedelta(days=1),
+            )
+        )
+
+    async def test_candlestick_with_1_trade(self):
+        now = datetime.utcnow()
+        candle = Candlestick(now, 1)
+        self.assertTrue(
+            candle.add_trade(
+                trade_price=1.23, trade_quantity=2.34, transaction_time=now
+            )
+        )
+
+        self.assertEqual(candle.open, 1.23)
+        self.assertEqual(candle.high, 1.23)
+        self.assertEqual(candle.low, 1.23)
+        self.assertEqual(candle.close, 1.23)
+        self.assertEqual(candle.volume, 2.34)
+
+    async def test_candlestick_with_multi_trade(self):
+        now = datetime.utcnow()
+        candle = Candlestick(now, 1)
+        self.assertTrue(
+            candle.add_trade(
+                trade_price=1.23, trade_quantity=2.34, transaction_time=now
+            )
+        )
+        self.assertTrue(
+            candle.add_trade(
+                trade_price=0.01, trade_quantity=1.00, transaction_time=now
+            )
+        )
+
+        self.assertEqual(candle.open, 1.23)
+        self.assertEqual(candle.high, 1.23)
+        self.assertEqual(candle.low, 0.01)
+        self.assertEqual(candle.close, 0.01)
+        self.assertEqual(candle.volume, 3.34)
+
+        candle.add_trade(
+            trade_price=10.00, trade_quantity=1.00, transaction_time=now
+        )
+        self.assertEqual(candle.open, 1.23)
+        self.assertEqual(candle.high, 10.00)
+        self.assertEqual(candle.low, 0.01)
+        self.assertEqual(candle.close, 10.00)
+        self.assertEqual(candle.volume, 4.34)

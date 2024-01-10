@@ -7,6 +7,8 @@ Be creative! do whatever you want!
 - Start a web application
 - Import things from your .base module
 """
+import logging
+
 from crypto_trading_engine.market_data.coinbase.public_feed import (
     CoinbaseEnvironment,
     CoinbasePublicFeed,
@@ -29,5 +31,11 @@ async def main():  # pragma: no cover
         * List all available tasks
         * Run an application (Flask, FastAPI, Django, etc.)
     """
+    logging.basicConfig(
+        filename="crypto.log",
+        filemode="w",
+        format="[%(asctime)s][%(name)s][%(levelname)s] - %(message)s",
+        level=logging.INFO,
+    )
     md = CoinbasePublicFeed(CoinbaseEnvironment.PRODUCTION)
     await md.connect(["ETH-USD"])

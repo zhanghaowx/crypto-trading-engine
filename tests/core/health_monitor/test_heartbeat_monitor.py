@@ -23,8 +23,6 @@ class TestHeartbeatMonitor(unittest.IsolatedAsyncioTestCase):
         self.assertTrue("ABC" in monitor.all_heartbeats)
         self.assertTrue(monitor.all_heartbeats["ABC"].is_zombie())
 
-        print(monitor.all_heartbeats["ABC"])
-
         heartbeater.send_heartbeat()
         self.assertTrue("ABC" in monitor.all_heartbeats)
         self.assertFalse(monitor.all_heartbeats["ABC"].is_zombie())

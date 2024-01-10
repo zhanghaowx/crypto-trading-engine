@@ -17,7 +17,7 @@ class Heartbeat:
         self,
         level: HeartbeatLevel = HeartbeatLevel.NORMAL,
         message: str = "",
-        report_time: datetime = datetime.now(),
+        report_time: datetime = datetime.utcnow(),
     ):
         """
         A heartbeat is a message emitted by an observable to notify the

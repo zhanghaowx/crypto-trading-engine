@@ -1,5 +1,7 @@
 import json
+import logging
 from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
 
 import websockets
@@ -9,6 +11,11 @@ from crypto_trading_engine.core.health_monitor.heartbeat import (
     Heartbeater,
     HeartbeatLevel,
 )
+from crypto_trading_engine.core.side import MarketSide
+from crypto_trading_engine.market_data.common.candlestick_generator import (
+    CandlestickGenerator,
+)
+from crypto_trading_engine.market_data.core.trade import Trade
 
 
 class CoinbaseEnvironment(Enum):
@@ -39,7 +46,8 @@ class CoinbasePublicFeed(Heartbeater):
     @dataclass
     class Events:
         """
-        Summary of all supported events for Coinbase's websocket channels.
+        Summary of all supported events for Coinbase's websocket channels,
+        as well as events calculated from Coinbase's native events.
 
         See Also:
             https://docs.cloud.coinbase.com/exchange/docs/websocket-channels
@@ -48,11 +56,15 @@ class CoinbasePublicFeed(Heartbeater):
         channel_heartbeat = signal("heartbeat")
         ticker = signal("ticker")
         matches = signal("matches")
+        candlestick = signal("calculated candlestick")
 
     def __init__(self, env: CoinbaseEnvironment = CoinbaseEnvironment.SANDBOX):
-        super().__init__(type(self).__name__)
+        super().__init__(type(self).__name__, interval_in_seconds=0)
         self._env = env
         self._events = CoinbasePublicFeed.Events()
+        self._candlestick_generator = CandlestickGenerator(
+            interval_in_seconds=60
+        )
 
     async def connect(self, product_ids: list[str]):
         production_uri = "wss://ws-feed.exchange.coinbase.com"
@@ -95,11 +107,50 @@ class CoinbasePublicFeed(Heartbeater):
                         self._events.channel_heartbeat.send(
                             self._events.channel_heartbeat, payload=response
                         )
+                        self.send_heartbeat()
 
                     elif response["type"] == "heartbeat":
                         self._events.ticker.send(
                             self._events.ticker, payload=response
                         )
+                    elif response["type"] == "match":
+                        self._events.matches.send(
+                            self._events.matches, payload=response
+                        )
+                        """
+                        Below is an example of one match message from Coinbase
+                        ```
+                        {
+                           "type":"match",
+                           "trade_id":488446358,
+                           "maker_order_id":"432663f7-d90a-40c6-bdaa-2d8e33f7e378",
+                           "taker_order_id":"6d7362a5-baea-46ec-9faf-6a4446aee169",
+                           "side":"buy",
+                           "size":"0.00219265",
+                           "price":"2274.61",
+                           "product_id":"ETH-USD",
+                           "sequence":52808418658,
+                           "time":"2024-01-09T18:27:11.361885Z"
+                        }
+                        ```
+                        """
+
+                        trade = Trade(
+                            trade_id=response["trade_id"],
+                            sequence_number=response["sequence"],
+                            symbol=response["product_id"],
+                            maker_order_id=response["maker_order_id"],
+                            taker_order_id=response["taker_order_id"],
+                            side=MarketSide(response["side"]),
+                            price=float(response["price"]),
+                            quantity=float(response["size"]),
+                            transaction_time=datetime.fromisoformat(
+                                response["time"]
+                            ),
+                        )
+                        logging.info(f"Received Trade: {trade}")
+
+                        self._candlestick_generator.on_trade(trade)
                     else:
                         pass  # Ignore unsupported message types
 
