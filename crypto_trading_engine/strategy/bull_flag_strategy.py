@@ -31,10 +31,18 @@ class BullFlagStrategy(Heartbeater):
             5. Sell remaining positions when sellers is about to gain control.
         """
         super().__init__(type(self).__name__, interval_in_seconds=5)
-        self.max_number_of_past_candlesticks = max_number_of_recent_candlesticks
-        self.min_number_of_bearish_candlesticks = min_number_of_bearish_candlesticks
-        self.min_return_of_active_candlesticks = min_return_of_active_candlesticks
-        self.history = deque[Candlestick](maxlen=max_number_of_recent_candlesticks)
+        self.max_number_of_past_candlesticks = (
+            max_number_of_recent_candlesticks
+        )
+        self.min_number_of_bearish_candlesticks = (
+            min_number_of_bearish_candlesticks
+        )
+        self.min_return_of_active_candlesticks = (
+            min_return_of_active_candlesticks
+        )
+        self.history = deque[Candlestick](
+            maxlen=max_number_of_recent_candlesticks
+        )
         self.active_candlestick: Union[None, Candlestick] = None
 
     def on_candlestick(self, _: str, candlestick: Candlestick):
