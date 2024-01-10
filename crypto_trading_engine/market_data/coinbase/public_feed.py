@@ -144,8 +144,8 @@ class CoinbasePublicFeed(Heartbeater):
                             side=MarketSide(response["side"]),
                             price=float(response["price"]),
                             quantity=float(response["size"]),
-                            transaction_time=datetime.fromisoformat(
-                                response["time"]
+                            transaction_time=datetime.strptime(
+                                response["time"], "%Y-%m-%dT%H:%M:%S.%f%z"
                             ),
                         )
                         logging.info(f"Received Trade: {trade}")
