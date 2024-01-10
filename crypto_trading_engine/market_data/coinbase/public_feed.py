@@ -60,8 +60,8 @@ class CoinbasePublicFeed(Heartbeater):
 
     def __init__(self, env: CoinbaseEnvironment = CoinbaseEnvironment.SANDBOX):
         super().__init__(type(self).__name__, interval_in_seconds=0)
+        self.events = CoinbasePublicFeed.Events()
         self._env = env
-        self._events = CoinbasePublicFeed.Events()
         self._candlestick_generator = CandlestickGenerator(
             interval_in_seconds=60
         )
@@ -104,18 +104,18 @@ class CoinbasePublicFeed(Heartbeater):
                         pass
 
                     elif response["type"] == "ticker":
-                        self._events.channel_heartbeat.send(
-                            self._events.channel_heartbeat, payload=response
+                        self.events.channel_heartbeat.send(
+                            self.events.channel_heartbeat, payload=response
                         )
                         self.send_heartbeat()
 
                     elif response["type"] == "heartbeat":
-                        self._events.ticker.send(
-                            self._events.ticker, payload=response
+                        self.events.ticker.send(
+                            self.events.ticker, payload=response
                         )
                     elif response["type"] == "match":
-                        self._events.matches.send(
-                            self._events.matches, payload=response
+                        self.events.matches.send(
+                            self.events.matches, payload=response
                         )
                         """
                         Below is an example of one match message from Coinbase
@@ -150,7 +150,14 @@ class CoinbasePublicFeed(Heartbeater):
                         )
                         logging.info(f"Received Trade: {trade}")
 
-                        self._candlestick_generator.on_trade(trade)
+                        candlesticks = self._candlestick_generator.on_trade(
+                            trade
+                        )
+                        for candlestick in candlesticks:
+                            self.events.candlestick.send(
+                                self.events.candlestick,
+                                candlestick=candlestick,
+                            )
                     else:
                         pass  # Ignore unsupported message types
 
