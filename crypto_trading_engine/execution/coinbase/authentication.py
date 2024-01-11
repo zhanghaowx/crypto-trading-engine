@@ -8,6 +8,24 @@ from cryptography.hazmat.primitives import serialization
 
 
 class Authentication:
+    """
+    Creates a JWT authentication for accessing the Coinbase REST API.
+    See below for an example:
+
+    .. code-block::
+
+        auth = Authentication()
+        response = requests.get(
+            "https://api.coinbase.com/api/v3/brokerage/accounts",
+            headers=auth.generate_authorization_header(
+                "GET api.coinbase.com/api/v3/brokerage/accounts"
+            )
+        )
+
+    This class is deprecated and might be removed in the future. Please use
+    coinbase-advanced-py
+    """
+
     def __init__(
         self,
         api_key: Union[str, None] = os.getenv("COINBASE_API_KEY"),
