@@ -39,6 +39,8 @@ async def main():  # pragma: no cover
     strategy = BullFlagStrategy(
         "ETH-USD",
         risk_limits=[OrderFrequencyLimit(number_of_orders=1, in_seconds=60)],
+        max_number_of_recent_candlesticks=3,
+        min_number_of_bearish_candlesticks=1,
         min_return_of_active_candlesticks=0.0001,
     )
     md.events.candlestick.connect(strategy.on_candlestick)

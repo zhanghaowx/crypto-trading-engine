@@ -16,14 +16,16 @@ class OrderFrequencyLimit(IRiskLimit):
         self.timestamps = list[datetime]()
 
     def can_send(self):
+        self._update()
         return len(self.timestamps) < self.number_of_orders
 
     def do_send(self):
         assert self.can_send()
         now = datetime.now(pytz.utc)
         self.timestamps.append(now)
+        self._update()
 
-    def update(self):
+    def _update(self):
         now = datetime.now(pytz.utc)
         self.timestamps = [
             t

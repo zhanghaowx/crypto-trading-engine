@@ -29,7 +29,6 @@ class TestOrderFrequencyLimit(unittest.TestCase):
         # Move time to the next interval
         # Now, can_send should return True again
         with freeze_time("2022-01-01 00:00:11 UTC"):
-            order_limit.update()
             self.assertTrue(order_limit.can_send())
 
     @freeze_time("2022-01-01 00:00:00 UTC")
@@ -67,5 +66,4 @@ class TestOrderFrequencyLimit(unittest.TestCase):
 
             # The timestamps list should only contain the timestamp of
             # the third order
-            order_limit.update()
             self.assertEqual(len(order_limit.timestamps), 1)
