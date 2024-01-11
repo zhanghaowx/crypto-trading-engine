@@ -34,7 +34,8 @@ class Candlestick:
             f"Close={self.close}, "
             f"Volume={self.volume}, "
             f"StartTime={self.start_time}, "
-            f"EndTime={self.end_time}"
+            f"EndTime={self.end_time}, "
+            f"ReturnPct={self.return_percentage()}"
             f")"
         )
 
@@ -99,4 +100,6 @@ class Candlestick:
         Returns:
             Rate of return if buy one share at open and sell at close
         """
+        if self.open == 0.0:
+            return 0.0
         return (self.close - self.open) / self.open

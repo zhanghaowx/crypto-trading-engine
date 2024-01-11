@@ -10,7 +10,7 @@ from blinker import signal
 from coinbase.rest import RESTClient
 
 from crypto_trading_engine.core.side import MarketSide
-from crypto_trading_engine.market_data.core.order import Order, OrderType
+from crypto_trading_engine.market_data.core.order import Order
 from crypto_trading_engine.market_data.core.order_book import OrderBook
 from crypto_trading_engine.market_data.core.trade import Trade
 
@@ -41,56 +41,21 @@ class MockExecutionService:
         self.order_fill_event = signal("order_fill")
         pass
 
-    def buy(self, symbol: str, price: Union[float, None], quantity: float):
+    def on_order(self, sender: str, order: Order):
         """
-        Place a buy order in the market. Signals will be sent to
+        Place an order in the market. Signals will be sent to
         `order_fill_event` if there will be a trade or several trades.
 
         Args:
-            symbol: Symbol of the product to buy
-            price: Price of the product to buy
-            quantity: Quantity of the product to buy
-
-        Returns:
-            None
-        """
-        buy_order_id = str(uuid.uuid4())
-        buy_order = Order(
-            client_order_id=buy_order_id,
-            order_type=OrderType.MARKET_ORDER,
-            symbol=symbol,
-            price=price,
-            quantity=quantity,
-            side=MarketSide.BUY,
-        )
-        self.order_history[buy_order_id] = buy_order
-        self._perform_order_match(buy_order, self._build_order_book(symbol))
-
-    def sell(self, symbol: str, price: Union[float, None], quantity: float):
-        """
-        Place a sell order in the market. Signals will be sent to
-        `order_fill_event` if there will be a trade or several trades.
-
-        Args:
-            symbol: Symbol of the product to sell
-            price: Price of the product to sell
-            quantity: Quantity of the product to sell
+            sender: Name of the sender of the order request
+            order: Details about the order including symbol, price and quantity
 
         Returns:
             None
 
         """
-        sell_order_id = str(uuid.uuid4())
-        sell_order = Order(
-            client_order_id=sell_order_id,
-            order_type=OrderType.MARKET_ORDER,
-            symbol=symbol,
-            price=price,
-            quantity=quantity,
-            side=MarketSide.SELL,
-        )
-        self.order_history[sell_order_id] = sell_order
-        self._perform_order_match(sell_order, self._build_order_book(symbol))
+        self.order_history[order.client_order_id] = order
+        self._perform_order_match(order, self._build_order_book(order.symbol))
 
     # noinspection PyArgumentList
     # Definition of RESTClient.get_product_book confuses linter
@@ -101,10 +66,14 @@ class MockExecutionService:
         # Recreate the order book from JSON response
         order_book = OrderBook()
         for bid in json_response["pricebook"]["bids"]:
-            order_book.add_bid(price=bid["price"], quantity=bid["size"])
+            order_book.add_bid(
+                price=float(bid["price"]), quantity=float(bid["size"])
+            )
 
         for ask in json_response["pricebook"]["asks"]:
-            order_book.add_ask(price=ask["price"], quantity=ask["size"])
+            order_book.add_ask(
+                price=float(ask["price"]), quantity=float(ask["size"])
+            )
 
         return order_book
 

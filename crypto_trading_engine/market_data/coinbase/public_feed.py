@@ -152,7 +152,7 @@ class CoinbasePublicFeed(Heartbeater):
                                 response["time"]
                             ),
                         )
-                        logging.info(f"Received Trade: {trade}")
+                        logging.info(f"Received Market Trade: {trade}")
 
                         candlesticks = self._candlestick_generator.on_trade(
                             trade

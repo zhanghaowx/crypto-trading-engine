@@ -3,6 +3,9 @@ CLI interface for crypto_trading_engine project.
 """
 import logging
 
+from crypto_trading_engine.execution.coinbase.execution_service import (
+    MockExecutionService,
+)
 from crypto_trading_engine.market_data.coinbase.public_feed import (
     CoinbaseEnvironment,
     CoinbasePublicFeed,
@@ -30,7 +33,14 @@ async def main():  # pragma: no cover
     md_connection = md.connect(["ETH-USD"])
 
     # Strategy Setup
-    strategy = BullFlagStrategy(min_return_of_active_candlesticks=0.0001)
+    strategy = BullFlagStrategy(
+        "ETH-USD", min_return_of_active_candlesticks=0.0001
+    )
     md.events.candlestick.connect(strategy.on_candlestick)
+
+    # Execution Setup
+    execution_service = MockExecutionService()
+    strategy.order_event.connect(execution_service.on_order)
+    execution_service.order_fill_event.connect(strategy.on_fill)
 
     await md_connection

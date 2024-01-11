@@ -34,7 +34,8 @@ class TestCandlestick(unittest.IsolatedAsyncioTestCase):
             "Close=0.0, "
             "Volume=0.0, "
             "StartTime=2024-01-01 00:00:00, "
-            "EndTime=2024-01-01 00:00:01)",
+            "EndTime=2024-01-01 00:00:01, "
+            "ReturnPct=0.0)",
         )
 
     async def test_candlestick_add_trade_failure(self):
