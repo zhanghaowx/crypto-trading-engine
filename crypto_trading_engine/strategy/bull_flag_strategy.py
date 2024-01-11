@@ -11,12 +11,14 @@ from crypto_trading_engine.core.side import MarketSide
 from crypto_trading_engine.market_data.common.candlestick import Candlestick
 from crypto_trading_engine.market_data.core.order import Order, OrderType
 from crypto_trading_engine.market_data.core.trade import Trade
+from crypto_trading_engine.risk_limit.risk_limit import IRiskLimit
 
 
 class BullFlagStrategy(Heartbeater):
     def __init__(
         self,
         symbol: str,
+        risk_limits: list[IRiskLimit],
         max_number_of_recent_candlesticks: int = 2,
         min_number_of_bearish_candlesticks: int = 1,
         min_return_of_active_candlesticks: float = 0.1,
@@ -54,6 +56,7 @@ class BullFlagStrategy(Heartbeater):
             maxlen=max_number_of_recent_candlesticks
         )
         self.symbol = symbol
+        self.risk_limits = risk_limits
         self.active_candlestick: Union[None, Candlestick] = None
         self.order_event = signal("order")
 
@@ -64,23 +67,10 @@ class BullFlagStrategy(Heartbeater):
             self.active_candlestick = candlestick
 
         if self.should_buy():
-            order = Order(
-                client_order_id=str(uuid.uuid4()),
-                order_type=OrderType.MARKET_ORDER,
-                symbol=self.symbol,
-                price=None,
-                quantity=0.01,
-                side=MarketSide.BUY,
-            )
-            logging.info(
-                f"Placed {order} with history {self.history} and "
-                f"current active/incomplete candlestick "
-                f"{self.active_candlestick}"
-            )
-            self.order_event.send(self.order_event, order=order)
+            self.try_buy()
 
     def on_fill(self, _: str, trade: Trade):
-        logging.info(f"Received {trade}")
+        logging.info(f"Received {trade} for {self.symbol}")
 
     def gather_features(self):
         """
@@ -111,4 +101,27 @@ class BullFlagStrategy(Heartbeater):
         ):
             return False
 
+        return True
+
+    def try_buy(self):
+        for limit in self.risk_limits:
+            if not limit.can_send():
+                return False
+        for limit in self.risk_limits:
+            limit.do_send()
+
+        order = Order(
+            client_order_id=str(uuid.uuid4()),
+            order_type=OrderType.MARKET_ORDER,
+            symbol=self.symbol,
+            price=None,
+            quantity=0.01,
+            side=MarketSide.BUY,
+        )
+        logging.info(
+            f"Placed {order} with history {self.history} and "
+            f"current active/incomplete candlestick "
+            f"{self.active_candlestick}"
+        )
+        self.order_event.send(self.order_event, order=order)
         return True

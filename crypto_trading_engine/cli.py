@@ -10,6 +10,9 @@ from crypto_trading_engine.market_data.coinbase.public_feed import (
     CoinbaseEnvironment,
     CoinbasePublicFeed,
 )
+from crypto_trading_engine.risk_limit.order_frequency_limit import (
+    OrderFrequencyLimit,
+)
 from crypto_trading_engine.strategy.bull_flag_strategy import BullFlagStrategy
 
 
@@ -34,7 +37,9 @@ async def main():  # pragma: no cover
 
     # Strategy Setup
     strategy = BullFlagStrategy(
-        "ETH-USD", min_return_of_active_candlesticks=0.0001
+        "ETH-USD",
+        risk_limits=[OrderFrequencyLimit(number_of_orders=1, in_seconds=60)],
+        min_return_of_active_candlesticks=0.0001,
     )
     md.events.candlestick.connect(strategy.on_candlestick)
 
