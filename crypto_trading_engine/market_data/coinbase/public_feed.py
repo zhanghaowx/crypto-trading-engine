@@ -53,10 +53,10 @@ class CoinbasePublicFeed(Heartbeater):
             https://docs.cloud.coinbase.com/exchange/docs/websocket-channels
         """
 
-        channel_heartbeat = signal("heartbeat")
-        ticker = signal("ticker")
-        matches = signal("matches")
-        candlestick = signal("calculated candlestick")
+        channel_heartbeat = signal("channel_heartbeat_feed")
+        ticker = signal("ticker_feed")
+        matches = signal("matches_feed")
+        candlestick = signal("calculated_candlestick_feed")
 
     def __init__(
         self,

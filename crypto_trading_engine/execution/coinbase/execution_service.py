@@ -1,7 +1,6 @@
 import os
 import uuid
 from copy import copy
-from dataclasses import dataclass
 from datetime import datetime
 from random import randint
 from typing import Union
@@ -11,19 +10,12 @@ from blinker import signal
 from coinbase.rest import RESTClient
 
 from crypto_trading_engine.core.side import MarketSide
+from crypto_trading_engine.market_data.core.order import Order, OrderType
 from crypto_trading_engine.market_data.core.order_book import OrderBook
 from crypto_trading_engine.market_data.core.trade import Trade
 
 
 class MockExecutionService:
-    @dataclass
-    class Order:
-        id: str
-        symbol: str
-        price: Union[float, None]
-        quantity: float
-        side: MarketSide
-
     def __init__(
         self,
         api_key: Union[str, None] = os.getenv("COINBASE_API_KEY"),
@@ -45,7 +37,7 @@ class MockExecutionService:
         testing your strategy.
         """
         self._client = RESTClient(api_key=api_key, api_secret=api_secret)
-        self.order_history = dict[str, MockExecutionService.Order]()
+        self.order_history = dict[str, Order]()
         self.order_fill_event = signal("order_fill")
         pass
 
@@ -63,8 +55,9 @@ class MockExecutionService:
             None
         """
         buy_order_id = str(uuid.uuid4())
-        buy_order = MockExecutionService.Order(
-            id=buy_order_id,
+        buy_order = Order(
+            client_order_id=buy_order_id,
+            order_type=OrderType.MARKET_ORDER,
             symbol=symbol,
             price=price,
             quantity=quantity,
@@ -88,8 +81,9 @@ class MockExecutionService:
 
         """
         sell_order_id = str(uuid.uuid4())
-        sell_order = MockExecutionService.Order(
-            id=sell_order_id,
+        sell_order = Order(
+            client_order_id=sell_order_id,
+            order_type=OrderType.MARKET_ORDER,
             symbol=symbol,
             price=price,
             quantity=quantity,

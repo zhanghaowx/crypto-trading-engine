@@ -1,11 +1,14 @@
-import logging
+import uuid
 from collections import deque
 from typing import Union
 
 import pandas as pd
+from blinker import signal
 
 from crypto_trading_engine.core.health_monitor.heartbeat import Heartbeater
+from crypto_trading_engine.core.side import MarketSide
 from crypto_trading_engine.market_data.common.candlestick import Candlestick
+from crypto_trading_engine.market_data.core.order import Order, OrderType
 
 
 class BullFlagStrategy(Heartbeater):
@@ -44,6 +47,7 @@ class BullFlagStrategy(Heartbeater):
             maxlen=max_number_of_recent_candlesticks
         )
         self.active_candlestick: Union[None, Candlestick] = None
+        self.order_event = signal("order")
 
     def on_candlestick(self, _: str, candlestick: Candlestick):
         if candlestick.is_completed():
@@ -52,8 +56,15 @@ class BullFlagStrategy(Heartbeater):
             self.active_candlestick = candlestick
 
         if self.should_buy():
-            print("Buying...")
-            logging.info(">>> Buy Decision <<<")
+            order = Order(
+                client_order_id=str(uuid.uuid4()),
+                order_type=OrderType.MARKET_ORDER,
+                symbol="ETH-USD",
+                price=None,
+                quantity=0.01,
+                side=MarketSide.BUY,
+            )
+            self.order_event.send(self.order_event, order=order)
 
     def gather_features(self):
         """
