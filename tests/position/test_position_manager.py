@@ -76,23 +76,35 @@ class TestPositionManager(unittest.IsolatedAsyncioTestCase):
         buy("BTC", 1.5, 100.0)
         buy("ETH", 2.5, 1000.0)
 
-        position_manager._on_sell("ETH", 2.0, 5.0)
+        sell("ETH", 2.0, 5.0)
         self.assertEqual(2, len(position_manager.positions))
         self.assertEqual(100.0, position_manager.positions["BTC"].volume)
         self.assertEqual(150.0, position_manager.positions["BTC"].cash_value)
         self.assertEqual(995.0, position_manager.positions["ETH"].volume)
         self.assertEqual(2490.0, position_manager.positions["ETH"].cash_value)
 
-        position_manager._on_sell("ETH", 1.0, 10.0)
+        sell("ETH", 1.0, 10.0)
         self.assertEqual(2, len(position_manager.positions))
         self.assertEqual(100.0, position_manager.positions["BTC"].volume)
         self.assertEqual(150.0, position_manager.positions["BTC"].cash_value)
         self.assertEqual(985.0, position_manager.positions["ETH"].volume)
         self.assertEqual(2480.0, position_manager.positions["ETH"].cash_value)
 
-        position_manager._on_sell("BTC", 0.5, 20.0)
+        sell("BTC", 0.5, 20.0)
         self.assertEqual(2, len(position_manager.positions))
         self.assertEqual(80.0, position_manager.positions["BTC"].volume)
         self.assertEqual(140.0, position_manager.positions["BTC"].cash_value)
         self.assertEqual(985.0, position_manager.positions["ETH"].volume)
         self.assertEqual(2480.0, position_manager.positions["ETH"].cash_value)
+
+    def test_on_fill_invalid_side(self):
+        trade = self.create_trade("invalid", "BTC-USD", 100.0, 1.0)
+
+        with self.assertRaises(AssertionError) as context:
+            position_manager = PositionManager()
+            position_manager.on_fill("_", trade)
+
+        self.assertRaisesRegex(
+            AssertionError,
+            "^Trade has an invalid trade side",
+        )
