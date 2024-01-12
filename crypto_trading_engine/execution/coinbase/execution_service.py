@@ -1,3 +1,4 @@
+import logging
 import os
 import uuid
 from copy import copy
@@ -54,8 +55,24 @@ class MockExecutionService:
             None
 
         """
+        order_book = self._build_order_book(order.symbol)
+
+        bid_levels = order_book.bids.levels
+        ask_levels = order_book.asks.levels
+        logging.info(
+            f"Built order book for {order.symbol}: "
+            f"Depth=("
+            f"Bid={len(bid_levels)}, "
+            f"Ask={len(ask_levels)}"
+            f"),"
+            f"BBO=("
+            f"Bid={next(iter(bid_levels.values()), None)}, "
+            f"Ask={next(iter(ask_levels.values()), None)}"
+            f")"
+        )
+
         self.order_history[order.client_order_id] = order
-        self._perform_order_match(order, self._build_order_book(order.symbol))
+        self._perform_order_match(order, order_book)
 
     # noinspection PyArgumentList
     # Definition of RESTClient.get_product_book confuses linter

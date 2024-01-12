@@ -152,7 +152,7 @@ class CoinbasePublicFeed(Heartbeater):
                         self.events.matches.send(
                             self.events.matches, market_trade=market_trade
                         )
-                        logging.info(f"Received Market Trade: {market_trade}")
+                        logging.debug(f"Received Market Trade: {market_trade}")
 
                         candlesticks = (
                             self._candlestick_generator.on_market_trade(
