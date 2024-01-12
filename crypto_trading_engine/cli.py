@@ -57,9 +57,9 @@ async def main():  # pragma: no cover
     strategy = BullFlagStrategy(
         "ETH-USD",
         risk_limits=[OrderFrequencyLimit(number_of_orders=1, in_seconds=60)],
-        max_number_of_recent_candlesticks=3,
-        min_number_of_bearish_candlesticks=1,
-        min_return_of_active_candlesticks=0.0001,
+        max_number_of_recent_candlesticks=5,
+        min_return_of_extreme_bullish_candlesticks=0.003,
+        min_return_of_active_candlesticks=0.001,
     )
 
     # Execution Setup
@@ -69,9 +69,9 @@ async def main():  # pragma: no cover
     position_manager = PositionManager()
 
     # Wire Events
-    connector.connect(md.events.ticker)
-    connector.connect(md.events.matches)
-    connector.connect(md.events.channel_heartbeat)
+    # connector.connect(md.events.ticker)
+    # connector.connect(md.events.matches)
+    # connector.connect(md.events.channel_heartbeat)
     connector.connect(md.events.candlestick, strategy.on_candlestick)
     connector.connect(strategy.order_event, exec_service.on_order)
     connector.connect(exec_service.order_fill_event, strategy.on_fill)

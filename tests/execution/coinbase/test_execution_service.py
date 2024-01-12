@@ -1,9 +1,7 @@
 import unittest
 import uuid
 from typing import Union
-from unittest.mock import Mock, patch
-
-from blinker import signal
+from unittest.mock import Mock
 
 from crypto_trading_engine.core.side import MarketSide
 from crypto_trading_engine.execution.coinbase.execution_service import (
@@ -23,8 +21,8 @@ class TestMockExecutionService(unittest.TestCase):
             "pricebook": {
                 "product_id": "BTC-USD",
                 "bids": [
-                    {"price": "99.0", "size": "1.0"},
                     {"price": "99.5", "size": "2.0"},
+                    {"price": "99.0", "size": "1.0"},
                 ],
                 "asks": [
                     {"price": "100.5", "size": "1.0"},

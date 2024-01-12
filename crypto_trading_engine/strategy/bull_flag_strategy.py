@@ -20,8 +20,8 @@ class BullFlagStrategy(Heartbeater):
         symbol: str,
         risk_limits: list[IRiskLimit],
         max_number_of_recent_candlesticks: int = 2,
-        min_number_of_bearish_candlesticks: int = 1,
-        min_return_of_active_candlesticks: float = 0.1,
+        min_return_of_extreme_bullish_candlesticks: float = 0.1,
+        min_return_of_active_candlesticks: float = 0.05,
     ):
         """
         Idea take from the book "How to day-trade for a living",
@@ -46,11 +46,11 @@ class BullFlagStrategy(Heartbeater):
         self.max_number_of_past_candlesticks = (
             max_number_of_recent_candlesticks
         )
-        self.min_number_of_bearish_candlesticks = (
-            min_number_of_bearish_candlesticks
-        )
         self.min_return_of_active_candlesticks = (
             min_return_of_active_candlesticks
+        )
+        self.min_return_of_extreme_bullish_candlesticks = (
+            min_return_of_extreme_bullish_candlesticks
         )
         self.history = deque[Candlestick](
             maxlen=max_number_of_recent_candlesticks
@@ -90,11 +90,15 @@ class BullFlagStrategy(Heartbeater):
             return False
 
         # Don't consider it as an opportunity for bull flag strategy
-        # if there is no minimal number of bearish candlestick in the past
-        for i in range(0, self.min_number_of_bearish_candlesticks):
-            if not self.history[len(self.history) - i - 1].is_bearish():
-                return False
+        # if the last candlestick is not extremely bullish
+        if (
+            self.history[-1].return_percentage()
+            < self.min_return_of_extreme_bullish_candlesticks
+        ):
+            return False
 
+        # Don't consider it as an opportunity for bull flag strategy
+        # if the current candlestick is not trending bullish
         if (
             self.active_candlestick.return_percentage()
             < self.min_return_of_active_candlesticks

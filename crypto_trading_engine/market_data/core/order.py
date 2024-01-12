@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import Union
+from typing import ClassVar, Union
 
 from crypto_trading_engine.core.side import MarketSide
 
@@ -16,6 +16,7 @@ class Order:
     as of now. More types of orders will be added.
     """
 
+    PRIMARY_KEY: ClassVar[str] = "client_order_id"
     client_order_id: str
     order_type: OrderType
     symbol: str

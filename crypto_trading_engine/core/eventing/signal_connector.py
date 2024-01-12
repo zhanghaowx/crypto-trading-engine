@@ -48,8 +48,7 @@ class SignalConnector:
         """
         conn = sqlite3.connect(self.database_name)
         for name, df in self.events.items():
-            logging.info(f"Saving {name}...")
-            logging.info(df.info())
+            logging.info(f"Saving DataFrame {name} with shape {df.shape}...")
             df.to_sql(name=name, con=conn, if_exists="replace")
         conn.close()
 
@@ -69,6 +68,7 @@ class SignalConnector:
                     f"Fail to persist signal {name}: "
                     f"Cannot convert {type(payload)} to dict!"
                 )
+                return
 
             if not hasattr(payload, "PRIMARY_KEY"):
                 logging.error(

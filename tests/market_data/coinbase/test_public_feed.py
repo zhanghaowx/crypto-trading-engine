@@ -22,21 +22,37 @@ class TestCandlestick(unittest.IsolatedAsyncioTestCase):
     """
     ticker_feed = """
     {
-       "type":"ticker"
+        "type": "ticker",
+        "sequence": 37475248783,
+        "product_id": "ETH-USD",
+        "price": "1285.22",
+        "open_24h": "1310.79",
+        "volume_24h": "245532.79269678",
+        "low_24h": "1280.52",
+        "high_24h": "1313.8",
+        "volume_30d": "9788783.60117027",
+        "best_bid": "1285.04",
+        "best_bid_size": "0.46688654",
+        "best_ask": "1285.27",
+        "best_ask_size": "1.56637040",
+        "side": "buy",
+        "time": "2022-10-19T23:28:22.061769Z",
+        "trade_id": 370843401,
+        "last_size": "11.4396987"
     }
     """
     match_feed = """
     {
-       "type":"match",
-       "trade_id":488446358,
-       "maker_order_id":"432663f7-d90a-40c6-bdaa-2d8e33f7e378",
-       "taker_order_id":"6d7362a5-baea-46ec-9faf-6a4446aee169",
-       "side":"buy",
-       "size":"0.00219265",
-       "price":"2274.61",
-       "product_id":"ETH-USD",
-       "sequence":52808418658,
-       "time":"2024-01-09T18:27:11.361885Z"
+        "type":"match",
+        "trade_id":488446358,
+        "maker_order_id":"432663f7-d90a-40c6-bdaa-2d8e33f7e378",
+        "taker_order_id":"6d7362a5-baea-46ec-9faf-6a4446aee169",
+        "side":"buy",
+        "size":"0.00219265",
+        "price":"2274.61",
+        "product_id":"ETH-USD",
+        "sequence":52808418658,
+        "time":"2024-01-09T18:27:11.361885Z"
     }
     """
     subscriptions_feed = """
