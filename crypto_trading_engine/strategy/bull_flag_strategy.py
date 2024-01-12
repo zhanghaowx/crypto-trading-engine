@@ -1,9 +1,10 @@
 import logging
 import uuid
 from collections import deque
-from typing import Union
+from datetime import datetime
 
 import pandas as pd
+import pytz
 from blinker import signal
 
 from crypto_trading_engine.core.health_monitor.heartbeat import Heartbeater
@@ -57,14 +58,25 @@ class BullFlagStrategy(Heartbeater):
         )
         self.symbol = symbol
         self.risk_limits = risk_limits
-        self.active_candlestick: Union[None, Candlestick] = None
         self.order_event = signal("order")
 
     def on_candlestick(self, _: str, candlestick: Candlestick):
-        if candlestick.is_completed():
+        # It shall be either an update on last candlestick or a new
+        # candlestick.
+        assert (
+            len(self.history) == 0
+            or self.history[-1].start_time <= candlestick.start_time
+        ), "Candlesticks shall be sent in time order!"
+
+        if (
+            len(self.history) == 0
+            or self.history[-1].start_time < candlestick.start_time
+        ):
             self.history.append(candlestick)
+        elif self.history[-1].start_time == candlestick.start_time:
+            self.history[-1] = candlestick
         else:
-            self.active_candlestick = candlestick
+            raise Exception("Candlesticks shall be sent in time order!")
 
         if self.should_buy():
             self.try_buy()
@@ -81,7 +93,6 @@ class BullFlagStrategy(Heartbeater):
             A list of features to send to strategy model
         """
         all_candlesticks = [x.__dict__ for x in self.history]
-        all_candlesticks.append(self.active_candlestick.__dict__)
         return pd.DataFrame(all_candlesticks)
 
     def should_buy(self):
@@ -92,7 +103,7 @@ class BullFlagStrategy(Heartbeater):
         # Don't consider it as an opportunity for bull flag strategy
         # if the last candlestick is not extremely bullish
         if (
-            self.history[-1].return_percentage()
+            self.history[-2].return_percentage()
             < self.min_return_of_extreme_bullish_candlesticks
         ):
             return False
@@ -100,7 +111,7 @@ class BullFlagStrategy(Heartbeater):
         # Don't consider it as an opportunity for bull flag strategy
         # if the current candlestick is not trending bullish
         if (
-            self.active_candlestick.return_percentage()
+            self.history[-1].return_percentage()
             < self.min_return_of_active_candlesticks
         ):
             return False
@@ -121,11 +132,8 @@ class BullFlagStrategy(Heartbeater):
             price=None,
             quantity=0.01,
             side=MarketSide.BUY,
+            creation_time=datetime.now(pytz.utc),
         )
-        logging.info(
-            f"Placed {order} with history {self.history} and "
-            f"current active/incomplete candlestick "
-            f"{self.active_candlestick}"
-        )
+        logging.info(f"Placed {order} with candlesticks {self.history}.")
         self.order_event.send(self.order_event, order=order)
         return True

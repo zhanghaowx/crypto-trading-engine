@@ -25,3 +25,9 @@ PyJWT
 
 ## Needed by exchanges who use websockets to disseminate market data
 websockets
+
+# These requirements are for data analysis only, may or may not for production
+jupyter
+plotly
+mplfinance
+###

@@ -2,6 +2,7 @@
 CLI interface for crypto_trading_engine project.
 """
 import logging
+import os
 import signal
 import sys
 
@@ -11,9 +12,12 @@ from crypto_trading_engine.core.eventing.signal_connector import (
 from crypto_trading_engine.execution.coinbase.execution_service import (
     MockExecutionService,
 )
+from crypto_trading_engine.market_data.coinbase.historical_feed import (
+    HistoricalFeed,
+)
 from crypto_trading_engine.market_data.coinbase.public_feed import (
     CoinbaseEnvironment,
-    CoinbasePublicFeed,
+    PublicFeed,
 )
 from crypto_trading_engine.position.position_manager import PositionManager
 from crypto_trading_engine.risk_limit.order_frequency_limit import (
@@ -37,21 +41,30 @@ async def main():  # pragma: no cover
     Connects different components, starts the engine and runs a strategy.
     """
 
-    connector = SignalConnector()
+    source_directory = os.path.dirname(os.path.dirname(__file__))
+    connector = SignalConnector(
+        database_name=f"{source_directory}/analysis/crypto.sqlite3"
+    )
 
     # Logging setup
     logging.basicConfig(
-        filename="crypto.log",
+        filename="{source_directory}/analysis/crypto.log",
         filemode="w",
         format="[%(asctime)s][%(name)s][%(levelname)s] - %(message)s",
         level=logging.INFO,
     )
 
     # Market Data Setup
-    md = CoinbasePublicFeed(
+
+    # Live
+    md_live = PublicFeed(
         env=CoinbaseEnvironment.PRODUCTION, candlestick_interval_in_seconds=60
     )
-    md_connection = md.connect(["ETH-USD"])
+    _ = md_live  # Variable is assigned but not used intentionally
+
+    # Historical
+    md_historical = HistoricalFeed()
+    _ = md_historical  # Variable is assigned but not used intentionally
 
     # Strategy Setup
     strategy = BullFlagStrategy(
@@ -72,9 +85,12 @@ async def main():  # pragma: no cover
     # connector.connect(md.events.ticker)
     # connector.connect(md.events.matches)
     # connector.connect(md.events.channel_heartbeat)
-    connector.connect(md.events.candlestick, strategy.on_candlestick)
+    connector.connect(
+        md_historical.events.candlestick, strategy.on_candlestick
+    )
     connector.connect(strategy.order_event, exec_service.on_order)
     connector.connect(exec_service.order_fill_event, strategy.on_fill)
     connector.connect(exec_service.order_fill_event, position_manager.on_fill)
 
-    await md_connection
+    # await md_live.connect(["ETH-USD"])
+    await md_historical.connect("ETH-USD")

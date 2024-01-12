@@ -1,7 +1,10 @@
 import unittest
 import uuid
+from datetime import datetime
 from typing import Union
 from unittest.mock import Mock
+
+import pytz
 
 from crypto_trading_engine.core.side import MarketSide
 from crypto_trading_engine.execution.coinbase.execution_service import (
@@ -57,6 +60,7 @@ class TestMockExecutionService(unittest.TestCase):
             price=price,
             quantity=quantity,
             side=MarketSide.BUY,
+            creation_time=datetime.now(pytz.utc),
         )
         self.execution_service.on_order("unittest", buy_order)
 
@@ -82,6 +86,7 @@ class TestMockExecutionService(unittest.TestCase):
             price=price,
             quantity=quantity,
             side=MarketSide.SELL,
+            creation_time=datetime.now(pytz.utc),
         )
         self.execution_service.on_order("unittest", sell_order)
 

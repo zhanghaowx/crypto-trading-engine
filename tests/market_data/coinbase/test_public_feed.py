@@ -4,7 +4,7 @@ from unittest.mock import patch, AsyncMock, Mock
 import websockets
 
 from crypto_trading_engine.market_data.coinbase.public_feed import (
-    CoinbasePublicFeed,
+    PublicFeed,
     CoinbaseEnvironment,
 )
 
@@ -81,9 +81,7 @@ class TestCandlestick(unittest.IsolatedAsyncioTestCase):
 
         mock_connect.return_value = await async_context_manager()
 
-        await CoinbasePublicFeed(CoinbaseEnvironment.PRODUCTION).connect(
-            ["ETH-USD"]
-        )
+        await PublicFeed(CoinbaseEnvironment.PRODUCTION).connect(["ETH-USD"])
 
         # Assertions
         mock_connect.assert_called_once_with(
@@ -104,9 +102,7 @@ class TestCandlestick(unittest.IsolatedAsyncioTestCase):
 
         mock_connect.return_value = await async_context_manager()
 
-        await CoinbasePublicFeed(CoinbaseEnvironment.SANDBOX).connect(
-            ["ETH-USD"]
-        )
+        await PublicFeed(CoinbaseEnvironment.SANDBOX).connect(["ETH-USD"])
 
         # Assertions
         mock_connect.assert_called_once_with(
@@ -128,7 +124,7 @@ class TestCandlestick(unittest.IsolatedAsyncioTestCase):
 
         mock_connect.return_value = await async_context_manager()
 
-        feed = CoinbasePublicFeed(CoinbaseEnvironment.SANDBOX)
+        feed = PublicFeed(CoinbaseEnvironment.SANDBOX)
         feed.events = Mock()
         await feed.connect(["ETH-USD"])
 
@@ -153,7 +149,7 @@ class TestCandlestick(unittest.IsolatedAsyncioTestCase):
 
         mock_connect.return_value = await async_context_manager()
 
-        feed = CoinbasePublicFeed(CoinbaseEnvironment.SANDBOX)
+        feed = PublicFeed(CoinbaseEnvironment.SANDBOX)
         feed.events = Mock()
         await feed.connect(["ETH-USD"])
 
@@ -177,7 +173,7 @@ class TestCandlestick(unittest.IsolatedAsyncioTestCase):
 
         mock_connect.return_value = await async_context_manager()
 
-        feed = CoinbasePublicFeed(CoinbaseEnvironment.SANDBOX)
+        feed = PublicFeed(CoinbaseEnvironment.SANDBOX)
         feed.events = Mock()
         await feed.connect(["ETH-USD"])
 
@@ -202,7 +198,7 @@ class TestCandlestick(unittest.IsolatedAsyncioTestCase):
 
         mock_connect.return_value = await async_context_manager()
 
-        feed = CoinbasePublicFeed(CoinbaseEnvironment.SANDBOX)
+        feed = PublicFeed(CoinbaseEnvironment.SANDBOX)
         feed.events = Mock()
         await feed.connect(["ETH-USD"])
 
@@ -227,7 +223,7 @@ class TestCandlestick(unittest.IsolatedAsyncioTestCase):
 
         mock_connect.return_value = await async_context_manager()
 
-        feed = CoinbasePublicFeed(CoinbaseEnvironment.SANDBOX)
+        feed = PublicFeed(CoinbaseEnvironment.SANDBOX)
         feed.events = Mock()
         await feed.connect(["ETH-USD"])
 
@@ -250,7 +246,7 @@ class TestCandlestick(unittest.IsolatedAsyncioTestCase):
 
         mock_connect.return_value = await async_context_manager()
 
-        feed = CoinbasePublicFeed(CoinbaseEnvironment.SANDBOX)
+        feed = PublicFeed(CoinbaseEnvironment.SANDBOX)
         feed.events = Mock()
         await feed.connect(["ETH-USD"])
 

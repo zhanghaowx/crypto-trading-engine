@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
 from typing import ClassVar, Union
 
@@ -23,3 +24,4 @@ class Order:
     price: Union[float, None]
     quantity: float
     side: MarketSide
+    creation_time: datetime

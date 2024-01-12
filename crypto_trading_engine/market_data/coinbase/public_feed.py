@@ -23,7 +23,7 @@ class CoinbaseEnvironment(Enum):
     SANDBOX = 2
 
 
-class CoinbasePublicFeed(Heartbeater):
+class PublicFeed(Heartbeater):
     """
     Coinbase's webSocket feed is publicly available and provides real-time
     market data updates for orders and trades.
@@ -63,8 +63,8 @@ class CoinbasePublicFeed(Heartbeater):
         env: CoinbaseEnvironment = CoinbaseEnvironment.SANDBOX,
         candlestick_interval_in_seconds: int = 60,
     ):
-        super().__init__(type(self).__name__, interval_in_seconds=0)
-        self.events = CoinbasePublicFeed.Events()
+        super().__init__(type(self).__name__, interval_in_seconds=10)
+        self.events = PublicFeed.Events()
         self._env = env
         self._candlestick_generator = CandlestickGenerator(
             interval_in_seconds=candlestick_interval_in_seconds
