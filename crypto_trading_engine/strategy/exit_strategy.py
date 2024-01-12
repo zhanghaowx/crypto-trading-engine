@@ -1,3 +1,5 @@
+from blinker import signal
+
 from crypto_trading_engine.core.health_monitor.heartbeat import Heartbeater
 from crypto_trading_engine.market_data.core.candlestick import Candlestick
 from crypto_trading_engine.market_data.core.trade import Trade
@@ -11,6 +13,10 @@ class ExitStrategy(Heartbeater):
         - Loss: Either the entire account stop loss condition is met,
                 or the price is worse than the last support/resist price
     """
+
+    def __init__(self):
+        super().__init__(type(self).__name__, interval_in_seconds=5)
+        self.order_event = signal("order")
 
     def on_candlestick(self, _: str, candlestick: Candlestick):
         """

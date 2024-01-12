@@ -9,7 +9,7 @@ from crypto_trading_engine.market_data.coinbase.public_feed import (
 )
 
 
-class TestCandlestick(unittest.IsolatedAsyncioTestCase):
+class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
     unknown_feed = """
     {
         "type":"unknown"
@@ -72,7 +72,7 @@ class TestCandlestick(unittest.IsolatedAsyncioTestCase):
         # Create a mock websocket object
         mock_websocket = AsyncMock()
         mock_websocket.__aenter__.return_value.recv.side_effect = [
-            TestCandlestick.error
+            TestPublicFeed.error
         ]
 
         # Set up the mock context manager
@@ -93,7 +93,7 @@ class TestCandlestick(unittest.IsolatedAsyncioTestCase):
         # Create a mock websocket object
         mock_websocket = AsyncMock()
         mock_websocket.__aenter__.return_value.recv.side_effect = [
-            TestCandlestick.error
+            TestPublicFeed.error
         ]
 
         # Set up the mock context manager
@@ -114,8 +114,8 @@ class TestCandlestick(unittest.IsolatedAsyncioTestCase):
         # Create a mock websocket object
         mock_websocket = AsyncMock()
         mock_websocket.__aenter__.return_value.recv.side_effect = [
-            TestCandlestick.heartbeat_feed,
-            TestCandlestick.error,
+            TestPublicFeed.heartbeat_feed,
+            TestPublicFeed.error,
         ]
 
         # Set up the mock context manager
@@ -139,8 +139,8 @@ class TestCandlestick(unittest.IsolatedAsyncioTestCase):
         # Create a mock websocket object
         mock_websocket = AsyncMock()
         mock_websocket.__aenter__.return_value.recv.side_effect = [
-            TestCandlestick.subscriptions_feed,
-            TestCandlestick.error,
+            TestPublicFeed.subscriptions_feed,
+            TestPublicFeed.error,
         ]
 
         # Set up the mock context manager
@@ -163,8 +163,8 @@ class TestCandlestick(unittest.IsolatedAsyncioTestCase):
         # Create a mock websocket object
         mock_websocket = AsyncMock()
         mock_websocket.__aenter__.return_value.recv.side_effect = [
-            TestCandlestick.ticker_feed,
-            TestCandlestick.error,
+            TestPublicFeed.ticker_feed,
+            TestPublicFeed.error,
         ]
 
         # Set up the mock context manager
@@ -188,8 +188,8 @@ class TestCandlestick(unittest.IsolatedAsyncioTestCase):
         # Create a mock websocket object
         mock_websocket = AsyncMock()
         mock_websocket.__aenter__.return_value.recv.side_effect = [
-            TestCandlestick.match_feed,
-            TestCandlestick.error,
+            TestPublicFeed.match_feed,
+            TestPublicFeed.error,
         ]
 
         # Set up the mock context manager
@@ -213,8 +213,8 @@ class TestCandlestick(unittest.IsolatedAsyncioTestCase):
         # Create a mock websocket object
         mock_websocket = AsyncMock()
         mock_websocket.__aenter__.return_value.recv.side_effect = [
-            TestCandlestick.unknown_feed,
-            TestCandlestick.error,
+            TestPublicFeed.unknown_feed,
+            TestPublicFeed.error,
         ]
 
         # Set up the mock context manager

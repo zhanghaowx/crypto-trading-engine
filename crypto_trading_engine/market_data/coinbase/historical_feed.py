@@ -46,8 +46,8 @@ class HistoricalFeed(Heartbeater):
         end_time: datetime = datetime.now(pytz.utc),
         candlestick_interval_in_seconds: int = 60,
         replay_speed: int = 600,
-        api_key: Union[str, None] = os.getenv("COINBASE_API_KEY"),
-        api_secret: Union[str, None] = os.getenv("COINBASE_API_SECRET"),
+        api_key: Union[str, None] = None,
+        api_secret: Union[str, None] = None,
     ):
         super().__init__(type(self).__name__, interval_in_seconds=0)
         self.events = HistoricalFeed.Events()
@@ -57,7 +57,12 @@ class HistoricalFeed(Heartbeater):
             candlestick_interval_in_seconds
         )
         self._replay_speed = replay_speed
-        self._client = RESTClient(api_key=api_key, api_secret=api_secret)
+        self._client = RESTClient(
+            api_key=(api_key if api_key else os.getenv("COINBASE_API_KEY")),
+            api_secret=(
+                api_secret if api_secret else os.getenv("COINBASE_API_SECRET")
+            ),
+        )
 
     async def connect(self, symbol: str):
         candlesticks = self._get_candlesticks(symbol)

@@ -19,8 +19,8 @@ from crypto_trading_engine.market_data.core.trade import Trade
 class MockExecutionService:
     def __init__(
         self,
-        api_key: Union[str, None] = os.getenv("COINBASE_API_KEY"),
-        api_secret: Union[str, None] = os.getenv("COINBASE_API_SECRET"),
+        api_key: Union[str, None] = None,
+        api_secret: Union[str, None] = None,
     ):
         """
         Creates a mock execution service to act as the exchange. It will
@@ -37,7 +37,12 @@ class MockExecutionService:
         price level using market orders. Keep this limitation in mind when
         testing your strategy.
         """
-        self._client = RESTClient(api_key=api_key, api_secret=api_secret)
+        self._client = RESTClient(
+            api_key=(api_key if api_key else os.getenv("COINBASE_API_KEY")),
+            api_secret=(
+                api_secret if api_secret else os.getenv("COINBASE_API_SECRET")
+            ),
+        )
         self.order_history = dict[str, Order]()
         self.order_fill_event = signal("order_fill")
         pass
