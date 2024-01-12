@@ -71,6 +71,15 @@ class PublicFeed(Heartbeater):
         )
 
     async def connect(self, product_ids: list[str]):
+        """
+        Establish a connection to the remote service and subscribe to the
+        public market data feed.
+
+        Args:
+            product_ids: A list of product ids(symbols) to subscribe to.
+        Returns:
+            An asyncio task to be waiting for incoming messages
+        """
         production_uri = "wss://ws-feed.exchange.coinbase.com"
         sandbox_uri = "wss://ws-feed-public.sandbox.exchange.coinbase.com"
 

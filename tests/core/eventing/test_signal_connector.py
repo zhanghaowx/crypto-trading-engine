@@ -6,7 +6,7 @@ import pandas as pd
 from blinker import signal
 from pandas.testing import assert_frame_equal
 
-from crypto_trading_engine.core.eventing.signal_connector import (
+from crypto_trading_engine.core.event.signal_connector import (
     SignalConnector,
 )
 
@@ -20,6 +20,10 @@ class TestSignalConnector(unittest.TestCase):
         self.signal_connector.close()
         if self.database_name in os.listdir():
             os.remove(self.database_name)
+
+    # def tearDownClass(self) -> None:
+    #     if self.database_name in os.listdir():
+    #         os.remove(self.database_name)
 
     def test_connect(self):
         """

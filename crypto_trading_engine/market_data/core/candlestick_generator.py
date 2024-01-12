@@ -15,6 +15,17 @@ class CandlestickGenerator:
         ), f"Unsupported Candlestick Duration {self.interval_in_seconds}!"
 
     def on_market_trade(self, trade: Trade) -> list[Candlestick]:
+        """
+        Generates candlestick(s) for a given market trade. Returns 1
+        candlestick if the market trade happens within the time frame of the
+        current candlestick. Otherwise, returns 2 candlesticks, one for
+        previous time frame and one (incomplete) for the current time frame.
+
+        Args:
+            trade: Market trade to generate candlesticks for.
+        Returns:
+            1 ~ 2 candlesticks.
+        """
         candlesticks: list[Candlestick] = []
 
         if self.current_candlestick and self.current_candlestick.add_trade(

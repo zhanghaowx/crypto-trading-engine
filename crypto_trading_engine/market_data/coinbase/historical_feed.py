@@ -49,6 +49,20 @@ class HistoricalFeed(Heartbeater):
         api_key: Union[str, None] = None,
         api_secret: Union[str, None] = None,
     ):
+        """
+        Creates a historical market data feed client for the given time frame.
+
+        Args:
+            start_time: Start time of the historical market data feed.
+            end_time: End time of the historical market data feed
+            candlestick_interval_in_seconds: Granularity of the candlesticks in
+                                             seconds.
+            replay_speed: Speed at which to replay candlesticks. 60 means
+                          real time and replay time ratio is 1:60. Every
+                          second the replay time will advance 60 seconds.
+            api_key: API key for Coinbase's REST API.
+            api_secret: API secret for Coinbase's REST API.
+        """
         super().__init__(type(self).__name__, interval_in_seconds=0)
         self.events = HistoricalFeed.Events()
         self._start_time = start_time
@@ -65,6 +79,14 @@ class HistoricalFeed(Heartbeater):
         )
 
     async def connect(self, symbol: str):
+        """
+        Download the historical market data feed for the given symbol and
+        time frame. Replay the candlesticks at the specified replay speed.
+        Args:
+            symbol: Symbol of the product to download historical market data
+        Returns:
+            A asyncio task to be waiting for incoming messages
+        """
         candlesticks = self._get_candlesticks(symbol)
         candlesticks.sort(key=lambda x: x.start_time)
 

@@ -10,12 +10,11 @@ from io import StringIO
 @patch.dict(os.environ, {"COINBASE_API_SECRET": "api_secret"})
 class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
     @patch(
-        "crypto_trading_engine."
-        "core.eventing.signal_connector.SignalConnector"
+        "crypto_trading_engine." "core.event.signal_connector.SignalConnector"
     )
     @patch(
         "crypto_trading_engine."
-        "core.eventing.signal_connector.SignalConnector.connect"
+        "core.event.signal_connector.SignalConnector.connect"
     )
     @patch(
         "crypto_trading_engine." "strategy.bull_flag_strategy.BullFlagStrategy"

@@ -6,9 +6,7 @@ import os
 import signal
 import sys
 
-from crypto_trading_engine.core.eventing.signal_connector import (
-    SignalConnector,
-)
+from crypto_trading_engine.core.event.signal_connector import SignalConnector
 from crypto_trading_engine.execution.coinbase.execution_service import (
     MockExecutionService,
 )
