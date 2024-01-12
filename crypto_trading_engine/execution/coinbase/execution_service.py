@@ -41,7 +41,7 @@ class MockExecutionService:
         self.order_fill_event = signal("order_fill")
         pass
 
-    def on_order(self, sender: str, order: Order):
+    def on_order(self, sender: object, order: Order):
         """
         Place an order in the market. Signals will be sent to
         `order_fill_event` if there will be a trade or several trades.

@@ -2,7 +2,12 @@
 CLI interface for crypto_trading_engine project.
 """
 import logging
+import signal
+import sys
 
+from crypto_trading_engine.core.eventing.signal_connector import (
+    SignalConnector,
+)
 from crypto_trading_engine.execution.coinbase.execution_service import (
     MockExecutionService,
 )
@@ -16,10 +21,22 @@ from crypto_trading_engine.risk_limit.order_frequency_limit import (
 from crypto_trading_engine.strategy.bull_flag_strategy import BullFlagStrategy
 
 
+def graceful_exit(signum, frame):
+    print("Ctrl+C detected. Performing graceful exit...")
+    # Add your cleanup or shutdown code here
+    sys.exit(0)
+
+
+# Register the signal handler for Ctrl+C
+signal.signal(signal.SIGINT, graceful_exit)
+
+
 async def main():  # pragma: no cover
     """
     Connects different components, starts the engine and runs a strategy.
     """
+
+    connector = SignalConnector()
 
     # Logging setup
     logging.basicConfig(
@@ -43,11 +60,16 @@ async def main():  # pragma: no cover
         min_number_of_bearish_candlesticks=1,
         min_return_of_active_candlesticks=0.0001,
     )
-    md.events.candlestick.connect(strategy.on_candlestick)
 
     # Execution Setup
     execution_service = MockExecutionService()
-    strategy.order_event.connect(execution_service.on_order)
-    execution_service.order_fill_event.connect(strategy.on_fill)
+
+    # Wire Events
+    connector.connect(md.events.ticker)
+    connector.connect(md.events.matches)
+    connector.connect(md.events.channel_heartbeat)
+    connector.connect(md.events.candlestick, strategy.on_candlestick)
+    connector.connect(strategy.order_event, execution_service.on_order)
+    connector.connect(execution_service.order_fill_event, strategy.on_fill)
 
     await md_connection

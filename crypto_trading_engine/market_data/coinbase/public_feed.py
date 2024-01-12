@@ -118,9 +118,6 @@ class CoinbasePublicFeed(Heartbeater):
                             self.events.ticker, payload=response
                         )
                     elif response["type"] == "match":
-                        self.events.matches.send(
-                            self.events.matches, payload=response
-                        )
                         """
                         Below is an example of one match message from Coinbase
                         ```
@@ -139,7 +136,7 @@ class CoinbasePublicFeed(Heartbeater):
                         ```
                         """
 
-                        trade = Trade(
+                        market_trade = Trade(
                             trade_id=response["trade_id"],
                             sequence_number=response["sequence"],
                             symbol=response["product_id"],
@@ -152,10 +149,15 @@ class CoinbasePublicFeed(Heartbeater):
                                 response["time"]
                             ),
                         )
-                        logging.info(f"Received Market Trade: {trade}")
+                        self.events.matches.send(
+                            self.events.matches, market_trade=market_trade
+                        )
+                        logging.info(f"Received Market Trade: {market_trade}")
 
-                        candlesticks = self._candlestick_generator.on_trade(
-                            trade
+                        candlesticks = (
+                            self._candlestick_generator.on_market_trade(
+                                market_trade
+                            )
                         )
                         for candlestick in candlesticks:
                             self.events.candlestick.send(

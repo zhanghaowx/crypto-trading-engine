@@ -34,7 +34,9 @@ class TestCandlestickGenerator(unittest.IsolatedAsyncioTestCase):
 
     async def test_candlestick_generator_1_trade(self):
         candlestick_generator = CandlestickGenerator(1)
-        candlesticks = candlestick_generator.on_trade(self.create_mock_trade())
+        candlesticks = candlestick_generator.on_market_trade(
+            self.create_mock_trade()
+        )
 
         self.assertEqual(len(candlesticks), 1)
         self.assertEqual(candlesticks[0].open, 1)
@@ -45,8 +47,10 @@ class TestCandlestickGenerator(unittest.IsolatedAsyncioTestCase):
 
     async def test_candlestick_generator_2_trades_in_same_time_window(self):
         candlestick_generator = CandlestickGenerator(1)
-        candlestick_generator.on_trade(self.create_mock_trade())
-        candlesticks = candlestick_generator.on_trade(self.create_mock_trade())
+        candlestick_generator.on_market_trade(self.create_mock_trade())
+        candlesticks = candlestick_generator.on_market_trade(
+            self.create_mock_trade()
+        )
 
         self.assertEqual(len(candlesticks), 1)
         self.assertEqual(candlesticks[0].open, 1)
@@ -59,8 +63,8 @@ class TestCandlestickGenerator(unittest.IsolatedAsyncioTestCase):
         self,
     ):
         candlestick_generator = CandlestickGenerator(1)
-        candlestick_generator.on_trade(self.create_mock_trade())
-        candlesticks = candlestick_generator.on_trade(
+        candlestick_generator.on_market_trade(self.create_mock_trade())
+        candlesticks = candlestick_generator.on_market_trade(
             self.create_mock_trade(second=10)
         )
 

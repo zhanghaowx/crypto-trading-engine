@@ -14,7 +14,7 @@ class CandlestickGenerator:
             or self.interval_in_seconds % 60 == 0
         ), f"Unsupported Candlestick Duration {self.interval_in_seconds}!"
 
-    def on_trade(self, trade: Trade) -> list[Candlestick]:
+    def on_market_trade(self, trade: Trade) -> list[Candlestick]:
         candlesticks: list[Candlestick] = []
 
         if self.current_candlestick and self.current_candlestick.add_trade(

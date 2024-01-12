@@ -5,6 +5,8 @@ import pytz
 
 
 class Candlestick:
+    PRIMARY_KEY = "start_time"
+
     def __init__(self, start: datetime, duration_in_seconds: float):
         """
         Candlestick displays the high, low, open, and close price of a

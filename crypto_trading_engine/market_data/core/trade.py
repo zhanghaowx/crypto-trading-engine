@@ -6,6 +6,7 @@ from crypto_trading_engine.core.side import MarketSide
 
 @dataclass(frozen=True, order=True)
 class Trade:
+    PRIMARY_KEY = "trade_id"
     trade_id: int
     sequence_number: int
     symbol: str
