@@ -46,7 +46,7 @@ async def main():  # pragma: no cover
 
     # Logging setup
     logging.basicConfig(
-        filename="{source_directory}/analysis/crypto.log",
+        filename=f"{source_directory}/analysis/crypto.log",
         filemode="w",
         format="[%(asctime)s][%(name)s][%(levelname)s] - %(message)s",
         level=logging.INFO,

@@ -10,6 +10,7 @@ from blinker import signal
 from coinbase.rest import RESTClient
 
 from crypto_trading_engine.core.health_monitor.heartbeat import Heartbeater
+from crypto_trading_engine.core.time.time_manager import TimeManager
 from crypto_trading_engine.market_data.core.candlestick import Candlestick
 
 
@@ -77,6 +78,8 @@ class HistoricalFeed(Heartbeater):
                 api_secret if api_secret else os.getenv("COINBASE_API_SECRET")
             ),
         )
+        self.time_manager = TimeManager()
+        self.time_manager.claim_admin(self)
 
     async def connect(self, symbol: str):
         """
@@ -91,6 +94,7 @@ class HistoricalFeed(Heartbeater):
         candlesticks.sort(key=lambda x: x.start_time)
 
         for candlestick in candlesticks:
+            self.time_manager.use_fake_time(candlestick.end_time, admin=self)
             self.events.candlestick.send(
                 self.events.candlestick, candlestick=candlestick
             )

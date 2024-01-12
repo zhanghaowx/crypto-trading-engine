@@ -2,15 +2,14 @@ import logging
 import os
 import uuid
 from copy import copy
-from datetime import datetime
 from random import randint
 from typing import Union
 
-import pytz
 from blinker import signal
 from coinbase.rest import RESTClient
 
 from crypto_trading_engine.core.side import MarketSide
+from crypto_trading_engine.core.time.time_manager import TimeManager
 from crypto_trading_engine.market_data.core.order import Order
 from crypto_trading_engine.market_data.core.order_book import OrderBook
 from crypto_trading_engine.market_data.core.trade import Trade
@@ -45,6 +44,7 @@ class MockExecutionService:
         )
         self.order_history = dict[str, Order]()
         self.order_fill_event = signal("order_fill")
+        self.time_manager = TimeManager()
         pass
 
     def on_order(self, sender: object, order: Order):
@@ -118,7 +118,7 @@ class MockExecutionService:
                         side=buy_order.side,
                         price=sell_price,
                         quantity=filled_quantity,
-                        transaction_time=datetime.now(pytz.utc),
+                        transaction_time=self.time_manager.get_current_time(),
                     )
 
                     self.order_fill_event.send(
@@ -146,7 +146,7 @@ class MockExecutionService:
                         side=sell_order.side,
                         price=buy_price,
                         quantity=filled_quantity,
-                        transaction_time=datetime.now(pytz.utc),
+                        transaction_time=self.time_manager.get_current_time(),
                     )
 
                     self.order_fill_event.send(
