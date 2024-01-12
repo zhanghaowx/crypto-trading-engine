@@ -15,6 +15,7 @@ from crypto_trading_engine.market_data.coinbase.public_feed import (
     CoinbaseEnvironment,
     CoinbasePublicFeed,
 )
+from crypto_trading_engine.position.position_manager import PositionManager
 from crypto_trading_engine.risk_limit.order_frequency_limit import (
     OrderFrequencyLimit,
 )
@@ -62,14 +63,18 @@ async def main():  # pragma: no cover
     )
 
     # Execution Setup
-    execution_service = MockExecutionService()
+    exec_service = MockExecutionService()
+
+    # Position Manager Setup
+    position_manager = PositionManager()
 
     # Wire Events
     connector.connect(md.events.ticker)
     connector.connect(md.events.matches)
     connector.connect(md.events.channel_heartbeat)
     connector.connect(md.events.candlestick, strategy.on_candlestick)
-    connector.connect(strategy.order_event, execution_service.on_order)
-    connector.connect(execution_service.order_fill_event, strategy.on_fill)
+    connector.connect(strategy.order_event, exec_service.on_order)
+    connector.connect(exec_service.order_fill_event, strategy.on_fill)
+    connector.connect(exec_service.order_fill_event, position_manager.on_fill)
 
     await md_connection

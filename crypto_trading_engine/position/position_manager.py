@@ -1,5 +1,8 @@
 from dataclasses import dataclass
 
+from crypto_trading_engine.core.side import MarketSide
+from crypto_trading_engine.market_data.core.trade import Trade
+
 
 @dataclass
 class Position:
@@ -15,7 +18,15 @@ class PositionManager:
         """
         self.positions = dict[str, Position]()
 
-    def on_buy(self, symbol: str, price: float, quantity: float):
+    def on_fill(self, _: str, trade: Trade):
+        if trade.side == MarketSide.BUY:
+            self._on_buy(trade.symbol, trade.price, trade.quantity)
+        elif trade.side == MarketSide.SELL:
+            self._on_sell(trade.symbol, trade.price, trade.quantity)
+        else:
+            assert False, f"Trade has an invalid trade side: {trade}"
+
+    def _on_buy(self, symbol: str, price: float, quantity: float):
         """
         Adds the buy trade to tracked positions
 
@@ -37,7 +48,7 @@ class PositionManager:
         assert symbol in self.positions.keys()
         return self.positions[symbol]
 
-    def on_sell(self, symbol: str, price: float, quantity: float):
+    def _on_sell(self, symbol: str, price: float, quantity: float):
         """
         Removes the sell trade from tracked positions
 
