@@ -2,7 +2,7 @@ import unittest
 from datetime import datetime, timezone
 
 from crypto_trading_engine.core.side import MarketSide
-from crypto_trading_engine.market_data.common.candlestick_generator import (
+from crypto_trading_engine.market_data.core.candlestick_generator import (
     CandlestickGenerator,
 )
 from crypto_trading_engine.market_data.core.trade import Trade

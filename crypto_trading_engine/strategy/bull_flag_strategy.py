@@ -8,7 +8,7 @@ from blinker import signal
 
 from crypto_trading_engine.core.health_monitor.heartbeat import Heartbeater
 from crypto_trading_engine.core.side import MarketSide
-from crypto_trading_engine.market_data.common.candlestick import Candlestick
+from crypto_trading_engine.market_data.core.candlestick import Candlestick
 from crypto_trading_engine.market_data.core.order import Order, OrderType
 from crypto_trading_engine.market_data.core.trade import Trade
 from crypto_trading_engine.risk_limit.risk_limit import IRiskLimit

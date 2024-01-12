@@ -1,6 +1,6 @@
 import logging
 
-from crypto_trading_engine.market_data.common.candlestick import Candlestick
+from crypto_trading_engine.market_data.core.candlestick import Candlestick
 from crypto_trading_engine.market_data.core.trade import Trade
 
 

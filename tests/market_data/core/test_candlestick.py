@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 
 import pytz
 
-from crypto_trading_engine.market_data.common.candlestick import Candlestick
+from crypto_trading_engine.market_data.core.candlestick import Candlestick
 
 
 class TestCandlestick(unittest.IsolatedAsyncioTestCase):
