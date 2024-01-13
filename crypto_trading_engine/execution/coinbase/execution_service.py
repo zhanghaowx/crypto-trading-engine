@@ -2,6 +2,7 @@ import logging
 import os
 import uuid
 from copy import copy
+from datetime import datetime, timedelta
 from random import randint
 from typing import Union
 
@@ -59,27 +60,40 @@ class MockExecutionService:
             None
 
         """
-        order_book = self._build_order_book(order.symbol)
 
-        bid_levels = order_book.bids.levels
-        ask_levels = order_book.asks.levels
-        logging.info(
-            f"Built order book for {order.symbol}: "
-            f"Depth=("
-            f"BidDepth={len(bid_levels)}, "
-            f"AskDepth={len(ask_levels)}"
-            f"),"
-            f"BBO=("
-            f"Bid={next(iter(bid_levels.keys()), None)}, "
-            f"Ask={next(iter(ask_levels.keys()), None)}"
-            f")"
-        )
-
+        # Record every order in history
         self.order_history[order.client_order_id] = order
-        self._perform_order_match(order, order_book)
+
+        if self.time_manager.is_using_fake_time():
+            # Get a random market trader near the fake time and do a match
+            # close to the market in history
+            trade = self._get_any_market_trade(order.symbol)
+            self._generate_order_fill(
+                symbol=order.symbol,
+                side=order.side,
+                price=trade.price,
+                quantity=order.quantity,
+            )
+        else:
+            # Get current order book and do a match close to the current market
+            order_book = self._build_order_book(order.symbol)
+
+            bid_levels = order_book.bids.levels
+            ask_levels = order_book.asks.levels
+            logging.info(
+                f"Built order book for {order.symbol}: "
+                f"Depth=("
+                f"BidDepth={len(bid_levels)}, "
+                f"AskDepth={len(ask_levels)}"
+                f"),"
+                f"BBO=("
+                f"Bid={next(iter(bid_levels.keys()), None)}, "
+                f"Ask={next(iter(ask_levels.keys()), None)}"
+                f")"
+            )
+            self._perform_order_match(order, order_book)
 
     # noinspection PyArgumentList
-    # Definition of RESTClient.get_product_book confuses linter
     def _build_order_book(self, symbol: str):
         json_response = self._client.get_product_book(
             product_id=symbol, limit=100
@@ -110,20 +124,11 @@ class MockExecutionService:
                     break
                 if not buy_order.price or buy_order.price >= sell_price:
                     filled_quantity = min(buy_order.quantity, sell_quantity)
-                    trade = Trade(
-                        trade_id=randint(1, 1000),
-                        sequence_number=randint(1, 1000),
+                    self._generate_order_fill(
                         symbol=buy_order.symbol,
-                        maker_order_id=str(uuid.uuid4()),
-                        taker_order_id=str(uuid.uuid4()),
                         side=buy_order.side,
                         price=sell_price,
                         quantity=filled_quantity,
-                        transaction_time=self.time_manager.get_current_time(),
-                    )
-
-                    self.order_fill_event.send(
-                        self.order_fill_event, trade=trade
                     )
 
                     buy_order.quantity -= filled_quantity
@@ -142,22 +147,57 @@ class MockExecutionService:
                     break
                 if not sell_order.price or sell_order.price <= buy_price:
                     filled_quantity = min(sell_order.quantity, buy_quantity)
-                    trade = Trade(
-                        trade_id=randint(1, 1000),
-                        sequence_number=randint(1, 1000),
+                    self._generate_order_fill(
                         symbol=sell_order.symbol,
-                        maker_order_id=str(uuid.uuid4()),
-                        taker_order_id=str(uuid.uuid4()),
                         side=sell_order.side,
                         price=buy_price,
                         quantity=filled_quantity,
-                        transaction_time=self.time_manager.get_current_time(),
-                    )
-
-                    self.order_fill_event.send(
-                        self.order_fill_event,
-                        trade=trade,
                     )
 
                     sell_order.quantity -= filled_quantity
                     assert sell_order.quantity >= 0
+
+    # noinspection PyArgumentList
+    def _get_any_market_trade(self, symbol):
+        now = self.time_manager.get_current_time()
+        json_response = self._client.get_market_trades(
+            product_id=symbol,
+            start=int((now - timedelta(seconds=5)).timestamp()),
+            end=int((now + timedelta(seconds=5)).timestamp()),
+            limit=1,
+        )
+
+        assert len(json_response["trades"]) > 0
+        first_trade_json = json_response["trades"][0]
+
+        return Trade(
+            trade_id=int(first_trade_json["trade_id"]),
+            sequence_number=0,
+            symbol=first_trade_json["product_id"],
+            maker_order_id="",
+            taker_order_id="",
+            side=MarketSide(first_trade_json["side"].lower()),
+            price=float(first_trade_json["price"]),
+            quantity=float(first_trade_json["size"]),
+            transaction_time=datetime.fromisoformat(first_trade_json["time"]),
+        )
+
+    def _generate_order_fill(
+        self, symbol: str, side: MarketSide, price: float, quantity: float
+    ):
+        trade = Trade(
+            trade_id=randint(1, 1000),
+            sequence_number=randint(1, 1000),
+            symbol=symbol,
+            maker_order_id=str(uuid.uuid4()),
+            taker_order_id=str(uuid.uuid4()),
+            side=side,
+            price=price,
+            quantity=quantity,
+            transaction_time=self.time_manager.get_current_time(),
+        )
+
+        self.order_fill_event.send(
+            self.order_fill_event,
+            trade=trade,
+        )

@@ -33,6 +33,22 @@ class TestMockExecutionService(unittest.TestCase):
                 ],
             }
         }
+        self.execution_service._client.get_market_trades.return_value = {
+            "trades": [
+                {
+                    "trade_id": "001",
+                    "product_id": "BTC-USD",
+                    "price": "150",
+                    "size": "4",
+                    "time": "2021-05-31T09:59:59Z",
+                    "side": "BUY",
+                    "bid": "291.13",
+                    "ask": "292.40",
+                }
+            ],
+            "best_bid": "291.13",
+            "best_ask": "292.40",
+        }
         self.fills = list[Trade]()
 
         # Subscribe to signals
@@ -216,7 +232,7 @@ class TestMockExecutionService(unittest.TestCase):
         self.assertEqual(99.5, self.fills[-2].price)
         self.assertEqual(2.0, self.fills[-2].quantity)
 
-    def test_sell_with_invalid_order(self):
+    def test_short_sell(self):
         order = Order(
             client_order_id=str(uuid.uuid4()),
             order_type=OrderType.MARKET_ORDER,
@@ -233,3 +249,35 @@ class TestMockExecutionService(unittest.TestCase):
             "'SHORT_SELL' is not a valid MarketSide",
             str(context.exception),
         )
+
+    def test_replay_buy(self):
+        self.execution_service.time_manager.claim_admin(self)
+        self.execution_service.time_manager.use_fake_time(
+            datetime.now(pytz.utc), self
+        )
+
+        # Execute
+        self.buy(symbol="BTC-USD", price=100.0, quantity=1.0)
+        self.assertEqual(1, len(self.fills))
+        self.assertEqual("BTC-USD", self.fills[-1].symbol)
+        self.assertEqual(MarketSide.BUY, self.fills[-1].side)
+        self.assertEqual(150.0, self.fills[-1].price)
+        self.assertEqual(1.0, self.fills[-1].quantity)
+
+        self.execution_service.time_manager.__init__()
+
+    def test_replay_sell(self):
+        self.execution_service.time_manager.claim_admin(self)
+        self.execution_service.time_manager.use_fake_time(
+            datetime.now(pytz.utc), self
+        )
+
+        # Execute
+        self.sell(symbol="BTC-USD", price=100.0, quantity=1.0)
+        self.assertEqual(1, len(self.fills))
+        self.assertEqual("BTC-USD", self.fills[-1].symbol)
+        self.assertEqual(MarketSide.SELL, self.fills[-1].side)
+        self.assertEqual(150.0, self.fills[-1].price)
+        self.assertEqual(1.0, self.fills[-1].quantity)
+
+        self.execution_service.time_manager.__init__()
