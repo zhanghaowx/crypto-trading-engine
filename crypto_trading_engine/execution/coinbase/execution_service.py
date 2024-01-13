@@ -176,7 +176,7 @@ class MockExecutionService:
             symbol=first_trade_json["product_id"],
             maker_order_id="",
             taker_order_id="",
-            side=MarketSide(first_trade_json["side"].lower()),
+            side=MarketSide(first_trade_json["side"].upper()),
             price=float(first_trade_json["price"]),
             quantity=float(first_trade_json["size"]),
             transaction_time=datetime.fromisoformat(first_trade_json["time"]),

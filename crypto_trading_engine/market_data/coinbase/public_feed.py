@@ -151,7 +151,7 @@ class PublicFeed(Heartbeater):
                             symbol=response["product_id"],
                             maker_order_id=response["maker_order_id"],
                             taker_order_id=response["taker_order_id"],
-                            side=MarketSide(response["side"]),
+                            side=MarketSide(response["side"].upper()),
                             price=float(response["price"]),
                             quantity=float(response["size"]),
                             transaction_time=datetime.fromisoformat(
