@@ -43,8 +43,6 @@ class HistoricalFeed(Heartbeater):
 
     def __init__(
         self,
-        start_time: datetime = datetime.now(pytz.utc) - timedelta(minutes=300),
-        end_time: datetime = datetime.now(pytz.utc),
         candlestick_interval_in_seconds: int = 60,
         replay_speed: int = 600,
         api_key: Union[str, None] = None,
@@ -54,8 +52,6 @@ class HistoricalFeed(Heartbeater):
         Creates a historical market data feed client for the given time frame.
 
         Args:
-            start_time: Start time of the historical market data feed.
-            end_time: End time of the historical market data feed
             candlestick_interval_in_seconds: Granularity of the candlesticks in
                                              seconds.
             replay_speed: Speed at which to replay candlesticks. 60 means
@@ -66,8 +62,6 @@ class HistoricalFeed(Heartbeater):
         """
         super().__init__(type(self).__name__, interval_in_seconds=0)
         self.events = HistoricalFeed.Events()
-        self._start_time = start_time
-        self._end_time = end_time
         self._candlestick_granularity = HistoricalFeed.CandlestickGranularity(
             candlestick_interval_in_seconds
         )
@@ -81,16 +75,23 @@ class HistoricalFeed(Heartbeater):
         self.time_manager = create_time_manager()
         self.time_manager.claim_admin(self)
 
-    async def connect(self, symbol: str):
+    async def connect(
+        self,
+        symbol: str,
+        start_time: datetime = datetime.now(pytz.utc) - timedelta(minutes=300),
+        end_time: datetime = datetime.now(pytz.utc),
+    ):
         """
         Download the historical market data feed for the given symbol and
         time frame. Replay the candlesticks at the specified replay speed.
         Args:
             symbol: Symbol of the product to download historical market data
+            start_time: Start time of the historical market data feed.
+            end_time: End time of the historical market data feed
         Returns:
             A asyncio task to be waiting for incoming messages
         """
-        candlesticks = self._get_candlesticks(symbol)
+        candlesticks = self._get_candlesticks(symbol, start_time, end_time)
         candlesticks.sort(key=lambda x: x.start_time)
 
         for candlestick in candlesticks:
@@ -103,11 +104,13 @@ class HistoricalFeed(Heartbeater):
             )
 
     # noinspection PyArgumentList
-    def _get_candlesticks(self, symbol: str) -> list[Candlestick]:
+    def _get_candlesticks(
+        self, symbol: str, start_time: datetime, end_time: datetime
+    ) -> list[Candlestick]:
         json_response = self._client.get_candles(
             product_id=symbol,
-            start=int(self._start_time.timestamp()),
-            end=int(self._end_time.timestamp()),
+            start=int(start_time.timestamp()),
+            end=int(end_time.timestamp()),
             granularity=self._candlestick_granularity.name,
         )
         assert len(json_response["candles"]) > 0
