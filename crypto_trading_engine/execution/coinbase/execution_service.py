@@ -101,7 +101,7 @@ class MockExecutionService:
         return order_book
 
     def _perform_order_match(self, order: Order, order_book: OrderBook):
-        if MarketSide(order.side.value) == MarketSide.BUY:
+        if order.side == MarketSide.BUY:
             buy_order = copy(order)
             for sell_price, sell_quantity in sorted(
                 order_book.asks.levels.items()
@@ -129,7 +129,11 @@ class MockExecutionService:
                     buy_order.quantity -= filled_quantity
                     assert buy_order.quantity >= 0
 
-        elif MarketSide(order.side.value) == MarketSide.SELL:
+        else:
+            assert (
+                order.side == MarketSide.SELL
+            ), f"'{order.side}' is not a valid MarketSide"
+
             sell_order = copy(order)
             for buy_price, buy_quantity in sorted(
                 order_book.bids.levels.items(), reverse=True
@@ -157,5 +161,3 @@ class MockExecutionService:
 
                     sell_order.quantity -= filled_quantity
                     assert sell_order.quantity >= 0
-        else:
-            assert False, f"Order has an invalid side: {order}"

@@ -19,9 +19,9 @@ class PositionManager:
         self.positions = dict[str, Position]()
 
     def on_fill(self, _: str, trade: Trade):
-        if MarketSide(trade.side) == MarketSide.BUY:
+        if trade.side == MarketSide.BUY:
             self._on_buy(trade.symbol, trade.price, trade.quantity)
-        elif MarketSide(trade.side) == MarketSide.SELL:
+        elif trade.side == MarketSide.SELL:
             self._on_sell(trade.symbol, trade.price, trade.quantity)
         else:
             assert False, f"Trade has an invalid trade side: {trade}"

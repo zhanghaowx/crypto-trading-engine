@@ -102,11 +102,18 @@ class BullFlagStrategy(Heartbeater):
 
         # Don't consider it as an opportunity for bull flag strategy
         # if the last candlestick is not extremely bullish
-        if (
-            self.history[-2].return_percentage()
-            < self.min_return_of_extreme_bullish_candlesticks
-        ):
-            return False
+        if self.history.maxlen < 2:
+            if (
+                self.history[-1].return_percentage()
+                < self.min_return_of_extreme_bullish_candlesticks
+            ):
+                return False
+        else:
+            if (
+                self.history[-2].return_percentage()
+                < self.min_return_of_extreme_bullish_candlesticks
+            ):
+                return False
 
         # Don't consider it as an opportunity for bull flag strategy
         # if the current candlestick is not trending bullish

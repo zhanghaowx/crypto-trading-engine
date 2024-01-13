@@ -215,3 +215,21 @@ class TestMockExecutionService(unittest.TestCase):
         self.assertEqual(MarketSide.SELL, self.fills[-2].side)
         self.assertEqual(99.5, self.fills[-2].price)
         self.assertEqual(2.0, self.fills[-2].quantity)
+
+    def test_sell_with_invalid_order(self):
+        order = Order(
+            client_order_id=str(uuid.uuid4()),
+            order_type=OrderType.MARKET_ORDER,
+            symbol="BTC-USD",
+            price=1.0,
+            quantity=1.0,
+            side="SHORT_SELL",
+            creation_time=datetime.now(pytz.utc),
+        )
+        with self.assertRaises(AssertionError) as context:
+            self.execution_service.on_order("unittest", order)
+
+        self.assertEqual(
+            "'SHORT_SELL' is not a valid MarketSide",
+            str(context.exception),
+        )

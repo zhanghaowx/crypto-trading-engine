@@ -13,17 +13,14 @@ from crypto_trading_engine.core.event.signal_connector import (
 
 class TestSignalConnector(unittest.TestCase):
     def setUp(self) -> None:
-        self.database_name = "unit_test.sqlite3"
-        self.signal_connector = SignalConnector(self.database_name)
+        self.database_filepath = (
+            f"{os.path.dirname(__file__)}/unit_test.sqlite3"
+        )
+        self.signal_connector = SignalConnector(self.database_filepath)
 
     def tearDown(self) -> None:
         self.signal_connector.close()
-        if self.database_name in os.listdir():
-            os.remove(self.database_name)
-
-    # def tearDownClass(self) -> None:
-    #     if self.database_name in os.listdir():
-    #         os.remove(self.database_name)
+        os.remove(self.database_filepath)
 
     def test_connect(self):
         """
@@ -121,3 +118,27 @@ class TestSignalConnector(unittest.TestCase):
 
         assert_frame_equal(event_a3, expected_event_a)
         assert_frame_equal(event_b3, expected_event_b)
+
+    def test_handle_bad_signal(self):
+        class SomeEnum(Enum):
+            A = 1
+
+        class Payload:
+            def __init__(self, payload_id: int):
+                self.payload_id = payload_id
+                self.some_enum = SomeEnum.A
+
+        payload_a = Payload(1)
+        payload_b = Payload(2)
+
+        signal_a = signal("signal_a")
+        signal_b = signal("signal_b")
+
+        self.signal_connector.connect(signal_a)
+        self.signal_connector.connect(signal_b)
+
+        signal_a.send(signal_a, payload=payload_a)
+        signal_b.send(signal_b, payload=payload_b)
+
+        self.assertNotIn("signal_a", self.signal_connector.events)
+        self.assertNotIn("signal_b", self.signal_connector.events)
