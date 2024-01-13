@@ -1,6 +1,6 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class MarketSide(Enum):
+class MarketSide(StrEnum):
     BUY = "buy"
     SELL = "sell"

@@ -8,6 +8,7 @@ from crypto_trading_engine.risk_limit.risk_limit import IRiskLimit
 from crypto_trading_engine.strategy.bull_flag.bull_flag_strategy import (
     BullFlagStrategy,
 )
+from crypto_trading_engine.strategy.bull_flag.parameters import Parameters
 
 
 class MockRiskLimits(IRiskLimit):
@@ -74,9 +75,9 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
         bull_flag_strategy = BullFlagStrategy(
             "ETH-USD",
             risk_limits=[],
-            max_number_of_recent_candlesticks=2,
-            min_return_of_extreme_bullish_candlesticks=0.00001,
-            min_return_of_active_candlesticks=0.00001,
+            parameters=Parameters(
+                max_number_of_recent_candlesticks=10,
+            ),
         )
         bull_flag_strategy.on_candlestick("mock_sender", candlestick1)
         bull_flag_strategy.on_candlestick("mock_sender", candlestick2)
@@ -87,7 +88,7 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
     async def test_on_fill(self):
         # Act
         bull_flag_strategy = BullFlagStrategy(
-            "ETH-USD", risk_limits=[MockRiskLimits()]
+            "ETH-USD", risk_limits=[MockRiskLimits()], parameters=Parameters()
         )
         bull_flag_strategy.on_fill(
             "mock_sender", BullFlagStrategyTest.create_mock_trade(1.0)

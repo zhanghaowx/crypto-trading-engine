@@ -2,8 +2,8 @@ import logging
 import uuid
 from collections import deque
 from datetime import datetime
+from itertools import islice
 
-import pandas as pd
 import pytz
 from blinker import signal
 
@@ -13,6 +13,10 @@ from crypto_trading_engine.market_data.core.candlestick import Candlestick
 from crypto_trading_engine.market_data.core.order import Order, OrderType
 from crypto_trading_engine.market_data.core.trade import Trade
 from crypto_trading_engine.risk_limit.risk_limit import IRiskLimit
+from crypto_trading_engine.strategy.bull_flag.candlestick_pattern import (
+    CandlestickPattern,
+)
+from crypto_trading_engine.strategy.bull_flag.parameters import Parameters
 
 
 class BullFlagStrategy(Heartbeater):
@@ -20,9 +24,7 @@ class BullFlagStrategy(Heartbeater):
         self,
         symbol: str,
         risk_limits: list[IRiskLimit],
-        max_number_of_recent_candlesticks: int = 2,
-        min_return_of_extreme_bullish_candlesticks: float = 0.1,
-        min_return_of_active_candlesticks: float = 0.05,
+        parameters: Parameters,
     ):
         """
         Idea take from the book "How to day-trade for a living",
@@ -44,25 +46,20 @@ class BullFlagStrategy(Heartbeater):
             1. This strategy only trades one instrument
         """
         super().__init__(type(self).__name__, interval_in_seconds=5)
-        self.max_number_of_past_candlesticks = (
-            max_number_of_recent_candlesticks
-        )
-        self.min_return_of_active_candlesticks = (
-            min_return_of_active_candlesticks
-        )
-        self.min_return_of_extreme_bullish_candlesticks = (
-            min_return_of_extreme_bullish_candlesticks
-        )
-        self.history = deque[Candlestick](
-            maxlen=max_number_of_recent_candlesticks
-        )
         self.symbol = symbol
         self.risk_limits = risk_limits
+        self.params = parameters
+        self.history = deque[Candlestick](
+            maxlen=parameters.max_number_of_recent_candlesticks
+        )
+        self.pattern_recognizer = CandlestickPattern(parameters)
         self.order_event = signal("order")
 
     def on_candlestick(self, _: str, candlestick: Candlestick):
         # It shall be either an update on last candlestick or a new
         # candlestick.
+
+        # Merge candlesticks
         assert (
             len(self.history) == 0
             or self.history[-1].start_time <= candlestick.start_time
@@ -78,52 +75,26 @@ class BullFlagStrategy(Heartbeater):
         else:
             raise Exception("Candlesticks shall be sent in time order!")
 
+        # Run bull flag strategy to make a decision
         if self.should_buy():
             self.try_buy()
 
     def on_fill(self, _: str, trade: Trade):
         logging.info(f"Received {trade} for {self.symbol}")
 
-    def gather_features(self):
-        """
-        Base on history candlestick and the most recent active candlestick,
-        create a list of features
-
-        Returns:
-            A list of features to send to strategy model
-        """
-        all_candlesticks = [x.__dict__ for x in self.history]
-        return pd.DataFrame(all_candlesticks)
-
     def should_buy(self):
         # Don't make decisions until watching the market for a while
         if len(self.history) < self.history.maxlen:
             return False
 
-        # Don't consider it as an opportunity for bull flag strategy
-        # if the last candlestick is not extremely bullish
-        if self.history.maxlen < 2:
-            if (
-                self.history[-1].return_percentage()
-                < self.min_return_of_extreme_bullish_candlesticks
-            ):
-                return False
-        else:
-            if (
-                self.history[-2].return_percentage()
-                < self.min_return_of_extreme_bullish_candlesticks
-            ):
-                return False
+        for i in range(0, len(self.history)):
+            opportunity = self.pattern_recognizer.is_bull_flag(
+                candlesticks=list(islice(self.history, i, None))
+            )
+            if opportunity.score > 0:
+                return True
 
-        # Don't consider it as an opportunity for bull flag strategy
-        # if the current candlestick is not trending bullish
-        if (
-            self.history[-1].return_percentage()
-            < self.min_return_of_active_candlesticks
-        ):
-            return False
-
-        return True
+        return False
 
     def try_buy(self):
         for limit in self.risk_limits:

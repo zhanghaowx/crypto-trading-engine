@@ -5,6 +5,9 @@ import logging
 import os
 import signal
 import sys
+from datetime import datetime, timedelta
+
+import pytz
 
 from crypto_trading_engine.core.event.signal_connector import SignalConnector
 from crypto_trading_engine.execution.coinbase.execution_service import (
@@ -24,6 +27,7 @@ from crypto_trading_engine.risk_limit.order_frequency_limit import (
 from crypto_trading_engine.strategy.bull_flag.bull_flag_strategy import (
     BullFlagStrategy,
 )
+from crypto_trading_engine.strategy.bull_flag.parameters import Parameters
 
 
 def graceful_exit(signum, frame):
@@ -63,16 +67,22 @@ async def main():  # pragma: no cover
     _ = md_live  # Variable is assigned but not used intentionally
 
     # Historical
-    md_historical = HistoricalFeed()
+    end_time = datetime(
+        2024, 1, 11, hour=23, minute=30, second=0, tzinfo=pytz.utc
+    )
+    md_historical = HistoricalFeed(
+        start_time=end_time - timedelta(minutes=300),
+        end_time=end_time,
+    )
     _ = md_historical  # Variable is assigned but not used intentionally
 
     # Strategy Setup
     strategy = BullFlagStrategy(
         "ETH-USD",
         risk_limits=[OrderFrequencyLimit(number_of_orders=1, in_seconds=60)],
-        max_number_of_recent_candlesticks=5,
-        min_return_of_extreme_bullish_candlesticks=0.003,
-        min_return_of_active_candlesticks=0.001,
+        parameters=Parameters(
+            max_number_of_recent_candlesticks=10,
+        ),
     )
 
     # Execution Setup
