@@ -17,7 +17,8 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
         "core.event.signal_connector.SignalConnector.connect"
     )
     @patch(
-        "crypto_trading_engine." "strategy.bull_flag_strategy.BullFlagStrategy"
+        "crypto_trading_engine."
+        "strategy.bull_flag.bull_flag_strategy.BullFlagStrategy"
     )
     @patch(
         "crypto_trading_engine."

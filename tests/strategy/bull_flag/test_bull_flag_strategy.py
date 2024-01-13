@@ -5,7 +5,9 @@ from crypto_trading_engine.core.side import MarketSide
 from crypto_trading_engine.market_data.core.candlestick import Candlestick
 from crypto_trading_engine.market_data.core.trade import Trade
 from crypto_trading_engine.risk_limit.risk_limit import IRiskLimit
-from crypto_trading_engine.strategy.bull_flag_strategy import BullFlagStrategy
+from crypto_trading_engine.strategy.bull_flag.bull_flag_strategy import (
+    BullFlagStrategy,
+)
 
 
 class MockRiskLimits(IRiskLimit):

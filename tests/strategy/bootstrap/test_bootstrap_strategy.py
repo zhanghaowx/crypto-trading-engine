@@ -4,7 +4,9 @@ from datetime import datetime
 from crypto_trading_engine.core.side import MarketSide
 from crypto_trading_engine.market_data.core.candlestick import Candlestick
 from crypto_trading_engine.market_data.core.trade import Trade
-from crypto_trading_engine.strategy.bootstrap_strategy import BootstrapStrategy
+from crypto_trading_engine.strategy.bootstrap.bootstrap_strategy import (
+    BootstrapStrategy,
+)
 
 
 class BootstrapStrategyTest(unittest.IsolatedAsyncioTestCase):

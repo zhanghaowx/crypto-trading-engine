@@ -21,7 +21,9 @@ from crypto_trading_engine.position.position_manager import PositionManager
 from crypto_trading_engine.risk_limit.order_frequency_limit import (
     OrderFrequencyLimit,
 )
-from crypto_trading_engine.strategy.bull_flag_strategy import BullFlagStrategy
+from crypto_trading_engine.strategy.bull_flag.bull_flag_strategy import (
+    BullFlagStrategy,
+)
 
 
 def graceful_exit(signum, frame):
