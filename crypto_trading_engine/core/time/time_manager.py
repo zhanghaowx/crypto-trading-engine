@@ -21,6 +21,12 @@ class TimeManager:
         self._fake_time: Union[None, datetime] = None
         self._fake_time_admin: object = None
 
+    def is_using_fake_time(self) -> bool:
+        """
+        Returns: Whether a fake time is being used.
+        """
+        return self._fake_time is not None
+
     def claim_admin(self, user: object) -> None:
         """
         Claim the admin of the fake time. Only the 1st user who invoked this

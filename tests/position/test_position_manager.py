@@ -100,11 +100,11 @@ class TestPositionManager(unittest.IsolatedAsyncioTestCase):
     def test_on_fill_invalid_side(self):
         trade = self.create_trade("invalid", "BTC-USD", 100.0, 1.0)
 
-        with self.assertRaises(AssertionError) as context:
+        with self.assertRaises(ValueError) as context:
             position_manager = PositionManager()
             position_manager.on_fill("_", trade)
 
         self.assertRaisesRegex(
             AssertionError,
-            "^Trade has an invalid trade side",
+            "'invalid' is not a valid MarketSide",
         )

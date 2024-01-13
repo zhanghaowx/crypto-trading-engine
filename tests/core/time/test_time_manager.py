@@ -10,7 +10,11 @@ from crypto_trading_engine.core.time.time_manager import (
 
 
 class TimeManagerTest(unittest.TestCase):
-    def test_use_fake_time_admin_taken(self):
+    def tearDown(self):
+        time_manager = create_time_manager()
+        time_manager.__init__()
+
+    def test_use_real_time_admin_taken(self):
         # Arrange
         time_manager = TimeManager()
         admin_user1 = object()
@@ -52,6 +56,7 @@ class TimeManagerTest(unittest.TestCase):
         self.assertAlmostEqual(
             current_time, datetime.now(pytz.utc), delta=timedelta(seconds=1)
         )
+        self.assertFalse(time_manager.is_using_fake_time())
 
     def test_use_fake_time_admin_taken(self):
         # Arrange
@@ -95,6 +100,7 @@ class TimeManagerTest(unittest.TestCase):
 
         # Assert
         self.assertEqual(fake_time, time_manager.get_current_time())
+        self.assertTrue(time_manager.is_using_fake_time())
 
     def test_switch_back_to_real_time(self):
         # Arrange

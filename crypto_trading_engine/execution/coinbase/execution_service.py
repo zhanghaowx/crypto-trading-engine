@@ -9,7 +9,7 @@ from blinker import signal
 from coinbase.rest import RESTClient
 
 from crypto_trading_engine.core.side import MarketSide
-from crypto_trading_engine.core.time.time_manager import TimeManager
+from crypto_trading_engine.core.time.time_manager import create_time_manager
 from crypto_trading_engine.market_data.core.order import Order
 from crypto_trading_engine.market_data.core.order_book import OrderBook
 from crypto_trading_engine.market_data.core.trade import Trade
@@ -44,8 +44,7 @@ class MockExecutionService:
         )
         self.order_history = dict[str, Order]()
         self.order_fill_event = signal("order_fill")
-        self.time_manager = TimeManager()
-        pass
+        self.time_manager = create_time_manager()
 
     def on_order(self, sender: object, order: Order):
         """
@@ -67,12 +66,12 @@ class MockExecutionService:
         logging.info(
             f"Built order book for {order.symbol}: "
             f"Depth=("
-            f"Bid={len(bid_levels)}, "
-            f"Ask={len(ask_levels)}"
+            f"BidDepth={len(bid_levels)}, "
+            f"AskDepth={len(ask_levels)}"
             f"),"
             f"BBO=("
-            f"Bid={next(iter(bid_levels.values()), None)}, "
-            f"Ask={next(iter(ask_levels.values()), None)}"
+            f"Bid={next(iter(bid_levels.keys()), None)}, "
+            f"Ask={next(iter(ask_levels.keys()), None)}"
             f")"
         )
 
@@ -82,7 +81,9 @@ class MockExecutionService:
     # noinspection PyArgumentList
     # Definition of RESTClient.get_product_book confuses linter
     def _build_order_book(self, symbol: str):
-        json_response = self._client.get_product_book(product_id=symbol)
+        json_response = self._client.get_product_book(
+            product_id=symbol, limit=100
+        )
         assert json_response["pricebook"]["product_id"] == symbol
 
         # Recreate the order book from JSON response
@@ -100,7 +101,7 @@ class MockExecutionService:
         return order_book
 
     def _perform_order_match(self, order: Order, order_book: OrderBook):
-        if order.side == MarketSide.BUY:
+        if MarketSide(order.side.value) == MarketSide.BUY:
             buy_order = copy(order)
             for sell_price, sell_quantity in sorted(
                 order_book.asks.levels.items()
@@ -128,7 +129,7 @@ class MockExecutionService:
                     buy_order.quantity -= filled_quantity
                     assert buy_order.quantity >= 0
 
-        if order.side == MarketSide.SELL:
+        elif MarketSide(order.side.value) == MarketSide.SELL:
             sell_order = copy(order)
             for buy_price, buy_quantity in sorted(
                 order_book.bids.levels.items(), reverse=True
@@ -156,3 +157,5 @@ class MockExecutionService:
 
                     sell_order.quantity -= filled_quantity
                     assert sell_order.quantity >= 0
+        else:
+            assert False, f"Order has an invalid side: {order}"
