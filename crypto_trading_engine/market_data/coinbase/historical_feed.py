@@ -33,12 +33,12 @@ class HistoricalFeed(Heartbeater):
 
     class CandlestickGranularity(Enum):
         ONE_MINUTE = 60
-        FIVE_MINUTES = 300
-        FIFTEEN_MINUTES = 900
-        THIRTY_MINUTES = 1800
+        FIVE_MINUTE = 300
+        FIFTEEN_MINUTE = 900
+        THIRTY_MINUTE = 1800
         ONE_HOUR = 3600
-        TWO_HOURS = 7200
-        SIX_HOURS = 14400
+        TWO_HOUR = 7200
+        SIX_HOUR = 14400
         ONE_DAY = 86400
 
     def __init__(

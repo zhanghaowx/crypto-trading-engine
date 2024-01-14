@@ -21,7 +21,7 @@ signal.signal(signal.SIGINT, graceful_exit)
 
 
 async def main():
-    app = Application("ETH-USD")
+    app = Application("ETH-USD", candlestick_interval_in_seconds=60)
 
     replay_start = datetime(
         2024, 1, 11, hour=0, minute=0, second=0, tzinfo=pytz.utc

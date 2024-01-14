@@ -34,6 +34,7 @@ class Application:
         symbol: str,
         database_name=f"{SOURCE_DIRECTORY}/analysis/crypto.sqlite",
         logfile_name=f"{SOURCE_DIRECTORY}/analysis/crypto.log",
+        candlestick_interval_in_seconds=60,
     ):
         """
         Connects different components, starts the engine.
@@ -61,18 +62,19 @@ class Application:
         # Market Data Setup: Live Feed
         self._md_live = PublicFeed(
             env=CoinbaseEnvironment.PRODUCTION,
-            candlestick_interval_in_seconds=60,
+            candlestick_interval_in_seconds=candlestick_interval_in_seconds,
         )
 
         # Market Data Setup: Historical Feed
-        self._md_historical = HistoricalFeed()
+        self._md_historical = HistoricalFeed(
+            candlestick_interval_in_seconds=candlestick_interval_in_seconds,
+            replay_speed=600,
+        )
 
         # Strategy Setup
         self._strategy = BullFlagStrategy(
             symbol,
-            risk_limits=[
-                OrderFrequencyLimit(number_of_orders=1, in_seconds=60)
-            ],
+            risk_limits=[OrderFrequencyLimit(number_of_orders=1, in_seconds=60)],
             parameters=Parameters(
                 max_number_of_recent_candlesticks=10,
             ),
