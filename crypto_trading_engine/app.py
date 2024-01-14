@@ -74,7 +74,9 @@ class Application:
         # Strategy Setup
         self._strategy = BullFlagStrategy(
             symbol,
-            risk_limits=[OrderFrequencyLimit(number_of_orders=1, in_seconds=60)],
+            risk_limits=[
+                OrderFrequencyLimit(number_of_orders=1, in_seconds=60)
+            ],
             parameters=Parameters(
                 max_number_of_recent_candlesticks=10,
             ),

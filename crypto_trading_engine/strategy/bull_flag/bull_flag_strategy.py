@@ -1,6 +1,7 @@
 import logging
 import uuid
 from collections import deque
+from dataclasses import dataclass
 from datetime import datetime
 from itertools import islice
 
@@ -13,6 +14,9 @@ from crypto_trading_engine.market_data.core.candlestick import Candlestick
 from crypto_trading_engine.market_data.core.order import Order, OrderType
 from crypto_trading_engine.market_data.core.trade import Trade
 from crypto_trading_engine.risk_limit.risk_limit import IRiskLimit
+from crypto_trading_engine.strategy.bull_flag.bull_flag_opportunity import (
+    BullFlagOpportunity,
+)
 from crypto_trading_engine.strategy.bull_flag.candlestick_pattern import (
     CandlestickPattern,
 )
@@ -20,6 +24,11 @@ from crypto_trading_engine.strategy.bull_flag.parameters import Parameters
 
 
 class BullFlagStrategy(Heartbeater):
+    @dataclass(frozen=True, order=True)
+    class OpenOrder:
+        stop_loss_price: float
+        open_order: Order
+
     def __init__(
         self,
         symbol: str,
@@ -54,6 +63,7 @@ class BullFlagStrategy(Heartbeater):
         )
         self.pattern_recognizer = CandlestickPattern(parameters)
         self.order_event = signal("order")
+        self.open_orders = dict[str, BullFlagStrategy.OpenOrder]()
 
     def on_candlestick(self, _: str, candlestick: Candlestick):
         # It shall be either an update on last candlestick or a new
@@ -76,35 +86,42 @@ class BullFlagStrategy(Heartbeater):
             raise Exception("Candlesticks shall be sent in time order!")
 
         # Run bull flag strategy to make a decision
-        if self.should_buy():
-            self.try_buy()
+        self.try_buy(self.generate_buy_opportunity())
+        self.try_sell(self.generate_sell_opportunity())
 
     def on_fill(self, _: str, trade: Trade):
         logging.info(f"Received {trade} for {self.symbol}")
 
-    def should_buy(self):
+    def generate_buy_opportunity(self):
         # Don't make decisions until watching the market for a while
         if len(self.history) < self.history.maxlen:
-            return False
+            return BullFlagOpportunity()
 
         for i in range(0, len(self.history)):
             opportunity = self.pattern_recognizer.is_bull_flag(
                 candlesticks=list(islice(self.history, i, None))
             )
-            if opportunity.score > 0:
-                return True
+            return opportunity
 
-        return False
+        return BullFlagOpportunity()
 
-    def try_buy(self):
+    def try_buy(self, opportunity: BullFlagOpportunity) -> bool:
+        if not opportunity or not opportunity.is_worth_buying():
+            return False
+
+        assert (
+            opportunity.stop_loss_price > 0.0
+        ), "Stop loss price must be positive!"
+
         for limit in self.risk_limits:
             if not limit.can_send():
                 return False
         for limit in self.risk_limits:
             limit.do_send()
 
+        client_order_id = str(uuid.uuid4())
         order = Order(
-            client_order_id=str(uuid.uuid4()),
+            client_order_id=client_order_id,
             order_type=OrderType.MARKET_ORDER,
             symbol=self.symbol,
             price=None,
@@ -112,6 +129,18 @@ class BullFlagStrategy(Heartbeater):
             side=MarketSide.BUY,
             creation_time=datetime.now(pytz.utc),
         )
+        self.open_orders[client_order_id] = BullFlagStrategy.OpenOrder(
+            stop_loss_price=opportunity.stop_loss_price,
+            open_order=order,
+        )
+
         logging.info(f"Placed {order} with candlesticks {self.history}.")
         self.order_event.send(self.order_event, order=order)
+
+        return True
+
+    def generate_sell_opportunity(self) -> BullFlagOpportunity:
+        return BullFlagOpportunity()
+
+    def try_sell(self, opportunity: BullFlagOpportunity) -> bool:
         return True
