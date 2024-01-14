@@ -34,7 +34,7 @@ class TestHistoricalFeed(unittest.TestCase):
 
     def tearDown(self):
         time_manager = create_time_manager()
-        time_manager.__init__()
+        time_manager.force_reset()
 
     def on_candlestick(self, _, candlestick):
         self.candlesticks.append(candlestick)
@@ -53,6 +53,20 @@ class TestHistoricalFeed(unittest.TestCase):
         self.assertEqual(500.0, self.candlesticks[0].volume)
 
         mock_sleep.assert_called_once()
+
+    @patch("asyncio.sleep", return_value=None)
+    def test_connect_with_valid_symbol_and_cache(self, mock_sleep):
+        HistoricalFeed.CACHE.clear()
+
+        symbol = "BTC-USD"
+        asyncio.run(self.historical_feed.connect(symbol))
+        asyncio.run(self.historical_feed.connect(symbol))
+
+        self.assertEqual(1, len(HistoricalFeed.CACHE))
+        self.assertEqual(2, len(self.candlesticks))
+        self.assertEqual(self.candlesticks[0], self.candlesticks[1])
+
+        self.historical_feed._client.get_candles.assert_called_once()
 
     @patch("asyncio.sleep", return_value=None)
     @patch.object(HistoricalFeed.Events.candlestick, "send")

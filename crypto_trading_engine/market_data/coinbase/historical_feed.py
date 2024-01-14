@@ -15,6 +15,8 @@ from crypto_trading_engine.market_data.core.candlestick import Candlestick
 
 
 class HistoricalFeed(Heartbeater):
+    CACHE = dict[tuple, list[Candlestick]]()
+
     """
     Access the historical market data feed using Coinbase's REST API.
     """
@@ -107,6 +109,10 @@ class HistoricalFeed(Heartbeater):
     def _get_candlesticks(
         self, symbol: str, start_time: datetime, end_time: datetime
     ) -> list[Candlestick]:
+        key = (symbol, start_time, end_time)
+        if self.CACHE.get(key) is not None:
+            return self.CACHE[key]
+
         json_response = self._client.get_candles(
             product_id=symbol,
             start=int(start_time.timestamp()),
@@ -129,4 +135,6 @@ class HistoricalFeed(Heartbeater):
 
             candlesticks.append(candlestick)
 
+        # Save in the cache to reduce calls to Coinbase API
+        self.CACHE[key] = candlesticks
         return candlesticks
