@@ -12,7 +12,7 @@ from crypto_trading_engine.core.time.time_manager import (
 class TimeManagerTest(unittest.TestCase):
     def tearDown(self):
         time_manager = create_time_manager()
-        time_manager.__init__()
+        time_manager.force_reset()
 
     def test_use_real_time_admin_taken(self):
         # Arrange
@@ -179,3 +179,21 @@ class TimeManagerTest(unittest.TestCase):
         tm1.use_fake_time(fake_time1, admin)
 
         self.assertEqual(tm1.get_current_time(), tm2.get_current_time())
+
+    def test_reset_time_manager(self):
+        tm1 = create_time_manager()
+        tm2 = create_time_manager()
+        admin = object()
+
+        tm1.claim_admin(admin)
+        with self.assertRaises(RuntimeError):
+            tm2.claim_admin(admin)
+
+        tm1.force_reset()
+        tm2.claim_admin(admin)
+
+        with self.assertRaises(RuntimeError) as context:
+            tm1.claim_admin(admin)
+        self.assertEqual(
+            "Admin already claimed by another user!", str(context.exception)
+        )

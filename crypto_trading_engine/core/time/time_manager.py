@@ -21,6 +21,15 @@ class TimeManager:
         self._fake_time: Union[None, datetime] = None
         self._fake_time_admin: object = None
 
+    def force_reset(self):
+        """
+        Resets the state of the fake time and admin assignment.
+
+        WARNING: This method should be only called by unit tests or
+                 replay tests.
+        """
+        self.__init__()
+
     def is_using_fake_time(self) -> bool:
         """
         Returns: Whether a fake time is being used.
