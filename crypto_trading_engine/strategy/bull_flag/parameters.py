@@ -13,6 +13,10 @@ class Parameters:
     # previous candlestick` in order to be considered as an extremely bullish
     # candlestick and potentially marked as the starting of a bull flag.
     extreme_bullish_threshold: float = 2.0
+    # A candlestick's return percentage needs to be larger than X in order to
+    # be considered as an extremely bullish candlestick and potentially marked
+    # as the starting of a bull flag
+    extreme_bullish_return_pct: float = 0.001
     # A candlestick needs to be smaller than `threshold * body of previous
     # extremely bullish candlestick` in order to be considered as part of
     # the consolidation period.

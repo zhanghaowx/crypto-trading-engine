@@ -17,6 +17,7 @@ class PositionManager:
         Manages all bought securities and their positions
         """
         self.positions = dict[str, Position]()
+        self.pnl = float(0.0)
 
     def on_fill(self, _: str, trade: Trade):
         if trade.side == MarketSide.BUY:
@@ -44,6 +45,7 @@ class PositionManager:
         )
         self.positions[symbol].volume += quantity
         self.positions[symbol].cash_value += price * quantity
+        self.pnl -= price * quantity
 
         assert symbol in self.positions.keys()
         return self.positions[symbol]
@@ -63,7 +65,12 @@ class PositionManager:
 
         self.positions[symbol].volume -= quantity
         self.positions[symbol].cash_value -= price * quantity
+        self.pnl += price * quantity
 
-        assert self.positions[symbol].volume >= 0
-        assert self.positions[symbol].cash_value >= 0
+        assert (
+            self.positions[symbol].volume >= 0
+        ), f"Unexpected negative volume for {self.positions}"
+        assert (
+            self.positions[symbol].cash_value >= 0
+        ), f"Unexpected negative cash value for {self.positions}"
         return self.positions[symbol]

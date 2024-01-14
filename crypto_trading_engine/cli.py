@@ -1,6 +1,7 @@
 """
 CLI interface for crypto_trading_engine project.
 """
+import logging
 import signal
 import sys
 from datetime import datetime
@@ -30,4 +31,5 @@ async def main():
         2024, 1, 11, hour=23, minute=59, second=0, tzinfo=pytz.utc
     )
 
-    await app.run_replay(replay_start, replay_end)
+    pnl = await app.run_replay(replay_start, replay_end)
+    logging.info(f"PnL: {pnl}")

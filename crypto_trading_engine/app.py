@@ -118,9 +118,15 @@ class Application:
 
             return result_time_ranges
 
-        for start, end in generate_time_ranges(300):
-            print(f"Replay for {start} - {end}")
-            await self._md_historical.connect(self._symbol, start, end)
+        for period_start, period_end in generate_time_ranges(300):
+            print(
+                f"Replay for {self._symbol}: {period_start} - {min(period_end, end)}"
+            )
+            await self._md_historical.connect(
+                self._symbol, period_start, min(period_end, end)
+            )
+
+        return self._position_manager.pnl
 
     async def run(self):
         await self._md_live.connect([self._symbol])

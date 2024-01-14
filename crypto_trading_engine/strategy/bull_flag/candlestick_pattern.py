@@ -1,9 +1,11 @@
+import logging
+
 from crypto_trading_engine.core.time.time_manager import create_time_manager
 from crypto_trading_engine.market_data.core.candlestick import Candlestick
-from crypto_trading_engine.strategy.bull_flag.bull_flag_opportunity import (
-    BullFlagOpportunity,
-)
 from crypto_trading_engine.strategy.bull_flag.parameters import Parameters
+from crypto_trading_engine.strategy.core.trade_opportunity import (
+    TradeOpportunity,
+)
 
 
 class CandlestickPattern:
@@ -16,42 +18,51 @@ class CandlestickPattern:
 
     def is_bull_flag(
         self, candlesticks: list[Candlestick]
-    ) -> BullFlagOpportunity:
+    ) -> TradeOpportunity:
         if len(candlesticks) <= 4:
-            return BullFlagOpportunity()
+            return TradeOpportunity()
 
         previous_candlestick = candlesticks[0]
         bull_flag_candlestick = candlesticks[1]
         consolidation_period_candlesticks = candlesticks[2:]
 
         # Check if the first candlestick is extremely bullish
-        if (
-            bull_flag_candlestick.is_bullish()
-            and self._is_extremely_bullish_or_bearish(
-                current=bull_flag_candlestick,
-                previous=previous_candlestick,
-                threshold=self.params.extreme_bullish_threshold,
-            )
+        if self._is_extremely_bullish(
+            current=bull_flag_candlestick,
+            previous=previous_candlestick,
         ):
             if self._has_consolidation_period(
                 bull_flag_candlestick=bull_flag_candlestick,
                 following_candlesticks=consolidation_period_candlesticks,
             ):
-                stop_loss = self._find_stop_loss_in_consolidation_period(
+                stop_loss1 = self._find_stop_loss_in_consolidation_period(
                     consolidation_period_candlesticks
                 )
-                print(
-                    f"Time: {create_time_manager().get_current_time()}, "
-                    f"Stop loss: {stop_loss}, "
-                    f"Bull Flag: {bull_flag_candlestick}, "
-                    f"Consolidation: {consolidation_period_candlesticks}"
+                atr = self._calculate_last_candlestick_atr(
+                    candlesticks, len(candlesticks)
                 )
-                if stop_loss:
-                    return BullFlagOpportunity(
-                        stop_loss_price=stop_loss, score=1.0
+                market_price = candlesticks[-1].close
+                factor = 1.0  # The factor by which to check down movement.
+                stop_loss2 = market_price - factor * atr
+
+                logging.info(
+                    f"Time: {create_time_manager().get_current_time()}, "
+                    f"Stop loss: ({stop_loss1}, {stop_loss2}), "
+                    f"Bull Flag: {bull_flag_candlestick}"
+                )
+
+                if stop_loss1 and stop_loss2:
+                    stop_loss = min(stop_loss1, stop_loss2)
+                    profit_price = (
+                        bull_flag_candlestick.close - stop_loss
+                    ) * 2.0 + bull_flag_candlestick.close
+                    return TradeOpportunity(
+                        stop_loss_price=min(stop_loss1, stop_loss2),
+                        profit_price=profit_price,
+                        score=1.0,
                     )
 
-        return BullFlagOpportunity()
+        return TradeOpportunity()
 
     def _has_consolidation_period(
         self,
@@ -59,23 +70,55 @@ class CandlestickPattern:
         following_candlesticks: list[Candlestick],
     ) -> bool:
         assert len(following_candlesticks) > 0
+
         for candlestick in following_candlesticks:
-            if CandlestickPattern._is_extremely_bullish_or_bearish(
-                current=candlestick,
-                previous=bull_flag_candlestick,
-                threshold=self.params.consolidation_period_threshold,
-            ):
+            bull_flag_body = abs(
+                bull_flag_candlestick.open - bull_flag_candlestick.close
+            )
+            max_current_body = (
+                bull_flag_body * self.params.consolidation_period_threshold
+            )
+            current_body = abs(candlestick.open - candlestick.close)
+
+            if current_body > max_current_body:
                 return False
 
         return True
 
-    @staticmethod
-    def _is_extremely_bullish_or_bearish(
-        current: Candlestick, previous: Candlestick, threshold: float
+    def _is_extremely_bullish(
+        self, current: Candlestick, previous: Candlestick
     ) -> bool:
         prev_body = abs(previous.open - previous.close)
         current_body = abs(current.open - current.close)
-        return current_body > prev_body * threshold
+
+        cond1 = (
+            current_body > prev_body * self.params.extreme_bullish_threshold
+        )
+        cond2 = (
+            current.return_percentage()
+            > self.params.extreme_bullish_return_pct
+        )
+        return cond1 and cond2
+
+    @staticmethod
+    def _calculate_last_candlestick_atr(
+        candlesticks: list[Candlestick], period
+    ):
+        if len(candlesticks) < period:
+            raise ValueError("Insufficient data to calculate ATR")
+
+        true_ranges = []
+
+        for i in range(len(candlesticks) - period, len(candlesticks)):
+            high_low = candlesticks[i].high - candlesticks[i].low
+            high_close = abs(candlesticks[i].high - candlesticks[i - 1].close)
+            low_close = abs(candlesticks[i].low - candlesticks[i - 1].close)
+            true_range = max(high_low, high_close, low_close)
+            true_ranges.append(true_range)
+
+        atr = sum(true_ranges) / period
+
+        return atr
 
     @staticmethod
     def _find_stop_loss_in_consolidation_period(

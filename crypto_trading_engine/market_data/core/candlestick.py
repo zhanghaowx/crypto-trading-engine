@@ -37,7 +37,8 @@ class Candlestick:
             f"Volume={self.volume}, "
             f"StartTime={self.start_time}, "
             f"EndTime={self.end_time}, "
-            f"ReturnPct={self.return_percentage()}"
+            f"ReturnPct={self.return_percentage()}, "
+            f"CashValueChange={self.close - self.open}"
             f")"
         )
 
