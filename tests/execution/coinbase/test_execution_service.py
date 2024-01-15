@@ -55,6 +55,9 @@ class TestMockExecutionService(unittest.TestCase):
 
         self.execution_service.order_fill_event.connect(self.on_order_fill)
 
+    def tearDown(self):
+        self.execution_service.time_manager.force_reset()
+
     def buy(self, symbol: str, price: Union[float, None], quantity: float):
         """
         Place a buy order in the market. Signals will be sent to
@@ -264,8 +267,6 @@ class TestMockExecutionService(unittest.TestCase):
         self.assertEqual(150.0, self.fills[-1].price)
         self.assertEqual(1.0, self.fills[-1].quantity)
 
-        self.execution_service.time_manager.__init__()
-
     def test_replay_sell(self):
         self.execution_service.time_manager.claim_admin(self)
         self.execution_service.time_manager.use_fake_time(
@@ -279,5 +280,3 @@ class TestMockExecutionService(unittest.TestCase):
         self.assertEqual(MarketSide.SELL, self.fills[-1].side)
         self.assertEqual(150.0, self.fills[-1].price)
         self.assertEqual(1.0, self.fills[-1].quantity)
-
-        self.execution_service.time_manager.__init__()

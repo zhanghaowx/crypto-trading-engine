@@ -1,5 +1,6 @@
 import unittest
 from datetime import datetime, timedelta
+from blinker import ANY
 
 from crypto_trading_engine.core.side import MarketSide
 from crypto_trading_engine.market_data.core.candlestick import Candlestick
@@ -83,7 +84,7 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
         bull_flag_strategy.on_candlestick("mock_sender", candlestick2)
 
         # Assert
-        self.assertFalse(bull_flag_strategy.order_event.receivers)
+        self.assertFalse(bull_flag_strategy.order_event.has_receivers_for(ANY))
 
     async def test_on_fill(self):
         # Act
@@ -101,4 +102,4 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
         )
 
         # Assert
-        self.assertFalse(bull_flag_strategy.order_event.receivers)
+        self.assertFalse(bull_flag_strategy.order_event.has_receivers_for(ANY))

@@ -35,6 +35,7 @@ class Application:
         database_name=f"{SOURCE_DIRECTORY}/analysis/crypto.sqlite",
         logfile_name=f"{SOURCE_DIRECTORY}/analysis/crypto.log",
         candlestick_interval_in_seconds=60,
+        strategy_parameters=Parameters(),
     ):
         """
         Connects different components, starts the engine.
@@ -68,7 +69,7 @@ class Application:
         # Market Data Setup: Historical Feed
         self._md_historical = HistoricalFeed(
             candlestick_interval_in_seconds=candlestick_interval_in_seconds,
-            replay_speed=600,
+            replay_speed=60000,
         )
 
         # Strategy Setup
@@ -77,9 +78,7 @@ class Application:
             risk_limits=[
                 OrderFrequencyLimit(number_of_orders=1, in_seconds=60)
             ],
-            parameters=Parameters(
-                max_number_of_recent_candlesticks=10,
-            ),
+            parameters=strategy_parameters,
         )
 
         # Execution Setup
@@ -89,6 +88,12 @@ class Application:
         self._position_manager = PositionManager()
 
         # Wire Events
+        self.connect_signals()
+
+    def __del__(self):
+        self.disconnect_signals()
+
+    def connect_signals(self):
         self._signal_connector.connect(
             self._md_live.events.candlestick, self._strategy.on_candlestick
         )
@@ -106,6 +111,17 @@ class Application:
             self._exec_service.order_fill_event, self._position_manager.on_fill
         )
 
+    def disconnect_signals(self):
+        self._md_live.events.candlestick.disconnect(
+            self._strategy.on_candlestick
+        )
+        self._md_historical.events.candlestick.disconnect(
+            self._strategy.on_candlestick
+        )
+        self._strategy.order_event.disconnect(self._exec_service.on_order)
+        self._exec_service.order_fill_event.disconnect(self._strategy.on_fill)
+        self._signal_connector.close()
+
     async def run_replay(self, start: datetime, end: datetime):
         def generate_time_ranges(interval_minutes: int):
             result_time_ranges = []
@@ -120,7 +136,8 @@ class Application:
 
         for period_start, period_end in generate_time_ranges(300):
             print(
-                f"Replay for {self._symbol}: {period_start} - {min(period_end, end)}"
+                f"Replay for {self._symbol}: "
+                f"{period_start} - {min(period_end, end)}"
             )
             await self._md_historical.connect(
                 self._symbol, period_start, min(period_end, end)

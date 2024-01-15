@@ -4,7 +4,7 @@ import sqlite3
 from enum import Enum
 
 import pandas as pd
-from blinker import NamedSignal, Signal
+from blinker import NamedSignal, Signal, signal
 
 
 class SignalConnector:
@@ -14,8 +14,9 @@ class SignalConnector:
     """
 
     def __init__(self, database_name="crypto.sqlite3"):
-        self.database_name = database_name
-        self.events = dict[str, pd.DataFrame]()
+        self._database_name = database_name
+        self._events = dict[str, pd.DataFrame]()
+        self._signals = list[signal]()
         atexit.register(self.close)
 
     def connect(self, sender: Signal, receiver=None):
@@ -38,19 +39,26 @@ class SignalConnector:
         if receiver is not None:
             sender.connect(receiver=receiver)
         sender.connect(receiver=self._handle_signal)
+        self._signals.append(sender)
 
     def close(self):
         """
-        Dump recorded signal data to sqlite database
+        Disconnect all signals and dump recorded signal data to sqlite database
 
         Returns:
             None
         """
-        conn = sqlite3.connect(self.database_name)
-        for name, df in self.events.items():
+        for sender in self._signals:
+            sender.disconnect(self._handle_signal)
+
+        conn = sqlite3.connect(self._database_name)
+        for name, df in self._events.items():
             logging.info(f"Saving DataFrame {name} with shape {df.shape}...")
             df.to_sql(name=name, con=conn, if_exists="replace")
         conn.close()
+
+        self._events.clear()
+        self._signals.clear()
 
     def _handle_signal(self, sender: NamedSignal, **kwargs):
         name = sender.name
@@ -86,9 +94,9 @@ class SignalConnector:
                     row_data[key] = value.name
 
             df = pd.DataFrame([row_data])
-            if name not in self.events:
-                self.events[name] = df
+            if name not in self._events:
+                self._events[name] = df
             else:
-                self.events[name] = pd.concat(
-                    [self.events[name], df]
+                self._events[name] = pd.concat(
+                    [self._events[name], df]
                 ).drop_duplicates(subset=data.PRIMARY_KEY, keep="last")

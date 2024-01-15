@@ -42,10 +42,10 @@ class TestSignalConnector(unittest.TestCase):
         self.assertTrue(signal_b.receivers)
 
         signal_a.send(signal_a, message="Signal A")
-        self.assertNotIn("signal_a", self.signal_connector.events)
+        self.assertNotIn("signal_a", self.signal_connector._events)
 
         signal_b.send(signal_b, message="Signal B")
-        self.assertNotIn("signal_b", self.signal_connector.events)
+        self.assertNotIn("signal_b", self.signal_connector._events)
 
     def test_handle_signal(self):
         class SomeEnum(Enum):
@@ -70,11 +70,11 @@ class TestSignalConnector(unittest.TestCase):
         signal_a.send(signal_a, payload=payload_a)
         signal_b.send(signal_b, payload=payload_b)
 
-        self.assertIn("signal_a", self.signal_connector.events)
-        self.assertIn("signal_b", self.signal_connector.events)
+        self.assertIn("signal_a", self.signal_connector._events)
+        self.assertIn("signal_b", self.signal_connector._events)
 
-        event_a = self.signal_connector.events["signal_a"]
-        event_b = self.signal_connector.events["signal_b"]
+        event_a = self.signal_connector._events["signal_a"]
+        event_b = self.signal_connector._events["signal_b"]
 
         expected_event_a = pd.DataFrame(
             [vars(payload_a)], columns=list(vars(payload_a).keys())
@@ -91,8 +91,8 @@ class TestSignalConnector(unittest.TestCase):
         signal_a.send(signal_a, payload=payload_a)
         signal_b.send(signal_b, payload=payload_b)
 
-        event_a1 = self.signal_connector.events["signal_a"]
-        event_b1 = self.signal_connector.events["signal_b"]
+        event_a1 = self.signal_connector._events["signal_a"]
+        event_b1 = self.signal_connector._events["signal_b"]
 
         assert_frame_equal(event_a1, expected_event_a)
         assert_frame_equal(event_b1, expected_event_b)
@@ -102,8 +102,8 @@ class TestSignalConnector(unittest.TestCase):
         signal_a.send(signal_a, payload=payload_b, other_args=True)
         signal_b.send(signal_b, payload=payload_a, other_args=True)
 
-        event_a2 = self.signal_connector.events["signal_a"]
-        event_b2 = self.signal_connector.events["signal_b"]
+        event_a2 = self.signal_connector._events["signal_a"]
+        event_b2 = self.signal_connector._events["signal_b"]
 
         assert_frame_equal(event_a2, expected_event_a)
         assert_frame_equal(event_b2, expected_event_b)
@@ -113,8 +113,8 @@ class TestSignalConnector(unittest.TestCase):
         signal_a.send(signal_a, payload="payload_a")
         signal_b.send(signal_b, payload="payload_b")
 
-        event_a3 = self.signal_connector.events["signal_a"]
-        event_b3 = self.signal_connector.events["signal_b"]
+        event_a3 = self.signal_connector._events["signal_a"]
+        event_b3 = self.signal_connector._events["signal_b"]
 
         assert_frame_equal(event_a3, expected_event_a)
         assert_frame_equal(event_b3, expected_event_b)
@@ -140,5 +140,5 @@ class TestSignalConnector(unittest.TestCase):
         signal_a.send(signal_a, payload=payload_a)
         signal_b.send(signal_b, payload=payload_b)
 
-        self.assertNotIn("signal_a", self.signal_connector.events)
-        self.assertNotIn("signal_b", self.signal_connector.events)
+        self.assertNotIn("signal_a", self.signal_connector._events)
+        self.assertNotIn("signal_b", self.signal_connector._events)

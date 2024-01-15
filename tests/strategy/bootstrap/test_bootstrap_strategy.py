@@ -1,5 +1,6 @@
 import unittest
 from datetime import datetime
+from blinker import ANY
 
 from crypto_trading_engine.core.side import MarketSide
 from crypto_trading_engine.market_data.core.candlestick import Candlestick
@@ -52,7 +53,7 @@ class BootstrapStrategyTest(unittest.IsolatedAsyncioTestCase):
         boostrap_strategy.on_candlestick("mock_sender", candlestick)
 
         # Assert: add your own assertions below
-        self.assertFalse(boostrap_strategy.order_event.receivers)
+        self.assertFalse(boostrap_strategy.order_event.has_receivers_for(ANY))
 
     async def test_on_fill(self):
         # Arrange
@@ -63,4 +64,4 @@ class BootstrapStrategyTest(unittest.IsolatedAsyncioTestCase):
         boostrap_strategy.on_fill("mock_sender", trade)
 
         # Assert: add your own assertions below
-        self.assertFalse(boostrap_strategy.order_event.receivers)
+        self.assertFalse(boostrap_strategy.order_event.has_receivers_for(ANY))

@@ -68,7 +68,11 @@ class BullFlagStrategy(Heartbeater):
         assert (
             len(self.history) == 0
             or self.history[-1].start_time <= candlestick.start_time
-        ), "Candlesticks shall be sent in time order!"
+        ), (
+            "Candlesticks shall be sent in time order! "
+            f"Last candlestick in history: {self.history[-1].start_time}, "
+            f"current candlestick: {candlestick.start_time}"
+        )
 
         if (
             len(self.history) == 0
