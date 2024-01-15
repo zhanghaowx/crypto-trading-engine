@@ -2,7 +2,7 @@ import logging
 import os
 import uuid
 from copy import copy
-from datetime import datetime, timedelta
+from datetime import timedelta
 from random import randint
 from typing import Union
 
@@ -66,11 +66,11 @@ class MockExecutionService:
         if time_manager().is_using_fake_time():
             # Get a random market trader near the fake time and do a match
             # close to the market in history
-            trade = self._get_any_market_trade(order.symbol)
+            price = self._get_any_market_trade_price(order.symbol)
             self._generate_order_fill(
                 symbol=order.symbol,
                 side=order.side,
-                price=trade.price,
+                price=price,
                 quantity=order.quantity,
             )
         else:
@@ -157,7 +157,7 @@ class MockExecutionService:
                     assert sell_order.quantity >= 0
 
     # noinspection PyArgumentList
-    def _get_any_market_trade(self, symbol):
+    def _get_any_market_trade_price(self, symbol) -> float:
         now = time_manager().now()
         json_response = self._client.get_market_trades(
             product_id=symbol,
@@ -167,19 +167,18 @@ class MockExecutionService:
         )
 
         assert len(json_response["trades"]) > 0
-        first_trade_json = json_response["trades"][0]
 
-        return Trade(
-            trade_id=int(first_trade_json["trade_id"]),
-            sequence_number=0,
-            symbol=first_trade_json["product_id"],
-            maker_order_id="",
-            taker_order_id="",
-            side=MarketSide(first_trade_json["side"].upper()),
-            price=float(first_trade_json["price"]),
-            quantity=float(first_trade_json["size"]),
-            transaction_time=datetime.fromisoformat(first_trade_json["time"]),
-        )
+        for trade_json in json_response["trades"]:
+            try:
+                return float(trade_json["price"])
+            except ValueError as e:
+                logging.error(
+                    f"Could not convert '{trade_json['price']}' to float: {e}"
+                )
+                logging.error(f"JSON response: {json_response}")
+                continue  # Try next trade in the JSON response
+
+        return 0.0
 
     def _generate_order_fill(
         self, symbol: str, side: MarketSide, price: float, quantity: float
