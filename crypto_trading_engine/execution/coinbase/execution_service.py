@@ -163,7 +163,7 @@ class MockExecutionService:
             product_id=symbol,
             start=int((now - timedelta(seconds=5)).timestamp()),
             end=int((now + timedelta(seconds=5)).timestamp()),
-            limit=1,
+            limit=10,
         )
 
         assert len(json_response["trades"]) > 0
