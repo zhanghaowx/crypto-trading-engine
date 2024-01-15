@@ -2,10 +2,11 @@ import logging
 import os
 import uuid
 from copy import copy
-from datetime import timedelta
+from datetime import datetime, timedelta
 from random import randint
 from typing import Union
 
+import numpy as np
 from blinker import signal
 from coinbase.rest import RESTClient
 
@@ -170,7 +171,21 @@ class MockExecutionService:
 
         for trade_json in json_response["trades"]:
             try:
-                return float(trade_json["price"])
+                # Parse the whole trade JSON to make sure it is valid data
+                trade = Trade(
+                    trade_id=int(trade_json["trade_id"]),
+                    sequence_number=0,
+                    symbol=trade_json["product_id"],
+                    maker_order_id="",
+                    taker_order_id="",
+                    side=MarketSide(trade_json["side"].upper()),
+                    price=float(trade_json["price"]),
+                    quantity=float(trade_json["size"]),
+                    transaction_time=datetime.fromisoformat(
+                        trade_json["time"]
+                    ),
+                )
+                return trade.price
             except ValueError as e:
                 logging.error(
                     f"Could not convert '{trade_json['price']}' to float: {e}"
@@ -178,7 +193,7 @@ class MockExecutionService:
                 logging.error(f"JSON response: {json_response}")
                 continue  # Try next trade in the JSON response
 
-        return 0.0
+        return np.nan
 
     def _generate_order_fill(
         self, symbol: str, side: MarketSide, price: float, quantity: float

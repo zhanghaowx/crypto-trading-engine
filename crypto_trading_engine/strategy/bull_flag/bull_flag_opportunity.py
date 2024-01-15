@@ -19,7 +19,6 @@ class BullFlagOpportunity(TradeOpportunity):
     bull_flag_return_pct: float = 0.0
     bull_flag_open_close: float = 0.0
     starts_extremely_bullish: bool = False
-    ends_trending_bearish: bool = True
     stop_loss_from_support: float = 0.0
     stop_loss_from_atr: float = 0.0
 

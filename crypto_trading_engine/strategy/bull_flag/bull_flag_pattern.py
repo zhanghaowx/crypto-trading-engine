@@ -23,12 +23,20 @@ class BullFlagPattern:
     def is_bull_flag(
         self, candlesticks: list[Candlestick]
     ) -> BullFlagOpportunity | None:
+        """
+        Whether it forms a bull flag pattern.
+        Args:
+            candlesticks: A list of candlesticks in the past.
+        Returns:
+            A BullFlagOpportunity object on how confident that we think it is
+            a bull flag pattern.
+        """
         assert len(candlesticks) > 0
 
         # Check if number of candlesticks is less than the shortest bull flag
         # pattern length
         shortest_bull_flag_length = 3
-        if len(candlesticks) <= shortest_bull_flag_length:
+        if len(candlesticks) < shortest_bull_flag_length:
             return None
 
         # Divide the candlesticks into 3 periods
@@ -71,6 +79,8 @@ class BullFlagPattern:
         ):
             return opportunity
 
+        # Ideally we should use at least 14 previous candlesticks to calculate
+        # ATR. We will revisit this topic later.
         atr = self._calculate_last_candlestick_atr(
             candlesticks, len(candlesticks)
         )
@@ -80,13 +90,20 @@ class BullFlagPattern:
             opportunity.expected_trade_price - factor * atr
         )
 
+        # Stop loss price could never be lower than the open price for the bull
+        # flag candlestick.
         opportunity.stop_loss_price = min(
             opportunity.stop_loss_from_atr, opportunity.stop_loss_from_support
         )
+        opportunity.stop_loss_price = max(
+            opportunity.stop_loss_price, bull_flag_candlestick.open
+        )
 
         opportunity.profit_price = (
-            opportunity.expected_trade_price - opportunity.stop_loss_price
-        ) * 2.0 + opportunity.expected_trade_price
+            (opportunity.expected_trade_price - opportunity.stop_loss_price)
+            * self.params.target_reward_risk_ratio
+            + opportunity.expected_trade_price
+        )
 
         opportunity.risk_reward_ratio = (
             opportunity.profit_price - opportunity.expected_trade_price
@@ -115,16 +132,23 @@ class BullFlagPattern:
     def _calculate_last_candlestick_atr(
         candlesticks: list[Candlestick], period
     ):
-        if len(candlesticks) < period:
-            raise ValueError("Insufficient data to calculate ATR")
+        assert len(candlesticks) <= period, (
+            f"Insufficient data to calculate ATR: "
+            f"trying to calculate ATR for {len(candlesticks)} candlesticks "
+            f"with a period {period}"
+        )
 
         true_ranges = []
 
-        for i in range(len(candlesticks) - period, len(candlesticks)):
+        for i in range(len(candlesticks) - period + 1, len(candlesticks)):
             high_low = candlesticks[i].high - candlesticks[i].low
-            high_close = abs(candlesticks[i].high - candlesticks[i - 1].close)
-            low_close = abs(candlesticks[i].low - candlesticks[i - 1].close)
-            true_range = max(high_low, high_close, low_close)
+            high_close_prev = abs(
+                candlesticks[i].high - candlesticks[i - 1].close
+            )
+            low_close_prev = abs(
+                candlesticks[i].low - candlesticks[i - 1].close
+            )
+            true_range = max(high_low, high_close_prev, low_close_prev)
             true_ranges.append(true_range)
 
         atr = sum(true_ranges) / period

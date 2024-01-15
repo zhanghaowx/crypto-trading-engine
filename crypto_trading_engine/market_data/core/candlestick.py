@@ -7,7 +7,16 @@ from crypto_trading_engine.core.time.time_manager import time_manager
 class Candlestick:
     PRIMARY_KEY = "start_time"
 
-    def __init__(self, start: datetime, duration_in_seconds: float):
+    def __init__(
+        self,
+        start: datetime,
+        duration_in_seconds: float,
+        open: float = 0.0,
+        high: float = 0.0,
+        low: float = float("inf"),
+        close: float = 0.0,
+        volume: float = 0.0,
+    ):
         """
         Candlestick displays the high, low, open, and close price of a
         security/cryptocurrency for a specific period.
@@ -21,11 +30,11 @@ class Candlestick:
         self.end_time: datetime = start + timedelta(
             seconds=duration_in_seconds
         )
-        self.open: float = 0.0
-        self.high: float = 0.0
-        self.low: float = float("inf")
-        self.close: float = 0.0
-        self.volume: float = 0.0
+        self.open: float = open
+        self.high: float = high
+        self.low: float = low
+        self.close: float = close
+        self.volume: float = volume
 
     def __repr__(self):
         return (

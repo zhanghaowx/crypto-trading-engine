@@ -1,9 +1,11 @@
+import math
 import unittest
 import uuid
 from datetime import datetime
 from typing import Union
 from unittest.mock import Mock
 
+import numpy as np
 import pytz
 
 from crypto_trading_engine.core.side import MarketSide
@@ -313,4 +315,31 @@ class TestMockExecutionService(unittest.TestCase):
         self.assertEqual("BTC-USD", self.fills[-1].symbol)
         self.assertEqual(MarketSide.SELL, self.fills[-1].side)
         self.assertEqual(160.0, self.fills[-1].price)
+        self.assertEqual(1.0, self.fills[-1].quantity)
+
+    def test_replay_sell_getting_no_valid_market_trade(self):
+        time_manager().claim_admin(self)
+        time_manager().use_fake_time(datetime.now(pytz.utc), self)
+
+        self.execution_service._client.get_market_trades.return_value = {
+            "trades": [
+                {
+                    "trade_id": "ABC",
+                    "product_id": "BTC-USD",
+                    "price": "ABC",
+                    "size": "4",
+                    "time": "2021-05-31T09:59:59Z",
+                    "side": "UNKNOWN",
+                    "bid": "",
+                    "ask": "",
+                },
+            ],
+            "best_bid": "291.13",
+            "best_ask": "292.40",
+        }
+        self.sell(symbol="BTC-USD", price=100.0, quantity=1.0)
+        self.assertEqual(1, len(self.fills))
+        self.assertEqual("BTC-USD", self.fills[-1].symbol)
+        self.assertEqual(MarketSide.SELL, self.fills[-1].side)
+        self.assertEqual(True, math.isnan(self.fills[-1].price))
         self.assertEqual(1.0, self.fills[-1].quantity)
