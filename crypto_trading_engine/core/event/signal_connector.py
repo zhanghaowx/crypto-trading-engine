@@ -78,13 +78,6 @@ class SignalConnector:
                 )
                 return
 
-            if not hasattr(payload, "PRIMARY_KEY"):
-                logging.error(
-                    f"Fail to persist signal {name}: "
-                    f"DataFrame index column not specified!"
-                )
-                return
-
         for data in kwargs.values():
             row_data = vars(data)
 
@@ -97,6 +90,8 @@ class SignalConnector:
             if name not in self._events:
                 self._events[name] = df
             else:
-                self._events[name] = pd.concat(
-                    [self._events[name], df]
-                ).drop_duplicates(subset=data.PRIMARY_KEY, keep="last")
+                self._events[name] = pd.concat([self._events[name], df])
+                if hasattr(data, "PRIMARY_KEY"):
+                    self._events[name] = self._events[name].drop_duplicates(
+                        subset=data.PRIMARY_KEY, keep="last"
+                    )

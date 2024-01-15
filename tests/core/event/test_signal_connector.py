@@ -119,7 +119,7 @@ class TestSignalConnector(unittest.TestCase):
         assert_frame_equal(event_a3, expected_event_a)
         assert_frame_equal(event_b3, expected_event_b)
 
-    def test_handle_bad_signal(self):
+    def test_handle_signal_without_primary_key(self):
         class SomeEnum(Enum):
             A = 1
 
@@ -129,7 +129,7 @@ class TestSignalConnector(unittest.TestCase):
                 self.some_enum = SomeEnum.A
 
         payload_a = Payload(1)
-        payload_b = Payload(2)
+        payload_b = Payload(1)
 
         signal_a = signal("signal_a")
         signal_b = signal("signal_b")
@@ -140,5 +140,13 @@ class TestSignalConnector(unittest.TestCase):
         signal_a.send(signal_a, payload=payload_a)
         signal_b.send(signal_b, payload=payload_b)
 
-        self.assertNotIn("signal_a", self.signal_connector._events)
-        self.assertNotIn("signal_b", self.signal_connector._events)
+        self.assertIn("signal_a", self.signal_connector._events)
+        self.assertIn("signal_b", self.signal_connector._events)
+        self.assertEqual(1, len(self.signal_connector._events["signal_a"]))
+        self.assertEqual(1, len(self.signal_connector._events["signal_b"]))
+
+        signal_a.send(signal_a, payload=payload_a)
+        signal_b.send(signal_b, payload=payload_b)
+
+        self.assertEqual(2, len(self.signal_connector._events["signal_a"]))
+        self.assertEqual(2, len(self.signal_connector._events["signal_b"]))
