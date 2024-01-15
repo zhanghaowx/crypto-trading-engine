@@ -69,7 +69,7 @@ class Application:
         # Market Data Setup: Historical Feed
         self._md_historical = HistoricalFeed(
             candlestick_interval_in_seconds=candlestick_interval_in_seconds,
-            replay_speed=60000,
+            replay_speed=6000,
         )
 
         # Strategy Setup
@@ -135,7 +135,7 @@ class Application:
             return result_time_ranges
 
         for period_start, period_end in generate_time_ranges(300):
-            print(
+            logging.info(
                 f"Replay for {self._symbol}: "
                 f"{period_start} - {min(period_end, end)}"
             )

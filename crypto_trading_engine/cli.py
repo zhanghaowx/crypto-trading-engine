@@ -6,9 +6,12 @@ import signal
 import sys
 from datetime import datetime
 
+import numpy as np
 import pytz
 
 from crypto_trading_engine.app import Application
+from crypto_trading_engine.core.time.time_manager import create_time_manager
+from crypto_trading_engine.strategy.bull_flag.parameters import Parameters
 
 
 def graceful_exit(signum, frame):
@@ -22,14 +25,44 @@ signal.signal(signal.SIGINT, graceful_exit)
 
 
 async def main():
-    app = Application("ETH-USD", candlestick_interval_in_seconds=60)
-
     replay_start = datetime(
-        2024, 1, 11, hour=0, minute=0, second=0, tzinfo=pytz.utc
+        2024, 1, 12, hour=20, minute=0, second=0, tzinfo=pytz.utc
     )
     replay_end = datetime(
-        2024, 1, 11, hour=23, minute=59, second=0, tzinfo=pytz.utc
+        2024, 1, 12, hour=23, minute=59, second=0, tzinfo=pytz.utc
     )
 
-    pnl = await app.run_replay(replay_start, replay_end)
-    logging.info(f"PnL: {pnl}")
+    result = dict[float, Parameters]()
+
+    # Start Training
+    for extreme_bullish_threshold in np.arange(2.0, 3.0, 0.1):
+        for extreme_bullish_return_pct in np.arange(0.0001, 0.005, 0.001):
+            for consolidation_period_thresh in np.arange(0.1, 0.3, 0.05):
+                parameters = Parameters(
+                    max_number_of_recent_candlesticks=10,
+                    extreme_bullish_threshold=extreme_bullish_threshold,
+                    extreme_bullish_return_pct=extreme_bullish_return_pct,
+                    consolidation_period_threshold=consolidation_period_thresh,
+                )
+                app = Application(
+                    "ETH-USD",
+                    candlestick_interval_in_seconds=60,
+                    strategy_parameters=parameters,
+                )
+
+                pnl = await app.run_replay(replay_start, replay_end)
+                logging.info(f"PnL: {pnl}, Parameters: {parameters}")
+
+                if pnl > 0.0:
+                    result[pnl] = parameters
+
+                # Prepare for next iteration
+                create_time_manager().force_reset()
+
+    if len(result) == 0:
+        logging.warning("No best parameters found. Exiting...")
+    else:
+        sorted_dict = dict(
+            sorted(result.items(), key=lambda x: x[0], reverse=True)
+        )
+        logging.info(f"Best Parameters: {sorted_dict[0]}")

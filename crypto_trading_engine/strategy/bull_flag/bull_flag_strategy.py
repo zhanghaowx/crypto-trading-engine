@@ -166,14 +166,12 @@ class BullFlagStrategy(Heartbeater):
 
             if open_order.should_close_for_loss(self.history[-1].close):
                 # crossed stop loss line, we need sell for limiting losses
-                logging.warning(
-                    f"Placed {order} with due to crossing stop loss."
-                )
+                logging.warning(f"Placed {order} due to crossing stop loss.")
                 orders_to_delete.append(order.client_order_id)
                 self.order_event.send(self.order_event, order=order)
             elif open_order.should_close_for_profit(self.history[-1].close):
                 # crossed profit line, we need sell for profit
-                logging.info(f"Placed {order} with for profit.")
+                logging.info(f"Placed {order} for profit.")
                 orders_to_delete.append(order.client_order_id)
                 self.order_event.send(self.order_event, order=order)
             else:

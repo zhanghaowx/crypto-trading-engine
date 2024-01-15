@@ -10,7 +10,8 @@ from io import StringIO
 @patch.dict(os.environ, {"COINBASE_API_SECRET": "api_secret"})
 class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
     @patch(
-        "crypto_trading_engine." "market_data.coinbase.public_feed.PublicFeed.connect"
+        "crypto_trading_engine."
+        "market_data.coinbase.public_feed.PublicFeed.connect"
     )
     @patch(
         "crypto_trading_engine."
@@ -36,9 +37,8 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
         # Add assertions based on your expectations
         # For example, check if the connect methods were called
         output = captured_output.getvalue().split("\n")
-        self.assertLessEqual(2, len(output))
-        self.assertEqual(output[-1], "")
-        self.assertRegex(output[-2], "^PnL")
+        self.assertLessEqual(1, len(output))
+        self.assertEqual(output[0], "")
 
     async def test_graceful_exit(self):
         # Redirect stdout to capture output
