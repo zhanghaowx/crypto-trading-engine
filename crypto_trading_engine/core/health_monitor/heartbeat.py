@@ -3,8 +3,9 @@ from datetime import datetime
 from enum import Enum
 from typing import Union
 
-import pytz
 from blinker import signal
+
+from crypto_trading_engine.core.time.time_manager import time_manager
 
 
 class HeartbeatLevel(Enum):
@@ -31,9 +32,7 @@ class Heartbeat:
         """
         self.level = level
         self.message = message
-        self.report_time = (
-            report_time if report_time else datetime.now(pytz.utc)
-        )
+        self.report_time = report_time if report_time else time_manager().now()
         assert (self.level == HeartbeatLevel.NORMAL) or (
             len(self.message) > 0
         ), (

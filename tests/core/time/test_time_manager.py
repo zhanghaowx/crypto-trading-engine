@@ -5,14 +5,13 @@ import pytz
 
 from crypto_trading_engine.core.time.time_manager import (
     TimeManager,
-    create_time_manager,
+    time_manager,
 )
 
 
 class TimeManagerTest(unittest.TestCase):
     def tearDown(self):
-        time_manager = create_time_manager()
-        time_manager.force_reset()
+        time_manager().force_reset()
 
     def test_use_real_time_admin_taken(self):
         # Arrange
@@ -52,7 +51,7 @@ class TimeManagerTest(unittest.TestCase):
         time_manager.use_real_time(admin_user)
 
         # Assert
-        current_time = time_manager.get_current_time()
+        current_time = time_manager.now()
         self.assertAlmostEqual(
             current_time, datetime.now(pytz.utc), delta=timedelta(seconds=1)
         )
@@ -99,7 +98,7 @@ class TimeManagerTest(unittest.TestCase):
         time_manager.use_fake_time(fake_time, admin_user)
 
         # Assert
-        self.assertEqual(fake_time, time_manager.get_current_time())
+        self.assertEqual(fake_time, time_manager.now())
         self.assertTrue(time_manager.is_using_fake_time())
 
     def test_switch_back_to_real_time(self):
@@ -114,7 +113,7 @@ class TimeManagerTest(unittest.TestCase):
         time_manager.use_real_time(admin_user)
 
         # Assert
-        current_time = time_manager.get_current_time()
+        current_time = time_manager.now()
         self.assertAlmostEqual(
             current_time, datetime.now(pytz.utc), delta=timedelta(seconds=1)
         )
@@ -132,20 +131,20 @@ class TimeManagerTest(unittest.TestCase):
         time_manager.use_fake_time(fake_time2, admin_user)
 
         # Assert
-        self.assertEqual(fake_time2, time_manager.get_current_time())
+        self.assertEqual(fake_time2, time_manager.now())
 
     def test_claim_admin(self):
         # Arrange
-        time_manager = TimeManager()
+        tm = time_manager()
         admin_user1 = object()
         admin_user2 = object()
 
         # Act
-        time_manager.claim_admin(admin_user1)
+        tm.claim_admin(admin_user1)
 
         # Assert
         with self.assertRaises(RuntimeError) as context:
-            time_manager.claim_admin(admin_user2)
+            tm.claim_admin(admin_user2)
 
         self.assertEqual(
             "Admin already claimed by another user!", str(context.exception)
@@ -170,19 +169,19 @@ class TimeManagerTest(unittest.TestCase):
             time_manager.claim_admin(admin_user2)
 
     def test_multi_time_manager(self):
-        tm1 = create_time_manager()
-        tm2 = create_time_manager()
+        tm1 = time_manager()
+        tm2 = time_manager()
         admin = object()
         fake_time1 = datetime(2022, 1, 1, tzinfo=pytz.utc)
 
         tm1.claim_admin(admin)
         tm1.use_fake_time(fake_time1, admin)
 
-        self.assertEqual(tm1.get_current_time(), tm2.get_current_time())
+        self.assertEqual(tm1.now(), tm2.now())
 
     def test_reset_time_manager(self):
-        tm1 = create_time_manager()
-        tm2 = create_time_manager()
+        tm1 = time_manager()
+        tm2 = time_manager()
         admin = object()
 
         tm1.claim_admin(admin)

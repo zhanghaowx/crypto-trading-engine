@@ -10,7 +10,7 @@ import numpy as np
 import pytz
 
 from crypto_trading_engine.app import Application
-from crypto_trading_engine.core.time.time_manager import create_time_manager
+from crypto_trading_engine.core.time.time_manager import time_manager
 from crypto_trading_engine.strategy.bull_flag.parameters import Parameters
 
 
@@ -57,7 +57,7 @@ async def main():
                     result[pnl] = parameters
 
                 # Prepare for next iteration
-                create_time_manager().force_reset()
+                time_manager().force_reset()
 
     if len(result) == 0:
         logging.warning("No best parameters found. Exiting...")

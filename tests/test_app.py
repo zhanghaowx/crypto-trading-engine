@@ -4,7 +4,7 @@ from datetime import datetime
 import asyncio
 from unittest.mock import MagicMock, patch, AsyncMock
 
-from crypto_trading_engine.core.time.time_manager import create_time_manager
+from crypto_trading_engine.core.time.time_manager import time_manager
 from crypto_trading_engine.strategy.bull_flag.parameters import (
     Parameters,
 )
@@ -42,7 +42,7 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
         self.application._position_manager = self.mock_position_manager
 
     async def asyncTearDown(self):
-        create_time_manager().force_reset()
+        time_manager().force_reset()
 
     async def test_initialization(self):
         self.assertEqual(self.application._symbol, self.symbol)

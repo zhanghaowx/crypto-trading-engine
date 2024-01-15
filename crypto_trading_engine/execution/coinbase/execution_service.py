@@ -10,7 +10,7 @@ from blinker import signal
 from coinbase.rest import RESTClient
 
 from crypto_trading_engine.core.side import MarketSide
-from crypto_trading_engine.core.time.time_manager import create_time_manager
+from crypto_trading_engine.core.time.time_manager import time_manager
 from crypto_trading_engine.market_data.core.order import Order
 from crypto_trading_engine.market_data.core.order_book import OrderBook
 from crypto_trading_engine.market_data.core.trade import Trade
@@ -45,7 +45,6 @@ class MockExecutionService:
         )
         self.order_history = dict[str, Order]()
         self.order_fill_event = signal("order_fill")
-        self.time_manager = create_time_manager()
 
     def on_order(self, sender: object, order: Order):
         """
@@ -64,7 +63,7 @@ class MockExecutionService:
         # Record every order in history
         self.order_history[order.client_order_id] = order
 
-        if self.time_manager.is_using_fake_time():
+        if time_manager().is_using_fake_time():
             # Get a random market trader near the fake time and do a match
             # close to the market in history
             trade = self._get_any_market_trade(order.symbol)
@@ -159,7 +158,7 @@ class MockExecutionService:
 
     # noinspection PyArgumentList
     def _get_any_market_trade(self, symbol):
-        now = self.time_manager.get_current_time()
+        now = time_manager().now()
         json_response = self._client.get_market_trades(
             product_id=symbol,
             start=int((now - timedelta(seconds=5)).timestamp()),
@@ -194,7 +193,7 @@ class MockExecutionService:
             side=side,
             price=price,
             quantity=quantity,
-            transaction_time=self.time_manager.get_current_time(),
+            transaction_time=time_manager().now(),
         )
 
         self.order_fill_event.send(

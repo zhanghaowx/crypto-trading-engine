@@ -1,14 +1,12 @@
 import logging
 import uuid
 from collections import deque
-from datetime import datetime
 
-import pytz
 from blinker import signal
 
 from crypto_trading_engine.core.health_monitor.heartbeat import Heartbeater
 from crypto_trading_engine.core.side import MarketSide
-from crypto_trading_engine.core.time.time_manager import create_time_manager
+from crypto_trading_engine.core.time.time_manager import time_manager
 from crypto_trading_engine.market_data.core.candlestick import Candlestick
 from crypto_trading_engine.market_data.core.order import Order, OrderType
 from crypto_trading_engine.market_data.core.trade import Trade
@@ -131,7 +129,7 @@ class BullFlagStrategy(Heartbeater):
             price=None,
             quantity=0.01,
             side=MarketSide.BUY,
-            creation_time=datetime.now(pytz.utc),
+            creation_time=time_manager().now(),
         )
         self.open_orders[client_order_id] = StrategyOrder(
             opportunity=opportunity,
@@ -139,8 +137,7 @@ class BullFlagStrategy(Heartbeater):
         )
 
         logging.info(
-            f"Placed {order} with candlesticks at "
-            f"{create_time_manager().get_current_time()}."
+            f"Placed {order} with candlesticks at " f"{time_manager().now()}."
         )
         self.order_event.send(self.order_event, order=order)
 
@@ -161,7 +158,7 @@ class BullFlagStrategy(Heartbeater):
                 price=None,
                 quantity=open_order.open_order.quantity,
                 side=MarketSide.SELL,
-                creation_time=datetime.now(pytz.utc),
+                creation_time=time_manager().now(),
             )
 
             if open_order.should_close_for_loss(self.history[-1].close):

@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from typing import Union
 
-import pytz
+from crypto_trading_engine.core.time.time_manager import time_manager
 
 
 class Candlestick:
@@ -82,7 +82,7 @@ class Candlestick:
             Whether the candlestick is completed or it is still being built
         """
 
-        return (now if now else datetime.now(pytz.utc)) >= self.end_time
+        return (now if now else time_manager().now()) >= self.end_time
 
     def is_bullish(self):
         """

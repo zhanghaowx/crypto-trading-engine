@@ -7,6 +7,7 @@ from unittest.mock import Mock
 import pytz
 
 from crypto_trading_engine.core.side import MarketSide
+from crypto_trading_engine.core.time.time_manager import time_manager
 from crypto_trading_engine.execution.coinbase.execution_service import (
     MockExecutionService,
 )
@@ -56,7 +57,7 @@ class TestMockExecutionService(unittest.TestCase):
         self.execution_service.order_fill_event.connect(self.on_order_fill)
 
     def tearDown(self):
-        self.execution_service.time_manager.force_reset()
+        time_manager().force_reset()
 
     def buy(self, symbol: str, price: Union[float, None], quantity: float):
         """
@@ -254,10 +255,8 @@ class TestMockExecutionService(unittest.TestCase):
         )
 
     def test_replay_buy(self):
-        self.execution_service.time_manager.claim_admin(self)
-        self.execution_service.time_manager.use_fake_time(
-            datetime.now(pytz.utc), self
-        )
+        time_manager().claim_admin(self)
+        time_manager().use_fake_time(datetime.now(pytz.utc), self)
 
         # Execute
         self.buy(symbol="BTC-USD", price=100.0, quantity=1.0)
@@ -268,10 +267,8 @@ class TestMockExecutionService(unittest.TestCase):
         self.assertEqual(1.0, self.fills[-1].quantity)
 
     def test_replay_sell(self):
-        self.execution_service.time_manager.claim_admin(self)
-        self.execution_service.time_manager.use_fake_time(
-            datetime.now(pytz.utc), self
-        )
+        time_manager().claim_admin(self)
+        time_manager().use_fake_time(datetime.now(pytz.utc), self)
 
         # Execute
         self.sell(symbol="BTC-USD", price=100.0, quantity=1.0)

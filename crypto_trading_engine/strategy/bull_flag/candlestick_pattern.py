@@ -1,6 +1,6 @@
 import logging
 
-from crypto_trading_engine.core.time.time_manager import create_time_manager
+from crypto_trading_engine.core.time.time_manager import time_manager
 from crypto_trading_engine.market_data.core.candlestick import Candlestick
 from crypto_trading_engine.strategy.bull_flag.parameters import Parameters
 from crypto_trading_engine.strategy.core.trade_opportunity import (
@@ -46,7 +46,7 @@ class CandlestickPattern:
                 stop_loss2 = market_price - factor * atr
 
                 logging.info(
-                    f"Time: {create_time_manager().get_current_time()}, "
+                    f"Time: {time_manager().now()}, "
                     f"Stop loss: ({stop_loss1}, {stop_loss2}), "
                     f"Bull Flag: {bull_flag_candlestick}"
                 )

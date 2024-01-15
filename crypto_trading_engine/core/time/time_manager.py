@@ -86,7 +86,7 @@ class TimeManager:
         with self._lock:
             self._fake_time = fake_time
 
-    def get_current_time(self) -> datetime:
+    def now(self) -> datetime:
         """
         Get the current time based on if the fake time is set.
         Returns: The current real time or fake time.
@@ -111,5 +111,5 @@ class TimeManager:
             )
 
 
-def create_time_manager(singleton=TimeManager()):
+def time_manager(singleton=TimeManager()):
     return singleton

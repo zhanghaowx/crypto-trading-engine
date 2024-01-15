@@ -1,8 +1,6 @@
 from datetime import datetime
 
-import pytz
-
-from crypto_trading_engine.core.time.time_manager import create_time_manager
+from crypto_trading_engine.core.time.time_manager import time_manager
 from crypto_trading_engine.risk_limit.risk_limit import IRiskLimit
 
 
@@ -22,12 +20,12 @@ class OrderFrequencyLimit(IRiskLimit):
 
     def do_send(self):
         assert self.can_send()
-        now = create_time_manager().get_current_time()
+        now = time_manager().now()
         self.timestamps.append(now)
         self._update()
 
     def _update(self):
-        now = create_time_manager().get_current_time()
+        now = time_manager().now()
         self.timestamps = [
             t
             for t in self.timestamps

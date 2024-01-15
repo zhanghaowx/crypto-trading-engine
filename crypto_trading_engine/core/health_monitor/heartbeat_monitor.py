@@ -1,9 +1,7 @@
 import asyncio
-from datetime import datetime
-
-import pytz
 
 from crypto_trading_engine.core.health_monitor.heartbeat import Heartbeat
+from crypto_trading_engine.core.time.time_manager import time_manager
 
 
 class HeartbeatMonitor:
@@ -15,14 +13,14 @@ class HeartbeatMonitor:
         ):
             self.heartbeat = heartbeat
             self.zombie = zombie
-            self.creation_time = datetime.now(pytz.utc)
+            self.creation_time = time_manager().now()
 
         def is_zombie(self):
             return self.zombie
 
         def set_is_zombie(self, timeout_in_seconds: float):
             seconds_since_creation = (
-                datetime.now(pytz.utc) - self.creation_time
+                time_manager().now() - self.creation_time
             ).total_seconds()
             self.zombie = seconds_since_creation > timeout_in_seconds
 

@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import MagicMock, patch, Mock
 from datetime import datetime, timedelta
 
-from crypto_trading_engine.core.time.time_manager import create_time_manager
+from crypto_trading_engine.core.time.time_manager import time_manager
 from crypto_trading_engine.market_data.coinbase.historical_feed import (
     HistoricalFeed,
 )
@@ -33,8 +33,7 @@ class TestHistoricalFeed(unittest.TestCase):
         self.candlesticks = list[Candlestick]()
 
     def tearDown(self):
-        time_manager = create_time_manager()
-        time_manager.force_reset()
+        time_manager().force_reset()
 
     def on_candlestick(self, _, candlestick):
         self.candlesticks.append(candlestick)
