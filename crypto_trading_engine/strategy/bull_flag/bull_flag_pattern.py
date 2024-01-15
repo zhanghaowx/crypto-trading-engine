@@ -7,7 +7,7 @@ from crypto_trading_engine.strategy.bull_flag.bull_flag_opportunity import (
 from crypto_trading_engine.strategy.bull_flag.parameters import Parameters
 
 
-class CandlestickPattern:
+class BullFlagPattern:
     def __init__(self, params: Parameters):
         self.params = params
 
@@ -75,6 +75,7 @@ class CandlestickPattern:
             candlesticks, len(candlesticks)
         )
         factor = 1.0  # The factor by which to check down movement.
+
         opportunity.stop_loss_from_atr = (
             opportunity.expected_trade_price - factor * atr
         )
@@ -82,9 +83,10 @@ class CandlestickPattern:
         opportunity.stop_loss_price = min(
             opportunity.stop_loss_from_atr, opportunity.stop_loss_from_support
         )
+
         opportunity.profit_price = (
             opportunity.expected_trade_price - opportunity.stop_loss_price
-        ) * 2.0 + bull_flag_candlestick.close
+        ) * 2.0 + opportunity.expected_trade_price
 
         opportunity.risk_reward_ratio = (
             opportunity.profit_price - opportunity.expected_trade_price

@@ -14,8 +14,8 @@ from crypto_trading_engine.risk_limit.risk_limit import IRiskLimit
 from crypto_trading_engine.strategy.bull_flag.bull_flag_opportunity import (
     BullFlagOpportunity,
 )
-from crypto_trading_engine.strategy.bull_flag.candlestick_pattern import (
-    CandlestickPattern,
+from crypto_trading_engine.strategy.bull_flag.bull_flag_pattern import (
+    BullFlagPattern,
 )
 from crypto_trading_engine.strategy.bull_flag.parameters import Parameters
 from crypto_trading_engine.strategy.core.strategy_order import StrategyOrder
@@ -57,7 +57,7 @@ class BullFlagStrategy(Heartbeater):
         self.history = deque[Candlestick](
             maxlen=parameters.max_number_of_recent_candlesticks
         )
-        self.pattern_recognizer = CandlestickPattern(parameters)
+        self.pattern_recognizer = BullFlagPattern(parameters)
         self.order_event = signal("order")
         self.opportunity_event = signal("opportunity")
         self.open_orders = dict[str, StrategyOrder]()
