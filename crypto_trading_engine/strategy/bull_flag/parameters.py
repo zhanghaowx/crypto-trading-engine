@@ -17,7 +17,12 @@ class Parameters:
     # be considered as an extremely bullish candlestick and potentially marked
     # as the starting of a bull flag
     extreme_bullish_return_pct: float = 0.001
+    # A candlestick is suggested to be smaller than `threshold * body of
+    # previous extremely bullish candlestick` in order to be considered as part
+    # of the consolidation period. Exceeding this threshold will lower its
+    # score
+    consolidation_period_threshold: float = 0.2
     # A candlestick needs to be smaller than `threshold * body of previous
     # extremely bullish candlestick` in order to be considered as part of
     # the consolidation period.
-    consolidation_period_threshold: float = 0.2
+    consolidation_period_threshold_cutoff: float = 0.4

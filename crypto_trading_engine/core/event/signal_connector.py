@@ -95,3 +95,5 @@ class SignalConnector:
                     self._events[name] = self._events[name].drop_duplicates(
                         subset=data.PRIMARY_KEY, keep="last"
                     )
+                else:
+                    self._events[name].reset_index()

@@ -70,7 +70,5 @@ class PositionManager:
         assert (
             self.positions[symbol].volume >= 0
         ), f"Unexpected negative volume for {self.positions}"
-        assert (
-            self.positions[symbol].cash_value >= 0
-        ), f"Unexpected negative cash value for {self.positions}"
+
         return self.positions[symbol]

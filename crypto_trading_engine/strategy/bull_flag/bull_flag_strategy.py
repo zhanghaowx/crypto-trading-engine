@@ -11,6 +11,9 @@ from crypto_trading_engine.market_data.core.candlestick import Candlestick
 from crypto_trading_engine.market_data.core.order import Order, OrderType
 from crypto_trading_engine.market_data.core.trade import Trade
 from crypto_trading_engine.risk_limit.risk_limit import IRiskLimit
+from crypto_trading_engine.strategy.bull_flag.bull_flag_opportunity import (
+    BullFlagOpportunity,
+)
 from crypto_trading_engine.strategy.bull_flag.candlestick_pattern import (
     CandlestickPattern,
 )
@@ -56,6 +59,7 @@ class BullFlagStrategy(Heartbeater):
         )
         self.pattern_recognizer = CandlestickPattern(parameters)
         self.order_event = signal("order")
+        self.opportunity_event = signal("opportunity")
         self.open_orders = dict[str, StrategyOrder]()
 
     def on_candlestick(self, _: str, candlestick: Candlestick):
@@ -92,7 +96,7 @@ class BullFlagStrategy(Heartbeater):
     def generate_buy_opportunity(self):
         # Don't make decisions until watching the market for a while
         if len(self.history) < self.history.maxlen:
-            return TradeOpportunity()
+            return BullFlagOpportunity()
 
         # Try search back N candlesticks and see if a bull flag pattern could
         # be found.
@@ -100,12 +104,16 @@ class BullFlagStrategy(Heartbeater):
             opportunity = self.pattern_recognizer.is_bull_flag(
                 candlesticks=list(self.history)[i:]
             )
-            if opportunity.good():
+            if opportunity:
+                self.opportunity_event.send(
+                    self.opportunity_event, opportunity=opportunity
+                )
+            if opportunity and opportunity.good():
                 return opportunity
             # Keep searching until a good opportunity is found or all
             # possibilities are exhausted.
 
-        return TradeOpportunity()
+        return BullFlagOpportunity()
 
     def try_buy(self, opportunity: TradeOpportunity) -> bool:
         if not opportunity or not opportunity.good():

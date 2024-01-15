@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import ClassVar
 
 
-@dataclass(frozen=True)
+@dataclass
 class TradeOpportunity:
     # Minimal score for an opportunity to be considered worth trading
     MIN_SCORE: ClassVar[float] = 0.0

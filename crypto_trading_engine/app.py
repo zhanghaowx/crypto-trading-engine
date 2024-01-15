@@ -104,6 +104,7 @@ class Application:
         self._signal_connector.connect(
             self._strategy.order_event, self._exec_service.on_order
         )
+        self._signal_connector.connect(self._strategy.opportunity_event)
         self._signal_connector.connect(
             self._exec_service.order_fill_event, self._strategy.on_fill
         )

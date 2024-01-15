@@ -26,10 +26,10 @@ signal.signal(signal.SIGINT, graceful_exit)
 
 async def main():
     replay_start = datetime(
-        2024, 1, 12, hour=20, minute=0, second=0, tzinfo=pytz.utc
+        2024, 1, 14, hour=21, minute=0, second=0, tzinfo=pytz.utc
     )
     replay_end = datetime(
-        2024, 1, 12, hour=23, minute=59, second=0, tzinfo=pytz.utc
+        2024, 1, 14, hour=22, minute=59, second=0, tzinfo=pytz.utc
     )
 
     async def run_once(parameters: Parameters = Parameters()):
