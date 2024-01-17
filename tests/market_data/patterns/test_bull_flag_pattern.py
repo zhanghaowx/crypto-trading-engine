@@ -2,11 +2,8 @@ import unittest
 from datetime import datetime, timedelta
 from crypto_trading_engine.market_data.core.candlestick import Candlestick
 from crypto_trading_engine.strategy.bull_flag.parameters import Parameters
-from crypto_trading_engine.strategy.bull_flag.bull_flag_pattern import (
+from crypto_trading_engine.market_data.patterns.bull_flag_pattern import (
     BullFlagPattern,
-)
-from crypto_trading_engine.strategy.bull_flag.bull_flag_opportunity import (
-    BullFlagOpportunity,
 )
 
 

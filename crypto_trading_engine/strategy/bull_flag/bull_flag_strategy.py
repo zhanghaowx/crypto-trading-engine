@@ -14,7 +14,7 @@ from crypto_trading_engine.risk_limit.risk_limit import IRiskLimit
 from crypto_trading_engine.strategy.bull_flag.bull_flag_opportunity import (
     BullFlagOpportunity,
 )
-from crypto_trading_engine.strategy.bull_flag.bull_flag_pattern import (
+from crypto_trading_engine.market_data.patterns.bull_flag_pattern import (
     BullFlagPattern,
 )
 from crypto_trading_engine.strategy.bull_flag.bull_flag_round_trip import (
