@@ -3,7 +3,6 @@ from datetime import datetime, timedelta
 
 import pytz
 from blinker import ANY
-from pytz import utc
 
 from crypto_trading_engine.core.side import MarketSide
 from crypto_trading_engine.market_data.core.candlestick import Candlestick
@@ -17,7 +16,7 @@ from crypto_trading_engine.strategy.bull_flag.bull_flag_strategy import (
     BullFlagStrategy,
 )
 from crypto_trading_engine.strategy.bull_flag.parameters import Parameters
-from crypto_trading_engine.strategy.core.open_position import OpenPosition
+from crypto_trading_engine.strategy.bull_flag.open_position import OpenPosition
 
 
 class MockRiskLimits(IRiskLimit):
@@ -177,6 +176,15 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(1, len(self.orders))
         self.assertEqual(1, len(self.opportunities))
+
+        # Resend the same candlesticks again should not trigger a new order
+        self.bull_flag_strategy.on_candlestick(
+            "mock_sender", self.candlesticks[2]
+        )
+
+        # Assert
+        self.assertEqual(1, len(self.orders))
+        self.assertEqual(2, len(self.opportunities))
 
     async def test_sell_for_limit_loss_on_candlestick(self):
         # Arrange

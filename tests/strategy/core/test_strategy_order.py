@@ -2,7 +2,7 @@ import unittest
 from datetime import datetime
 from crypto_trading_engine.core.side import MarketSide
 from crypto_trading_engine.market_data.core.order import Order, OrderType
-from crypto_trading_engine.strategy.core.open_position import OpenPosition
+from crypto_trading_engine.strategy.bull_flag.open_position import OpenPosition
 from crypto_trading_engine.strategy.core.trade_opportunity import (
     TradeOpportunity,
 )

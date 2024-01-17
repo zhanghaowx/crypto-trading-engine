@@ -2,8 +2,8 @@ from dataclasses import dataclass
 
 from crypto_trading_engine.core.side import MarketSide
 from crypto_trading_engine.market_data.core.order import Order
-from crypto_trading_engine.strategy.core.trade_opportunity import (
-    TradeOpportunity,
+from crypto_trading_engine.strategy.bull_flag.bull_flag_opportunity import (
+    BullFlagOpportunity,
 )
 
 
@@ -15,7 +15,7 @@ class OpenPosition:
     for placing the order.
     """
 
-    opportunity: TradeOpportunity
+    opportunity: BullFlagOpportunity
     order: Order
 
     def should_close_for_loss(self, market_price: float) -> bool:

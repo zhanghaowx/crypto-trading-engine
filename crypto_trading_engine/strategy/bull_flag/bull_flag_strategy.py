@@ -17,8 +17,8 @@ from crypto_trading_engine.strategy.bull_flag.bull_flag_opportunity import (
 from crypto_trading_engine.strategy.bull_flag.bull_flag_pattern import (
     BullFlagPattern,
 )
+from crypto_trading_engine.strategy.bull_flag.open_position import OpenPosition
 from crypto_trading_engine.strategy.bull_flag.parameters import Parameters
-from crypto_trading_engine.strategy.core.open_position import OpenPosition
 
 
 class BullFlagStrategy(Heartbeater):
@@ -121,10 +121,16 @@ class BullFlagStrategy(Heartbeater):
         return BullFlagOpportunity()
 
     def _try_buy(self, opportunity: BullFlagOpportunity) -> bool:
+        # Don't buy if opportunity is not good enough
         if not opportunity or not opportunity.good(
             self._parameters.opportunity_score_cutoff
         ):
             return False
+
+        # Don't buy if we've already placed an order for the same bull flag
+        for open_position in self._open_positions.values():
+            if open_position.opportunity.start == opportunity.start:
+                return False
 
         assert (
             opportunity.stop_loss_price > 0.0
