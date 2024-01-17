@@ -17,7 +17,7 @@ from crypto_trading_engine.strategy.bull_flag.bull_flag_strategy import (
     BullFlagStrategy,
 )
 from crypto_trading_engine.strategy.bull_flag.parameters import Parameters
-from crypto_trading_engine.strategy.core.strategy_order import StrategyOrder
+from crypto_trading_engine.strategy.core.open_position import OpenPosition
 
 
 class MockRiskLimits(IRiskLimit):
@@ -191,13 +191,15 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(0, len(self.orders))
 
-        self.bull_flag_strategy._open_orders["mock_order_id"] = StrategyOrder(
+        self.bull_flag_strategy._open_positions[
+            "mock_order_id"
+        ] = OpenPosition(
             opportunity=BullFlagOpportunity(
                 score=1.0,
                 stop_loss_price=self.candlesticks[2].close + 0.01,
                 profit_price=20,
             ),
-            open_order=Order(
+            order=Order(
                 client_order_id="mock_order_id",
                 symbol="BTC-USD",
                 order_type=OrderType.MARKET_ORDER,
@@ -207,7 +209,7 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
                 creation_time=BullFlagStrategyTest.create_mock_timestamp(),
             ),
         )
-        self.assertEqual(1, len(self.bull_flag_strategy._open_orders))
+        self.assertEqual(1, len(self.bull_flag_strategy._open_positions))
 
         # Act
         self.bull_flag_strategy.on_candlestick(
@@ -230,7 +232,7 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
         self.assertLess(
             datetime(2024, 1, 1, tzinfo=pytz.utc), sell_order.creation_time
         )
-        self.assertEqual(0, len(self.bull_flag_strategy._open_orders))
+        self.assertEqual(0, len(self.bull_flag_strategy._open_positions))
 
     async def test_sell_for_profit_on_candlestick(self):
         # Arrange
@@ -240,13 +242,15 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
             )
         self.assertEqual(0, len(self.orders))
 
-        self.bull_flag_strategy._open_orders["mock_order_id"] = StrategyOrder(
+        self.bull_flag_strategy._open_positions[
+            "mock_order_id"
+        ] = OpenPosition(
             opportunity=BullFlagOpportunity(
                 score=1.0,
                 stop_loss_price=0.1,
                 profit_price=self.candlesticks[2].close - 0.01,
             ),
-            open_order=Order(
+            order=Order(
                 client_order_id="mock_order_id",
                 symbol="BTC-USD",
                 order_type=OrderType.MARKET_ORDER,
@@ -256,7 +260,7 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
                 creation_time=BullFlagStrategyTest.create_mock_timestamp(),
             ),
         )
-        self.assertEqual(1, len(self.bull_flag_strategy._open_orders))
+        self.assertEqual(1, len(self.bull_flag_strategy._open_positions))
 
         # Act
         self.bull_flag_strategy.on_candlestick(
@@ -279,7 +283,7 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
         self.assertLess(
             datetime(2024, 1, 1, tzinfo=pytz.utc), sell_order.creation_time
         )
-        self.assertEqual(0, len(self.bull_flag_strategy._open_orders))
+        self.assertEqual(0, len(self.bull_flag_strategy._open_positions))
 
     async def test_on_fill(self):
         # Act
@@ -318,13 +322,15 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
             self.bull_flag_strategy.on_candlestick(
                 "mock_sender", self.candlesticks[i]
             )
-        self.bull_flag_strategy._open_orders["mock_order_id"] = StrategyOrder(
+        self.bull_flag_strategy._open_positions[
+            "mock_order_id"
+        ] = OpenPosition(
             opportunity=BullFlagOpportunity(
                 score=1.0,
                 stop_loss_price=0.1,
                 profit_price=self.candlesticks[2].close - 0.01,
             ),
-            open_order=Order(
+            order=Order(
                 client_order_id="mock_order_id",
                 symbol="BTC-USD",
                 order_type=OrderType.MARKET_ORDER,

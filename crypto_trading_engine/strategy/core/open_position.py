@@ -8,7 +8,7 @@ from crypto_trading_engine.strategy.core.trade_opportunity import (
 
 
 @dataclass(frozen=True, order=True)
-class StrategyOrder:
+class OpenPosition:
     """
     Represents an order from a strategy, whose position is not closed yet.
     It includes details about the order and other data used by the strategy
@@ -16,16 +16,37 @@ class StrategyOrder:
     """
 
     opportunity: TradeOpportunity
-    open_order: Order
+    order: Order
 
     def should_close_for_loss(self, market_price: float) -> bool:
-        assert self.open_order.side == MarketSide.BUY
+        """
+        Whether a strategy shall try to close the position even taking a loss
+
+        Args:
+            market_price: Current market price of the symbol
+
+        Returns:
+            True if we should close the position immediately
+
+        """
+        assert self.order.side == MarketSide.BUY
         if market_price < self.opportunity.stop_loss_price:
             return True
         return False
 
     def should_close_for_profit(self, market_price: float) -> bool:
-        assert self.open_order.side == MarketSide.BUY
+        """
+        Whether a strategy shall try to close the position for a profit
+
+        Args:
+            market_price: Current market price of the symbol
+
+        Returns:
+            True if we should close the position immediately
+
+        """
+
+        assert self.order.side == MarketSide.BUY
         if market_price > self.opportunity.profit_price:
             return True
         return False

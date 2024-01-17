@@ -18,7 +18,7 @@ from crypto_trading_engine.strategy.bull_flag.bull_flag_pattern import (
     BullFlagPattern,
 )
 from crypto_trading_engine.strategy.bull_flag.parameters import Parameters
-from crypto_trading_engine.strategy.core.strategy_order import StrategyOrder
+from crypto_trading_engine.strategy.core.open_position import OpenPosition
 
 
 class BullFlagStrategy(Heartbeater):
@@ -58,7 +58,7 @@ class BullFlagStrategy(Heartbeater):
         self._opportunity_event = signal("opportunity")
 
         # Records of orders and market data
-        self._open_orders = dict[str, StrategyOrder]()
+        self._open_positions = dict[str, OpenPosition]()
         self._market_history = deque[Candlestick](
             maxlen=parameters.max_number_of_recent_candlesticks
         )
@@ -142,9 +142,9 @@ class BullFlagStrategy(Heartbeater):
             side=MarketSide.BUY,
             creation_time=time_manager().now(),
         )
-        self._open_orders[client_order_id] = StrategyOrder(
+        self._open_positions[client_order_id] = OpenPosition(
             opportunity=opportunity,
-            open_order=order,
+            order=order,
         )
 
         logging.info(
@@ -155,31 +155,31 @@ class BullFlagStrategy(Heartbeater):
         return True
 
     def _try_close_positions(self) -> None:
-        if len(self._open_orders) == 0:
+        if len(self._open_positions) == 0:
             return
 
         assert len(self._market_history) == self._market_history.maxlen
 
         orders_to_delete = []
-        for open_order in self._open_orders.values():
+        for open_position in self._open_positions.values():
             order = Order(
-                client_order_id=open_order.open_order.client_order_id,
+                client_order_id=open_position.order.client_order_id,
                 order_type=OrderType.MARKET_ORDER,
-                symbol=open_order.open_order.symbol,
+                symbol=open_position.order.symbol,
                 price=None,
-                quantity=open_order.open_order.quantity,
+                quantity=open_position.order.quantity,
                 side=MarketSide.SELL,
                 creation_time=time_manager().now(),
             )
 
-            if open_order.should_close_for_loss(
+            if open_position.should_close_for_loss(
                 self._market_history[-1].close
             ):
                 # crossed stop loss line, we need sell for limiting losses
                 logging.warning(f"Placed {order} due to crossing stop loss.")
                 orders_to_delete.append(order.client_order_id)
                 self._order_event.send(self._order_event, order=order)
-            elif open_order.should_close_for_profit(
+            elif open_position.should_close_for_profit(
                 self._market_history[-1].close
             ):
                 # crossed profit line, we need sell for profit
@@ -189,8 +189,8 @@ class BullFlagStrategy(Heartbeater):
             else:
                 return
 
-        self._open_orders = {
+        self._open_positions = {
             key: value
-            for key, value in self._open_orders.items()
-            if value.open_order.client_order_id not in orders_to_delete
+            for key, value in self._open_positions.items()
+            if value.order.client_order_id not in orders_to_delete
         }

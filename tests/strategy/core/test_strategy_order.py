@@ -2,7 +2,7 @@ import unittest
 from datetime import datetime
 from crypto_trading_engine.core.side import MarketSide
 from crypto_trading_engine.market_data.core.order import Order, OrderType
-from crypto_trading_engine.strategy.core.strategy_order import StrategyOrder
+from crypto_trading_engine.strategy.core.open_position import OpenPosition
 from crypto_trading_engine.strategy.core.trade_opportunity import (
     TradeOpportunity,
 )
@@ -15,7 +15,7 @@ class TestStrategyOrder(unittest.TestCase):
             stop_loss_price=100.0,
             profit_price=200.0,
         )
-        open_order = Order(
+        order = Order(
             client_order_id="123",
             order_type=OrderType.MARKET_ORDER,
             symbol="BTC-USD",
@@ -24,8 +24,8 @@ class TestStrategyOrder(unittest.TestCase):
             quantity=1,
             creation_time=datetime(2024, 1, 1, 0, 0, 0),
         )
-        self.strategy_order = StrategyOrder(
-            opportunity=opportunity, open_order=open_order
+        self.strategy_order = OpenPosition(
+            opportunity=opportunity, order=order
         )
 
     def test_should_close_for_loss(self):
