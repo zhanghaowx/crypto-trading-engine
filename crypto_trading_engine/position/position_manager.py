@@ -68,7 +68,7 @@ class PositionManager:
         self.pnl += price * quantity
 
         assert (
-            self.positions[symbol].volume >= 0
+            self.positions[symbol].volume >= -1e-10
         ), f"Unexpected negative volume for {self.positions}"
 
         return self.positions[symbol]

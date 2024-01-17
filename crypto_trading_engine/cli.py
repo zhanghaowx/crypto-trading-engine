@@ -24,7 +24,7 @@ def graceful_exit(signum, frame):
 signal.signal(signal.SIGINT, graceful_exit)
 
 
-async def main(training_mode: bool = False):
+async def main(training: bool = False):
     replay_start = datetime(
         2024, 1, 14, hour=21, minute=0, second=0, tzinfo=pytz.utc
     )
@@ -74,9 +74,11 @@ async def main(training_mode: bool = False):
             sorted_dict = dict(
                 sorted(result.items(), key=lambda x: x[0], reverse=True)
             )
-            logging.info(f"Best Parameters: {sorted_dict[0]}")
+            logging.info(
+                f"Best Parameters: {sorted_dict[next(iter(sorted_dict))]}"
+            )
 
-    if training_mode:
+    if training:
         await run_training()
     else:
         await run_once()

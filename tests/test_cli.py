@@ -9,22 +9,12 @@ from io import StringIO
 @patch.dict(os.environ, {"COINBASE_API_KEY": "api_key"})
 @patch.dict(os.environ, {"COINBASE_API_SECRET": "api_secret"})
 class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
-    @patch(
-        "crypto_trading_engine."
-        "market_data.coinbase.public_feed.PublicFeed.connect"
-    )
-    @patch(
-        "crypto_trading_engine."
-        "market_data.coinbase.historical_feed.HistoricalFeed.connect"
-    )
+    @patch("crypto_trading_engine.app.Application.run_replay")
     async def test_main_run_once_mode(
         self,
-        mock_public_feed_connect,
-        mock_historical_feed_connect,
+        mock_run_replay,
     ):
-        # Redirect stdout to capture output
-        captured_output = StringIO()
-        sys.stdout = captured_output
+        mock_run_replay.return_value = 1.0
 
         # Call the main function
         from crypto_trading_engine.cli import main
@@ -36,40 +26,45 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
 
         # Add assertions based on your expectations
         # For example, check if the connect methods were called
-        output = captured_output.getvalue().split("\n")
-        self.assertLessEqual(1, len(output))
-        self.assertEqual(output[0], "")
+        self.assertEqual(1, mock_run_replay.call_count)
 
-    @patch(
-        "crypto_trading_engine."
-        "market_data.coinbase.public_feed.PublicFeed.connect"
-    )
-    @patch(
-        "crypto_trading_engine."
-        "market_data.coinbase.historical_feed.HistoricalFeed.connect"
-    )
-    async def test_main_training_mode(
+    @patch("crypto_trading_engine.app.Application.run_replay")
+    async def test_main_training_mode_with_best_parameters_found(
         self,
-        mock_public_feed_connect,
-        mock_historical_feed_connect,
+        mock_run_replay,
     ):
-        # Redirect stdout to capture output
-        captured_output = StringIO()
-        sys.stdout = captured_output
+        mock_run_replay.return_value = 1.0
 
         # Call the main function
         from crypto_trading_engine.cli import main
 
-        await main(training_mode=True)
+        await main(training=True)
 
         # Reset stdout
         sys.stdout = sys.__stdout__
 
         # Add assertions based on your expectations
         # For example, check if the connect methods were called
-        output = captured_output.getvalue().split("\n")
-        self.assertLessEqual(1, len(output))
-        self.assertEqual(output[0], "")
+        self.assertLess(1, mock_run_replay.call_count)
+
+    @patch("crypto_trading_engine.app.Application.run_replay")
+    async def test_main_training_mode_with_no_best_parameters_found(
+        self,
+        mock_run_replay,
+    ):
+        mock_run_replay.return_value = -1.0
+
+        # Call the main function
+        from crypto_trading_engine.cli import main
+
+        await main(training=True)
+
+        # Reset stdout
+        sys.stdout = sys.__stdout__
+
+        # Add assertions based on your expectations
+        # For example, check if the connect methods were called
+        self.assertLess(1, mock_run_replay.call_count)
 
     async def test_graceful_exit(self):
         # Redirect stdout to capture output
