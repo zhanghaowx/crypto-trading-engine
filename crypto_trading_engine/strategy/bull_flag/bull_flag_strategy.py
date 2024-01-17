@@ -111,7 +111,9 @@ class BullFlagStrategy(Heartbeater):
                 self._opportunity_event.send(
                     self._opportunity_event, opportunity=opportunity
                 )
-            if opportunity and opportunity.good():
+            if opportunity and opportunity.good(
+                self._parameters.opportunity_score_cutoff
+            ):
                 return opportunity
             # Keep searching until a good opportunity is found or all
             # possibilities are exhausted.
@@ -119,7 +121,9 @@ class BullFlagStrategy(Heartbeater):
         return BullFlagOpportunity()
 
     def _try_buy(self, opportunity: BullFlagOpportunity) -> bool:
-        if not opportunity or not opportunity.good():
+        if not opportunity or not opportunity.good(
+            self._parameters.opportunity_score_cutoff
+        ):
             return False
 
         assert (

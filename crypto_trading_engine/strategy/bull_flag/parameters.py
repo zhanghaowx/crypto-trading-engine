@@ -29,3 +29,5 @@ class Parameters:
     # Reward:Risk needs to be higher than X. The default value is 2.0. This
     # requires our strategy to have a win rate of 33.33% or higher.
     target_reward_risk_ratio: float = 2.0
+    # WHen an opportunity score is below the cutoff, it will not be considered
+    opportunity_score_cutoff: float = 0.5
