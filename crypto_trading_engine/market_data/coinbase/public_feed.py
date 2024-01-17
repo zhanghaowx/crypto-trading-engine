@@ -147,7 +147,7 @@ class PublicFeed(Heartbeater):
 
                         market_trade = Trade(
                             trade_id=response["trade_id"],
-                            sequence_number=response["sequence"],
+                            client_order_id="",
                             symbol=response["product_id"],
                             maker_order_id=response["maker_order_id"],
                             taker_order_id=response["taker_order_id"],

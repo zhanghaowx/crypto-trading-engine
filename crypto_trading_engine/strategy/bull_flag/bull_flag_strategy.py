@@ -17,7 +17,9 @@ from crypto_trading_engine.strategy.bull_flag.bull_flag_opportunity import (
 from crypto_trading_engine.strategy.bull_flag.bull_flag_pattern import (
     BullFlagPattern,
 )
-from crypto_trading_engine.strategy.bull_flag.open_position import OpenPosition
+from crypto_trading_engine.strategy.bull_flag.bull_flag_round_trip import (
+    BullFlagRoundTrip,
+)
 from crypto_trading_engine.strategy.bull_flag.parameters import Parameters
 
 
@@ -56,9 +58,10 @@ class BullFlagStrategy(Heartbeater):
         # Signals to send out
         self._order_event = signal("order")
         self._opportunity_event = signal("opportunity")
+        self._trade_result_event = signal("trade_result")
 
         # Records of orders and market data
-        self._open_positions = dict[str, OpenPosition]()
+        self._round_trips = list[BullFlagRoundTrip]()
         self._market_history = deque[Candlestick](
             maxlen=parameters.max_number_of_recent_candlesticks
         )
@@ -96,6 +99,53 @@ class BullFlagStrategy(Heartbeater):
     def on_fill(self, _: str, trade: Trade):
         logging.info(f"Received {trade} for {self.symbol}")
 
+        if trade.side == MarketSide.BUY:
+            found_round_trip = next(
+                (
+                    trip
+                    for trip in self._round_trips
+                    if trip.buy_order
+                    and trip.buy_order.client_order_id == trade.client_order_id
+                ),
+                None,
+            )
+
+            assert (
+                found_round_trip is not None
+            ), f"No buy order located for a buy trade: {trade}"
+
+            found_round_trip.buy_trades.append(trade)
+            if found_round_trip.completed():
+                self._trade_result_event.send(
+                    self._trade_result_event,
+                    round_trip=found_round_trip,
+                )
+
+        elif trade.side == MarketSide.SELL:
+            found_round_trip = next(
+                (
+                    trip
+                    for trip in self._round_trips
+                    if trip.sell_order
+                    and trip.sell_order.client_order_id
+                    == trade.client_order_id
+                ),
+                None,
+            )
+
+            assert (
+                found_round_trip is not None
+            ), f"No sell order located for a sell trade: {trade}"
+
+            found_round_trip.sell_trades.append(trade)
+            if found_round_trip.completed():
+                self._trade_result_event.send(
+                    self._trade_result_event,
+                    round_trip=found_round_trip,
+                )
+        else:
+            assert False, f"Unexpected trade: {trade}"
+
     def _generate_buy_opportunity(self):
         # Don't make decisions until watching the market for a while
         if len(self._market_history) < self._market_history.maxlen:
@@ -128,8 +178,8 @@ class BullFlagStrategy(Heartbeater):
             return False
 
         # Don't buy if we've already placed an order for the same bull flag
-        for open_position in self._open_positions.values():
-            if open_position.opportunity.start == opportunity.start:
+        for bull_flag_trip in self._round_trips:
+            if bull_flag_trip.opportunity.start == opportunity.start:
                 return False
 
         assert (
@@ -142,9 +192,8 @@ class BullFlagStrategy(Heartbeater):
         for limit in self._risk_limits:
             limit.do_send()
 
-        client_order_id = str(uuid.uuid4())
         order = Order(
-            client_order_id=client_order_id,
+            client_order_id=str(uuid.uuid4()),
             order_type=OrderType.MARKET_ORDER,
             symbol=self.symbol,
             price=None,
@@ -152,9 +201,11 @@ class BullFlagStrategy(Heartbeater):
             side=MarketSide.BUY,
             creation_time=time_manager().now(),
         )
-        self._open_positions[client_order_id] = OpenPosition(
-            opportunity=opportunity,
-            order=order,
+        self._round_trips.append(
+            BullFlagRoundTrip(
+                opportunity=opportunity,
+                buy_order=order,
+            )
         )
 
         logging.info(
@@ -165,42 +216,42 @@ class BullFlagStrategy(Heartbeater):
         return True
 
     def _try_close_positions(self) -> None:
-        if len(self._open_positions) == 0:
+        if len(self._round_trips) == 0:
             return
 
         assert len(self._market_history) == self._market_history.maxlen
 
-        orders_to_delete = []
-        for open_position in self._open_positions.values():
-            order = Order(
-                client_order_id=open_position.order.client_order_id,
+        for round_trip in self._round_trips:
+            assert (
+                round_trip.buy_order
+            ), "Buy order has to be placed before sending a sell order!"
+
+            sell_order = Order(
+                client_order_id=str(uuid.uuid4()),
                 order_type=OrderType.MARKET_ORDER,
-                symbol=open_position.order.symbol,
+                symbol=round_trip.buy_order.symbol,
                 price=None,
-                quantity=open_position.order.quantity,
+                quantity=round_trip.buy_order.quantity,
                 side=MarketSide.SELL,
                 creation_time=time_manager().now(),
             )
 
-            if open_position.should_close_for_loss(
-                self._market_history[-1].close
-            ):
+            if round_trip.completed():
+                continue
+
+            if round_trip.should_sell_for_loss(self._market_history[-1].close):
                 # crossed stop loss line, we need sell for limiting losses
-                logging.warning(f"Placed {order} due to crossing stop loss.")
-                orders_to_delete.append(order.client_order_id)
-                self._order_event.send(self._order_event, order=order)
-            elif open_position.should_close_for_profit(
+                logging.warning(f"Placed {sell_order} for limiting loss.")
+
+                round_trip.sell_order = sell_order
+                self._order_event.send(self._order_event, order=sell_order)
+            elif round_trip.should_sell_for_profit(
                 self._market_history[-1].close
             ):
                 # crossed profit line, we need sell for profit
-                logging.info(f"Placed {order} for profit.")
-                orders_to_delete.append(order.client_order_id)
-                self._order_event.send(self._order_event, order=order)
+                logging.info(f"Placed {sell_order} for profit.")
+
+                round_trip.sell_order = sell_order
+                self._order_event.send(self._order_event, order=sell_order)
             else:
                 return
-
-        self._open_positions = {
-            key: value
-            for key, value in self._open_positions.items()
-            if value.order.client_order_id not in orders_to_delete
-        }

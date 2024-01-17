@@ -12,11 +12,13 @@ from crypto_trading_engine.risk_limit.risk_limit import IRiskLimit
 from crypto_trading_engine.strategy.bull_flag.bull_flag_opportunity import (
     BullFlagOpportunity,
 )
+from crypto_trading_engine.strategy.bull_flag.bull_flag_round_trip import (
+    BullFlagRoundTrip,
+)
 from crypto_trading_engine.strategy.bull_flag.bull_flag_strategy import (
     BullFlagStrategy,
 )
 from crypto_trading_engine.strategy.bull_flag.parameters import Parameters
-from crypto_trading_engine.strategy.bull_flag.open_position import OpenPosition
 
 
 class MockRiskLimits(IRiskLimit):
@@ -73,6 +75,14 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
                 max_number_of_recent_candlesticks=3,
             ),
         )
+        self.round_trip = BullFlagRoundTrip(
+            opportunity=BullFlagOpportunity(
+                score=1.0,
+                stop_loss_price=self.candlesticks[2].close + 0.01,
+                profit_price=20,
+            ),
+            buy_order=self.create_mock_order(MarketSide.BUY),
+        )
         self.bull_flag_strategy._order_event.connect(self.on_order)
         self.bull_flag_strategy._opportunity_event.connect(self.on_opportunity)
 
@@ -95,10 +105,22 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
         )
 
     @staticmethod
+    def create_mock_order(market_side: MarketSide):
+        return Order(
+            client_order_id="mock_id",
+            symbol="BTC-USD",
+            order_type=OrderType.MARKET_ORDER,
+            side=market_side,
+            price=1.0,
+            quantity=1.0,
+            creation_time=BullFlagStrategyTest.create_mock_timestamp(),
+        )
+
+    @staticmethod
     def create_mock_trade(price: float = 1.0):
         return Trade(
             trade_id=0,
-            sequence_number=0,
+            client_order_id="mock_id",
             symbol="ES",
             maker_order_id="1",
             taker_order_id="2",
@@ -199,25 +221,9 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(0, len(self.orders))
 
-        self.bull_flag_strategy._open_positions[
-            "mock_order_id"
-        ] = OpenPosition(
-            opportunity=BullFlagOpportunity(
-                score=1.0,
-                stop_loss_price=self.candlesticks[2].close + 0.01,
-                profit_price=20,
-            ),
-            order=Order(
-                client_order_id="mock_order_id",
-                symbol="BTC-USD",
-                order_type=OrderType.MARKET_ORDER,
-                side=MarketSide.BUY,
-                price=1.0,
-                quantity=1.0,
-                creation_time=BullFlagStrategyTest.create_mock_timestamp(),
-            ),
-        )
-        self.assertEqual(1, len(self.bull_flag_strategy._open_positions))
+        self.bull_flag_strategy._round_trips.append(self.round_trip)
+        self.assertEqual(1, len(self.bull_flag_strategy._round_trips))
+        self.assertFalse(self.bull_flag_strategy._round_trips[0].completed())
 
         # Act
         self.bull_flag_strategy.on_candlestick(
@@ -231,7 +237,7 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
 
         sell_order = self.orders[-1]
         self.assertEqual(1, len(self.orders))
-        self.assertEqual("mock_order_id", sell_order.client_order_id)
+        self.assertNotEqual("mock_id", sell_order.client_order_id)
         self.assertEqual(OrderType.MARKET_ORDER, sell_order.order_type)
         self.assertEqual("BTC-USD", sell_order.symbol)
         self.assertEqual(None, sell_order.price)
@@ -240,7 +246,7 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
         self.assertLess(
             datetime(2024, 1, 1, tzinfo=pytz.utc), sell_order.creation_time
         )
-        self.assertEqual(0, len(self.bull_flag_strategy._open_positions))
+        self.assertEqual(1, len(self.bull_flag_strategy._round_trips))
 
     async def test_sell_for_profit_on_candlestick(self):
         # Arrange
@@ -250,25 +256,8 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
             )
         self.assertEqual(0, len(self.orders))
 
-        self.bull_flag_strategy._open_positions[
-            "mock_order_id"
-        ] = OpenPosition(
-            opportunity=BullFlagOpportunity(
-                score=1.0,
-                stop_loss_price=0.1,
-                profit_price=self.candlesticks[2].close - 0.01,
-            ),
-            order=Order(
-                client_order_id="mock_order_id",
-                symbol="BTC-USD",
-                order_type=OrderType.MARKET_ORDER,
-                side=MarketSide.BUY,
-                price=1.0,
-                quantity=1.0,
-                creation_time=BullFlagStrategyTest.create_mock_timestamp(),
-            ),
-        )
-        self.assertEqual(1, len(self.bull_flag_strategy._open_positions))
+        self.bull_flag_strategy._round_trips.append(self.round_trip)
+        self.assertEqual(1, len(self.bull_flag_strategy._round_trips))
 
         # Act
         self.bull_flag_strategy.on_candlestick(
@@ -282,7 +271,7 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
 
         sell_order = self.orders[-1]
         self.assertEqual(1, len(self.orders))
-        self.assertEqual("mock_order_id", sell_order.client_order_id)
+        self.assertNotEqual("mock_id", sell_order.client_order_id)
         self.assertEqual(OrderType.MARKET_ORDER, sell_order.order_type)
         self.assertEqual("BTC-USD", sell_order.symbol)
         self.assertEqual(None, sell_order.price)
@@ -291,13 +280,14 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
         self.assertLess(
             datetime(2024, 1, 1, tzinfo=pytz.utc), sell_order.creation_time
         )
-        self.assertEqual(0, len(self.bull_flag_strategy._open_positions))
+        self.assertEqual(1, len(self.bull_flag_strategy._round_trips))
 
     async def test_on_fill(self):
         # Act
         self.bull_flag_strategy = BullFlagStrategy(
             "ETH-USD", risk_limits=[MockRiskLimits()], parameters=Parameters()
         )
+        self.bull_flag_strategy._round_trips.append(self.round_trip)
         self.bull_flag_strategy.on_fill(
             "mock_sender", BullFlagStrategyTest.create_mock_trade(1.0)
         )
@@ -311,6 +301,10 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
         # Assert
         self.assertTrue(
             self.bull_flag_strategy._order_event.has_receivers_for(ANY)
+        )
+        self.assertEqual(1, len(self.bull_flag_strategy._round_trips))
+        self.assertEqual(
+            3, len(self.bull_flag_strategy._round_trips[0].buy_trades)
         )
 
     async def test_buy_order_blocked_by_risk_limits(self):
@@ -330,23 +324,6 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
             self.bull_flag_strategy.on_candlestick(
                 "mock_sender", self.candlesticks[i]
             )
-        self.bull_flag_strategy._open_positions[
-            "mock_order_id"
-        ] = OpenPosition(
-            opportunity=BullFlagOpportunity(
-                score=1.0,
-                stop_loss_price=0.1,
-                profit_price=self.candlesticks[2].close - 0.01,
-            ),
-            order=Order(
-                client_order_id="mock_order_id",
-                symbol="BTC-USD",
-                order_type=OrderType.MARKET_ORDER,
-                side=MarketSide.BUY,
-                price=2.0,
-                quantity=2.0,
-                creation_time=BullFlagStrategyTest.create_mock_timestamp(),
-            ),
-        )
+        self.bull_flag_strategy._round_trips.append(self.round_trip)
         self.bull_flag_strategy._try_close_positions()
         self.assertEqual(1, len(self.orders))

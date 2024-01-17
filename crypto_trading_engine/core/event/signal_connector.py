@@ -2,9 +2,11 @@ import atexit
 import logging
 import sqlite3
 from enum import Enum
+from typing import Any
 
 import pandas as pd
 from blinker import NamedSignal, Signal, signal
+from pandas import json_normalize
 
 
 class SignalConnector:
@@ -54,7 +56,10 @@ class SignalConnector:
         conn = sqlite3.connect(self._database_name)
         for name, df in self._events.items():
             logging.info(f"Saving DataFrame {name} with shape {df.shape}...")
-            df.to_sql(name=name, con=conn, if_exists="replace")
+            try:
+                df.to_sql(name=name, con=conn, if_exists="replace")
+            except Exception as e:
+                raise Exception(f"Cannot save DataFrame {name}: {e}")
         conn.close()
 
         self._events.clear()
@@ -79,7 +84,7 @@ class SignalConnector:
                 return
 
         for data in kwargs.values():
-            row_data = vars(data)
+            row_data = self._flatten_dict(self._to_dict(data))
 
             # Convert Enum values to its string representation
             for key, value in row_data.items():
@@ -97,3 +102,34 @@ class SignalConnector:
                     )
                 else:
                     self._events[name].reset_index()
+
+    @staticmethod
+    def _to_dict(obj: Any):
+        if obj is None:
+            return None
+        elif isinstance(obj, Enum):
+            return obj
+        elif hasattr(obj, "__dict__") and obj.__dict__:
+            return dict(
+                [
+                    (k, SignalConnector._to_dict(v))
+                    for (k, v) in obj.__dict__.items()
+                ]
+            )
+        elif isinstance(obj, (dict,)):
+            return dict(
+                [(k, SignalConnector._to_dict(v)) for (k, v) in obj.items()]
+            )
+        elif isinstance(obj, (list,)):
+            return dict(
+                {i: SignalConnector._to_dict(v) for i, v in enumerate(obj)}
+            )
+        elif isinstance(obj, (tuple,)):
+            return tuple([SignalConnector._to_dict(x) for x in obj])
+        else:
+            return obj
+
+    @staticmethod
+    def _flatten_dict(d: dict, sep: str = ".") -> dict:
+        [flat_dict] = json_normalize(d, sep=sep).to_dict(orient="records")
+        return flat_dict

@@ -8,7 +8,7 @@ from crypto_trading_engine.core.side import MarketSide
 class Trade:
     PRIMARY_KEY = "trade_id"
     trade_id: int
-    sequence_number: int
+    client_order_id: str
     symbol: str
     maker_order_id: str
     taker_order_id: str

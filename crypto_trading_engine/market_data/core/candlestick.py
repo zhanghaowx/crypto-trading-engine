@@ -5,6 +5,24 @@ from crypto_trading_engine.core.time.time_manager import time_manager
 
 
 class Candlestick:
+    """
+    A candlestick graph is a popular visualization tool used in financial
+    markets to represent the price movement of an asset over a specific time
+    period.
+
+    +---------|--------+
+    |         |        |
+    |     Wick|        |
+    |Close+---|--+     |
+    |     |      |     |
+    |     | Body |     |
+    |     |      |     |
+    |Open +---|--+     |
+    |     Wick|        |
+    |         |        |
+    +---------|--------+
+    """
+
     PRIMARY_KEY = "start_time"
 
     def __init__(

@@ -27,7 +27,7 @@ class BootstrapStrategyTest(unittest.IsolatedAsyncioTestCase):
     def create_mock_trade():
         return Trade(
             trade_id=0,
-            sequence_number=0,
+            client_order_id="",
             symbol="ES",
             maker_order_id="1",
             taker_order_id="2",

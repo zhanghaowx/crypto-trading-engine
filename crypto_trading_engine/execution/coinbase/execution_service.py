@@ -69,6 +69,7 @@ class MockExecutionService:
             # close to the market in history
             price = self._get_any_market_trade_price(order.symbol)
             self._generate_order_fill(
+                client_order_id=order.client_order_id,
                 symbol=order.symbol,
                 side=order.side,
                 price=price,
@@ -125,6 +126,7 @@ class MockExecutionService:
                 if not buy_order.price or buy_order.price >= sell_price:
                     filled_quantity = min(buy_order.quantity, sell_quantity)
                     self._generate_order_fill(
+                        client_order_id=buy_order.client_order_id,
                         symbol=buy_order.symbol,
                         side=buy_order.side,
                         price=sell_price,
@@ -148,6 +150,7 @@ class MockExecutionService:
                 if not sell_order.price or sell_order.price <= buy_price:
                     filled_quantity = min(sell_order.quantity, buy_quantity)
                     self._generate_order_fill(
+                        client_order_id=sell_order.client_order_id,
                         symbol=sell_order.symbol,
                         side=sell_order.side,
                         price=buy_price,
@@ -174,7 +177,7 @@ class MockExecutionService:
                 # Parse the whole trade JSON to make sure it is valid data
                 trade = Trade(
                     trade_id=int(trade_json["trade_id"]),
-                    sequence_number=0,
+                    client_order_id="",
                     symbol=trade_json["product_id"],
                     maker_order_id="",
                     taker_order_id="",
@@ -196,11 +199,16 @@ class MockExecutionService:
         return np.nan
 
     def _generate_order_fill(
-        self, symbol: str, side: MarketSide, price: float, quantity: float
+        self,
+        client_order_id: str,
+        symbol: str,
+        side: MarketSide,
+        price: float,
+        quantity: float,
     ):
         trade = Trade(
             trade_id=randint(1, 1000),
-            sequence_number=randint(1, 1000),
+            client_order_id=client_order_id,
             symbol=symbol,
             maker_order_id=str(uuid.uuid4()),
             taker_order_id=str(uuid.uuid4()),

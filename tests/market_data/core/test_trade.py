@@ -11,7 +11,7 @@ class TestTrade(unittest.TestCase):
         # Create two identical trades
         trade1 = Trade(
             trade_id=1,
-            sequence_number=123,
+            client_order_id="",
             symbol="BTC-USD",
             maker_order_id="order1",
             taker_order_id="order2",
@@ -23,7 +23,7 @@ class TestTrade(unittest.TestCase):
 
         trade2 = Trade(
             trade_id=1,
-            sequence_number=123,
+            client_order_id="",
             symbol="BTC-USD",
             maker_order_id="order1",
             taker_order_id="order2",
@@ -40,7 +40,7 @@ class TestTrade(unittest.TestCase):
         # Create two different trades
         trade1 = Trade(
             trade_id=1,
-            sequence_number=123,
+            client_order_id="",
             symbol="BTC-USD",
             maker_order_id="order1",
             taker_order_id="order2",
@@ -52,7 +52,7 @@ class TestTrade(unittest.TestCase):
 
         trade2 = Trade(
             trade_id=2,
-            sequence_number=456,
+            client_order_id="",
             symbol="ETH-USD",
             maker_order_id="order3",
             taker_order_id="order4",
@@ -69,7 +69,7 @@ class TestTrade(unittest.TestCase):
         # Create a trade
         trade = Trade(
             trade_id=1,
-            sequence_number=123,
+            client_order_id="",
             symbol="BTC-USD",
             maker_order_id="order1",
             taker_order_id="order2",
@@ -83,7 +83,7 @@ class TestTrade(unittest.TestCase):
         expected_hash = hash(
             (
                 1,
-                123,
+                "",
                 "BTC-USD",
                 "order1",
                 "order2",
@@ -103,7 +103,7 @@ class TestTrade(unittest.TestCase):
         # Create a trade
         trade = Trade(
             trade_id=1,
-            sequence_number=123,
+            client_order_id="",
             symbol="BTC-USD",
             maker_order_id="order1",
             taker_order_id="order2",

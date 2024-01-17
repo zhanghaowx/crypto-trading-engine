@@ -77,10 +77,12 @@ class TestSignalConnector(unittest.TestCase):
         event_b = self.signal_connector._events["signal_b"]
 
         expected_event_a = pd.DataFrame(
-            [vars(payload_a)], columns=list(vars(payload_a).keys())
+            [{"payload_id": 1, "some_enum": "A"}],
+            columns=list(vars(payload_a).keys()),
         )
         expected_event_b = pd.DataFrame(
-            [vars(payload_b)], columns=list(vars(payload_a).keys())
+            [{"payload_id": 2, "some_enum": "A"}],
+            columns=list(vars(payload_a).keys()),
         )
 
         assert_frame_equal(event_a, expected_event_a)

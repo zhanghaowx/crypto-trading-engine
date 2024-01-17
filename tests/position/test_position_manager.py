@@ -24,7 +24,7 @@ class TestPositionManager(unittest.IsolatedAsyncioTestCase):
     ):
         return Trade(
             trade_id=randint(1, 1000),
-            sequence_number=randint(1, 1000),
+            client_order_id="",
             symbol=symbol,
             maker_order_id=str(uuid.uuid4()),
             taker_order_id=str(uuid.uuid4()),
