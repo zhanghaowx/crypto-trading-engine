@@ -36,11 +36,15 @@ class BullFlagOpportunity(TradeOpportunity):
         max_ratio = 0.0
         for candlestick in consolidation_period:
             current_body = abs(candlestick.open - candlestick.close)
-            if self.bull_flag_open_close == 0.0:
-                max_ratio = math.inf
+            if abs(self.bull_flag_open_close) < 1e-10:
+                if abs(current_body) < 1e-10:
+                    return 0.0
+                else:
+                    max_ratio = math.inf
             else:
                 max_ratio = max(
-                    max_ratio, current_body / abs(self.bull_flag_open_close)
+                    max_ratio,
+                    current_body / abs(self.bull_flag_open_close),
                 )
 
         self.consolidation_period_length = len(consolidation_period)

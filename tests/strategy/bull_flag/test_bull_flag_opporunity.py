@@ -12,7 +12,14 @@ class TestBullFlagOpportunity(unittest.TestCase):
     def setUp(self):
         self.start_time = datetime(2024, 1, 1, 0, 0, 0)
         self.end_time = datetime(2024, 1, 2, 0, 0, 0)
-        self.candlestick = Candlestick(self.start_time, duration_in_seconds=60)
+        self.candlestick = Candlestick(
+            self.start_time,
+            duration_in_seconds=60,
+            open=100,
+            high=101,
+            low=99,
+            close=100,
+        )
         self.params = Parameters()
 
     def test_set_bull_flag(self):
@@ -49,8 +56,10 @@ class TestBullFlagOpportunity(unittest.TestCase):
             for i in range(1, 6)
         ]
         for i, candlestick in enumerate(consolidation_period, start=1):
-            candlestick.close = 105 + i
             candlestick.open = 100 + i
+            candlestick.low = 100 + i
+            candlestick.close = 105 + i
+            candlestick.high = 105 + i
 
         opportunity.set_consolidation(consolidation_period)
 
@@ -93,8 +102,10 @@ class TestBullFlagOpportunity(unittest.TestCase):
         )
 
         # Set bull flag and consolidation to grade the opportunity
-        self.candlestick.close = 110
         self.candlestick.open = 100
+        self.candlestick.low = 100
+        self.candlestick.close = 110
+        self.candlestick.high = 110
         opportunity.set_bull_flag(self.candlestick)
 
         consolidation_period = [
@@ -104,8 +115,10 @@ class TestBullFlagOpportunity(unittest.TestCase):
             for i in range(1, 6)
         ]
         for i, candlestick in enumerate(consolidation_period, start=1):
-            candlestick.close = 103 + i
             candlestick.open = 100 + i
+            candlestick.low = 100 + i
+            candlestick.close = 103 + i
+            candlestick.high = 103 + i
 
         opportunity.set_consolidation(consolidation_period)
 
