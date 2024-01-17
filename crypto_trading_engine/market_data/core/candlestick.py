@@ -125,6 +125,96 @@ class Candlestick:
         """
         return self.close < self.open
 
+    def is_shooting_star(self):
+        """
+        A shooting star is a specific candlestick pattern in technical analysis
+        that is generally considered a bearish reversal pattern.
+        It typically occurs during an uptrend and has the following
+        characteristics:
+
+        1. The candlestick has a small real body
+           (the difference between open and close prices).
+        2. There is a long upper shadow (wick) that is at least twice the
+           length of the real body.
+        3. The lower shadow (wick) is very small or nonexistent.
+
+        +---------|--------+
+        |         |        |
+        |         |        |
+        |         |        |
+        |         |        |
+        |         |        |
+        |         |        |
+        |     Wick|        |
+        |Close+---|--+     |
+        |     | Body |     |
+        |Open +---|--+     |
+        |     Wick|        |
+        +---------|--------+
+
+        Returns:
+
+        """
+        small_real_body = abs(self.open - self.close) < 0.2 * (
+            self.high - self.low
+        )
+        long_upper_shadow = (
+            self.high - max(self.open, self.close)
+        ) >= 2 * abs(self.open - self.close)
+        small_lower_shadow = (min(self.open, self.close) - self.low) < 0.2 * (
+            self.high - self.low
+        )
+
+        return small_real_body and long_upper_shadow and small_lower_shadow
+
+    def is_hammer(self):
+        """
+        A hammer pattern is a bullish reversal candlestick pattern that is
+        often observed at the bottom of a downtrend.
+        It suggests a potential trend reversal from a bearish to a bullish
+        direction. The hammer pattern is characterized by the following
+        key features:
+
+        1. Small Real Body: The candlestick has a small real body
+           (the difference between the open and close prices). The color of the
+           body is not as significant, but it is often green or white.
+        2. Long Lower Shadow: The most distinctive feature of a hammer is its
+           long lower shadow (wick), which is at least twice the length of the
+           real body. This long lower shadow indicates that the price
+           significantly moved lower during the trading period but managed to
+           recover and close near the high.
+        3. Short or No Upper Shadow: The upper shadow is either very small or
+           nonexistent.
+
+        +---------|--------+
+        |     Wick|        |
+        |Close+---|--+     |
+        |     | Body |     |
+        |Open +---|--+     |
+        |     Wick|        |
+        |         |        |
+        |         |        |
+        |         |        |
+        |         |        |
+        |         |        |
+        |         |        |
+        +---------|--------+
+
+        Returns:
+
+        """
+        small_real_body = abs(self.open - self.close) < 0.2 * (
+            self.high - self.low
+        )
+        long_lower_shadow = (min(self.open, self.close) - self.low) >= 2 * abs(
+            self.open - self.close
+        )
+        small_upper_shadow = (self.high - max(self.open, self.close)) < 0.2 * (
+            self.high - self.low
+        )
+
+        return small_real_body and long_lower_shadow and small_upper_shadow
+
     def return_percentage(self):
         """
         Returns:

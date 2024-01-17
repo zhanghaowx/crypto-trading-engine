@@ -164,3 +164,15 @@ class TestCandlestick(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(candle.low, 0.01)
         self.assertEqual(candle.close, 10.00)
         self.assertEqual(candle.volume, 4.34)
+
+    async def test_candlestick_is_shooting_star(self):
+        now = datetime.now(pytz.utc)
+        candle = Candlestick(now, 1, open=1.0, high=10.0, low=0.99, close=1.01)
+
+        self.assertTrue(candle.is_shooting_star())
+
+    async def test_candlestick_is_hammer(self):
+        now = datetime.now(pytz.utc)
+        candle = Candlestick(now, 1, open=1.0, high=1.01, low=0.01, close=0.99)
+
+        self.assertTrue(candle.is_hammer())
