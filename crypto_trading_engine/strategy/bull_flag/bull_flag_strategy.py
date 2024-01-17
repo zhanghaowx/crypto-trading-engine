@@ -222,6 +222,10 @@ class BullFlagStrategy(Heartbeater):
         assert len(self._market_history) == self._market_history.maxlen
 
         for round_trip in self._round_trips:
+            # Skip if sell order has been placed
+            if round_trip.sell_order:
+                continue
+
             assert (
                 round_trip.buy_order
             ), "Buy order has to be placed before sending a sell order!"
@@ -235,9 +239,6 @@ class BullFlagStrategy(Heartbeater):
                 side=MarketSide.SELL,
                 creation_time=time_manager().now(),
             )
-
-            if round_trip.completed():
-                continue
 
             if round_trip.should_sell_for_loss(self._market_history[-1].close):
                 # crossed stop loss line, we need sell for limiting losses

@@ -1,4 +1,5 @@
 import unittest
+from copy import copy
 from datetime import datetime, timedelta
 
 import pytz
@@ -78,8 +79,8 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
         self.round_trip = BullFlagRoundTrip(
             opportunity=BullFlagOpportunity(
                 score=1.0,
-                stop_loss_price=self.candlesticks[2].close + 0.01,
-                profit_price=20,
+                stop_loss_price=10,
+                profit_price=11,
             ),
             buy_order=self.create_mock_order(MarketSide.BUY),
         )
@@ -117,14 +118,16 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
         )
 
     @staticmethod
-    def create_mock_trade(price: float = 1.0):
+    def create_mock_trade(
+        price: float = 1.0, market_side: MarketSide = MarketSide.BUY
+    ):
         return Trade(
             trade_id=0,
             client_order_id="mock_id",
             symbol="ES",
             maker_order_id="1",
             taker_order_id="2",
-            side=MarketSide.BUY,
+            side=market_side,
             price=price,
             quantity=1.0,
             transaction_time=BullFlagStrategyTest.create_mock_timestamp(),
@@ -221,7 +224,16 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(0, len(self.orders))
 
-        self.bull_flag_strategy._round_trips.append(self.round_trip)
+        self.bull_flag_strategy._round_trips.append(
+            BullFlagRoundTrip(
+                opportunity=BullFlagOpportunity(
+                    score=1.0,
+                    stop_loss_price=self.candlesticks[2].close + 0.01,
+                    profit_price=100,
+                ),
+                buy_order=self.create_mock_order(MarketSide.BUY),
+            )
+        )
         self.assertEqual(1, len(self.bull_flag_strategy._round_trips))
         self.assertFalse(self.bull_flag_strategy._round_trips[0].completed())
 
@@ -256,7 +268,16 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
             )
         self.assertEqual(0, len(self.orders))
 
-        self.bull_flag_strategy._round_trips.append(self.round_trip)
+        self.bull_flag_strategy._round_trips.append(
+            BullFlagRoundTrip(
+                opportunity=BullFlagOpportunity(
+                    score=1.0,
+                    stop_loss_price=1,
+                    profit_price=self.candlesticks[2].close - 0.01,
+                ),
+                buy_order=self.create_mock_order(MarketSide.BUY),
+            )
+        )
         self.assertEqual(1, len(self.bull_flag_strategy._round_trips))
 
         # Act
@@ -288,6 +309,8 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
             "ETH-USD", risk_limits=[MockRiskLimits()], parameters=Parameters()
         )
         self.bull_flag_strategy._round_trips.append(self.round_trip)
+
+        # Buys
         self.bull_flag_strategy.on_fill(
             "mock_sender", BullFlagStrategyTest.create_mock_trade(1.0)
         )
@@ -305,6 +328,23 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(1, len(self.bull_flag_strategy._round_trips))
         self.assertEqual(
             3, len(self.bull_flag_strategy._round_trips[0].buy_trades)
+        )
+
+        # Sells
+        self.bull_flag_strategy._round_trips[
+            0
+        ].sell_order = self.create_mock_order(MarketSide.SELL)
+        self.bull_flag_strategy.on_fill(
+            "mock_sender",
+            BullFlagStrategyTest.create_mock_trade(1.0, MarketSide.SELL),
+        )
+        self.bull_flag_strategy.on_fill(
+            "mock_sender",
+            BullFlagStrategyTest.create_mock_trade(1.1, MarketSide.SELL),
+        )
+        self.bull_flag_strategy.on_fill(
+            "mock_sender",
+            BullFlagStrategyTest.create_mock_trade(1.2, MarketSide.SELL),
         )
 
     async def test_buy_order_blocked_by_risk_limits(self):
@@ -325,5 +365,11 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
                 "mock_sender", self.candlesticks[i]
             )
         self.bull_flag_strategy._round_trips.append(self.round_trip)
+        self.bull_flag_strategy._round_trips.append(copy(self.round_trip))
+        self.bull_flag_strategy._round_trips.append(copy(self.round_trip))
         self.bull_flag_strategy._try_close_positions()
-        self.assertEqual(1, len(self.orders))
+        self.assertEqual(3, len(self.orders))
+
+        # Invoke the function again won't create more orders
+        self.bull_flag_strategy._try_close_positions()
+        self.assertEqual(3, len(self.orders))

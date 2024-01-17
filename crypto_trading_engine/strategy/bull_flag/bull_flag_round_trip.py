@@ -44,6 +44,10 @@ class BullFlagRoundTrip:
             and self.sell_order is not None
             and len(self.buy_trades) > 0
             and len(self.sell_trades) > 0
+            and sum(x.quantity for x in self.buy_trades)
+            >= self.buy_order.quantity
+            and sum(x.quantity for x in self.sell_trades)
+            >= self.sell_order.quantity
         )
 
     def should_sell_for_loss(self, market_price: float) -> bool:

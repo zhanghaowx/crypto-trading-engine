@@ -24,10 +24,11 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
 
         from crypto_trading_engine.app import Application
 
+        source_dir = os.path.dirname(os.path.dirname(__file__))
         self.application = Application(
             symbol=self.symbol,
-            database_name="dummy_database.sqlite",
-            logfile_name="dummy_logfile.log",
+            database_name=f"{source_dir}/dummy_database.sqlite",
+            logfile_name=f"{source_dir}/dummy_logfile.log",
             strategy_parameters=Parameters(),
         )
 
@@ -42,6 +43,9 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
         self.application._position_manager = self.mock_position_manager
 
     async def asyncTearDown(self):
+        source_dir = os.path.dirname(os.path.dirname(__file__))
+        os.remove(f"{source_dir}/dummy_database.sqlite")
+
         time_manager().force_reset()
 
     async def test_initialization(self):

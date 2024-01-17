@@ -107,7 +107,7 @@ class SignalConnector:
     def _to_dict(obj: Any):
         if obj is None:
             return None
-        elif isinstance(obj, Enum):
+        if isinstance(obj, Enum):
             return obj
         elif hasattr(obj, "__dict__") and obj.__dict__:
             return dict(
@@ -125,7 +125,9 @@ class SignalConnector:
                 {i: SignalConnector._to_dict(v) for i, v in enumerate(obj)}
             )
         elif isinstance(obj, (tuple,)):
-            return tuple([SignalConnector._to_dict(x) for x in obj])
+            return dict(
+                {i: SignalConnector._to_dict(v) for i, v in enumerate(obj)}
+            )
         else:
             return obj
 
