@@ -1,3 +1,4 @@
+import math
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -27,15 +28,20 @@ class BullFlagOpportunity(TradeOpportunity):
         self.bull_flag_return_pct = candlestick.return_percentage()
 
     def set_consolidation(self, consolidation_period: list[Candlestick]):
-        assert self.bull_flag_open_close != 0.0
-        assert len(consolidation_period) > 0
+        assert len(consolidation_period) > 0, (
+            f"Cannot set consolidation period for {self} "
+            f"because the provided consolidation period is empty!"
+        )
 
         max_ratio = 0.0
         for candlestick in consolidation_period:
             current_body = abs(candlestick.open - candlestick.close)
-            max_ratio = max(
-                max_ratio, current_body / abs(self.bull_flag_open_close)
-            )
+            if self.bull_flag_open_close == 0.0:
+                max_ratio = math.inf
+            else:
+                max_ratio = max(
+                    max_ratio, current_body / abs(self.bull_flag_open_close)
+                )
 
         self.consolidation_period_length = len(consolidation_period)
         self.consolidation_period_max_ratio = max_ratio

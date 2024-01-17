@@ -1,3 +1,4 @@
+import math
 import unittest
 from datetime import datetime, timedelta
 from crypto_trading_engine.market_data.core.candlestick import Candlestick
@@ -56,6 +57,34 @@ class TestBullFlagOpportunity(unittest.TestCase):
         # Check if consolidation attributes are updated correctly
         self.assertEqual(opportunity.consolidation_period_length, 5)
         self.assertEqual(opportunity.consolidation_period_max_ratio, 0.5)
+        self.assertEqual(opportunity.expected_trade_price, 110)
+
+    def test_set_consolidation_with_bull_flag_having_equal_open_close(self):
+        opportunity = BullFlagOpportunity(
+            start=self.start_time, end=self.end_time
+        )
+
+        # Set bull flag to use in consolidation
+        self.candlestick.close = 100
+        self.candlestick.open = 100
+        opportunity.set_bull_flag(self.candlestick)
+
+        # Create a consolidation period with multiple candlesticks
+        consolidation_period = [
+            Candlestick(
+                self.start_time + timedelta(minutes=i), duration_in_seconds=60
+            )
+            for i in range(1, 6)
+        ]
+        for i, candlestick in enumerate(consolidation_period, start=1):
+            candlestick.close = 105 + i
+            candlestick.open = 100 + i
+
+        opportunity.set_consolidation(consolidation_period)
+
+        # Check if consolidation attributes are updated correctly
+        self.assertEqual(opportunity.consolidation_period_length, 5)
+        self.assertEqual(opportunity.consolidation_period_max_ratio, math.inf)
         self.assertEqual(opportunity.expected_trade_price, 110)
 
     def test_grade(self):
