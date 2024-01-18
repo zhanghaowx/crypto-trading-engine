@@ -8,10 +8,7 @@ from datetime import datetime, timedelta
 from jolteon.core.event.signal_connector import SignalConnector
 from jolteon.execution.coinbase.execution_service import MockExecutionService
 from jolteon.market_data.coinbase.historical_feed import HistoricalFeed
-from jolteon.market_data.coinbase.public_feed import (
-    CoinbaseEnvironment,
-    PublicFeed,
-)
+from jolteon.market_data.kraken.public_feed import PublicFeed
 from jolteon.position.position_manager import PositionManager
 from jolteon.risk_limit.order_frequency_limit import OrderFrequencyLimit
 from jolteon.strategy.bull_flag.parameters import Parameters
@@ -68,7 +65,6 @@ class Application:
 
         # Market Data Setup: Live Feed
         self._md_live = PublicFeed(
-            env=CoinbaseEnvironment.PRODUCTION,
             candlestick_interval_in_seconds=candlestick_interval_in_seconds,
         )
 

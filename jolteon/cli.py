@@ -93,4 +93,4 @@ async def main(training: bool = False, replay: bool = False):
     if training:
         await run_training()
     else:
-        await run_once(Application("ETH-USD"))
+        await run_once(Application("ETH/USD"))

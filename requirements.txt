@@ -23,6 +23,9 @@ coinbase-advanced-py
 cryptography
 PyJWT
 
+## Kraken
+python-kraken-sdk
+
 ## Needed by exchanges who use websockets to disseminate market data
 websockets
 
