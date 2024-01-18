@@ -2,7 +2,9 @@ from crypto_trading_engine.market_data.core.candlestick import Candlestick
 
 
 def calculate_atr(candlesticks: list[Candlestick], period):
-    assert len(candlesticks) <= period, (
+    assert period > 0, "Cannot calculate ATR for a period less than 1"
+
+    assert len(candlesticks) >= period, (
         f"Insufficient data to calculate ATR: "
         f"trying to calculate ATR for {len(candlesticks)} candlesticks "
         f"with a period {period}"

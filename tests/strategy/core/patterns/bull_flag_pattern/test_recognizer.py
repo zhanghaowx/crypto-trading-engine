@@ -2,21 +2,21 @@ import math
 import unittest
 from datetime import datetime, timedelta
 from crypto_trading_engine.market_data.core.candlestick import Candlestick
-from crypto_trading_engine.market_data.patterns.bull_flag_pattern.parameters import (
-    Parameters,
+from crypto_trading_engine.strategy.core.patterns.bull_flag.parameters import (
+    BullFlagParameters,
 )
-from crypto_trading_engine.market_data.patterns.bull_flag_pattern.pattern import (
-    Pattern,
+from crypto_trading_engine.strategy.core.patterns.bull_flag.pattern import (
+    BullFlagPattern,
     RecognitionResult,
 )
-from crypto_trading_engine.market_data.patterns.bull_flag_pattern.recognizer import (
-    Recognizer,
+from crypto_trading_engine.strategy.core.patterns.bull_flag.recognizer import (
+    BullFlagRecognizer,
 )
 
 
 class TestRecognizer(unittest.TestCase):
     def setUp(self):
-        self.params = Parameters()
+        self.params = BullFlagParameters()
         self.start_time = datetime(2024, 1, 1, 0, 0, 0)
         self.candlesticks = [
             Candlestick(
@@ -52,12 +52,12 @@ class TestRecognizer(unittest.TestCase):
                 low=90,
             ),
         ]
-        self.pattern_recognizer = Recognizer(self.params)
+        self.pattern_recognizer = BullFlagRecognizer(self.params)
 
-        self.patterns = list[Pattern]()
+        self.patterns = list[BullFlagPattern]()
         self.pattern_recognizer.bull_flag_signal.connect(self.handle_signal)
 
-    def handle_signal(self, _: str, pattern: Pattern):
+    def handle_signal(self, _: str, pattern: BullFlagPattern):
         self.patterns.append(pattern)
 
     def test_bull_flag(self):

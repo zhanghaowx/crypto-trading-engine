@@ -12,6 +12,9 @@ from crypto_trading_engine.strategy.bull_flag.bull_flag_opportunity import (
 from crypto_trading_engine.strategy.bull_flag.bull_flag_round_trip import (
     BullFlagRoundTrip,
 )
+from crypto_trading_engine.strategy.core.trade_opportunity import (
+    TradeOpportunity,
+)
 
 
 class TestBullFlagRoundTrip(unittest.TestCase):
@@ -42,7 +45,7 @@ class TestBullFlagRoundTrip(unittest.TestCase):
         )
 
     def setUp(self):
-        opportunity = BullFlagOpportunity(
+        opportunity = TradeOpportunity(
             score=1.0,
             stop_loss_price=100.0,
             profit_price=200.0,

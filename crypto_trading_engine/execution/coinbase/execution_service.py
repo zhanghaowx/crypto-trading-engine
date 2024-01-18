@@ -2,7 +2,7 @@ import logging
 import os
 import uuid
 from copy import copy
-from datetime import datetime, timedelta
+from datetime import timedelta
 from random import randint
 from typing import Union
 
@@ -174,28 +174,12 @@ class MockExecutionService:
 
         for trade_json in json_response["trades"]:
             try:
-                # Parse the whole trade JSON to make sure it is valid data
-                trade = Trade(
-                    trade_id=int(trade_json["trade_id"]),
-                    client_order_id="",
-                    symbol=trade_json["product_id"],
-                    maker_order_id="",
-                    taker_order_id="",
-                    side=MarketSide(trade_json["side"].upper()),
-                    price=float(trade_json["price"]),
-                    quantity=float(trade_json["size"]),
-                    transaction_time=datetime.fromisoformat(
-                        trade_json["time"]
-                    ),
-                )
-                return trade.price
+                return float(trade_json["price"])
             except ValueError as e:
-                logging.error(
-                    f"Could not convert '{trade_json['price']}' to float: {e}"
-                )
-                logging.error(f"JSON response: {json_response}")
+                logging.error(f"Could not parse trade '{trade_json}': {e}")
                 continue  # Try next trade in the JSON response
 
+        logging.error(f"No valid trades found for '{symbol}' at {now}")
         return np.nan
 
     def _generate_order_fill(

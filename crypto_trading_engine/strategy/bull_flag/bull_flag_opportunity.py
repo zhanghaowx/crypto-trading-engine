@@ -1,9 +1,9 @@
-import math
 from dataclasses import dataclass
-from datetime import datetime
 
-from crypto_trading_engine.market_data.core.candlestick import Candlestick
 from crypto_trading_engine.strategy.bull_flag.parameters import Parameters
+from crypto_trading_engine.strategy.core.patterns.bull_flag.pattern import (
+    BullFlagPattern,
+)
 from crypto_trading_engine.strategy.core.trade_opportunity import (
     TradeOpportunity,
 )
@@ -11,52 +11,59 @@ from crypto_trading_engine.strategy.core.trade_opportunity import (
 
 @dataclass
 class BullFlagOpportunity(TradeOpportunity):
-    start: datetime | None = None
-    end: datetime | None = None
+    bull_flag_pattern: BullFlagPattern
     expected_trade_price: float = 0.0
-    risk_reward_ratio: float = 0.0
-    consolidation_period_length: int = 0
-    consolidation_period_max_ratio: float = 0.0
-    bull_flag_return_pct: float = 0.0
-    bull_flag_open_close: float = 0.0
-    starts_extremely_bullish: bool = False
-    stop_loss_from_support: float = 0.0
     stop_loss_from_atr: float = 0.0
+    stop_loss_from_support: float = 0.0
+    risk_reward_ratio: float = 0.0
 
-    def set_bull_flag(self, candlestick: Candlestick):
-        self.bull_flag_open_close = candlestick.close - candlestick.open
-        self.bull_flag_return_pct = candlestick.return_percentage()
+    def __init__(
+        self,
+        pattern: BullFlagPattern,
+        target_reward_risk_ratio: float,
+        atr: float,
+    ):
+        super().__init__(
+            score=0.0,
+            stop_loss_price=0.0,
+            profit_price=0.0,
+        )
+        self.bull_flag_pattern = pattern
+        self.expected_trade_price = pattern.consolidation[-1].close
 
-    def set_consolidation(self, consolidation_period: list[Candlestick]):
-        assert len(consolidation_period) > 0, (
-            f"Cannot set consolidation period for {self} "
-            f"because the provided consolidation period is empty!"
+        atr_factor = 1.1  # The factor by which to check down movement.
+        self.stop_loss_from_atr = self.expected_trade_price - atr * atr_factor
+        self.stop_loss_from_support = min(
+            [x.low for x in pattern.consolidation]
         )
 
-        max_ratio = 0.0
-        for candlestick in consolidation_period:
-            current_body = abs(candlestick.open - candlestick.close)
-            if abs(self.bull_flag_open_close) < 1e-10:
-                if abs(current_body) < 1e-10:
-                    return 0.0
-                else:
-                    max_ratio = math.inf
-            else:
-                max_ratio = max(
-                    max_ratio,
-                    current_body / abs(self.bull_flag_open_close),
-                )
+        self.stop_loss_price = max(
+            min(self.stop_loss_from_atr, self.stop_loss_from_support),
+            pattern.bull_flag.open,
+        )
 
-        self.consolidation_period_length = len(consolidation_period)
-        self.consolidation_period_max_ratio = max_ratio
-        self.expected_trade_price = consolidation_period[-1].close
+        self.profit_price = (
+            self.expected_trade_price - self.stop_loss_price
+        ) * target_reward_risk_ratio + self.expected_trade_price
+        self.risk_reward_ratio = (
+            self.profit_price - self.expected_trade_price
+        ) / (self.expected_trade_price - self.stop_loss_price)
 
     def grade(self, params: Parameters) -> None:
-        assert self.consolidation_period_max_ratio > 0.0
+        """
+        Based on all characteristics of the opportunity, assign a grade to the
+        trade opportunity.
+
+        Args:
+            params: Parameters for bull flag strategy.
+        Returns:
+            None
+        """
+        assert self.bull_flag_pattern.consolidation_max_ratio > 0.0
         self.score = 1.0 - max(
             0.0,
             (
-                self.consolidation_period_max_ratio
+                self.bull_flag_pattern.consolidation_max_ratio
                 - params.consolidation_period_threshold
             )
             / params.consolidation_period_threshold,

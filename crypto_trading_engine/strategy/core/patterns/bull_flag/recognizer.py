@@ -3,16 +3,16 @@ from collections import deque
 from blinker import signal
 
 from crypto_trading_engine.market_data.core.candlestick import Candlestick
-from crypto_trading_engine.market_data.patterns.bull_flag_pattern.pattern import (
-    Pattern,
+from crypto_trading_engine.strategy.bull_flag.parameters import Parameters
+from crypto_trading_engine.strategy.core.patterns.bull_flag.pattern import (
+    BullFlagPattern,
     RecognitionResult,
 )
-from crypto_trading_engine.strategy.bull_flag.parameters import Parameters
 
 
-class Recognizer:
+class BullFlagRecognizer:
     def __init__(self, params: Parameters):
-        self.bull_flag_signal = signal("bull_flag_pattern")
+        self.bull_flag_signal = signal("bull_flag")
         self._params = params
         self._all_candlesticks = deque[Candlestick](
             maxlen=params.max_number_of_recent_candlesticks
@@ -64,7 +64,7 @@ class Recognizer:
 
     def _is_bull_flag_pattern(
         self, candlesticks: list[Candlestick]
-    ) -> Pattern | None:
+    ) -> BullFlagPattern | None:
         """
         Whether it forms a bull flag pattern.
         Args:
@@ -84,7 +84,7 @@ class Recognizer:
         previous_candlestick = candlesticks[0]
         bull_flag_candlestick = candlesticks[1]
 
-        pattern = Pattern(
+        pattern = BullFlagPattern(
             bull_flag_candlestick=bull_flag_candlestick,
             consolidation_period_candlesticks=candlesticks[2:],
         )

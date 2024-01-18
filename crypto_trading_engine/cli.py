@@ -26,10 +26,10 @@ signal.signal(signal.SIGINT, graceful_exit)
 
 async def main(training: bool = False):
     replay_start = datetime(
-        2024, 1, 14, hour=21, minute=0, second=0, tzinfo=pytz.utc
+        2024, 1, 14, hour=0, minute=0, second=0, tzinfo=pytz.utc
     )
     replay_end = datetime(
-        2024, 1, 14, hour=22, minute=59, second=0, tzinfo=pytz.utc
+        2024, 1, 14, hour=23, minute=59, second=0, tzinfo=pytz.utc
     )
 
     async def run_once(parameters: Parameters = Parameters()):
@@ -40,7 +40,10 @@ async def main(training: bool = False):
         )
 
         pnl = await app.run_replay(replay_start, replay_end)
-        logging.info(f"PnL: {pnl}, Parameters: {parameters}")
+
+        pnl_report = f"PnL: {pnl}, Parameters: {parameters}"
+        logging.info(pnl_report)
+        print(pnl_report)
 
         # Prepare for next iteration
         time_manager().force_reset()

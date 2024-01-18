@@ -20,10 +20,11 @@ from crypto_trading_engine.position.position_manager import PositionManager
 from crypto_trading_engine.risk_limit.order_frequency_limit import (
     OrderFrequencyLimit,
 )
-from crypto_trading_engine.strategy.bull_flag.bull_flag_strategy import (
-    BullFlagStrategy,
-)
 from crypto_trading_engine.strategy.bull_flag.parameters import Parameters
+from crypto_trading_engine.strategy.bull_flag.strategy import BullFlagStrategy
+from crypto_trading_engine.strategy.core.patterns.bull_flag.recognizer import (
+    BullFlagRecognizer,
+)
 
 
 class Application:
@@ -87,6 +88,8 @@ class Application:
         # Position Manager Setup
         self._position_manager = PositionManager()
 
+        self.bull_flag_recognizer = BullFlagRecognizer(params=Parameters())
+
         # Wire Events
         self.connect_signals()
 
@@ -98,14 +101,26 @@ class Application:
             self._md_live.events.candlestick, self._strategy.on_candlestick
         )
         self._signal_connector.connect(
+            self._md_live.events.candlestick,
+            self.bull_flag_recognizer.on_candlestick,
+        )
+        self._signal_connector.connect(
             self._md_historical.events.candlestick,
             self._strategy.on_candlestick,
         )
         self._signal_connector.connect(
-            self._strategy._order_event, self._exec_service.on_order
+            self._md_historical.events.candlestick,
+            self.bull_flag_recognizer.on_candlestick,
         )
-        self._signal_connector.connect(self._strategy._opportunity_event)
-        self._signal_connector.connect(self._strategy._trade_result_event)
+        self._signal_connector.connect(
+            self.bull_flag_recognizer.bull_flag_signal,
+            self._strategy.on_bull_flag_pattern,
+        )
+        self._signal_connector.connect(
+            self._strategy.order_event, self._exec_service.on_order
+        )
+        self._signal_connector.connect(self._strategy.opportunity_event)
+        self._signal_connector.connect(self._strategy.trade_result_event)
         self._signal_connector.connect(
             self._exec_service.order_fill_event, self._strategy.on_fill
         )
@@ -120,7 +135,7 @@ class Application:
         self._md_historical.events.candlestick.disconnect(
             self._strategy.on_candlestick
         )
-        self._strategy._order_event.disconnect(self._exec_service.on_order)
+        self._strategy.order_event.disconnect(self._exec_service.on_order)
         self._exec_service.order_fill_event.disconnect(self._strategy.on_fill)
         self._signal_connector.close()
 

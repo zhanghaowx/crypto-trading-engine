@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
-class Parameters:
+class BullFlagParameters:
     """
     Parameters for recognizing a bull flag.
     """

@@ -14,7 +14,7 @@ class RecognitionResult(StrEnum):
 
 
 @dataclass
-class Pattern:
+class BullFlagPattern:
     """
     Summary of the pattern recognized
     """
