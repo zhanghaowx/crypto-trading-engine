@@ -43,7 +43,3 @@ class TestOrderBook(unittest.TestCase):
         self.assertEqual(2, len(self.order_book.asks.levels))
         self.assertEqual({101: 11, 102: 15}, self.order_book.asks.levels)
         self.assertEqual(26, self.order_book.asks.total_volume)
-
-
-if __name__ == "__main__":
-    unittest.main()

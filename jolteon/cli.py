@@ -27,16 +27,19 @@ def graceful_exit(signum, frame):
 signal.signal(signal.SIGINT, graceful_exit)
 
 
-async def main(training: bool = False):
+async def main(training: bool = False, replay: bool = False):
     replay_start = datetime(
-        2024, 1, 14, hour=0, minute=0, second=0, tzinfo=pytz.utc
+        2024, 1, 16, hour=0, minute=0, second=0, tzinfo=pytz.utc
     )
     replay_end = datetime(
-        2024, 1, 14, hour=23, minute=59, second=0, tzinfo=pytz.utc
+        2024, 1, 16, hour=23, minute=59, second=0, tzinfo=pytz.utc
     )
 
     async def run_once(app: Application):
-        pnl = await app.run_replay(replay_start, replay_end)
+        if replay:
+            pnl = await app.run_replay(replay_start, replay_end)
+        else:
+            pnl = await app.run()
 
         pnl_report = f"PnL: {pnl}"
         logging.info(pnl_report)

@@ -1,6 +1,6 @@
-import math
 import unittest
 from datetime import datetime, timedelta
+
 from jolteon.market_data.core.candlestick import Candlestick
 from jolteon.strategy.core.patterns.shooting_star.parameters import (
     ShootingStarParameters,
@@ -42,6 +42,14 @@ class TestRecognizer(unittest.TestCase):
                 close=1.00,
                 high=1.01,
             ),
+            Candlestick(
+                self.start_time + timedelta(minutes=0),
+                duration_in_seconds=60,
+                open=1.0,
+                low=1.0,
+                close=1.0,
+                high=1.0,
+            ),
         ]
         self.pattern_recognizer = ShootingStarRecognizer(self.params)
 
@@ -56,6 +64,10 @@ class TestRecognizer(unittest.TestCase):
     def test_shooting_star(self):
         self.pattern_recognizer.on_candlestick("_", self.candlesticks[0])
         self.assertEqual(1, len(self.patterns))
+
+    def test_shooting_star_equal_high_low(self):
+        self.pattern_recognizer.on_candlestick("_", self.candlesticks[3])
+        self.assertEqual(0, len(self.patterns))
 
     def test_shooting_star_equal_open_close(self):
         self.pattern_recognizer.on_candlestick("_", self.candlesticks[2])

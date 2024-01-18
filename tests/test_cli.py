@@ -2,8 +2,8 @@ import os
 import signal
 import sys
 import unittest
-from unittest.mock import patch, MagicMock, AsyncMock
 from io import StringIO
+from unittest.mock import patch
 
 
 @patch.dict(os.environ, {"COINBASE_API_KEY": "api_key"})
@@ -19,7 +19,7 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
         # Call the main function
         from jolteon.cli import main
 
-        await main()
+        await main(replay=True)
 
         # Reset stdout
         sys.stdout = sys.__stdout__
@@ -38,7 +38,7 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
         # Call the main function
         from jolteon.cli import main
 
-        await main(training=True)
+        await main(training=True, replay=True)
 
         # Reset stdout
         sys.stdout = sys.__stdout__
@@ -57,7 +57,7 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
         # Call the main function
         from jolteon.cli import main
 
-        await main(training=True)
+        await main(training=True, replay=True)
 
         # Reset stdout
         sys.stdout = sys.__stdout__

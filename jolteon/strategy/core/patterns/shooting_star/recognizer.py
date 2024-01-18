@@ -55,7 +55,7 @@ class ShootingStarRecognizer:
         candlestick = self._all_candlesticks.candlesticks[-1]
 
         body_ratio = abs(candlestick.open - candlestick.close) / (
-            candlestick.high - candlestick.low
+            max(0.01, candlestick.high - candlestick.low)
         )
 
         upper_shadow_ratio = (
