@@ -35,7 +35,11 @@ class BullFlagRecognizer:
             pattern = self._is_bull_flag_pattern(
                 candlesticks=list(self._all_candlesticks.candlesticks)[index:]
             )
-            if pattern:
+            # Only send valid bull flag pattern to gain some performance boost.
+            if pattern and (
+                self._params.verbose
+                or pattern.result == RecognitionResult.BULL_FLAG
+            ):
                 self.bull_flag_signal.send(
                     self.bull_flag_signal, pattern=pattern
                 )

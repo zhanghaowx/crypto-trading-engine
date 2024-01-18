@@ -16,7 +16,7 @@ from jolteon.strategy.core.patterns.bull_flag.recognizer import (
 
 class TestRecognizer(unittest.TestCase):
     def setUp(self):
-        self.params = BullFlagParameters()
+        self.params = BullFlagParameters(verbose=True)
         self.start_time = datetime(2024, 1, 1, 0, 0, 0)
         self.candlesticks = [
             Candlestick(

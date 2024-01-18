@@ -28,7 +28,7 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
             symbol=self.symbol,
             database_name=f"{source_dir}/dummy_database.sqlite",
             logfile_name=f"{source_dir}/dummy_logfile.log",
-            strategy_parameters=Parameters(),
+            strategy_params=Parameters(),
         )
 
         # Disconnect all signals before changing to mock implementation

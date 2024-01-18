@@ -13,7 +13,7 @@ class Parameters:
     # previous extremely bullish candlestick` in order to be considered as part
     # of the consolidation period. Exceeding this threshold will lower its
     # score
-    consolidation_period_threshold: float = 0.2
+    consolidation_period_threshold: float = 0.3
     # Reward:Risk needs to be higher than X. The default value is 2.0. This
     # requires our strategy to have a win rate of 33.33% or higher.
     target_reward_risk_ratio: float = 2.0

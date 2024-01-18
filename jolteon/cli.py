@@ -12,6 +12,9 @@ import pytz
 from jolteon.app import Application
 from jolteon.core.time.time_manager import time_manager
 from jolteon.strategy.bull_flag.parameters import Parameters
+from jolteon.strategy.core.patterns.bull_flag.parameters import (
+    BullFlagParameters,
+)
 
 
 def graceful_exit(signum, frame):
@@ -32,16 +35,10 @@ async def main(training: bool = False):
         2024, 1, 14, hour=23, minute=59, second=0, tzinfo=pytz.utc
     )
 
-    async def run_once(parameters: Parameters = Parameters()):
-        app = Application(
-            "ETH-USD",
-            candlestick_interval_in_seconds=60,
-            strategy_parameters=parameters,
-        )
-
+    async def run_once(app: Application):
         pnl = await app.run_replay(replay_start, replay_end)
 
-        pnl_report = f"PnL: {pnl}, Parameters: {parameters}"
+        pnl_report = f"PnL: {pnl}"
         logging.info(pnl_report)
         print(pnl_report)
 
@@ -51,21 +48,34 @@ async def main(training: bool = False):
         return pnl
 
     async def run_training():
-        result = dict[float, Parameters]()
+        result = dict[float, dict]()
 
         # Start Training
-        for consolidation_threshold in np.arange(0.1, 0.3, 0.05):
-            parameters = Parameters(
-                max_number_of_recent_candlesticks=10,
-                consolidation_period_threshold=consolidation_threshold,
-            )
-            pnl = await run_once(parameters)
+        for extreme_bullish_return_pct in np.arange(0.001, 0.002, 0.0001):
+            for consolidation_threshold in np.arange(0.1, 0.301, 0.05):
+                strategy_params = Parameters(
+                    max_number_of_recent_candlesticks=10,
+                    consolidation_period_threshold=consolidation_threshold,
+                )
+                bull_flag_params = BullFlagParameters(
+                    extreme_bullish_return_pct=extreme_bullish_return_pct
+                )
 
-            if pnl > 0.0:
-                result[pnl] = parameters
+                pnl = await run_once(
+                    Application(
+                        "ETH-USD",
+                        strategy_params=strategy_params,
+                        bull_flag_params=bull_flag_params,
+                    )
+                )
 
-        # Prepare for next iteration
-        time_manager().force_reset()
+                result[pnl] = {
+                    "strategy_params": strategy_params,
+                    "bull_flag_params": bull_flag_params,
+                }
+
+                # Prepare for next iteration
+                time_manager().force_reset()
 
         if len(result) == 0:
             logging.warning("No best parameters found. Exiting...")
@@ -80,4 +90,4 @@ async def main(training: bool = False):
     if training:
         await run_training()
     else:
-        await run_once()
+        await run_once(Application("ETH-USD"))

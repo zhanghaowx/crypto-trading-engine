@@ -39,7 +39,9 @@ class Application:
         database_name=f"{SOURCE_DIRECTORY}/analysis/crypto.sqlite",
         logfile_name=f"{SOURCE_DIRECTORY}/analysis/crypto.log",
         candlestick_interval_in_seconds=60,
-        strategy_parameters=Parameters(),
+        bull_flag_params=BullFlagParameters(),
+        shooting_star_params=ShootingStarParameters(),
+        strategy_params=Parameters(),
     ):
         """
         Connects different components, starts the engine.
@@ -82,7 +84,7 @@ class Application:
             risk_limits=[
                 OrderFrequencyLimit(number_of_orders=1, in_seconds=60)
             ],
-            parameters=strategy_parameters,
+            parameters=strategy_params,
         )
 
         # Execution Setup
@@ -91,11 +93,9 @@ class Application:
         # Position Manager Setup
         self._position_manager = PositionManager()
 
-        self.bull_flag_recognizer = BullFlagRecognizer(
-            params=BullFlagParameters()
-        )
+        self.bull_flag_recognizer = BullFlagRecognizer(params=bull_flag_params)
         self.shooting_star_recognizer = ShootingStarRecognizer(
-            params=ShootingStarParameters()
+            params=shooting_star_params
         )
 
         # Wire Events
