@@ -55,7 +55,9 @@ class BullFlagOpportunity(TradeOpportunity):
         Returns:
             None
         """
-        assert self.bull_flag_pattern.consolidation_max_ratio > 0.0
+        assert (
+            self.bull_flag_pattern.consolidation_max_ratio >= 0.0
+        ), f"Unexpected bull flag pattern {self.bull_flag_pattern}"
         self.score = 1.0 - max(
             0.0,
             (
