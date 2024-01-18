@@ -1,8 +1,9 @@
-from collections import deque
-
 from blinker import signal
 
 from crypto_trading_engine.market_data.core.candlestick import Candlestick
+from crypto_trading_engine.market_data.core.candlestick_list import (
+    CandlestickList,
+)
 from crypto_trading_engine.strategy.bull_flag.parameters import Parameters
 from crypto_trading_engine.strategy.core.patterns.bull_flag.pattern import (
     BullFlagPattern,
@@ -14,8 +15,8 @@ class BullFlagRecognizer:
     def __init__(self, params: Parameters):
         self.bull_flag_signal = signal("bull_flag")
         self._params = params
-        self._all_candlesticks = deque[Candlestick](
-            maxlen=params.max_number_of_recent_candlesticks
+        self._all_candlesticks = CandlestickList(
+            max_length=params.max_number_of_recent_candlesticks
         )
 
     def on_candlesticks(self, sender: str, candlesticks: list[Candlestick]):
@@ -23,37 +24,16 @@ class BullFlagRecognizer:
             self.on_candlestick(sender, candlestick)
 
     def on_candlestick(self, sender: str, candlestick: Candlestick):
-        # Merge candlesticks
-        assert (
-            len(self._all_candlesticks) == 0
-            or self._all_candlesticks[-1].start_time <= candlestick.start_time
-        ), (
-            "Candlesticks shall be sent in time order! "
-            f"Last candlestick in history: "
-            f"{self._all_candlesticks[-1].start_time}, "
-            f"current candlestick: {candlestick.start_time}"
-        )
-
-        if (
-            len(self._all_candlesticks) == 0
-            or self._all_candlesticks[-1].start_time < candlestick.start_time
-        ):
-            self._all_candlesticks.append(candlestick)
-        else:
-            assert (
-                self._all_candlesticks[-1].start_time == candlestick.start_time
-            ), "Candlesticks shall be stored in time order!"
-            self._all_candlesticks[-1] = candlestick
-
+        self._all_candlesticks.add_candlestick(candlestick)
         self._detect()
 
     def _detect(self):
         # Try search back N candlesticks and see if a bull flag pattern could
         # be found.
-        for i in range(0, len(self._all_candlesticks)):
-            index = len(self._all_candlesticks) - 1 - i
+        for i in range(0, len(self._all_candlesticks.candlesticks)):
+            index = len(self._all_candlesticks.candlesticks) - 1 - i
             pattern = self._is_bull_flag_pattern(
-                candlesticks=list(self._all_candlesticks)[index:]
+                candlesticks=list(self._all_candlesticks.candlesticks)[index:]
             )
             if pattern:
                 self.bull_flag_signal.send(
