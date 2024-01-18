@@ -1,15 +1,15 @@
 import math
 import unittest
 from datetime import datetime, timedelta
-from crypto_trading_engine.market_data.core.candlestick import Candlestick
-from crypto_trading_engine.strategy.core.patterns.bull_flag.parameters import (
+from jolteon.market_data.core.candlestick import Candlestick
+from jolteon.strategy.core.patterns.bull_flag.parameters import (
     BullFlagParameters,
 )
-from crypto_trading_engine.strategy.core.patterns.bull_flag.pattern import (
+from jolteon.strategy.core.patterns.bull_flag.pattern import (
     BullFlagPattern,
     RecognitionResult,
 )
-from crypto_trading_engine.strategy.core.patterns.bull_flag.recognizer import (
+from jolteon.strategy.core.patterns.bull_flag.recognizer import (
     BullFlagRecognizer,
 )
 

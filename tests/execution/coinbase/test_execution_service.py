@@ -8,13 +8,13 @@ from unittest.mock import Mock
 import numpy as np
 import pytz
 
-from crypto_trading_engine.core.side import MarketSide
-from crypto_trading_engine.core.time.time_manager import time_manager
-from crypto_trading_engine.execution.coinbase.execution_service import (
+from jolteon.core.side import MarketSide
+from jolteon.core.time.time_manager import time_manager
+from jolteon.execution.coinbase.execution_service import (
     MockExecutionService,
 )
-from crypto_trading_engine.market_data.core.order import Order, OrderType
-from crypto_trading_engine.market_data.core.trade import Trade
+from jolteon.market_data.core.order import Order, OrderType
+from jolteon.market_data.core.trade import Trade
 
 
 class TestMockExecutionService(unittest.TestCase):

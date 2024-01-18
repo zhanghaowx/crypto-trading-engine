@@ -1,11 +1,11 @@
 import unittest
 from datetime import datetime, timezone
 
-from crypto_trading_engine.core.side import MarketSide
-from crypto_trading_engine.market_data.core.candlestick_generator import (
+from jolteon.core.side import MarketSide
+from jolteon.market_data.core.candlestick_generator import (
     CandlestickGenerator,
 )
-from crypto_trading_engine.market_data.core.trade import Trade
+from jolteon.market_data.core.trade import Trade
 
 
 class TestCandlestickGenerator(unittest.IsolatedAsyncioTestCase):

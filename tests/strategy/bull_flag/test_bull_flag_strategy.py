@@ -5,26 +5,26 @@ from datetime import datetime, timedelta
 import pytz
 from blinker import ANY
 
-from crypto_trading_engine.core.side import MarketSide
-from crypto_trading_engine.market_data.core.candlestick import Candlestick
-from crypto_trading_engine.market_data.core.order import Order, OrderType
-from crypto_trading_engine.market_data.core.trade import Trade
-from crypto_trading_engine.risk_limit.risk_limit import IRiskLimit
-from crypto_trading_engine.strategy.bull_flag.bull_flag_opportunity import (
+from jolteon.core.side import MarketSide
+from jolteon.market_data.core.candlestick import Candlestick
+from jolteon.market_data.core.order import Order, OrderType
+from jolteon.market_data.core.trade import Trade
+from jolteon.risk_limit.risk_limit import IRiskLimit
+from jolteon.strategy.bull_flag.bull_flag_opportunity import (
     BullFlagOpportunity,
 )
-from crypto_trading_engine.strategy.bull_flag.bull_flag_round_trip import (
+from jolteon.strategy.bull_flag.bull_flag_round_trip import (
     BullFlagRoundTrip,
 )
-from crypto_trading_engine.strategy.bull_flag.strategy import (
+from jolteon.strategy.bull_flag.strategy import (
     BullFlagStrategy,
 )
-from crypto_trading_engine.strategy.bull_flag.parameters import Parameters
-from crypto_trading_engine.strategy.core.patterns.bull_flag.pattern import (
+from jolteon.strategy.bull_flag.parameters import Parameters
+from jolteon.strategy.core.patterns.bull_flag.pattern import (
     BullFlagPattern,
     RecognitionResult,
 )
-from crypto_trading_engine.strategy.core.trade_opportunity import (
+from jolteon.strategy.core.trade_opportunity import (
     TradeOpportunity,
 )
 

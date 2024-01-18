@@ -1,7 +1,7 @@
 import unittest
 
-from crypto_trading_engine.core.side import MarketSide
-from crypto_trading_engine.market_data.core.order_book import (
+from jolteon.core.side import MarketSide
+from jolteon.market_data.core.order_book import (
     OrderBook,
 )
 

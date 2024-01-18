@@ -25,7 +25,7 @@ Let's take a look at the structure of this project:
 ├── Makefile                 # A collection of utilities to manage the project
 ├── MANIFEST.in              # A list of files to include in a package
 ├── mkdocs.yml               # Configuration for documentation site
-├── crypto_trading_engine    # The main python package for the project
+├── jolteon                  # The main python package for the project
 │   ├── base.py              # The base module for the project
 │   ├── __init__.py          # This tells Python that this is a package
 │   ├── __main__.py          # The entry point for the project

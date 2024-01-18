@@ -1,8 +1,8 @@
 import asyncio
 import unittest
 
-from crypto_trading_engine.core.health_monitor.heartbeat import Heartbeater
-from crypto_trading_engine.core.health_monitor.heartbeat_monitor import (
+from jolteon.core.health_monitor.heartbeat import Heartbeater
+from jolteon.core.health_monitor.heartbeat_monitor import (
     HeartbeatMonitor,
 )
 

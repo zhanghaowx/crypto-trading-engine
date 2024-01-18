@@ -6,7 +6,7 @@ import pandas as pd
 from blinker import signal
 from pandas.testing import assert_frame_equal
 
-from crypto_trading_engine.core.event.signal_connector import (
+from jolteon.core.event.signal_connector import (
     SignalConnector,
 )
 

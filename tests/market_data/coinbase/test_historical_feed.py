@@ -3,11 +3,11 @@ import unittest
 from unittest.mock import MagicMock, patch, Mock
 from datetime import datetime, timedelta
 
-from crypto_trading_engine.core.time.time_manager import time_manager
-from crypto_trading_engine.market_data.coinbase.historical_feed import (
+from jolteon.core.time.time_manager import time_manager
+from jolteon.market_data.coinbase.historical_feed import (
     HistoricalFeed,
 )
-from crypto_trading_engine.market_data.core.candlestick import Candlestick
+from jolteon.market_data.core.candlestick import Candlestick
 
 
 class TestHistoricalFeed(unittest.TestCase):

@@ -5,9 +5,9 @@ from random import randint
 
 import pytz
 
-from crypto_trading_engine.core.side import MarketSide
-from crypto_trading_engine.market_data.core.trade import Trade
-from crypto_trading_engine.position.position_manager import PositionManager
+from jolteon.core.side import MarketSide
+from jolteon.market_data.core.trade import Trade
+from jolteon.position.position_manager import PositionManager
 
 
 def randomInt(param, param1):

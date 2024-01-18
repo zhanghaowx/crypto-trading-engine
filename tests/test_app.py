@@ -4,8 +4,8 @@ from datetime import datetime
 import asyncio
 from unittest.mock import MagicMock, patch, AsyncMock
 
-from crypto_trading_engine.core.time.time_manager import time_manager
-from crypto_trading_engine.strategy.bull_flag.parameters import (
+from jolteon.core.time.time_manager import time_manager
+from jolteon.strategy.bull_flag.parameters import (
     Parameters,
 )
 
@@ -22,7 +22,7 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
         self.mock_exec_service = MagicMock()
         self.mock_position_manager = MagicMock()
 
-        from crypto_trading_engine.app import Application
+        from jolteon.app import Application
 
         source_dir = os.path.dirname(os.path.dirname(__file__))
         self.application = Application(

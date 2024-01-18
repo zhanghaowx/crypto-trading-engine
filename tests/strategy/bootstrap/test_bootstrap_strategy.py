@@ -2,10 +2,10 @@ import unittest
 from datetime import datetime
 from blinker import ANY
 
-from crypto_trading_engine.core.side import MarketSide
-from crypto_trading_engine.market_data.core.candlestick import Candlestick
-from crypto_trading_engine.market_data.core.trade import Trade
-from crypto_trading_engine.strategy.bootstrap.bootstrap_strategy import (
+from jolteon.core.side import MarketSide
+from jolteon.market_data.core.candlestick import Candlestick
+from jolteon.market_data.core.trade import Trade
+from jolteon.strategy.bootstrap.bootstrap_strategy import (
     BootstrapStrategy,
 )
 

@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from threading import Thread
 import pytz
 
-from crypto_trading_engine.core.time.time_manager import (
+from jolteon.core.time.time_manager import (
     TimeManager,
     time_manager,
 )

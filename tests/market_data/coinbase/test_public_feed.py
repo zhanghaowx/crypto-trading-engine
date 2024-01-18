@@ -3,7 +3,7 @@ from unittest.mock import patch, AsyncMock, Mock
 
 import websockets
 
-from crypto_trading_engine.market_data.coinbase.public_feed import (
+from jolteon.market_data.coinbase.public_feed import (
     PublicFeed,
     CoinbaseEnvironment,
 )

@@ -3,16 +3,16 @@ import uuid
 from datetime import datetime
 from random import randint
 
-from crypto_trading_engine.core.side import MarketSide
-from crypto_trading_engine.market_data.core.order import Order, OrderType
-from crypto_trading_engine.market_data.core.trade import Trade
-from crypto_trading_engine.strategy.bull_flag.bull_flag_opportunity import (
+from jolteon.core.side import MarketSide
+from jolteon.market_data.core.order import Order, OrderType
+from jolteon.market_data.core.trade import Trade
+from jolteon.strategy.bull_flag.bull_flag_opportunity import (
     BullFlagOpportunity,
 )
-from crypto_trading_engine.strategy.bull_flag.bull_flag_round_trip import (
+from jolteon.strategy.bull_flag.bull_flag_round_trip import (
     BullFlagRoundTrip,
 )
-from crypto_trading_engine.strategy.core.trade_opportunity import (
+from jolteon.strategy.core.trade_opportunity import (
     TradeOpportunity,
 )
 

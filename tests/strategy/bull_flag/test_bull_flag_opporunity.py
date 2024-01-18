@@ -1,9 +1,9 @@
 import math
 import unittest
 from datetime import datetime, timedelta
-from crypto_trading_engine.market_data.core.candlestick import Candlestick
-from crypto_trading_engine.strategy.bull_flag.parameters import Parameters
-from crypto_trading_engine.strategy.bull_flag.bull_flag_opportunity import (
+from jolteon.market_data.core.candlestick import Candlestick
+from jolteon.strategy.bull_flag.parameters import Parameters
+from jolteon.strategy.bull_flag.bull_flag_opportunity import (
     BullFlagOpportunity,
 )
 

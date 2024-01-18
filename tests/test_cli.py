@@ -9,7 +9,7 @@ from io import StringIO
 @patch.dict(os.environ, {"COINBASE_API_KEY": "api_key"})
 @patch.dict(os.environ, {"COINBASE_API_SECRET": "api_secret"})
 class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
-    @patch("crypto_trading_engine.app.Application.run_replay")
+    @patch("jolteon.app.Application.run_replay")
     async def test_main_run_once_mode(
         self,
         mock_run_replay,
@@ -17,7 +17,7 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
         mock_run_replay.return_value = 1.0
 
         # Call the main function
-        from crypto_trading_engine.cli import main
+        from jolteon.cli import main
 
         await main()
 
@@ -28,7 +28,7 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
         # For example, check if the connect methods were called
         self.assertEqual(1, mock_run_replay.call_count)
 
-    @patch("crypto_trading_engine.app.Application.run_replay")
+    @patch("jolteon.app.Application.run_replay")
     async def test_main_training_mode_with_best_parameters_found(
         self,
         mock_run_replay,
@@ -36,7 +36,7 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
         mock_run_replay.return_value = 1.0
 
         # Call the main function
-        from crypto_trading_engine.cli import main
+        from jolteon.cli import main
 
         await main(training=True)
 
@@ -47,7 +47,7 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
         # For example, check if the connect methods were called
         self.assertLess(1, mock_run_replay.call_count)
 
-    @patch("crypto_trading_engine.app.Application.run_replay")
+    @patch("jolteon.app.Application.run_replay")
     async def test_main_training_mode_with_no_best_parameters_found(
         self,
         mock_run_replay,
@@ -55,7 +55,7 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
         mock_run_replay.return_value = -1.0
 
         # Call the main function
-        from crypto_trading_engine.cli import main
+        from jolteon.cli import main
 
         await main(training=True)
 
@@ -73,7 +73,7 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
 
         # Mock sys.exit to prevent actual exit
         with patch("sys.exit") as mock_exit:
-            from crypto_trading_engine.cli import graceful_exit
+            from jolteon.cli import graceful_exit
 
             graceful_exit(signal.SIGINT, None)
 

@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pytz
 from freezegun import freeze_time
 
-from crypto_trading_engine.risk_limit.order_frequency_limit import (
+from jolteon.risk_limit.order_frequency_limit import (
     OrderFrequencyLimit,
 )
 

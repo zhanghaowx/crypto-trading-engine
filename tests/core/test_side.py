@@ -1,7 +1,7 @@
 import unittest
 from enum import Enum
 
-from crypto_trading_engine.core.side import MarketSide
+from jolteon.core.side import MarketSide
 
 
 class TestMarketSideEnum(unittest.TestCase):

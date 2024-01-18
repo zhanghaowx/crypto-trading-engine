@@ -1,7 +1,7 @@
 import unittest
 from datetime import datetime, timedelta
-from crypto_trading_engine.market_data.core.candlestick import Candlestick
-from crypto_trading_engine.market_data.core.candlestick_list import (
+from jolteon.market_data.core.candlestick import Candlestick
+from jolteon.market_data.core.candlestick_list import (
     CandlestickList,
 )
 
