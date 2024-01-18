@@ -16,8 +16,17 @@ from jolteon.position.position_manager import PositionManager
 from jolteon.risk_limit.order_frequency_limit import OrderFrequencyLimit
 from jolteon.strategy.bull_flag.parameters import Parameters
 from jolteon.strategy.bull_flag.strategy import BullFlagStrategy
+from jolteon.strategy.core.patterns.bull_flag.parameters import (
+    BullFlagParameters,
+)
 from jolteon.strategy.core.patterns.bull_flag.recognizer import (
     BullFlagRecognizer,
+)
+from jolteon.strategy.core.patterns.shooting_star.parameters import (
+    ShootingStarParameters,
+)
+from jolteon.strategy.core.patterns.shooting_star.recognizer import (
+    ShootingStarRecognizer,
 )
 
 
@@ -82,7 +91,12 @@ class Application:
         # Position Manager Setup
         self._position_manager = PositionManager()
 
-        self.bull_flag_recognizer = BullFlagRecognizer(params=Parameters())
+        self.bull_flag_recognizer = BullFlagRecognizer(
+            params=BullFlagParameters()
+        )
+        self.shooting_star_recognizer = ShootingStarRecognizer(
+            params=ShootingStarParameters()
+        )
 
         # Wire Events
         self.connect_signals()
@@ -99,6 +113,10 @@ class Application:
             self.bull_flag_recognizer.on_candlestick,
         )
         self._signal_connector.connect(
+            self._md_live.events.candlestick,
+            self.shooting_star_recognizer.on_candlestick,
+        )
+        self._signal_connector.connect(
             self._md_historical.events.candlestick,
             self._strategy.on_candlestick,
         )
@@ -107,8 +125,16 @@ class Application:
             self.bull_flag_recognizer.on_candlestick,
         )
         self._signal_connector.connect(
+            self._md_historical.events.candlestick,
+            self.shooting_star_recognizer.on_candlestick,
+        )
+        self._signal_connector.connect(
             self.bull_flag_recognizer.bull_flag_signal,
             self._strategy.on_bull_flag_pattern,
+        )
+        self._signal_connector.connect(
+            self.shooting_star_recognizer.shooting_star_signal,
+            self._strategy.on_shooting_star_pattern,
         )
         self._signal_connector.connect(
             self._strategy.order_event, self._exec_service.on_order

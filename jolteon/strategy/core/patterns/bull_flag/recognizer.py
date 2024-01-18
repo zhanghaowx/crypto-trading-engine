@@ -2,7 +2,9 @@ from blinker import signal
 
 from jolteon.market_data.core.candlestick import Candlestick
 from jolteon.market_data.core.candlestick_list import CandlestickList
-from jolteon.strategy.bull_flag.parameters import Parameters
+from jolteon.strategy.core.patterns.bull_flag.parameters import (
+    BullFlagParameters,
+)
 from jolteon.strategy.core.patterns.bull_flag.pattern import (
     BullFlagPattern,
     RecognitionResult,
@@ -10,7 +12,7 @@ from jolteon.strategy.core.patterns.bull_flag.pattern import (
 
 
 class BullFlagRecognizer:
-    def __init__(self, params: Parameters):
+    def __init__(self, params: BullFlagParameters):
         self.bull_flag_signal = signal("bull_flag")
         self._params = params
         self._all_candlesticks = CandlestickList(

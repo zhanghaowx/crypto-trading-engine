@@ -125,48 +125,6 @@ class Candlestick:
         """
         return self.close < self.open
 
-    def is_shooting_star(self):
-        """
-        A shooting star is a specific candlestick pattern in technical analysis
-        that is generally considered a bearish reversal pattern.
-        It typically occurs during an uptrend and has the following
-        characteristics:
-
-        1. The candlestick has a small real body
-           (the difference between open and close prices).
-        2. There is a long upper shadow (wick) that is at least twice the
-           length of the real body.
-        3. The lower shadow (wick) is very small or nonexistent.
-
-        +---------|--------+
-        |         |        |
-        |         |        |
-        |         |        |
-        |         |        |
-        |         |        |
-        |         |        |
-        |     Wick|        |
-        |Close+---|--+     |
-        |     | Body |     |
-        |Open +---|--+     |
-        |     Wick|        |
-        +---------|--------+
-
-        Returns:
-
-        """
-        small_real_body = abs(self.open - self.close) < 0.2 * (
-            self.high - self.low
-        )
-        long_upper_shadow = (
-            self.high - max(self.open, self.close)
-        ) >= 2 * abs(self.open - self.close)
-        small_lower_shadow = (min(self.open, self.close) - self.low) < 0.2 * (
-            self.high - self.low
-        )
-
-        return small_real_body and long_upper_shadow and small_lower_shadow
-
     def is_hammer(self):
         """
         A hammer pattern is a bullish reversal candlestick pattern that is

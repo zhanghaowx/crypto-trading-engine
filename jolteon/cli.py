@@ -54,22 +54,18 @@ async def main(training: bool = False):
         result = dict[float, Parameters]()
 
         # Start Training
-        for extreme_bullish_threshold in np.arange(2.0, 3.0, 0.1):
-            for extreme_bullish_return_pct in np.arange(0.0001, 0.005, 0.001):
-                for consolidation_threshold in np.arange(0.1, 0.3, 0.05):
-                    parameters = Parameters(
-                        max_number_of_recent_candlesticks=10,
-                        extreme_bullish_threshold=extreme_bullish_threshold,
-                        extreme_bullish_return_pct=extreme_bullish_return_pct,
-                        consolidation_period_threshold=consolidation_threshold,
-                    )
-                    pnl = await run_once(parameters)
+        for consolidation_threshold in np.arange(0.1, 0.3, 0.05):
+            parameters = Parameters(
+                max_number_of_recent_candlesticks=10,
+                consolidation_period_threshold=consolidation_threshold,
+            )
+            pnl = await run_once(parameters)
 
-                    if pnl > 0.0:
-                        result[pnl] = parameters
+            if pnl > 0.0:
+                result[pnl] = parameters
 
-                # Prepare for next iteration
-                time_manager().force_reset()
+        # Prepare for next iteration
+        time_manager().force_reset()
 
         if len(result) == 0:
             logging.warning("No best parameters found. Exiting...")

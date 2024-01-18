@@ -20,6 +20,9 @@ from jolteon.strategy.core.patterns.bull_flag.pattern import (
     BullFlagPattern,
     RecognitionResult,
 )
+from jolteon.strategy.core.patterns.shooting_star.pattern import (
+    ShootingStarPattern,
+)
 
 
 class BullFlagStrategy(Heartbeater):
@@ -85,6 +88,21 @@ class BullFlagStrategy(Heartbeater):
         )
 
         self._try_buy(opportunity)
+
+    def on_shooting_star_pattern(self, _: str, pattern: ShootingStarPattern):
+        """
+        A shooting pattern appears after a bull flag pattern might indicate the
+        end of the bullish trend. Sell unclosed positions as soon as possible.
+
+        Args:
+            _: Unique identifier of the sender
+            pattern: Details about the shooting star pattern
+
+        Returns:
+            None
+
+        """
+        self._try_close_positions(force=True)
 
     def on_fill(self, _: str, trade: Trade):
         logging.info(f"Received {trade} for {self.symbol}")
@@ -178,7 +196,7 @@ class BullFlagStrategy(Heartbeater):
 
         return True
 
-    def _try_close_positions(self) -> None:
+    def _try_close_positions(self, force: bool = False) -> None:
         if len(self._round_trips) == 0:
             return
 
@@ -222,5 +240,12 @@ class BullFlagStrategy(Heartbeater):
 
                 round_trip.sell_order = sell_order
                 self.order_event.send(self.order_event, order=sell_order)
+            elif force:
+                # crossed profit line, we need sell for profit
+                logging.info(f"Placed {sell_order} for other reasons.")
+
+                round_trip.sell_order = sell_order
+                self.order_event.send(self.order_event, order=sell_order)
+                return
             else:
                 return

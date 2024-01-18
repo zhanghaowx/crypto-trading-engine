@@ -1,7 +1,6 @@
 import os
 import unittest
 from datetime import datetime
-import asyncio
 from unittest.mock import MagicMock, patch, AsyncMock
 
 from jolteon.core.time.time_manager import time_manager

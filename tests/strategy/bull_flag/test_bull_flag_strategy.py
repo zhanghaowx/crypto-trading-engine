@@ -24,6 +24,9 @@ from jolteon.strategy.core.patterns.bull_flag.pattern import (
     BullFlagPattern,
     RecognitionResult,
 )
+from jolteon.strategy.core.patterns.shooting_star.pattern import (
+    ShootingStarPattern,
+)
 from jolteon.strategy.core.trade_opportunity import (
     TradeOpportunity,
 )
@@ -238,6 +241,7 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
             )
         self.assertEqual(0, len(self.orders))
 
+        # noinspection PyTypeChecker
         self.bull_flag_strategy._round_trips.append(
             BullFlagRoundTrip(
                 opportunity=TradeOpportunity(
@@ -253,6 +257,56 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
         # Act
         self.bull_flag_strategy.on_candlestick(
             "mock_sender", self.candlesticks[2]
+        )
+
+        # Assert
+        self.assertTrue(
+            self.bull_flag_strategy.order_event.has_receivers_for(ANY)
+        )
+        self.assertEqual(1, len(self.bull_flag_strategy._round_trips))
+
+        sell_order = self.orders[-1]
+        self.assertEqual(1, len(self.orders))
+        self.assertNotEqual("mock_id", sell_order.client_order_id)
+        self.assertEqual(OrderType.MARKET_ORDER, sell_order.order_type)
+        self.assertEqual("BTC-USD", sell_order.symbol)
+        self.assertEqual(None, sell_order.price)
+        self.assertEqual(1, sell_order.quantity)
+        self.assertEqual(MarketSide.SELL, sell_order.side)
+        self.assertLess(
+            datetime(2024, 1, 1, tzinfo=pytz.utc), sell_order.creation_time
+        )
+
+    async def test_sell_for_shooting_star(self):
+        # Arrange
+        for i in range(0, 3):
+            self.bull_flag_strategy.on_candlestick(
+                "mock_sender", self.candlesticks[i]
+            )
+        self.assertEqual(0, len(self.orders))
+
+        # noinspection PyTypeChecker
+        self.bull_flag_strategy._round_trips.append(
+            BullFlagRoundTrip(
+                opportunity=TradeOpportunity(
+                    score=1.0,
+                    stop_loss_price=-1000,
+                    profit_price=10000,
+                ),
+                buy_order=self.create_mock_order(MarketSide.BUY),
+            )
+        )
+        self.assertEqual(1, len(self.bull_flag_strategy._round_trips))
+
+        # Act
+        self.bull_flag_strategy.on_shooting_star_pattern(
+            "mock_sender",
+            ShootingStarPattern(
+                shooting_star=self.candlesticks[2],
+                body_ratio=0.01,
+                upper_shadow_ratio=10.0,
+                lower_shadow_ratio=0.01,
+            ),
         )
 
         # Assert
@@ -319,6 +373,7 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_buy_order_blocked_by_risk_limits(self):
         self.bull_flag_strategy._risk_limits = [MockRiskLimits(False)]
+        # noinspection PyTypeChecker
         self.bull_flag_strategy._try_buy(
             opportunity=TradeOpportunity(
                 score=1.0,
@@ -329,6 +384,7 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(0, len(self.orders))
 
         self.bull_flag_strategy._risk_limits = [MockRiskLimits(True)]
+        # noinspection PyTypeChecker
         self.bull_flag_strategy._try_buy(
             opportunity=TradeOpportunity(
                 score=1.0,
