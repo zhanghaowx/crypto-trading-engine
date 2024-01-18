@@ -1,9 +1,11 @@
 """
 Application interface for Jolteon
 """
+import asyncio
 import logging
-import os
 from datetime import datetime, timedelta
+
+from blinker import signal
 
 from jolteon.core.event.signal_connector import SignalConnector
 from jolteon.execution.coinbase.execution_service import MockExecutionService
@@ -28,13 +30,11 @@ from jolteon.strategy.core.patterns.shooting_star.recognizer import (
 
 
 class Application:
-    SOURCE_DIRECTORY = os.path.dirname(os.path.dirname(__file__))
-
     def __init__(
         self,
         symbol: str,
-        database_name=f"{SOURCE_DIRECTORY}/analysis/crypto.sqlite",
-        logfile_name=f"{SOURCE_DIRECTORY}/analysis/crypto.log",
+        database_name="/tmp/crypto.sqlite",
+        logfile_name="/tmp/crypto.log",
         candlestick_interval_in_seconds=60,
         bull_flag_params=BullFlagParameters(),
         shooting_star_params=ShootingStarParameters(),
@@ -143,6 +143,7 @@ class Application:
         self._signal_connector.connect(
             self._exec_service.order_fill_event, self._position_manager.on_fill
         )
+        self._signal_connector.connect(signal("heartbeat"))
 
     def disconnect_signals(self):
         self._md_live.events.candlestick.disconnect(
@@ -179,4 +180,10 @@ class Application:
         return self._position_manager.pnl
 
     async def run(self):
-        await self._md_live.connect([self._symbol])
+        try:
+            await asyncio.gather(
+                self._signal_connector.persist(interval_in_seconds=5),
+                self._md_live.connect([self._symbol]),
+            )
+        except Exception as e:
+            logging.error(f"Error: {e}")

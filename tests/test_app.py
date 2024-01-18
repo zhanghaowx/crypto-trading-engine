@@ -23,11 +23,10 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
 
         from jolteon.app import Application
 
-        source_dir = os.path.dirname(os.path.dirname(__file__))
         self.application = Application(
             symbol=self.symbol,
-            database_name=f"{source_dir}/dummy_database.sqlite",
-            logfile_name=f"{source_dir}/dummy_logfile.log",
+            database_name=f"/tmp/dummy_database.sqlite",
+            logfile_name=f"/tmp/dummy_logfile.log",
             strategy_params=Parameters(),
         )
 
@@ -42,8 +41,7 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
         self.application._position_manager = self.mock_position_manager
 
     async def asyncTearDown(self):
-        source_dir = os.path.dirname(os.path.dirname(__file__))
-        os.remove(f"{source_dir}/dummy_database.sqlite")
+        os.remove("/tmp/dummy_database.sqlite")
 
         time_manager().force_reset()
 
@@ -81,7 +79,9 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
     async def test_run(self):
         # Mock the live feed connection
         self.mock_md_live.connect = AsyncMock()
+        self.mock_connector.persist = AsyncMock()
         await self.application.run()
 
         # Ensure the live feed connection is called with the correct arguments
         self.mock_md_live.connect.assert_called_once_with([self.symbol])
+        self.mock_connector.persist.assert_called_once()

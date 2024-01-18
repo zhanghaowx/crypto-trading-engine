@@ -1,3 +1,4 @@
+import asyncio
 import atexit
 import logging
 import sqlite3
@@ -43,6 +44,11 @@ class SignalConnector:
         sender.connect(receiver=self._handle_signal)
         self._signals.append(sender)
 
+    async def persist(self, interval_in_seconds=60):
+        while True:
+            self._save_data()
+            await asyncio.sleep(interval_in_seconds)
+
     def close(self):
         """
         Disconnect all signals and dump recorded signal data to sqlite database
@@ -50,23 +56,37 @@ class SignalConnector:
         Returns:
             None
         """
-        for sender in self._signals:
-            sender.disconnect(self._handle_signal)
+        self._save_data()
+        self._clear_signals()
 
+    def _save_data(self) -> None:
+        """
+        Dump all data into a SQLite database
+
+        Returns:
+            None
+        """
         conn = sqlite3.connect(self._database_name)
         for name, df in self._events.items():
             logging.info(f"Saving DataFrame {name} with shape {df.shape}...")
             try:
-                df.to_sql(name=name, con=conn, if_exists="replace")
+                df.to_sql(name=name, con=conn, if_exists="append")
             except Exception as e:
                 raise Exception(f"Cannot save DataFrame {name}: {e}")
         conn.close()
 
         self._events.clear()
+
+    def _clear_signals(self):
+        for sender in self._signals:
+            sender.disconnect(self._handle_signal)
         self._signals.clear()
 
-    def _handle_signal(self, sender: NamedSignal, **kwargs):
-        name = sender.name
+    def _handle_signal(self, sender: NamedSignal | str, **kwargs):
+        if hasattr(sender, "name"):
+            name = sender.name
+        else:
+            name = sender
 
         if len(kwargs.values()) != 1:
             logging.error(
