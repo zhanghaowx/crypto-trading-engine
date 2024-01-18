@@ -108,8 +108,11 @@ class Candlestick:
         Returns:
             Whether the candlestick is completed or it is still being built
         """
-
-        return (now if now else time_manager().now()) >= self.end_time
+        # Allow a 0.1s difference which might be caused by clocks out of sync
+        # between local trading engine and the matching engine.
+        return (
+            now if now else time_manager().now()
+        ) >= self.end_time - timedelta(seconds=0.1)
 
     def is_bullish(self):
         """
