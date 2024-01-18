@@ -40,17 +40,19 @@ class HeartbeatMonitor:
         self._timeout_in_seconds: float = timeout_in_seconds
         asyncio.create_task(self._detect_zombies_periodically())
 
-    def on_heartbeat(self, sender: str, heartbeat: Heartbeat):
+    def on_heartbeat(self, _: str, heartbeat: Heartbeat):
         """
         Store heartbeat on receiving a heartbeat from any component
         Args:
-            sender: Name of the sender
+            _: Unique identifier of the sender
             heartbeat: Heartbeat message from the sender
 
         Returns:
             None
         """
-        self.all_heartbeats[sender] = HeartbeatMonitor.DecoratedHeartbeat(
+        self.all_heartbeats[
+            heartbeat.sender
+        ] = HeartbeatMonitor.DecoratedHeartbeat(
             heartbeat=heartbeat, zombie=False
         )
         self._detect_zombies()

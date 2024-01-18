@@ -83,10 +83,8 @@ class SignalConnector:
         self._signals.clear()
 
     def _handle_signal(self, sender: NamedSignal | str, **kwargs):
-        if hasattr(sender, "name"):
-            name = sender.name
-        else:
-            name = sender
+        assert isinstance(sender, NamedSignal)
+        name = sender.name
 
         if len(kwargs.values()) != 1:
             logging.error(
@@ -128,7 +126,7 @@ class SignalConnector:
         if obj is None:
             return None
         if isinstance(obj, Enum):
-            return obj
+            return obj.value
         elif hasattr(obj, "__dict__") and obj.__dict__:
             return dict(
                 [

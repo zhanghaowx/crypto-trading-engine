@@ -49,7 +49,7 @@ class TestSignalConnector(unittest.TestCase):
 
     def test_handle_payload_has_primary_key(self):
         class SomeEnum(Enum):
-            A = 1
+            A = "A"
 
         class Payload:
             PRIMARY_KEY = "payload_id"

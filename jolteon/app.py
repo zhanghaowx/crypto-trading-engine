@@ -182,7 +182,7 @@ class Application:
     async def run(self):
         try:
             await asyncio.gather(
-                self._signal_connector.persist(interval_in_seconds=5),
+                self._signal_connector.persist(interval_in_seconds=30),
                 self._md_live.connect([self._symbol]),
             )
         except Exception as e:

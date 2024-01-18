@@ -39,7 +39,7 @@ class PublicFeed(Heartbeater):
         )
 
         while not self.exception_occurred:
-            await asyncio.sleep(1)
+            await asyncio.sleep(10)
 
     async def _on_message(self, response):
         possible_error = response.get("error")

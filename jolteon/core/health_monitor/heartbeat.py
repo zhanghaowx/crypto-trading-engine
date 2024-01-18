@@ -19,6 +19,7 @@ class Heartbeat:
     def __init__(
         self,
         level: HeartbeatLevel = HeartbeatLevel.NORMAL,
+        sender: str = "",
         message: str = "",
         report_time: Union[datetime, None] = None,
     ):
@@ -31,6 +32,7 @@ class Heartbeat:
             message: Additional details about this issue.
         """
         self.level = level
+        self.sender = sender
         self.message = message
         self.report_time = report_time if report_time else time_manager().now()
         assert (self.level == HeartbeatLevel.NORMAL) or (
@@ -50,7 +52,9 @@ class Heartbeat:
 
     def __repr__(self):
         return (
-            f"Heartbeat: level={self.level}, "
+            f"Heartbeat: "
+            f"level={self.level}, "
+            f"sender={self.sender if len(self.sender) > 0 else 'None'}, "
             f"message={self.message if len(self.message) > 0 else 'None'}, "
             f"report_time={self.report_time}"
         )
@@ -83,7 +87,9 @@ class Heartbeater:
         self._name = name
         self._interval_in_seconds = interval_in_seconds
         self._heartbeat_signal = signal("heartbeat")
-        self._issues = [Heartbeat(HeartbeatLevel.NORMAL)]
+        self._issues = [
+            Heartbeat(level=HeartbeatLevel.NORMAL, sender=self._name)
+        ]
 
         if self._interval_in_seconds > 0:
             asyncio.create_task(self._start_heartbeating())
@@ -111,7 +117,9 @@ class Heartbeater:
             "the normal severity level!"
         )
         assert len(message) > 0, "Please add details to your issue"
-        self._issues.append(Heartbeat(level, message))
+        self._issues.append(
+            Heartbeat(level=level, message=message, sender=self._name)
+        )
         self._issues.sort()
         return len(self._issues) - 1
 
@@ -140,7 +148,13 @@ class Heartbeater:
             "Please have at least one Heartbeat in the list "
             "before sending it out!"
         )
-        self._heartbeat_signal.send(self._name, heartbeat=self._issues[-1])
+
+        last_heartbeat = self._issues[-1]
+        last_heartbeat.report_time = time_manager().now()
+
+        self._heartbeat_signal.send(
+            self._heartbeat_signal, heartbeat=last_heartbeat
+        )
 
     async def _start_heartbeating(self):
         assert (
