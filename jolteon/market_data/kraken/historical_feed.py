@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime
-from typing import Union
 
+import pytz
 import requests
 
 from jolteon.core.health_monitor.heartbeat import Heartbeater
@@ -22,9 +22,6 @@ class HistoricalFeed(Heartbeater):
     def __init__(
         self,
         candlestick_interval_in_seconds: int = 60,
-        replay_speed: int = 600,
-        api_key: Union[str, None] = None,
-        api_secret: Union[str, None] = None,
     ):
         """
         Creates a historical market data feed client for the given time frame.
@@ -32,15 +29,9 @@ class HistoricalFeed(Heartbeater):
         Args:
             candlestick_interval_in_seconds: Granularity of the candlesticks in
                                              seconds.
-            replay_speed: Speed at which to replay candlesticks. 60 means
-                          real time and replay time ratio is 1:60. Every
-                          second the replay time will advance 60 seconds.
-            api_key: API key for Coinbase's REST API.
-            api_secret: API secret for Coinbase's REST API.
         """
         super().__init__(type(self).__name__, interval_in_seconds=10)
         self.events = Events()
-        self._replay_speed = replay_speed
         self._candlestick_generator = CandlestickGenerator(
             interval_in_seconds=candlestick_interval_in_seconds
         )
@@ -109,7 +100,7 @@ class HistoricalFeed(Heartbeater):
                 )
 
             json_resp = response.json()
-            if json_resp["error"] is not None:
+            if json_resp["error"] and len(json_resp["error"]) > 0:
                 raise Exception(
                     f"Error getting historical market trades: "
                     f"{json_resp['error']}"
@@ -139,12 +130,14 @@ class HistoricalFeed(Heartbeater):
                     else MarketSide.SELL,
                     price=float(json_trade[0]),
                     quantity=float(json_trade[1]),
-                    transaction_time=datetime.fromtimestamp(json_trade[2]),
+                    transaction_time=datetime.fromtimestamp(
+                        json_trade[2], tz=pytz.utc
+                    ),
                 )
                 market_trades.append(trade)
 
             request_timestamp = json_resp["result"]["last"]
 
-        # Save in the cache to reduce calls to Coinbase API
+        # Save in the cache to reduce calls to Kraken's API
         self.CACHE[key] = market_trades
         return market_trades

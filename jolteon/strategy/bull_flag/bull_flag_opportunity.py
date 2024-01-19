@@ -43,7 +43,7 @@ class BullFlagOpportunity(TradeOpportunity):
         ) * target_reward_risk_ratio + self.expected_trade_price
         self.risk_reward_ratio = (
             self.profit_price - self.expected_trade_price
-        ) / (self.expected_trade_price - self.stop_loss_price)
+        ) / max(1e-10, self.expected_trade_price - self.stop_loss_price)
 
     def grade(self, params: Parameters) -> None:
         """

@@ -28,7 +28,11 @@ class SignalConnector:
         self._database_name = database_name
         self._events = dict[str, pd.DataFrame]()
         self._signals = list[signal]()
+
         atexit.register(self.close)
+
+    def __del__(self):
+        self.close()
 
     def connect(self, sender: Signal, receiver=None):
         """

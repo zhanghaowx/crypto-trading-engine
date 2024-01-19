@@ -3,6 +3,8 @@ import unittest
 from datetime import datetime
 from unittest.mock import MagicMock, patch, AsyncMock
 
+import pytz
+
 from jolteon.core.time.time_manager import time_manager
 from jolteon.strategy.bull_flag.parameters import (
     Parameters,
@@ -63,8 +65,12 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_run_replay(self):
-        start_time = datetime(2023, 1, 1, hour=0, minute=0, second=0)
-        end_time = datetime(2023, 1, 1, hour=0, minute=0, second=1)
+        start_time = datetime(
+            2023, 1, 1, hour=0, minute=0, second=0, tzinfo=pytz.utc
+        )
+        end_time = datetime(
+            2023, 1, 1, hour=0, minute=0, second=1, tzinfo=pytz.utc
+        )
 
         # Mock the historical feed connection
         self.mock_md_historical.connect = AsyncMock()

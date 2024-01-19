@@ -19,7 +19,7 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
         # Call the main function
         from jolteon.cli import main
 
-        await main(replay=True)
+        await main(training=False, replay=True)
 
         # Reset stdout
         sys.stdout = sys.__stdout__

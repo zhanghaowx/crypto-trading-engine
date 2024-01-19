@@ -40,7 +40,7 @@ class PostTradePlot:
                 con=self._conn,
             )
             df["transaction_time"] = pd.to_datetime(
-                df["transaction_time"], format="%Y-%m-%d %H:%M:%S%z"
+                df["transaction_time"], format="ISO8601"
             )
             df.drop(columns=["index"], axis=1, inplace=True)
 

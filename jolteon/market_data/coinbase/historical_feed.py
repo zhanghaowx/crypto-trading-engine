@@ -79,17 +79,36 @@ class HistoricalFeed(Heartbeater):
         Returns:
             A asyncio task to be waiting for incoming messages
         """
-        candlesticks = self._get_candlesticks(symbol, start_time, end_time)
-        candlesticks.sort(key=lambda x: x.start_time)
 
-        for candlestick in candlesticks:
-            time_manager().use_fake_time(candlestick.end_time, admin=self)
-            self.events.candlestick.send(
-                self.events.candlestick, candlestick=candlestick
+        def _generate_time_ranges(interval_minutes: int = 300):
+            """
+            Coinbase REST API has some limitations on how much you could
+            request for each request.
+            """
+            result_time_ranges = []
+
+            current_time = start_time
+            while (end_time - current_time).total_seconds() > 1:
+                next_time = current_time + timedelta(minutes=interval_minutes)
+                result_time_ranges.append((current_time, next_time))
+                current_time = next_time
+
+            return result_time_ranges
+
+        for period_start, period_end in _generate_time_ranges():
+            candlesticks = self._get_candlesticks(
+                symbol, period_start, period_end
             )
-            await asyncio.sleep(
-                self._candlestick_granularity.value / self._replay_speed
-            )
+            candlesticks.sort(key=lambda x: x.start_time)
+
+            for candlestick in candlesticks:
+                time_manager().use_fake_time(candlestick.end_time, admin=self)
+                self.events.candlestick.send(
+                    self.events.candlestick, candlestick=candlestick
+                )
+                await asyncio.sleep(
+                    self._candlestick_granularity.value / self._replay_speed
+                )
 
     # noinspection PyArgumentList
     def _get_candlesticks(

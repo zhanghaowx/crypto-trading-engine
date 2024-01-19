@@ -1,5 +1,6 @@
 import logging
 
+from jolteon.core.time.time_manager import time_manager
 from jolteon.market_data.core.candlestick import Candlestick
 from jolteon.market_data.core.trade import Trade
 
@@ -42,7 +43,10 @@ class CandlestickGenerator:
                     f"Generated Completed Candlestick: "
                     f"{self.current_candlestick}"
                 )
-                assert self.current_candlestick.is_completed()
+                assert self.current_candlestick.is_completed(), (
+                    f"{self.current_candlestick} is expected to be completed "
+                    f"at {time_manager().now()} after seeing {trade}"
+                )
                 candlesticks.append(self.current_candlestick)
 
             # Calculate the start time of the new candlestick

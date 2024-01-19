@@ -9,7 +9,7 @@ import pytz
 
 from jolteon.core.side import MarketSide
 from jolteon.core.time.time_manager import time_manager
-from jolteon.execution.coinbase.execution_service import (
+from jolteon.execution.coinbase.mock_execution_service import (
     MockExecutionService,
 )
 from jolteon.market_data.core.order import Order, OrderType

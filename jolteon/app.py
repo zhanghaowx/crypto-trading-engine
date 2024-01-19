@@ -3,13 +3,16 @@ Application interface for Jolteon
 """
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from blinker import signal
 
 from jolteon.core.event.signal_connector import SignalConnector
-from jolteon.execution.coinbase.execution_service import MockExecutionService
-from jolteon.market_data.coinbase.historical_feed import HistoricalFeed
+from jolteon.core.time.time_manager import time_manager
+from jolteon.execution.kraken.mock_execution_service import (
+    MockExecutionService,
+)
+from jolteon.market_data.kraken.historical_feed import HistoricalFeed
 from jolteon.market_data.kraken.public_feed import PublicFeed
 from jolteon.position.position_manager import PositionManager
 from jolteon.risk_limit.order_frequency_limit import OrderFrequencyLimit
@@ -71,7 +74,6 @@ class Application:
         # Market Data Setup: Historical Feed
         self._md_historical = HistoricalFeed(
             candlestick_interval_in_seconds=candlestick_interval_in_seconds,
-            replay_speed=6000,
         )
 
         # Strategy Setup
@@ -157,26 +159,9 @@ class Application:
         self._signal_connector.close()
 
     async def run_replay(self, start: datetime, end: datetime):
-        def generate_time_ranges(interval_minutes: int):
-            result_time_ranges = []
-
-            current_time = start
-            while current_time < end:
-                next_time = current_time + timedelta(minutes=interval_minutes)
-                result_time_ranges.append((current_time, next_time))
-                current_time = next_time
-
-            return result_time_ranges
-
-        for period_start, period_end in generate_time_ranges(300):
-            logging.info(
-                f"Replay for {self._symbol}: "
-                f"{period_start} - {min(period_end, end)}"
-            )
-            await self._md_historical.connect(
-                self._symbol, period_start, min(period_end, end)
-            )
-
+        await self._md_historical.connect(
+            self._symbol, start, min(time_manager().now(), end)
+        )
         return self._position_manager.pnl
 
     async def run(self):

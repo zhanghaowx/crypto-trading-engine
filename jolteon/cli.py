@@ -27,7 +27,7 @@ def graceful_exit(signum, frame):
 signal.signal(signal.SIGINT, graceful_exit)
 
 
-async def main(training: bool = False, replay: bool = False):
+async def main(training: bool = True, replay: bool = True):
     replay_start = datetime(
         2024, 1, 16, hour=0, minute=0, second=0, tzinfo=pytz.utc
     )
@@ -41,44 +41,48 @@ async def main(training: bool = False, replay: bool = False):
         else:
             pnl = await app.run()
 
-        pnl_report = f"PnL: {pnl}"
-        logging.info(pnl_report)
-        print(pnl_report)
-
         # Prepare for next iteration
         time_manager().force_reset()
 
+        print(f"PnL: {pnl}")
         return pnl
 
-    async def run_training():
+    async def run_training(symbol: str):
         result = dict[float, dict]()
 
         # Start Training
-        for extreme_bullish_return_pct in np.arange(0.001, 0.002, 0.0001):
-            for consolidation_threshold in np.arange(0.1, 0.301, 0.05):
-                strategy_params = Parameters(
-                    max_number_of_recent_candlesticks=10,
-                    consolidation_period_threshold=consolidation_threshold,
-                )
-                bull_flag_params = BullFlagParameters(
-                    extreme_bullish_return_pct=extreme_bullish_return_pct
-                )
+        for minute in range(1, 6):
+            for extreme_bullish_return_pct in np.arange(0.001, 0.002, 0.0001):
+                for consolidation_threshold in np.arange(0.1, 0.301, 0.05):
+                    for reward_ratio in np.arange(2.0, 5.0, 0.2):
+                        strategy_params = Parameters(
+                            max_number_of_recent_candlesticks=10,
+                            consolidation_period_threshold=consolidation_threshold,
+                            target_reward_risk_ratio=reward_ratio,
+                        )
+                        bull_flag_params = BullFlagParameters(
+                            extreme_bullish_return_pct=extreme_bullish_return_pct
+                        )
 
-                pnl = await run_once(
-                    Application(
-                        "ETH-USD",
-                        strategy_params=strategy_params,
-                        bull_flag_params=bull_flag_params,
-                    )
-                )
+                        pnl = await run_once(
+                            Application(
+                                symbol,
+                                candlestick_interval_in_seconds=minute * 60,
+                                strategy_params=strategy_params,
+                                bull_flag_params=bull_flag_params,
+                            )
+                        )
 
-                result[pnl] = {
-                    "strategy_params": strategy_params,
-                    "bull_flag_params": bull_flag_params,
-                }
+                        result[pnl] = {
+                            "strategy_params": strategy_params,
+                            "bull_flag_params": bull_flag_params,
+                        }
 
-                # Prepare for next iteration
-                time_manager().force_reset()
+                        logging.info(
+                            f"Training PnL: {pnl}, Parameters: {result[pnl]}"
+                        )
+
+                        # End of one run
 
         if len(result) == 0:
             logging.warning("No best parameters found. Exiting...")
@@ -91,6 +95,6 @@ async def main(training: bool = False, replay: bool = False):
             )
 
     if training:
-        await run_training()
+        await run_training("ETH/USD")
     else:
         await run_once(Application("ETH/USD"))
