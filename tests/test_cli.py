@@ -1,20 +1,19 @@
-import os
 import signal
 import sys
 import unittest
 from io import StringIO
-from unittest.mock import patch
+from unittest.mock import patch, AsyncMock
 
 
-@patch.dict(os.environ, {"COINBASE_API_KEY": "api_key"})
-@patch.dict(os.environ, {"COINBASE_API_SECRET": "api_secret"})
 class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
-    @patch("jolteon.app.Application.run_replay")
+    @patch("jolteon.cli.Application")
     async def test_main_run_once_mode(
         self,
-        mock_run_replay,
+        MockApplication,
     ):
-        mock_run_replay.return_value = 1.0
+        mock_app = MockApplication.return_value
+        mock_app.run_replay = AsyncMock()
+        mock_app.run_replay.return_value = 1.0
 
         # Call the main function
         from jolteon.cli import main
@@ -26,14 +25,16 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
 
         # Add assertions based on your expectations
         # For example, check if the connect methods were called
-        self.assertEqual(1, mock_run_replay.call_count)
+        self.assertEqual(1, mock_app.run_replay.call_count)
 
-    @patch("jolteon.app.Application.run_replay")
+    @patch("jolteon.cli.Application")
     async def test_main_training_mode_with_best_parameters_found(
         self,
-        mock_run_replay,
+        MockApplication,
     ):
-        mock_run_replay.return_value = 1.0
+        mock_app = MockApplication.return_value
+        mock_app.run_replay = AsyncMock()
+        mock_app.run_replay.return_value = 1.0
 
         # Call the main function
         from jolteon.cli import main
@@ -45,14 +46,16 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
 
         # Add assertions based on your expectations
         # For example, check if the connect methods were called
-        self.assertLess(1, mock_run_replay.call_count)
+        self.assertLess(1, mock_app.run_replay.call_count)
 
-    @patch("jolteon.app.Application.run_replay")
+    @patch("jolteon.cli.Application")
     async def test_main_training_mode_with_no_best_parameters_found(
         self,
-        mock_run_replay,
+        MockApplication,
     ):
-        mock_run_replay.return_value = -1.0
+        mock_app = MockApplication.return_value
+        mock_app.run_replay = AsyncMock()
+        mock_app.run_replay.return_value = -1.0
 
         # Call the main function
         from jolteon.cli import main
@@ -64,7 +67,7 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
 
         # Add assertions based on your expectations
         # For example, check if the connect methods were called
-        self.assertLess(1, mock_run_replay.call_count)
+        self.assertLess(1, mock_app.run_replay.call_count)
 
     async def test_graceful_exit(self):
         # Redirect stdout to capture output
