@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from datetime import datetime
+from enum import Enum
 
 from kraken.spot import KrakenSpotWSClientV2
 
@@ -53,15 +54,20 @@ class PublicFeed(Heartbeater):
             self.exception_occurred = True
 
     def _decode_message(self, response):
+        class Error(Enum):
+            CONNECTION_LOST = "Connection Lost"
+
         possible_error = response.get("error")
         if possible_error:
             logging.error(f"Encountered error: {possible_error}")
-            self.add_issue(HeartbeatLevel.ERROR, possible_error)
+            self.add_issue(HeartbeatLevel.ERROR, Error.CONNECTION_LOST.value)
             return
 
         possible_method = response.get("method")
         if possible_method == "pong":
-            self.send_heartbeat()
+            return
+        elif possible_method == "subscribe":
+            self.remove_issue(Error.CONNECTION_LOST.value)
             return
 
         message_type = response.get("channel")
