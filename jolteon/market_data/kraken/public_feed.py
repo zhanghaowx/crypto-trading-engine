@@ -15,12 +15,12 @@ from jolteon.market_data.core.trade import Trade
 class PublicFeed(Heartbeater):
     def __init__(self, candlestick_interval_in_seconds: int = 60):
         super().__init__(type(self).__name__, interval_in_seconds=10)
+        self.events = Events()
         self._candlestick_generator = CandlestickGenerator(
             interval_in_seconds=candlestick_interval_in_seconds
         )
-        self.client = KrakenSpotWSClientV2(callback=self.on_message)
-        self.exception_occurred = False
-        self.events = Events()
+        self._client = KrakenSpotWSClientV2(callback=self.on_message)
+        self._exception_occurred = False
 
     async def connect(self, symbols: list[str]):
         """Establish a connection to the remote service and subscribe to the
@@ -35,11 +35,11 @@ class PublicFeed(Heartbeater):
         # every trade in a single message resulted from a single taker order.
         if not isinstance(symbols, list):
             symbols = [symbols]
-        await self.client.subscribe(
+        await self._client.subscribe(
             params={"channel": "trade", "symbol": symbols}
         )
 
-        while not self.exception_occurred:
+        while not self._exception_occurred:
             await asyncio.sleep(10)
 
     async def on_message(self, message):
@@ -50,8 +50,7 @@ class PublicFeed(Heartbeater):
             self.add_issue(
                 HeartbeatLevel.ERROR, f"Error decoding message: {e}"
             )
-        finally:
-            self.exception_occurred = True
+            self._exception_occurred = True
 
     def _decode_message(self, response):
         class Error(Enum):

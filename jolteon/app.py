@@ -1,7 +1,6 @@
 """
 Application interface for Jolteon
 """
-import asyncio
 import logging
 from datetime import datetime
 
@@ -159,16 +158,15 @@ class Application:
         self._signal_connector.close()
 
     async def run_replay(self, start: datetime, end: datetime):
+        logging.info(f"Replaying {self._symbol} from {start} to {end}")
         await self._md_historical.connect(
             self._symbol, start, min(time_manager().now(), end)
         )
         return self._position_manager.pnl
 
     async def run(self):
+        logging.info(f"Running {self._symbol}")
         try:
-            await asyncio.gather(
-                self._signal_connector.persist(interval_in_seconds=30),
-                self._md_live.connect([self._symbol]),
-            )
+            await self._md_live.connect([self._symbol])
         except Exception as e:
             logging.error(f"Error: {e}")

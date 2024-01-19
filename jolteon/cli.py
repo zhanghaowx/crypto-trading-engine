@@ -27,7 +27,11 @@ def graceful_exit(signum, frame):
 signal.signal(signal.SIGINT, graceful_exit)
 
 
-async def main(training: bool = True, replay: bool = True):
+async def main(training: bool = False, replay: bool = False):
+    assert (training and replay) or (
+        not training
+    ), "Training mode should only be used with replay mode"
+
     replay_start = datetime(
         2024, 1, 16, hour=0, minute=0, second=0, tzinfo=pytz.utc
     )
@@ -52,16 +56,16 @@ async def main(training: bool = True, replay: bool = True):
 
         # Start Training
         for minute in range(1, 6):
-            for extreme_bullish_return_pct in np.arange(0.001, 0.002, 0.0001):
-                for consolidation_threshold in np.arange(0.1, 0.301, 0.05):
+            for bull_flag_pct in np.arange(0.001, 0.002, 0.0001):
+                for consolidation_pct in np.arange(0.1, 0.301, 0.05):
                     for reward_ratio in np.arange(2.0, 5.0, 0.2):
                         strategy_params = Parameters(
                             max_number_of_recent_candlesticks=10,
-                            consolidation_period_threshold=consolidation_threshold,
+                            consolidation_period_threshold=consolidation_pct,
                             target_reward_risk_ratio=reward_ratio,
                         )
                         bull_flag_params = BullFlagParameters(
-                            extreme_bullish_return_pct=extreme_bullish_return_pct
+                            extreme_bullish_return_pct=bull_flag_pct
                         )
 
                         pnl = await run_once(
