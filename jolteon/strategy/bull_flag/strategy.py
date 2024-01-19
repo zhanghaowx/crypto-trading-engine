@@ -178,7 +178,7 @@ class BullFlagStrategy(Heartbeater):
             order_type=OrderType.MARKET_ORDER,
             symbol=self.symbol,
             price=None,
-            quantity=1,
+            quantity=self._parameters.min_quantity,
             side=MarketSide.BUY,
             creation_time=time_manager().now(),
         )

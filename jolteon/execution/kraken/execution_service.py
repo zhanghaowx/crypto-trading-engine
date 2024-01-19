@@ -20,7 +20,7 @@ class ExecutionService(Heartbeater):
         CREATE_ORDER_FAILURE = "CREATE_ORDER_FAILURE"
         GET_TRADE_FAILURE = "GET_TRADE_FAILURE"
 
-    def __init__(self):
+    def __init__(self, dry_run=True):
         """
         Creates an execution service to act as the exchange. It will
         respond to requests such as buy and sell.
@@ -28,11 +28,12 @@ class ExecutionService(Heartbeater):
         super().__init__(type(self).__name__, interval_in_seconds=10)
         self.order_history = dict[str, Order]()
         self.order_fill_event = signal("order_fill")
+        self._dry_run = dry_run
         self._order_client = kraken.spot.Trade(
             key=os.environ.get("KRAKEN_API_KEY"),
             secret=os.environ.get("KRAKEN_API_SECRET"),
         )
-        self._user_client = kraken.user.User(
+        self._user_client = kraken.spot.User(
             key=os.environ.get("KRAKEN_API_KEY"),
             secret=os.environ.get("KRAKEN_API_SECRET"),
         )
@@ -50,6 +51,12 @@ class ExecutionService(Heartbeater):
             None
 
         """
+
+        # Calling AddOrder/addOrder with the validate parameter set to true
+        # (validate=1, validate=true, validate=anything, etc.) will cause the
+        # order details to be checked for errors, but the API response will
+        # never include an order ID (which would always be returned for a
+        # successful order without the validate parameter).
         response = self._order_client.create_order(
             ordertype=order.order_type.value.lower(),
             side=order.side.value.lower(),
@@ -57,7 +64,7 @@ class ExecutionService(Heartbeater):
             pair=order.symbol,
             price=order.price,
             userref=int(order.client_order_id),
-            validate=True,
+            validate=self._dry_run,
         )
         logging.info(f"Create order: {response}")
 
@@ -68,7 +75,9 @@ class ExecutionService(Heartbeater):
 
         # Record every order in history
         self.order_history[order.client_order_id] = order
-        asyncio.create_task(self._poll_fills(order))
+
+        if not self._dry_run:
+            asyncio.create_task(self._poll_fills(order))
 
     # Poll for trade confirmations
     async def _poll_fills(self, order: Order):

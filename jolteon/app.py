@@ -8,6 +8,7 @@ from blinker import signal
 
 from jolteon.core.event.signal_connector import SignalConnector
 from jolteon.core.time.time_manager import time_manager
+from jolteon.execution.kraken.execution_service import ExecutionService
 from jolteon.execution.kraken.mock_execution_service import (
     MockExecutionService,
 )
@@ -35,6 +36,7 @@ class Application:
     def __init__(
         self,
         symbol: str,
+        use_mock_execution: bool = True,
         database_name="/tmp/crypto.sqlite",
         logfile_name="/tmp/crypto.log",
         candlestick_interval_in_seconds=60,
@@ -51,6 +53,7 @@ class Application:
             logfile_name:
         """
         self._symbol = symbol
+        self._use_mock_execution = use_mock_execution
 
         # Data Dumping Setup
         self._signal_connector = SignalConnector(
@@ -85,7 +88,8 @@ class Application:
         )
 
         # Execution Setup
-        self._exec_service = MockExecutionService()
+        self._mock_exec_service = MockExecutionService()
+        self._exec_service = ExecutionService()
 
         # Position Manager Setup
         self._position_manager = PositionManager()
@@ -133,17 +137,37 @@ class Application:
             self.shooting_star_recognizer.shooting_star_signal,
             self._strategy.on_shooting_star_pattern,
         )
-        self._signal_connector.connect(
-            self._strategy.order_event, self._exec_service.on_order
-        )
+        if self._use_mock_execution:
+            self._signal_connector.connect(
+                self._strategy.order_event, self._mock_exec_service.on_order
+            )
+            self._signal_connector.connect(
+                self._strategy.order_event, self._mock_exec_service.on_order
+            )
+            self._signal_connector.connect(
+                self._mock_exec_service.order_fill_event,
+                self._strategy.on_fill,
+            )
+            self._signal_connector.connect(
+                self._mock_exec_service.order_fill_event,
+                self._position_manager.on_fill,
+            )
+        else:
+            self._signal_connector.connect(
+                self._strategy.order_event, self._exec_service.on_order
+            )
+            self._signal_connector.connect(
+                self._strategy.order_event, self._exec_service.on_order
+            )
+            self._signal_connector.connect(
+                self._exec_service.order_fill_event, self._strategy.on_fill
+            )
+            self._signal_connector.connect(
+                self._exec_service.order_fill_event,
+                self._position_manager.on_fill,
+            )
         self._signal_connector.connect(self._strategy.opportunity_event)
         self._signal_connector.connect(self._strategy.trade_result_event)
-        self._signal_connector.connect(
-            self._exec_service.order_fill_event, self._strategy.on_fill
-        )
-        self._signal_connector.connect(
-            self._exec_service.order_fill_event, self._position_manager.on_fill
-        )
         self._signal_connector.connect(signal("heartbeat"))
 
     def disconnect_signals(self):
@@ -158,6 +182,8 @@ class Application:
         self._signal_connector.close()
 
     async def run_replay(self, start: datetime, end: datetime):
+        assert self._use_mock_execution, "Mock execution is needed for replay!"
+
         logging.info(f"Replaying {self._symbol} from {start} to {end}")
         await self._md_historical.connect(
             self._symbol, start, min(time_manager().now(), end)
