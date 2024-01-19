@@ -42,14 +42,14 @@ class PublicFeed(Heartbeater):
         while not self._exception_occurred:
             await asyncio.sleep(10)
 
+        logging.error("Encountered exception: shutting down market data feed!")
+
     async def on_message(self, message):
         try:
             self._decode_message(message)
         except Exception as e:
-            logging.error(f"Error decoding message: {e}")
-            self.add_issue(
-                HeartbeatLevel.ERROR, f"Error decoding message: {e}"
-            )
+            logging.error(f"Error '{e}' when decoding message '{message}'")
+            self.add_issue(HeartbeatLevel.ERROR, f"{e}")
             self._exception_occurred = True
 
     def _decode_message(self, response):

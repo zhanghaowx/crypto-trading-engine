@@ -1,13 +1,21 @@
 from dataclasses import dataclass
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import ClassVar, Union
 
 from jolteon.core.side import MarketSide
 
 
-class OrderType(Enum):
-    MARKET_ORDER = 1
+class OrderType(StrEnum):
+    MARKET_ORDER = "market"
+    LIMIT_ORDER = "limit"
+    STOP_LOSS_ORDER = "stop-loss"
+    TAKE_PROFIT_ORDER = "take-profit"
+    STOP_LOSS_LIMIT_ORDER = "stop-loss-limit"
+    TAKE_PROFIT_LIMIT_ORDER = "take-profit-limit"
+    TRAILING_STOP_ORDER = "trailing-stop"
+    TRAILING_STOP_LIMIT_ORDER = "trailing-stop-limit"
+    SETTLE_POSITION_ORDER = "settle-position"
 
 
 @dataclass

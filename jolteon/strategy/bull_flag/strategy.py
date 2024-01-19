@@ -173,8 +173,8 @@ class BullFlagStrategy(Heartbeater):
         for limit in self._risk_limits:
             limit.do_send()
 
-        order = Order(
-            client_order_id=str(uuid.uuid4()),
+        buy_order = Order(
+            client_order_id=str(int(uuid.uuid4())),
             order_type=OrderType.MARKET_ORDER,
             symbol=self.symbol,
             price=None,
@@ -185,14 +185,15 @@ class BullFlagStrategy(Heartbeater):
         self._round_trips.append(
             BullFlagRoundTrip(
                 opportunity=opportunity,
-                buy_order=order,
+                buy_order=buy_order,
             )
         )
 
         logging.info(
-            f"Placed {order} with candlesticks at " f"{time_manager().now()}."
+            f"Placed {buy_order} with candlesticks at "
+            f"{time_manager().now()}."
         )
-        self.order_event.send(self.order_event, order=order)
+        self.order_event.send(self.order_event, order=buy_order)
 
         return True
 
@@ -215,7 +216,7 @@ class BullFlagStrategy(Heartbeater):
             ), "Buy order has to be placed before sending a sell order!"
 
             sell_order = Order(
-                client_order_id=str(uuid.uuid4()),
+                client_order_id=str(int(uuid.uuid4())),
                 order_type=OrderType.MARKET_ORDER,
                 symbol=round_trip.buy_order.symbol,
                 price=None,
