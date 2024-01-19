@@ -51,7 +51,7 @@ class BullFlagStrategy(Heartbeater):
         Restrictions:
             1. This strategy only trades one instrument
         """
-        super().__init__(type(self).__name__, interval_in_seconds=5)
+        super().__init__(type(self).__name__, interval_in_seconds=10)
         self.symbol = symbol
         self._parameters = parameters
         self._risk_limits = risk_limits

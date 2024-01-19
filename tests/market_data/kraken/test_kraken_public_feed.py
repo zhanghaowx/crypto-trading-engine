@@ -75,7 +75,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
     async def test_heartbeat_feed(self):
         feed = PublicFeed()
         feed.events = Mock()
-        await feed._on_message(json.loads(TestPublicFeed.heartbeat_feed))
+        await feed.on_message(json.loads(TestPublicFeed.heartbeat_feed))
 
         # Assertions
         self.assertEqual(1, feed.events.channel_heartbeat.send.call_count)
@@ -83,14 +83,14 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
     async def test_trade_feed(self):
         feed = PublicFeed()
         feed.events = Mock()
-        await feed._on_message(json.loads(TestPublicFeed.trade_feed))
+        await feed.on_message(json.loads(TestPublicFeed.trade_feed))
 
         self.assertEqual(3, feed.events.candlestick.send.call_count)
 
     async def test_unknown_feed(self):
         feed = PublicFeed()
         feed.events = Mock()
-        await feed._on_message(json.loads(TestPublicFeed.unknown_feed))
+        await feed.on_message(json.loads(TestPublicFeed.unknown_feed))
 
         # Assertions
         self.assertEqual(0, feed.events.channel_heartbeat.send.call_count)

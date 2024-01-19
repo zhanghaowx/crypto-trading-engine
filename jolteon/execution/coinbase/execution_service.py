@@ -10,6 +10,7 @@ import numpy as np
 from blinker import signal
 from coinbase.rest import RESTClient
 
+from jolteon.core.health_monitor.heartbeat import Heartbeater
 from jolteon.core.side import MarketSide
 from jolteon.core.time.time_manager import time_manager
 from jolteon.market_data.core.order import Order
@@ -17,7 +18,7 @@ from jolteon.market_data.core.order_book import OrderBook
 from jolteon.market_data.core.trade import Trade
 
 
-class MockExecutionService:
+class MockExecutionService(Heartbeater):
     def __init__(
         self,
         api_key: Union[str, None] = None,
@@ -38,6 +39,7 @@ class MockExecutionService:
         price level using market orders. Keep this limitation in mind when
         testing your strategy.
         """
+        super().__init__(type(self).__name__, interval_in_seconds=10)
         self._client = RESTClient(
             api_key=(api_key if api_key else os.getenv("COINBASE_API_KEY")),
             api_secret=(

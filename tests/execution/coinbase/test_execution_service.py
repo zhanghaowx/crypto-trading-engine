@@ -5,7 +5,6 @@ from datetime import datetime
 from typing import Union
 from unittest.mock import Mock
 
-import numpy as np
 import pytz
 
 from jolteon.core.side import MarketSide
@@ -17,8 +16,8 @@ from jolteon.market_data.core.order import Order, OrderType
 from jolteon.market_data.core.trade import Trade
 
 
-class TestMockExecutionService(unittest.TestCase):
-    def setUp(self):
+class TestMockExecutionService(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
         self.execution_service = MockExecutionService(
             api_key="api_key", api_secret="api_secret"
         )
@@ -58,7 +57,7 @@ class TestMockExecutionService(unittest.TestCase):
 
         self.execution_service.order_fill_event.connect(self.on_order_fill)
 
-    def tearDown(self):
+    async def asyncTearDown(self):
         time_manager().force_reset()
 
     def buy(self, symbol: str, price: Union[float, None], quantity: float):
@@ -124,7 +123,7 @@ class TestMockExecutionService(unittest.TestCase):
         """
         self.fills.append(trade)
 
-    def test_buy(self):
+    async def test_buy(self):
         # Execute
         self.buy(symbol="BTC-USD", price=100.0, quantity=1.0)
         self.assertEqual(0, len(self.fills))
@@ -154,7 +153,7 @@ class TestMockExecutionService(unittest.TestCase):
         self.assertEqual(100.5, self.fills[-2].price)
         self.assertEqual(1.0, self.fills[-2].quantity)
 
-    def test_buy_with_market_order(self):
+    async def test_buy_with_market_order(self):
         # Execute
         self.buy(symbol="BTC-USD", price=None, quantity=0.1)
         self.assertEqual(1, len(self.fills))
@@ -181,7 +180,7 @@ class TestMockExecutionService(unittest.TestCase):
         self.assertEqual(100.5, self.fills[-2].price)
         self.assertEqual(1.0, self.fills[-2].quantity)
 
-    def test_sell(self):
+    async def test_sell(self):
         # Execute
         self.sell(symbol="BTC-USD", price=100.0, quantity=1.0)
         self.assertEqual(0, len(self.fills))
@@ -211,7 +210,7 @@ class TestMockExecutionService(unittest.TestCase):
         self.assertEqual(99.5, self.fills[-2].price)
         self.assertEqual(2.0, self.fills[-2].quantity)
 
-    def test_sell_with_market_order(self):
+    async def test_sell_with_market_order(self):
         # Execute
         self.sell(symbol="BTC-USD", price=None, quantity=0.1)
         self.assertEqual(1, len(self.fills))
@@ -238,7 +237,7 @@ class TestMockExecutionService(unittest.TestCase):
         self.assertEqual(99.5, self.fills[-2].price)
         self.assertEqual(2.0, self.fills[-2].quantity)
 
-    def test_short_sell(self):
+    async def test_short_sell(self):
         order = Order(
             client_order_id=str(uuid.uuid4()),
             order_type=OrderType.MARKET_ORDER,
@@ -256,7 +255,7 @@ class TestMockExecutionService(unittest.TestCase):
             str(context.exception),
         )
 
-    def test_replay_buy(self):
+    async def test_replay_buy(self):
         time_manager().claim_admin(self)
         time_manager().use_fake_time(datetime.now(pytz.utc), self)
 
@@ -268,7 +267,7 @@ class TestMockExecutionService(unittest.TestCase):
         self.assertEqual(150.0, self.fills[-1].price)
         self.assertEqual(1.0, self.fills[-1].quantity)
 
-    def test_replay_sell(self):
+    async def test_replay_sell(self):
         time_manager().claim_admin(self)
         time_manager().use_fake_time(datetime.now(pytz.utc), self)
 
@@ -280,7 +279,7 @@ class TestMockExecutionService(unittest.TestCase):
         self.assertEqual(150.0, self.fills[-1].price)
         self.assertEqual(1.0, self.fills[-1].quantity)
 
-    def test_replay_sell_getting_invalid_market_trade(self):
+    async def test_replay_sell_getting_invalid_market_trade(self):
         time_manager().claim_admin(self)
         time_manager().use_fake_time(datetime.now(pytz.utc), self)
 
@@ -317,7 +316,7 @@ class TestMockExecutionService(unittest.TestCase):
         self.assertEqual(160.0, self.fills[-1].price)
         self.assertEqual(1.0, self.fills[-1].quantity)
 
-    def test_replay_sell_getting_no_valid_market_trade(self):
+    async def test_replay_sell_getting_no_valid_market_trade(self):
         time_manager().claim_admin(self)
         time_manager().use_fake_time(datetime.now(pytz.utc), self)
 

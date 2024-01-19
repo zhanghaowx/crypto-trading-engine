@@ -14,7 +14,7 @@ class BootstrapStrategy(Heartbeater):
     """
 
     def __init__(self):
-        super().__init__(type(self).__name__, interval_in_seconds=5)
+        super().__init__(type(self).__name__, interval_in_seconds=10)
         # Sends order event to execution service.
         self.order_event = signal("order")
 

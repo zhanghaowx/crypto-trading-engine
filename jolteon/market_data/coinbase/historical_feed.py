@@ -62,7 +62,7 @@ class HistoricalFeed(Heartbeater):
             api_key: API key for Coinbase's REST API.
             api_secret: API secret for Coinbase's REST API.
         """
-        super().__init__(type(self).__name__, interval_in_seconds=0)
+        super().__init__(type(self).__name__, interval_in_seconds=10)
         self.events = HistoricalFeed.Events()
         self._candlestick_granularity = HistoricalFeed.CandlestickGranularity(
             candlestick_interval_in_seconds

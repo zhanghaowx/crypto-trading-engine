@@ -13,11 +13,11 @@ from jolteon.market_data.core.trade import Trade
 
 class PublicFeed(Heartbeater):
     def __init__(self, candlestick_interval_in_seconds: int = 60):
-        super().__init__(name=type(self).__name__, interval_in_seconds=10)
+        super().__init__(type(self).__name__, interval_in_seconds=10)
         self._candlestick_generator = CandlestickGenerator(
             interval_in_seconds=candlestick_interval_in_seconds
         )
-        self.client = KrakenSpotWSClientV2(callback=self._on_message)
+        self.client = KrakenSpotWSClientV2(callback=self.on_message)
         self.exception_occurred = False
         self.events = Events()
 
@@ -41,12 +41,22 @@ class PublicFeed(Heartbeater):
         while not self.exception_occurred:
             await asyncio.sleep(10)
 
-    async def _on_message(self, response):
+    async def on_message(self, message):
+        try:
+            self._decode_message(message)
+        except Exception as e:
+            logging.error(f"Error decoding message: {e}")
+            self.add_issue(
+                HeartbeatLevel.ERROR, f"Error decoding message: {e}"
+            )
+        finally:
+            self.exception_occurred = True
+
+    def _decode_message(self, response):
         possible_error = response.get("error")
         if possible_error:
             logging.error(f"Encountered error: {possible_error}")
             self.add_issue(HeartbeatLevel.ERROR, possible_error)
-            self.send_heartbeat()
             return
 
         possible_method = response.get("method")
@@ -66,7 +76,6 @@ class PublicFeed(Heartbeater):
             self.events.channel_heartbeat.send(
                 self.events.channel_heartbeat, payload=response
             )
-            self.send_heartbeat()
         elif message_type == "trade":
             """
             Below is an example of one trade message from Kraken:

@@ -115,7 +115,6 @@ class PublicFeed(Heartbeater):
                         self.events.channel_heartbeat.send(
                             self.events.channel_heartbeat, payload=response
                         )
-                        self.send_heartbeat()
 
                     elif response["type"] == "ticker":
                         self.events.ticker.send(
