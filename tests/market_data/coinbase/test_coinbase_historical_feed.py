@@ -6,6 +6,7 @@ from jolteon.market_data.coinbase.historical_feed import (
     HistoricalFeed,
 )
 from jolteon.market_data.core.candlestick import Candlestick
+from jolteon.market_data.core.events import Events
 
 
 class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
@@ -66,7 +67,7 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
         self.historical_feed._client.get_candles.assert_called_once()
 
     @patch("asyncio.sleep", return_value=None)
-    @patch.object(HistoricalFeed.Events.candlestick, "send")
+    @patch.object(Events.candlestick, "send")
     async def test_connect_with_replay_speed(self, mock_send, mock_sleep):
         symbol = "BTC-USD"
 

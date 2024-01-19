@@ -1,15 +1,14 @@
 import json
 import logging
-from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 
 import websockets
-from blinker import signal
 
 from jolteon.core.health_monitor.heartbeat import Heartbeater, HeartbeatLevel
 from jolteon.core.side import MarketSide
 from jolteon.market_data.core.candlestick_generator import CandlestickGenerator
+from jolteon.market_data.core.events import Events
 from jolteon.market_data.core.trade import Trade
 
 
@@ -38,28 +37,13 @@ class PublicFeed(Heartbeater):
         5. Data Compression
     """
 
-    @dataclass
-    class Events:
-        """
-        Summary of all supported events for Coinbase's websocket channels,
-        as well as events calculated from Coinbase's native events.
-
-        See Also:
-            https://docs.cloud.coinbase.com/exchange/docs/websocket-channels
-        """
-
-        channel_heartbeat = signal("channel_heartbeat_feed")
-        ticker = signal("ticker_feed")
-        matches = signal("matches_feed")
-        candlestick = signal("calculated_candlestick_feed")
-
     def __init__(
         self,
         env: CoinbaseEnvironment = CoinbaseEnvironment.SANDBOX,
         candlestick_interval_in_seconds: int = 60,
     ):
         super().__init__(type(self).__name__, interval_in_seconds=10)
-        self.events = PublicFeed.Events()
+        self.events = Events()
         self._env = env
         self._candlestick_generator = CandlestickGenerator(
             interval_in_seconds=candlestick_interval_in_seconds

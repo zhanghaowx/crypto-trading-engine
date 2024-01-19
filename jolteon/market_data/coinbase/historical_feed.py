@@ -1,17 +1,16 @@
 import asyncio
 import os
-from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Union
 
 import pytz
-from blinker import signal
 from coinbase.rest import RESTClient
 
 from jolteon.core.health_monitor.heartbeat import Heartbeater
 from jolteon.core.time.time_manager import time_manager
 from jolteon.market_data.core.candlestick import Candlestick
+from jolteon.market_data.core.events import Events
 
 
 class HistoricalFeed(Heartbeater):
@@ -20,18 +19,6 @@ class HistoricalFeed(Heartbeater):
     """
     Access the historical market data feed using Coinbase's REST API.
     """
-
-    @dataclass
-    class Events:
-        """
-        Summary of all supported events for Coinbase's websocket channels,
-        as well as events calculated from Coinbase's native events.
-
-        See Also:
-            https://docs.cloud.coinbase.com/exchange/docs/websocket-channels
-        """
-
-        candlestick = signal("calculated_candlestick_feed")
 
     class CandlestickGranularity(Enum):
         ONE_MINUTE = 60
@@ -63,7 +50,7 @@ class HistoricalFeed(Heartbeater):
             api_secret: API secret for Coinbase's REST API.
         """
         super().__init__(type(self).__name__, interval_in_seconds=10)
-        self.events = HistoricalFeed.Events()
+        self.events = Events()
         self._candlestick_granularity = HistoricalFeed.CandlestickGranularity(
             candlestick_interval_in_seconds
         )
@@ -74,8 +61,7 @@ class HistoricalFeed(Heartbeater):
                 api_secret if api_secret else os.getenv("COINBASE_API_SECRET")
             ),
         )
-        self.time_manager = time_manager()
-        self.time_manager.claim_admin(self)
+        time_manager().claim_admin(self)
 
     async def connect(
         self,
@@ -97,7 +83,7 @@ class HistoricalFeed(Heartbeater):
         candlesticks.sort(key=lambda x: x.start_time)
 
         for candlestick in candlesticks:
-            self.time_manager.use_fake_time(candlestick.end_time, admin=self)
+            time_manager().use_fake_time(candlestick.end_time, admin=self)
             self.events.candlestick.send(
                 self.events.candlestick, candlestick=candlestick
             )
