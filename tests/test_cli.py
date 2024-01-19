@@ -18,7 +18,7 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
         # Call the main function
         from jolteon.cli import main
 
-        await main(training=False, replay=True)
+        await main(replay=True)
 
         # Reset stdout
         sys.stdout = sys.__stdout__
@@ -26,48 +26,6 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
         # Add assertions based on your expectations
         # For example, check if the connect methods were called
         self.assertEqual(1, mock_app.run_replay.call_count)
-
-    @patch("jolteon.cli.Application")
-    async def test_main_training_mode_with_best_parameters_found(
-        self,
-        MockApplication,
-    ):
-        mock_app = MockApplication.return_value
-        mock_app.run_replay = AsyncMock()
-        mock_app.run_replay.return_value = 1.0
-
-        # Call the main function
-        from jolteon.cli import main
-
-        await main(training=True, replay=True)
-
-        # Reset stdout
-        sys.stdout = sys.__stdout__
-
-        # Add assertions based on your expectations
-        # For example, check if the connect methods were called
-        self.assertLess(1, mock_app.run_replay.call_count)
-
-    @patch("jolteon.cli.Application")
-    async def test_main_training_mode_with_no_best_parameters_found(
-        self,
-        MockApplication,
-    ):
-        mock_app = MockApplication.return_value
-        mock_app.run_replay = AsyncMock()
-        mock_app.run_replay.return_value = -1.0
-
-        # Call the main function
-        from jolteon.cli import main
-
-        await main(training=True, replay=True)
-
-        # Reset stdout
-        sys.stdout = sys.__stdout__
-
-        # Add assertions based on your expectations
-        # For example, check if the connect methods were called
-        self.assertLess(1, mock_app.run_replay.call_count)
 
     async def test_graceful_exit(self):
         # Redirect stdout to capture output

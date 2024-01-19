@@ -94,8 +94,10 @@ class Application:
         # Position Manager Setup
         self._position_manager = PositionManager()
 
-        self.bull_flag_recognizer = BullFlagRecognizer(params=bull_flag_params)
-        self.shooting_star_recognizer = ShootingStarRecognizer(
+        self._bull_flag_recognizer = BullFlagRecognizer(
+            params=bull_flag_params
+        )
+        self._shooting_star_recognizer = ShootingStarRecognizer(
             params=shooting_star_params
         )
 
@@ -111,11 +113,11 @@ class Application:
         )
         self._signal_connector.connect(
             self._md_live.events.candlestick,
-            self.bull_flag_recognizer.on_candlestick,
+            self._bull_flag_recognizer.on_candlestick,
         )
         self._signal_connector.connect(
             self._md_live.events.candlestick,
-            self.shooting_star_recognizer.on_candlestick,
+            self._shooting_star_recognizer.on_candlestick,
         )
         self._signal_connector.connect(
             self._md_historical.events.candlestick,
@@ -123,18 +125,18 @@ class Application:
         )
         self._signal_connector.connect(
             self._md_historical.events.candlestick,
-            self.bull_flag_recognizer.on_candlestick,
+            self._bull_flag_recognizer.on_candlestick,
         )
         self._signal_connector.connect(
             self._md_historical.events.candlestick,
-            self.shooting_star_recognizer.on_candlestick,
+            self._shooting_star_recognizer.on_candlestick,
         )
         self._signal_connector.connect(
-            self.bull_flag_recognizer.bull_flag_signal,
+            self._bull_flag_recognizer.bull_flag_signal,
             self._strategy.on_bull_flag_pattern,
         )
         self._signal_connector.connect(
-            self.shooting_star_recognizer.shooting_star_signal,
+            self._shooting_star_recognizer.shooting_star_signal,
             self._strategy.on_shooting_star_pattern,
         )
         if self._use_mock_execution:
