@@ -1,7 +1,6 @@
 """
 Application interface for Jolteon
 """
-import asyncio
 import logging
 from datetime import datetime
 
@@ -166,9 +165,6 @@ class Application:
 
     async def run(self):
         try:
-            await asyncio.gather(
-                self._signal_connector.persist(interval_in_seconds=30),
-                self._md_live.connect([self._symbol]),
-            )
+            await self._md_live.connect([self._symbol])
         except Exception as e:
             logging.error(f"Error: {e}")
