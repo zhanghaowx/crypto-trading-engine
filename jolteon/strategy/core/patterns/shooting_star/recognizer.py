@@ -1,5 +1,6 @@
 from blinker import signal
 
+from jolteon.core.health_monitor.heartbeat import Heartbeater
 from jolteon.market_data.core.candlestick import Candlestick
 from jolteon.market_data.core.candlestick_list import CandlestickList
 from jolteon.strategy.core.patterns.shooting_star.parameters import (
@@ -10,8 +11,9 @@ from jolteon.strategy.core.patterns.shooting_star.pattern import (
 )
 
 
-class ShootingStarRecognizer:
+class ShootingStarRecognizer(Heartbeater):
     def __init__(self, params: ShootingStarParameters):
+        super().__init__(type(self).__name__, interval_in_seconds=10)
         self.shooting_star_signal = signal("shooting_star")
         self._params = params
         self._all_candlesticks = CandlestickList(

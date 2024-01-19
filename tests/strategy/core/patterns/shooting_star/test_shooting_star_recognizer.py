@@ -13,8 +13,8 @@ from jolteon.strategy.core.patterns.shooting_star.recognizer import (
 )
 
 
-class TestRecognizer(unittest.TestCase):
-    def setUp(self):
+class TestRecognizer(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
         self.params = ShootingStarParameters()
         self.start_time = datetime(2024, 1, 1, 0, 0, 0)
         self.candlesticks = [

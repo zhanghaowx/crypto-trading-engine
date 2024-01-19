@@ -1,5 +1,6 @@
 from blinker import signal
 
+from jolteon.core.health_monitor.heartbeat import Heartbeater
 from jolteon.market_data.core.candlestick import Candlestick
 from jolteon.market_data.core.candlestick_list import CandlestickList
 from jolteon.strategy.core.patterns.bull_flag.parameters import (
@@ -11,8 +12,9 @@ from jolteon.strategy.core.patterns.bull_flag.pattern import (
 )
 
 
-class BullFlagRecognizer:
+class BullFlagRecognizer(Heartbeater):
     def __init__(self, params: BullFlagParameters):
+        super().__init__(type(self).__name__, interval_in_seconds=10)
         self.bull_flag_signal = signal("bull_flag")
         self._params = params
         self._all_candlesticks = CandlestickList(
