@@ -19,6 +19,7 @@ class ShootingStarRecognizer(Heartbeater):
         self._all_candlesticks = CandlestickList(
             max_length=params.max_number_of_recent_candlesticks
         )
+        assert len(self._all_candlesticks.candlesticks) == 0
 
     def on_candlestick(self, sender: str, candlestick: Candlestick):
         self._all_candlesticks.add_candlestick(candlestick)

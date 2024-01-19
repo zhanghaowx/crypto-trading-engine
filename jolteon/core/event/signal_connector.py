@@ -28,6 +28,7 @@ class SignalConnector:
         self._database_name = database_name
         self._events = dict[str, pd.DataFrame]()
         self._signals = list[signal]()
+        self._receivers = list[object]()
 
         asyncio.create_task(self._save_data_every(interval_in_seconds=30))
         atexit.register(self.close)
@@ -54,8 +55,11 @@ class SignalConnector:
         """
         if receiver is not None:
             sender.connect(receiver=receiver)
+            self._receivers.append(receiver)
+
         sender.connect(receiver=self._handle_signal)
         self._signals.append(sender)
+        self._receivers.append(self._handle_signal)
 
     def close(self):
         """
@@ -99,9 +103,15 @@ class SignalConnector:
             pass
 
     def _clear_signals(self):
-        for sender in self._signals:
-            sender.disconnect(self._handle_signal)
+        for named_signal in self._signals:
+            logging.info(
+                f"Disconnecting signal {named_signal.name} "
+                f"from its {len(named_signal.receivers.values())} receivers"
+            )
+            for receiver in self._receivers:
+                named_signal.disconnect(receiver=receiver)
         self._signals.clear()
+        self._receivers.clear()
 
     def _handle_signal(self, sender: NamedSignal | str, **kwargs):
         assert isinstance(sender, NamedSignal)

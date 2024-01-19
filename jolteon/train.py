@@ -52,14 +52,16 @@ async def train():
                     bull_flag_params = BullFlagParameters(
                         extreme_bullish_return_pct=bull_flag_pct
                     )
-                    pnl = await Application(
+                    app = Application(
                         symbol,
                         candlestick_interval_in_seconds=minute * 60,
                         database_name=f"/tmp/train_{len(train_result)}.sqlite",
                         logfile_name=f"/tmp/train_{len(train_result)}.log",
                         strategy_params=strategy_params,
                         bull_flag_params=bull_flag_params,
-                    ).run_replay(replay_start, replay_end)
+                    )
+                    pnl = await app.run_replay(replay_start, replay_end)
+                    app.disconnect_signals()
 
                     train_result[pnl] = {
                         "strategy_params": strategy_params,

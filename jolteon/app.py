@@ -173,14 +173,6 @@ class Application:
         self._signal_connector.connect(signal("heartbeat"))
 
     def disconnect_signals(self):
-        self._md_live.events.candlestick.disconnect(
-            self._strategy.on_candlestick
-        )
-        self._md_historical.events.candlestick.disconnect(
-            self._strategy.on_candlestick
-        )
-        self._strategy.order_event.disconnect(self._exec_service.on_order)
-        self._exec_service.order_fill_event.disconnect(self._strategy.on_fill)
         self._signal_connector.close()
 
     async def run_replay(self, start: datetime, end: datetime):
