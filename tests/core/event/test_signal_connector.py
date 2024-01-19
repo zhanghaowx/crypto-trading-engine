@@ -11,8 +11,8 @@ from jolteon.core.event.signal_connector import (
 )
 
 
-class TestSignalConnector(unittest.IsolatedAsyncioTestCase):
-    async def asyncSetUp(self) -> None:
+class TestSignalConnector(unittest.TestCase):
+    def setUp(self) -> None:
         self.database_filepath = (
             f"{os.path.dirname(__file__)}/unit_test.sqlite3"
         )
@@ -29,11 +29,11 @@ class TestSignalConnector(unittest.IsolatedAsyncioTestCase):
         self.signal_connector.connect(self.signal_a, receiver_a)
         self.signal_connector.connect(self.signal_b, receiver_b)
 
-    async def asyncTearDown(self) -> None:
+    def tearDown(self) -> None:
         self.signal_connector.close()
         os.remove(self.database_filepath)
 
-    async def test_connect(self):
+    def test_connect(self):
         """
         Tests the connect method of the SignalConnector class.
         """
@@ -47,7 +47,7 @@ class TestSignalConnector(unittest.IsolatedAsyncioTestCase):
         self.signal_b.send(self.signal_b, message="Signal B")
         self.assertNotIn("signal_b", self.signal_connector._events)
 
-    async def test_handle_payload_has_primary_key(self):
+    def test_handle_payload_has_primary_key(self):
         class SomeEnum(Enum):
             A = "A"
 
@@ -115,7 +115,7 @@ class TestSignalConnector(unittest.IsolatedAsyncioTestCase):
         assert_frame_equal(event_a3, expected_event_a)
         assert_frame_equal(event_b3, expected_event_b)
 
-    async def test_handle_signal_payload_has_no_primary_key(self):
+    def test_handle_signal_payload_has_no_primary_key(self):
         class SomeEnum(Enum):
             A = 1
 
@@ -147,7 +147,7 @@ class TestSignalConnector(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(2, len(self.signal_connector._events["signal_a"]))
         self.assertEqual(2, len(self.signal_connector._events["signal_b"]))
 
-    async def test_handle_payload_has_array(self):
+    def test_handle_payload_has_array(self):
         class Payload:
             def __init__(self, payload_id: int):
                 self.array = [payload_id, payload_id + 1]
@@ -176,7 +176,7 @@ class TestSignalConnector(unittest.IsolatedAsyncioTestCase):
         assert_frame_equal(event_a, expected_event_a)
         assert_frame_equal(event_b, expected_event_b)
 
-    async def test_handle_payload_nested_dict(self):
+    def test_handle_payload_nested_dict(self):
         class Payload:
             def __init__(self, payload_id: int):
                 self.dict = {
@@ -208,7 +208,7 @@ class TestSignalConnector(unittest.IsolatedAsyncioTestCase):
         assert_frame_equal(event_a, expected_event_a)
         assert_frame_equal(event_b, expected_event_b)
 
-    async def test_handle_payload_nested_tuple(self):
+    def test_handle_payload_nested_tuple(self):
         class Payload:
             def __init__(self, payload_id: int):
                 self.tup = (payload_id, payload_id + 1)
@@ -237,7 +237,7 @@ class TestSignalConnector(unittest.IsolatedAsyncioTestCase):
         assert_frame_equal(event_a, expected_event_a)
         assert_frame_equal(event_b, expected_event_b)
 
-    async def test_handle_payload_is_none(self):
+    def test_handle_payload_is_none(self):
         self.signal_a.send(self.signal_a, payload=None)
         self.signal_b.send(self.signal_b, payload=None)
 

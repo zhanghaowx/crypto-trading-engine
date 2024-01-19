@@ -29,7 +29,6 @@ class SignalConnector:
         self._events = dict[str, pd.DataFrame]()
         self._signals = list[signal]()
 
-        asyncio.create_task(self._save_data_periodically())
         atexit.register(self.close)
 
     def __del__(self):
@@ -57,6 +56,11 @@ class SignalConnector:
         sender.connect(receiver=self._handle_signal)
         self._signals.append(sender)
 
+    async def persist(self, interval_in_seconds=60):
+        while True:
+            self._save_data()
+            await asyncio.sleep(interval_in_seconds)
+
     def close(self):
         """
         Disconnect all signals and dump recorded signal data to sqlite database
@@ -66,11 +70,6 @@ class SignalConnector:
         """
         self._save_data()
         self._clear_signals()
-
-    async def _save_data_periodically(self, interval_in_seconds=60):
-        while True:
-            self._save_data()
-            await asyncio.sleep(interval_in_seconds)
 
     def _save_data(
         self, policy: WritePolicy = WritePolicy.REPLACE_AND_KEEP

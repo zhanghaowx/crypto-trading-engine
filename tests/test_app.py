@@ -90,3 +90,4 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
 
         # Ensure the live feed connection is called with the correct arguments
         self.mock_md_live.connect.assert_called_once_with([self.symbol])
+        self.mock_connector.persist.assert_called_once()
