@@ -16,6 +16,14 @@ class SignalConnector:
     database
     """
 
+    class WritePolicy(Enum):
+        # Append to an existing table and clear stored data. Good for
+        # performance. But will not work if the table schema changes.
+        APPEND_AND_CLEAR = 0
+        # Replace existing table with new data. Bad for performance. But will
+        # work even if the table schema changes
+        REPLACE_AND_KEEP = 1
+
     def __init__(self, database_name="crypto.sqlite3"):
         self._database_name = database_name
         self._events = dict[str, pd.DataFrame]()
@@ -59,7 +67,9 @@ class SignalConnector:
         self._save_data()
         self._clear_signals()
 
-    def _save_data(self) -> None:
+    def _save_data(
+        self, policy: WritePolicy = WritePolicy.REPLACE_AND_KEEP
+    ) -> None:
         """
         Dump all data into a SQLite database
 
@@ -70,12 +80,18 @@ class SignalConnector:
         for name, df in self._events.items():
             logging.info(f"Saving DataFrame {name} with shape {df.shape}...")
             try:
-                df.to_sql(name=name, con=conn, if_exists="append")
+                if policy == self.WritePolicy.APPEND_AND_CLEAR:
+                    df.to_sql(name=name, con=conn, if_exists="append")
+                else:
+                    df.to_sql(name=name, con=conn, if_exists="replace")
             except Exception as e:
                 raise Exception(f"Cannot save DataFrame {name}: {e}")
         conn.close()
 
-        self._events.clear()
+        if policy == self.WritePolicy.APPEND_AND_CLEAR:
+            self._events.clear()
+        else:
+            pass
 
     def _clear_signals(self):
         for sender in self._signals:
