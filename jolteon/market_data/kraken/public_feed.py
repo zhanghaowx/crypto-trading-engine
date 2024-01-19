@@ -48,7 +48,9 @@ class PublicFeed(Heartbeater):
         try:
             self._decode_message(message)
         except Exception as e:
-            logging.error(f"Error '{e}' when decoding message '{message}'")
+            logging.error(
+                f"Error '{e}' when decoding message '{message}'", exc_info=True
+            )
             self.add_issue(HeartbeatLevel.ERROR, f"{e}")
             self._exception_occurred = True
 
@@ -58,7 +60,9 @@ class PublicFeed(Heartbeater):
 
         possible_error = response.get("error")
         if possible_error:
-            logging.error(f"Encountered error: {possible_error}")
+            logging.error(
+                f"Encountered error: {possible_error}", exc_info=True
+            )
             self.add_issue(HeartbeatLevel.ERROR, Error.CONNECTION_LOST.value)
             return
 

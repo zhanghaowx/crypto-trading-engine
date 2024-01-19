@@ -169,4 +169,4 @@ class Application:
         try:
             await self._md_live.connect([self._symbol])
         except Exception as e:
-            logging.error(f"Error: {e}")
+            logging.error(f"Error: {e}", exc_info=True)
