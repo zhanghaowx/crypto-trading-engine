@@ -11,7 +11,33 @@ class PostTradePlot:
         assert database_name, "Require a valid database name"
         self._conn = sqlite3.connect(database_name)
 
-    def load_candlesticks(self, table_name: str) -> pd.DataFrame:
+    def get_profit(self):
+        df = self.load_opportunities()
+        if len(df) == 0:
+            return {"Win Rate": "0%", "PnL": "0"}
+        # Assume 1 trade per order
+        if (
+            "sell_trades.0.price" not in df.columns
+            or "sell_trades.0.quantity" not in df.columns
+            or "buy_trades.0.price" not in df.columns
+            or "buy_trades.0.quantity" not in df.columns
+        ):
+            return {"Win Rate": "???%", "PnL": "???"}
+
+        df["profit"] = (
+            df["sell_trades.0.price"] * df["sell_trades.0.quantity"]
+            - df["buy_trades.0.price"] * df["buy_trades.0.quantity"]
+        )
+        win_rate = len(df[df["profit"] > 0]) / len(df) * 100
+        pnl = sum(df["profit"])
+        return {"Win Rate": f"{win_rate}%", "PnL": pnl}
+
+    def get_volume(self):
+        df = self.load_candlesticks("calculated_candlestick_feed")
+        return df["volume"]
+
+    # %% md
+    def load_candlesticks(self, table_name: str = "calculated_candlestick_feed") -> pd.DataFrame:
         assert table_name, "Require a valid table name"
 
         # Read candlesticks from database
@@ -53,13 +79,6 @@ class PostTradePlot:
             return pd.DataFrame()
 
         df = pd.read_sql("select * from trade_result", con=self._conn)
-        df = df[
-            [
-                "opportunity.bull_flag_pattern.start",
-                "opportunity.profit_price",
-                "opportunity.stop_loss_price",
-            ]
-        ]
         df.rename(
             columns={
                 "opportunity.bull_flag_pattern.start": "start",
@@ -129,25 +148,29 @@ class PostTradePlot:
         df = self.load_trades("order_fill", MarketSide.BUY)
         if len(df) == 0:
             return []
-        return [go.Scatter(
-            x=df["transaction_time"],
-            y=df["price"],
-            mode="markers",
-            marker=dict(color="darkgreen", size=15, symbol="triangle-up"),
-            name="Buy Orders",
-        )]
+        return [
+            go.Scatter(
+                x=df["transaction_time"],
+                y=df["price"],
+                mode="markers",
+                marker=dict(color="darkgreen", size=15, symbol="triangle-up"),
+                name="Buy Orders",
+            )
+        ]
 
     def draw_sell_trades(self) -> [go.Scatter]:
         df = self.load_trades("order_fill", MarketSide.SELL)
         if len(df) == 0:
             return []
-        return [go.Scatter(
-            x=df["transaction_time"],
-            y=df["price"],
-            mode="markers",
-            marker=dict(color="red", size=15, symbol="triangle-down"),
-            name="Sell Orders",
-        )]
+        return [
+            go.Scatter(
+                x=df["transaction_time"],
+                y=df["price"],
+                mode="markers",
+                marker=dict(color="red", size=15, symbol="triangle-down"),
+                name="Sell Orders",
+            )
+        ]
 
     def draw_profit_and_stop_loss(self):
         df = self.load_opportunities()
@@ -186,7 +209,7 @@ class PostTradePlot:
             x=df["shooting_star.start_time"],
             y=(df["shooting_star.open"] + df["shooting_star.close"]) / 2.0,
             mode="markers",
-            marker=dict(color="yellow", size=5, symbol="asterisk-open"),
+            marker=dict(color="gold", size=5, symbol="asterisk-open"),
             name="Shooting Star",
         )
 
@@ -195,9 +218,9 @@ class PostTradePlot:
         return go.Scatter(
             x=df["start_time"],
             y=df["vwap"],
-            mode='lines',
-            name='VWAP',
-            line=dict(color='lightgrey', width=1, dash='dash')
+            mode="lines",
+            name="VWAP",
+            line=dict(color="black", width=1, dash="dash"),
         )
 
     def draw(self):
@@ -205,7 +228,7 @@ class PostTradePlot:
             title="Candlesticks and Trades",
             xaxis=dict(title="Date (UTC)"),
             yaxis=dict(title="Price (Dollars)"),
-            yaxis2=dict(title="Volume", overlaying="y", side="right"),
+            yaxis2=dict(title="Volume", overlaying="y", side="right", range=[0, self.get_volume().max() * 3]),
             width=2000,
             height=800,
         )

@@ -20,8 +20,6 @@ pandas
 
 ## Coinbase
 coinbase-advanced-py
-cryptography
-PyJWT
 
 ## Kraken
 python-kraken-sdk
