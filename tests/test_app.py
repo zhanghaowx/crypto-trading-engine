@@ -14,6 +14,8 @@ from jolteon.strategy.bull_flag.parameters import (
 class TestApplication(unittest.IsolatedAsyncioTestCase):
     @patch.dict(os.environ, {"COINBASE_API_KEY": "api_key"})
     @patch.dict(os.environ, {"COINBASE_API_SECRET": "api_secret"})
+    @patch.dict(os.environ, {"KRAKEN_API_KEY": "api_key"})
+    @patch.dict(os.environ, {"KRAKEN_API_SECRET": "api_secret"})
     async def asyncSetUp(self):
         self.symbol = "ETH-USD"
         self.mock_connector = MagicMock()

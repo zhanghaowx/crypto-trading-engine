@@ -24,7 +24,7 @@ class SignalConnector:
         # work even if the table schema changes
         REPLACE_AND_KEEP = 1
 
-    def __init__(self, database_name="/tmp/crypto.sqlite3"):
+    def __init__(self, database_name="/tmp/jolteon.sqlite"):
         self._database_name = database_name
         self._events = dict[str, pd.DataFrame]()
         self._signals = list[signal]()

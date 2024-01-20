@@ -40,17 +40,17 @@ async def train():
     # Start Hyper Parameters Setup
     train_result = dict[float, dict]()
     for minute in range(1, 6):
-        for bull_flag_pct in np.arange(0.001, 0.002, 0.0001):
-            for consolidation_pct in np.arange(0.1, 0.301, 0.05):
-                for reward_ratio in np.arange(2.0, 5.0, 0.2):
+        for bull_flag_pct in np.arange(0.001, 0.002, 0.0002):
+            for consolidation_pct in np.arange(0.1, 0.301, 0.1):
+                for reward_ratio in np.arange(2.0, 5.0, 0.5):
                     # Start Training
                     strategy_params = Parameters(
                         max_number_of_recent_candlesticks=10,
-                        consolidation_period_threshold=consolidation_pct,
                         target_reward_risk_ratio=reward_ratio,
                     )
                     bull_flag_params = BullFlagParameters(
-                        extreme_bullish_return_pct=bull_flag_pct
+                        extreme_bullish_return_pct=bull_flag_pct,
+                        consolidation_period_threshold_cutoff=consolidation_pct,
                     )
                     app = Application(
                         symbol,
@@ -66,6 +66,7 @@ async def train():
                     train_result[pnl] = {
                         "strategy_params": strategy_params,
                         "bull_flag_params": bull_flag_params,
+                        "candlestick_interval_in_seconds": minute * 60,
                     }
                     print(
                         f"Training PnL: {pnl}, Parameters: {train_result[pnl]}"

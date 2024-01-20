@@ -1,18 +1,22 @@
 import asyncio
+import os
 from datetime import datetime
 from unittest import IsolatedAsyncioTestCase
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytz
 
 from jolteon.core.side import MarketSide
-from jolteon.execution.kraken.execution_service import ExecutionService
 from jolteon.market_data.core.order import Order, OrderType
 from jolteon.market_data.core.trade import Trade
 
 
 class TestExecutionService(IsolatedAsyncioTestCase):
+    @patch.dict(os.environ, {"KRAKEN_API_KEY": "api_key"})
+    @patch.dict(os.environ, {"KRAKEN_API_SECRET": "api_secret"})
     async def asyncSetUp(self):
+        from jolteon.execution.kraken.execution_service import ExecutionService
+
         self.execution_service = ExecutionService(dry_run=False)
         self.execution_service._order_client = Mock()
         self.execution_service._user_client = Mock()

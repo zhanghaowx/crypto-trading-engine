@@ -37,6 +37,12 @@ class ExecutionService(Heartbeater):
             key=os.environ.get("KRAKEN_API_KEY"),
             secret=os.environ.get("KRAKEN_API_SECRET"),
         )
+        assert os.environ.get(
+            "KRAKEN_API_KEY"
+        ), "Please set the KRAKEN_API_KEY environment variable"
+        assert os.environ.get(
+            "KRAKEN_API_SECRET"
+        ), "Please set the KRAKEN_API_SECRET environment variable"
 
     def on_order(self, sender: object, order: Order):
         """
