@@ -93,7 +93,6 @@ class Application:
         )
         if use_mock_execution:
             self._exec_service = MockExecutionService()
-
         else:
             self._exec_service = ExecutionService()
 

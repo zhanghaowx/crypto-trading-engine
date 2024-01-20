@@ -7,7 +7,7 @@ class BullFlagParameters:
     Parameters for recognizing a bull flag.
     """
 
-    verbose: bool = True
+    verbose: bool = False
     # Maximum number of candlesticks to keep in the pattern recognizer
     max_number_of_recent_candlesticks: int = 15
     # A candlestick's body needs to be larger than `threshold * body of its
