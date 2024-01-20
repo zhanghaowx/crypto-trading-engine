@@ -39,7 +39,7 @@ class CandlestickGenerator:
                 assert not self.current_candlestick.add_trade(
                     trade.price, trade.quantity, trade.transaction_time
                 )
-                logging.info(
+                logging.debug(
                     f"Generated Completed Candlestick: "
                     f"{self.current_candlestick}"
                 )

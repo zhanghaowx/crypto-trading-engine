@@ -66,6 +66,7 @@ class TestCandlestickGenerator(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(candlesticks[0].low, 2)
         self.assertEqual(candlesticks[0].close, 3)
         self.assertEqual(candlesticks[0].volume, 2)
+
     async def test_candlestick_generator_2_trades_in_different_time_window(
         self,
     ):

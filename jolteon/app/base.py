@@ -2,10 +2,10 @@ import logging
 from datetime import datetime
 from typing import Type
 
+import pytz
 from blinker import signal
 
 from jolteon.core.event.signal_connector import SignalConnector
-from jolteon.core.time.time_manager import time_manager
 from jolteon.position.position_manager import PositionManager
 from jolteon.risk_limit.order_frequency_limit import OrderFrequencyLimit
 from jolteon.strategy.bull_trend_rider.strategy import BullFlagStrategy
@@ -111,7 +111,7 @@ class ApplicationBase:
 
         # Start receiving market data
         await self._md.connect(  # type: ignore[attr-defined]
-            self._symbol, start, min(time_manager().now(), end)
+            self._symbol, start, min(datetime.now(tz=pytz.utc), end)
         )
         return self._position_manager.pnl
 

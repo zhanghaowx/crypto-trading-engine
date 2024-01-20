@@ -47,6 +47,7 @@ class KrakenApplication(ApplicationBase):
             super().use_execution_service(ExecutionService)
 
         self._candlestick_interval_in_seconds = candlestick_interval_in_seconds
+        print(f"Using {type(self).__name__}")
 
     async def run(self):
         super().use_market_data_service(

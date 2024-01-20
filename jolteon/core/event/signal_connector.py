@@ -104,10 +104,12 @@ class SignalConnector:
 
     def _clear_signals(self):
         for named_signal in self._signals:
-            logging.info(
-                f"Disconnecting signal {named_signal.name} "
-                f"from its {len(named_signal.receivers.values())} receivers"
-            )
+            if self._receivers:
+                logging.info(
+                    f"Disconnecting signal {named_signal.name} "
+                    f"from its {len(named_signal.receivers.values())} "
+                    f"receivers"
+                )
             for receiver in self._receivers:
                 named_signal.disconnect(receiver=receiver)
         self._signals.clear()
