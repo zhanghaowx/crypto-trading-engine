@@ -1,34 +1,22 @@
 import asyncio
+import logging
 import os
 from datetime import datetime, timedelta
-from enum import Enum
 from typing import Union
 
-import pytz
 from coinbase.rest import RESTClient
 
 from jolteon.core.health_monitor.heartbeat import Heartbeater
+from jolteon.core.id_generator import id_generator
+from jolteon.core.side import MarketSide
 from jolteon.core.time.time_manager import time_manager
-from jolteon.market_data.core.candlestick import Candlestick
+from jolteon.market_data.core.candlestick_generator import CandlestickGenerator
 from jolteon.market_data.core.events import Events
+from jolteon.market_data.core.trade import Trade
 
 
 class HistoricalFeed(Heartbeater):
-    CACHE = dict[tuple, list[Candlestick]]()
-
-    """
-    Access the historical market data feed using Coinbase's REST API.
-    """
-
-    class CandlestickGranularity(Enum):
-        ONE_MINUTE = 60
-        FIVE_MINUTE = 300
-        FIFTEEN_MINUTE = 900
-        THIRTY_MINUTE = 1800
-        ONE_HOUR = 3600
-        TWO_HOUR = 7200
-        SIX_HOUR = 14400
-        ONE_DAY = 86400
+    CACHE = dict[tuple, list[Trade]]()
 
     def __init__(
         self,
@@ -51,10 +39,10 @@ class HistoricalFeed(Heartbeater):
         """
         super().__init__(type(self).__name__, interval_in_seconds=10)
         self.events = Events()
-        self._candlestick_granularity = HistoricalFeed.CandlestickGranularity(
-            candlestick_interval_in_seconds
-        )
         self._replay_speed = replay_speed
+        self._candlestick_generator = CandlestickGenerator(
+            interval_in_seconds=candlestick_interval_in_seconds
+        )
         self._client = RESTClient(
             api_key=(api_key if api_key else os.getenv("COINBASE_API_KEY")),
             api_secret=(
@@ -66,7 +54,7 @@ class HistoricalFeed(Heartbeater):
     async def connect(
         self,
         symbol: str,
-        start_time: datetime = time_manager().now() - timedelta(minutes=300),
+        start_time: datetime = time_manager().now() - timedelta(minutes=1),
         end_time: datetime = time_manager().now(),
     ):
         """
@@ -80,7 +68,7 @@ class HistoricalFeed(Heartbeater):
             A asyncio task to be waiting for incoming messages
         """
 
-        def _generate_time_ranges(interval_minutes: int = 300):
+        def _generate_time_ranges(interval_minutes: int = 1):
             """
             Coinbase REST API has some limitations on how much you could
             request for each request.
@@ -95,51 +83,77 @@ class HistoricalFeed(Heartbeater):
 
             return result_time_ranges
 
-        for period_start, period_end in _generate_time_ranges():
-            candlesticks = self._get_candlesticks(
-                symbol, period_start, period_end
+        interval_minutes = 5
+        for period_start, period_end in _generate_time_ranges(
+            interval_minutes=interval_minutes
+        ):
+            market_trades = self._get_market_trades(
+                symbol, period_start, period_end, limit=1000
             )
-            candlesticks.sort(key=lambda x: x.start_time)
+            market_trades.sort(key=lambda x: x.transaction_time)
 
-            for candlestick in candlesticks:
-                time_manager().use_fake_time(candlestick.end_time, admin=self)
-                self.events.candlestick.send(
-                    self.events.candlestick, candlestick=candlestick
+            for market_trade in market_trades:
+                time_manager().use_fake_time(
+                    market_trade.transaction_time, admin=self
                 )
-                await asyncio.sleep(
-                    self._candlestick_granularity.value / self._replay_speed
+                self.events.matches.send(
+                    self.events.matches, market_trade=market_trade
                 )
+                logging.debug(f"Received Market Trade: {market_trade}")
+
+                # Calculate our own candlesticks using market trades
+                candlesticks = self._candlestick_generator.on_market_trade(
+                    market_trade
+                )
+                for candlestick in candlesticks:
+                    self.events.candlestick.send(
+                        self.events.candlestick,
+                        candlestick=candlestick,
+                    )
+
+                await asyncio.sleep(interval_minutes * 60 / self._replay_speed)
 
     # noinspection PyArgumentList
-    def _get_candlesticks(
-        self, symbol: str, start_time: datetime, end_time: datetime
-    ) -> list[Candlestick]:
+    def _get_market_trades(
+        self, symbol: str, start_time: datetime, end_time: datetime, limit: int
+    ) -> list[Trade]:
         key = (symbol, start_time, end_time)
         if self.CACHE.get(key) is not None:
             return self.CACHE[key]
 
-        json_response = self._client.get_candles(
+        # Get snapshot information, by product ID, about the last trades
+        # (ticks), best bid/ask, and 24h volume.
+        json_response = self._client.get_market_trades(
             product_id=symbol,
             start=int(start_time.timestamp()),
             end=int(end_time.timestamp()),
-            granularity=self._candlestick_granularity.name,
+            limit=limit,
         )
-        assert len(json_response["candles"]) > 0
+        assert len(json_response["trades"]) > 0
 
-        candlesticks = list[Candlestick]()
-        for json in json_response["candles"]:
-            candlestick = Candlestick(
-                datetime.fromtimestamp(int(json["start"]), tz=pytz.utc),
-                duration_in_seconds=self._candlestick_granularity.value,
-            )
-            candlestick.open = float(json["open"])
-            candlestick.high = float(json["high"])
-            candlestick.low = float(json["low"])
-            candlestick.close = float(json["close"])
-            candlestick.volume = float(json["volume"])
-
-            candlesticks.append(candlestick)
+        market_trades = list[Trade]()
+        for trade_json in json_response["trades"]:
+            try:
+                trade = Trade(
+                    trade_id=id_generator().next(),
+                    symbol=trade_json["product_id"],
+                    client_order_id="",
+                    maker_order_id="",
+                    taker_order_id="",
+                    side=MarketSide.parse(trade_json["side"]),
+                    price=float(trade_json["price"]),
+                    quantity=float(trade_json["size"]),
+                    transaction_time=datetime.fromisoformat(
+                        trade_json["time"]
+                    ),
+                )
+                market_trades.append(trade)
+            except Exception as e:
+                logging.error(
+                    f"Could not parse market trade '{trade_json}': {e}"
+                )
+                continue  # Try next trade in the JSON response
 
         # Save in the cache to reduce calls to Coinbase API
-        self.CACHE[key] = candlesticks
-        return candlesticks
+        self.CACHE[key] = market_trades
+        return market_trades

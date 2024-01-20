@@ -1,5 +1,6 @@
 import unittest
-from unittest.mock import patch, Mock
+from datetime import timedelta
+from unittest.mock import Mock, patch
 
 from jolteon.core.time.time_manager import time_manager
 from jolteon.market_data.coinbase.historical_feed import (
@@ -15,18 +16,21 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
             api_key="api_key", api_secret="api_secret"
         )
         self.historical_feed._client = Mock()
-        self.historical_feed._client.get_candles.return_value = {
-            "candles": [
+        self.historical_feed._client.get_market_trades.return_value = {
+            "trades": [
                 {
-                    "start": 1642819200,
-                    "open": "100.0",
-                    "high": "120.0",
-                    "low": "80.0",
-                    "close": "110.0",
-                    "volume": "500.0",
-                },
-                # Add more candlestick data as needed
-            ]
+                    "trade_id": "34b080bf-fcfd-445a-832b-46b5ddc65601",
+                    "product_id": "BTC-USD",
+                    "price": "140.91",
+                    "size": "4",
+                    "time": "2021-05-31T09:59:59Z",
+                    "side": "BUY",
+                    "bid": "291.13",
+                    "ask": "292.40",
+                }
+            ],
+            "best_bid": "291.13",
+            "best_ask": "292.40",
         }
         self.historical_feed.events.candlestick.connect(self.on_candlestick)
         self.candlesticks = list[Candlestick]()
@@ -37,23 +41,19 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
     def on_candlestick(self, _, candlestick):
         self.candlesticks.append(candlestick)
 
-    @patch("asyncio.sleep", return_value=None)
-    async def test_connect_with_valid_symbol(self, mock_sleep):
+    async def test_connect_with_valid_symbol(self):
         symbol = "BTC-USD"
         await self.historical_feed.connect(symbol)
 
         # Validate raised candlestick event
         self.assertEqual(1, len(self.candlesticks))
-        self.assertEqual(100.0, self.candlesticks[0].open)
-        self.assertEqual(120.0, self.candlesticks[0].high)
-        self.assertEqual(80.0, self.candlesticks[0].low)
-        self.assertEqual(110.0, self.candlesticks[0].close)
-        self.assertEqual(500.0, self.candlesticks[0].volume)
+        self.assertEqual(140.91, self.candlesticks[0].open)
+        self.assertEqual(140.91, self.candlesticks[0].high)
+        self.assertEqual(140.91, self.candlesticks[0].low)
+        self.assertEqual(140.91, self.candlesticks[0].close)
+        self.assertEqual(4.0, self.candlesticks[0].volume)
 
-        mock_sleep.assert_called_once()
-
-    @patch("asyncio.sleep", return_value=None)
-    async def test_connect_with_valid_symbol_and_cache(self, mock_sleep):
+    async def test_connect_with_valid_symbol_and_cache(self):
         HistoricalFeed.CACHE.clear()
 
         symbol = "BTC-USD"
@@ -64,7 +64,7 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(2, len(self.candlesticks))
         self.assertEqual(self.candlesticks[0], self.candlesticks[1])
 
-        self.historical_feed._client.get_candles.assert_called_once()
+        self.historical_feed._client.get_market_trades.assert_called_once()
 
     @patch("asyncio.sleep", return_value=None)
     @patch.object(Events.candlestick, "send")
@@ -72,31 +72,46 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
         symbol = "BTC-USD"
 
         self.historical_feed._replay_speed = 1
-        self._candlestick_granularity = 60
-        await self.historical_feed.connect(symbol)
-        mock_sleep.assert_called_once_with(60)
+        await self.historical_feed.connect(
+            symbol,
+            start_time=time_manager().now() - timedelta(minutes=5),
+            end_time=time_manager().now(),
+        )
+        mock_sleep.assert_called_once_with(300)
         mock_sleep.reset_mock()
 
         self.historical_feed._replay_speed = 2
-        self._candlestick_granularity = 60
-        await self.historical_feed.connect(symbol)
-        mock_sleep.assert_called_once_with(30)
+        await self.historical_feed.connect(
+            symbol,
+            start_time=time_manager().now() - timedelta(minutes=5),
+            end_time=time_manager().now(),
+        )
+        mock_sleep.assert_called_once_with(150)
         mock_sleep.reset_mock()
 
         self.historical_feed._replay_speed = 3
-        self._candlestick_granularity = 60
-        await self.historical_feed.connect(symbol)
-        mock_sleep.assert_called_once_with(20)
+        await self.historical_feed.connect(
+            symbol,
+            start_time=time_manager().now() - timedelta(minutes=5),
+            end_time=time_manager().now(),
+        )
+        mock_sleep.assert_called_once_with(100)
         mock_sleep.reset_mock()
 
         self.historical_feed._replay_speed = 30
-        self._candlestick_granularity = 60
-        await self.historical_feed.connect(symbol)
-        mock_sleep.assert_called_once_with(2)
+        await self.historical_feed.connect(
+            symbol,
+            start_time=time_manager().now() - timedelta(minutes=5),
+            end_time=time_manager().now(),
+        )
+        mock_sleep.assert_called_once_with(10)
         mock_sleep.reset_mock()
 
         self.historical_feed._replay_speed = 60
-        self._candlestick_granularity = 60
-        await self.historical_feed.connect(symbol)
-        mock_sleep.assert_called_once_with(1)
+        await self.historical_feed.connect(
+            symbol,
+            start_time=time_manager().now() - timedelta(minutes=5),
+            end_time=time_manager().now(),
+        )
+        mock_sleep.assert_called_once_with(5)
         mock_sleep.reset_mock()

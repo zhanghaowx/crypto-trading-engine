@@ -97,10 +97,10 @@ class PostTradePlot:
             return pd.DataFrame()
 
     def load_opportunities(self):
-        if not self.table_exists("trade_result"):
+        if not self.table_exists("bull_trend_rider_trade_result"):
             return pd.DataFrame()
 
-        df = pd.read_sql("select * from trade_result", con=self._conn)
+        df = pd.read_sql("select * from bull_trend_rider_trade_result", con=self._conn)
         df["profit"] = (
             df["sell_trades.0.price"] * df["sell_trades.0.quantity"]
             - df["buy_trades.0.price"] * df["buy_trades.0.quantity"]
@@ -116,7 +116,7 @@ class PostTradePlot:
         return df
 
     def load_bull_flag_pattern(self) -> pd.DataFrame:
-        df = pd.read_sql("select * from bull_trend_rider", con=self._conn)
+        df = pd.read_sql("select * from bull_flag", con=self._conn)
         df = df[df["result"] == "BULL_FLAG"]
         return df
 
@@ -222,8 +222,8 @@ class PostTradePlot:
     def draw_bull_flag_pattern(self) -> go.Scatter:
         df = self.load_bull_flag_pattern()
         return go.Scatter(
-            x=df["bull_trend_rider.start_time"],
-            y=(df["bull_trend_rider.open"] + df["bull_trend_rider.close"]) / 2.0,
+            x=df["bull_flag.start_time"],
+            y=(df["bull_flag.open"] + df["bull_flag.close"]) / 2.0,
             mode="markers",
             marker=dict(color="orange", size=5, symbol="x-thin-open"),
             name="Bull Flag",

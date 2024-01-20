@@ -7,7 +7,7 @@ import signal
 import sys
 from datetime import datetime, timezone
 
-from jolteon.app.kraken import KrakenApplication as Application
+from jolteon.app.coinbase import CoinbaseApplication as Application
 
 
 def graceful_exit(signum, frame):
@@ -45,7 +45,7 @@ async def main():
     # print(f"Database Path: {database_path}")
     # print(f"Logfile Path: {logfile_path}")
 
-    symbol = "BTC/USD"
+    symbol = "ETH-USD"
 
     if replay_start and replay_end:
         replay_start_time = datetime.fromisoformat(replay_start).replace(
@@ -54,8 +54,8 @@ async def main():
         replay_end_time = datetime.fromisoformat(replay_end).replace(
             tzinfo=timezone.utc
         )
-        print(f"Replay Start Time: {replay_start_time}")
-        print(f"Replay End Time: {replay_end_time}")
+        print(f"Replay Start: {replay_start_time}")
+        print(f"Replay End  : {replay_end_time}")
         app = Application(
             symbol,
             use_mock_execution=True,

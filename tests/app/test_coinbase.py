@@ -45,6 +45,7 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
 
     @patch("jolteon.app.coinbase.HistoricalFeed")
     async def test_run_replay(self, MockFeed):
+        MockFeed.__name__ = "MockFeed"
         mock_feed = MockFeed.return_value
         mock_feed.connect = AsyncMock()
 
@@ -66,6 +67,7 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
 
     @patch("jolteon.app.coinbase.PublicFeed")
     async def test_run(self, MockFeed):
+        MockFeed.__name__ = "MockFeed"
         mock_feed = MockFeed.return_value
         mock_feed.connect = AsyncMock()
 

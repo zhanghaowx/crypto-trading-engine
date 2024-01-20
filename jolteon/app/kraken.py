@@ -34,7 +34,7 @@ class KrakenApplication(ApplicationBase):
         strategy_params=StrategyParameters(),
     ):
         super().__init__(
-            symbol=symbol,
+            symbol=symbol.replace("-", "/"),
             database_name=database_name,
             logfile_name=logfile_name,
             bull_flag_params=bull_flag_params,
@@ -58,4 +58,4 @@ class KrakenApplication(ApplicationBase):
         super().use_market_data_service(
             HistoricalFeed, self._candlestick_interval_in_seconds
         )
-        await super().run_replay(start, end)
+        return await super().run_replay(start, end)

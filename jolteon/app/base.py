@@ -79,12 +79,14 @@ class ApplicationBase:
         self.stop()
 
     def use_execution_service(self, ExecutionServiceClass: Type):
+        print(f"Using {ExecutionServiceClass.__name__}")
         self._exec_service = ExecutionServiceClass()
         return self
 
     def use_market_data_service(
         self, MarketDataClass: Type, candlestick_interval_in_seconds: int = 60
     ):
+        print(f"Using {MarketDataClass.__name__}")
         self._md = MarketDataClass(
             candlestick_interval_in_seconds=candlestick_interval_in_seconds,
         )
