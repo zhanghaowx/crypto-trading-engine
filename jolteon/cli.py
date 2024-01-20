@@ -7,7 +7,7 @@ import signal
 import sys
 from datetime import datetime, timezone
 
-from jolteon.app import Application
+from jolteon.app.kraken import KrakenApplication as Application
 
 
 def graceful_exit(signum, frame):

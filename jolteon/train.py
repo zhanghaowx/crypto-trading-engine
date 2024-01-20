@@ -10,7 +10,7 @@ from datetime import datetime
 import numpy as np
 import pytz
 
-from jolteon.app import Application
+from jolteon.app.kraken import KrakenApplication as Application
 from jolteon.core.time.time_manager import time_manager
 from jolteon.strategy.bull_trend_rider.strategy_parameters import (
     StrategyParameters,
@@ -63,7 +63,7 @@ async def train():
                         bull_flag_params=bull_flag_params,
                     )
                     pnl = await app.run_replay(replay_start, replay_end)
-                    app.disconnect_signals()
+                    app.stop()
 
                     train_result[pnl] = {
                         "strategy_params": strategy_params,
