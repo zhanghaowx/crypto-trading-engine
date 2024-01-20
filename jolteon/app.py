@@ -88,8 +88,14 @@ class Application:
         )
 
         # Execution Setup
-        self._mock_exec_service = MockExecutionService()
-        self._exec_service = ExecutionService()
+        self._exec_service: MockExecutionService | ExecutionService | None = (
+            None
+        )
+        if use_mock_execution:
+            self._exec_service = MockExecutionService()
+
+        else:
+            self._exec_service = ExecutionService()
 
         # Position Manager Setup
         self._position_manager = PositionManager()
@@ -139,35 +145,19 @@ class Application:
             self._shooting_star_recognizer.shooting_star_signal,
             self._strategy.on_shooting_star_pattern,
         )
-        if self._use_mock_execution:
-            self._signal_connector.connect(
-                self._strategy.order_event, self._mock_exec_service.on_order
-            )
-            self._signal_connector.connect(
-                self._strategy.order_event, self._mock_exec_service.on_order
-            )
-            self._signal_connector.connect(
-                self._mock_exec_service.order_fill_event,
-                self._strategy.on_fill,
-            )
-            self._signal_connector.connect(
-                self._mock_exec_service.order_fill_event,
-                self._position_manager.on_fill,
-            )
-        else:
-            self._signal_connector.connect(
-                self._strategy.order_event, self._exec_service.on_order
-            )
-            self._signal_connector.connect(
-                self._strategy.order_event, self._exec_service.on_order
-            )
-            self._signal_connector.connect(
-                self._exec_service.order_fill_event, self._strategy.on_fill
-            )
-            self._signal_connector.connect(
-                self._exec_service.order_fill_event,
-                self._position_manager.on_fill,
-            )
+        self._signal_connector.connect(
+            self._strategy.order_event, self._exec_service.on_order
+        )
+        self._signal_connector.connect(
+            self._strategy.order_event, self._exec_service.on_order
+        )
+        self._signal_connector.connect(
+            self._exec_service.order_fill_event, self._strategy.on_fill
+        )
+        self._signal_connector.connect(
+            self._exec_service.order_fill_event,
+            self._position_manager.on_fill,
+        )
         self._signal_connector.connect(self._strategy.opportunity_event)
         self._signal_connector.connect(self._strategy.trade_result_event)
         self._signal_connector.connect(signal("heartbeat"))

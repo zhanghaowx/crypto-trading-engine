@@ -7,6 +7,7 @@ from unittest.mock import Mock
 
 import pytz
 
+from jolteon.core.id_generator import id_generator
 from jolteon.core.side import MarketSide
 from jolteon.core.time.time_manager import time_manager
 from jolteon.execution.coinbase.mock_execution_service import (
@@ -239,7 +240,7 @@ class TestMockExecutionService(unittest.IsolatedAsyncioTestCase):
 
     async def test_short_sell(self):
         order = Order(
-            client_order_id=str(uuid.uuid4()),
+            client_order_id=str(id_generator().next()),
             order_type=OrderType.MARKET_ORDER,
             symbol="BTC-USD",
             price=1.0,

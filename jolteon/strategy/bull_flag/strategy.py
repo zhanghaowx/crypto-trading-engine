@@ -1,9 +1,9 @@
 import logging
-import uuid
 
 from blinker import signal
 
 from jolteon.core.health_monitor.heartbeat import Heartbeater
+from jolteon.core.id_generator import id_generator
 from jolteon.core.side import MarketSide
 from jolteon.core.time.time_manager import time_manager
 from jolteon.market_data.core.candlestick import Candlestick
@@ -174,7 +174,7 @@ class BullFlagStrategy(Heartbeater):
             limit.do_send()
 
         buy_order = Order(
-            client_order_id=str(int(uuid.uuid4())),
+            client_order_id=str(id_generator().next()),
             order_type=OrderType.MARKET_ORDER,
             symbol=self.symbol,
             price=None,
@@ -216,7 +216,7 @@ class BullFlagStrategy(Heartbeater):
             ), "Buy order has to be placed before sending a sell order!"
 
             sell_order = Order(
-                client_order_id=str(int(uuid.uuid4())),
+                client_order_id=str(id_generator().next()),
                 order_type=OrderType.MARKET_ORDER,
                 symbol=round_trip.buy_order.symbol,
                 price=None,

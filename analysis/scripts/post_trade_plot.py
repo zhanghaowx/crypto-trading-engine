@@ -49,6 +49,9 @@ class PostTradePlot:
             return pd.DataFrame()
 
     def load_opportunities(self):
+        if not self.table_exists("trade_result"):
+            return pd.DataFrame()
+
         df = pd.read_sql("select * from trade_result", con=self._conn)
         df = df[
             [
@@ -122,28 +125,34 @@ class PostTradePlot:
         )
         return volume_bar
 
-    def draw_buy_trades(self) -> go.Scatter:
+    def draw_buy_trades(self) -> [go.Scatter]:
         df = self.load_trades("order_fill", MarketSide.BUY)
-        return go.Scatter(
+        if len(df) == 0:
+            return []
+        return [go.Scatter(
             x=df["transaction_time"],
             y=df["price"],
             mode="markers",
             marker=dict(color="darkgreen", size=15, symbol="triangle-up"),
             name="Buy Orders",
-        )
+        )]
 
-    def draw_sell_trades(self) -> go.Scatter:
+    def draw_sell_trades(self) -> [go.Scatter]:
         df = self.load_trades("order_fill", MarketSide.SELL)
-        return go.Scatter(
+        if len(df) == 0:
+            return []
+        return [go.Scatter(
             x=df["transaction_time"],
             y=df["price"],
             mode="markers",
             marker=dict(color="red", size=15, symbol="triangle-down"),
             name="Sell Orders",
-        )
+        )]
 
     def draw_profit_and_stop_loss(self):
         df = self.load_opportunities()
+        if len(df) == 0:
+            return []
         return [
             go.Scatter(
                 x=df["start"],
@@ -198,19 +207,19 @@ class PostTradePlot:
             yaxis=dict(title="Price (Dollars)"),
             yaxis2=dict(title="Volume", overlaying="y", side="right"),
             width=2000,
-            height=2000,
+            height=800,
         )
         fig = go.Figure(
             data=[
                 self.draw_candlesticks(),
                 self.draw_vwap(),
                 self.draw_trade_volume(),
-                self.draw_buy_trades(),
-                self.draw_sell_trades(),
                 self.draw_bull_flag_pattern(),
                 self.draw_shooting_star_pattern(),
             ]
-            + self.draw_profit_and_stop_loss(),
+            + self.draw_profit_and_stop_loss()
+            + self.draw_buy_trades()
+            + self.draw_sell_trades(),
             layout=layout,
         )
         fig.show()
