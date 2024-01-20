@@ -113,6 +113,7 @@ class Application:
         self.disconnect_signals()
 
     def connect_signals(self):
+        # Live MD
         self._signal_connector.connect(
             self._md_live.events.candlestick, self._strategy.on_candlestick
         )
@@ -125,6 +126,10 @@ class Application:
             self._shooting_star_recognizer.on_candlestick,
         )
         self._signal_connector.connect(
+            self._md_live.events.matches
+        )
+        # Historical MD
+        self._signal_connector.connect(
             self._md_historical.events.candlestick,
             self._strategy.on_candlestick,
         )
@@ -135,6 +140,9 @@ class Application:
         self._signal_connector.connect(
             self._md_historical.events.candlestick,
             self._shooting_star_recognizer.on_candlestick,
+        )
+        self._signal_connector.connect(
+            self._md_historical.events.matches
         )
         self._signal_connector.connect(
             self._bull_flag_recognizer.bull_flag_signal,

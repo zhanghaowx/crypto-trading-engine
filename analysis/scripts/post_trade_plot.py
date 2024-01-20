@@ -37,7 +37,9 @@ class PostTradePlot:
         return df["volume"]
 
     # %% md
-    def load_candlesticks(self, table_name: str = "calculated_candlestick_feed") -> pd.DataFrame:
+    def load_candlesticks(
+        self, table_name: str = "calculated_candlestick_feed"
+    ) -> pd.DataFrame:
         assert table_name, "Require a valid table name"
 
         # Read candlesticks from database
@@ -48,9 +50,10 @@ class PostTradePlot:
         df["end_time"] = pd.to_datetime(df["end_time"], format="%Y-%m-%d %H:%M:%S%z")
 
         # Add VWAP column
-        v = df["volume"].values
-        tp = (df["low"] + df["close"] + df["high"]).div(3).values
-        df = df.assign(vwap=(tp * v).cumsum() / v.cumsum())
+        typical_price = (df["low"] + df["close"] + df["high"]) / 3.0
+        df = df.assign(
+            vwap=(typical_price * df["volume"]).cumsum() / df["volume"].cumsum()
+        )
 
         df.drop(columns=["index"], axis=1, inplace=True)
 
@@ -62,7 +65,7 @@ class PostTradePlot:
         if self.table_exists(table_name):
             # Read candlesticks from database
             df = pd.read_sql(
-                f"SELECT * FROM {table_name} " f"WHERE side='{market_side.value}'",
+                f"SELECT * FROM {table_name} WHERE side='{market_side.value}'",
                 con=self._conn,
             )
             df["transaction_time"] = pd.to_datetime(
@@ -74,16 +77,39 @@ class PostTradePlot:
         else:
             return pd.DataFrame()
 
+    def load_market_trades(self, table_name: str = "market_trade_feed") -> pd.DataFrame:
+        assert table_name, "Require a valid table name"
+
+        if self.table_exists(table_name):
+            # Read candlesticks from database
+            df = pd.read_sql(
+                f"SELECT * FROM {table_name} ",
+                con=self._conn,
+            )
+            df["transaction_time"] = pd.to_datetime(
+                df["transaction_time"], format="ISO8601"
+            )
+            df = df.sort_values(by="transaction_time")
+            df.drop(columns=["index"], axis=1, inplace=True)
+
+            return df
+        else:
+            return pd.DataFrame()
+
     def load_opportunities(self):
         if not self.table_exists("trade_result"):
             return pd.DataFrame()
 
         df = pd.read_sql("select * from trade_result", con=self._conn)
+        df["profit"] = (
+            df["sell_trades.0.price"] * df["sell_trades.0.quantity"]
+            - df["buy_trades.0.price"] * df["buy_trades.0.quantity"]
+        )
         df.rename(
             columns={
                 "opportunity.bull_flag_pattern.start": "start",
-                "opportunity.profit_price": "profit",
-                "opportunity.stop_loss_price": "stop_loss",
+                "opportunity.profit_price": "profit_price",
+                "opportunity.stop_loss_price": "stop_loss_price",
             },
             inplace=True,
         )
@@ -179,14 +205,14 @@ class PostTradePlot:
         return [
             go.Scatter(
                 x=df["start"],
-                y=df["profit"],
+                y=df["profit_price"],
                 mode="markers",
                 marker=dict(color="green", size=10, symbol="line-ew-open"),
                 name="Profit",
             ),
             go.Scatter(
                 x=df["start"],
-                y=df["stop_loss"],
+                y=df["stop_loss_price"],
                 mode="markers",
                 marker=dict(color="red", size=10, symbol="line-ew-open"),
                 name="Stop Loss",
@@ -214,9 +240,12 @@ class PostTradePlot:
         )
 
     def draw_vwap(self):
-        df = self.load_candlesticks("calculated_candlestick_feed")
+        df = self.load_market_trades()
+        df["cumulative_cash_value"] = (df["price"] * df["quantity"]).cumsum()
+        df["cumulative_quantity"] = df["quantity"].cumsum()
+        df["vwap"] = df["cumulative_cash_value"] / df["cumulative_quantity"]
         return go.Scatter(
-            x=df["start_time"],
+            x=df["transaction_time"],
             y=df["vwap"],
             mode="lines",
             name="VWAP",
@@ -227,8 +256,13 @@ class PostTradePlot:
         layout = go.Layout(
             title="Candlesticks and Trades",
             xaxis=dict(title="Date (UTC)"),
-            yaxis=dict(title="Price (Dollars)"),
-            yaxis2=dict(title="Volume", overlaying="y", side="right", range=[0, self.get_volume().max() * 3]),
+            yaxis=dict(title="Price (Dollars)", fixedrange=False),
+            yaxis2=dict(
+                title="Volume",
+                overlaying="y",
+                side="right",
+                range=[0, self.get_volume().max() * 3],
+            ),
             width=2000,
             height=800,
         )

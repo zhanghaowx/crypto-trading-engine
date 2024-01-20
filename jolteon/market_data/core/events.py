@@ -12,7 +12,7 @@ class Events:
 
     channel_heartbeat = signal("channel_heartbeat_feed")
     ticker = signal("ticker_feed")
-    matches = signal("matches_feed")
+    matches = signal("market_trade_feed")
     """
     A list of calculated events using the above events
     """
