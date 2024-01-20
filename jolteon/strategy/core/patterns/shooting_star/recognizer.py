@@ -59,7 +59,7 @@ class ShootingStarRecognizer(Heartbeater):
         """
         if len(self._all_candlesticks.candlesticks) < 1:
             return
-        
+
         candlestick = self._all_candlesticks.candlesticks[-1]
 
         body_ratio = abs(candlestick.open - candlestick.close) / (

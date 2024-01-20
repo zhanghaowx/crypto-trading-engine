@@ -67,6 +67,7 @@ async def main():
         app = Application(
             symbol,
             use_mock_execution=False,
+            candlestick_interval_in_seconds=60,
             database_name="/tmp/jolteon.sqlite",
             logfile_name="/tmp/jolteon.log",
         )

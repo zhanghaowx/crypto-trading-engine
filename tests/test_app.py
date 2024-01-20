@@ -1,4 +1,5 @@
 import os
+import tempfile
 import unittest
 from datetime import datetime
 from unittest.mock import MagicMock, patch, AsyncMock
@@ -29,8 +30,8 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
 
         self.application = Application(
             symbol=self.symbol,
-            database_name=f"/tmp/dummy_database.sqlite",
-            logfile_name=f"/tmp/dummy_logfile.log",
+            database_name=f"{tempfile.gettempdir()}/unittest.sqlite",
+            logfile_name=f"{tempfile.gettempdir()}/unittest.log",
             strategy_params=Parameters(),
         )
 
@@ -45,8 +46,6 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
         self.application._position_manager = self.mock_position_manager
 
     async def asyncTearDown(self):
-        os.remove("/tmp/dummy_database.sqlite")
-
         time_manager().force_reset()
 
     async def test_initialization(self):
