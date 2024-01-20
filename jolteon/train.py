@@ -85,6 +85,7 @@ async def train():
         sorted_dict = dict(
             sorted(train_result.items(), key=lambda x: x[0], reverse=True)
         )
+        print(f"Best Parameters: {sorted_dict[next(iter(sorted_dict))]}")
         logging.info(
             f"Best Parameters: {sorted_dict[next(iter(sorted_dict))]}"
         )
