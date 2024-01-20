@@ -41,7 +41,7 @@ async def train():
     train_result = dict[float, dict]()
     for minute in range(1, 6):
         for bull_flag_pct in np.arange(0.001, 0.002, 0.0002):
-            for consolidation_pct in np.arange(0.1, 0.301, 0.1):
+            for consolidate_pct in np.arange(0.1, 0.301, 0.1):
                 for reward_ratio in np.arange(2.0, 5.0, 0.5):
                     # Start Training
                     strategy_params = Parameters(
@@ -50,7 +50,7 @@ async def train():
                     )
                     bull_flag_params = BullFlagParameters(
                         extreme_bullish_return_pct=bull_flag_pct,
-                        consolidation_period_threshold_cutoff=consolidation_pct,
+                        consolidation_period_threshold_cutoff=consolidate_pct,
                     )
                     app = Application(
                         symbol,
