@@ -31,10 +31,10 @@ signal.signal(signal.SIGINT, graceful_exit)
 async def train():
     symbol = "BTC/USD"
     replay_start = datetime(
-        2024, 1, 16, hour=0, minute=0, second=0, tzinfo=pytz.utc
+        2024, 1, 17, hour=0, minute=0, second=0, tzinfo=pytz.utc
     )
     replay_end = datetime(
-        2024, 1, 16, hour=23, minute=59, second=0, tzinfo=pytz.utc
+        2024, 1, 17, hour=23, minute=59, second=0, tzinfo=pytz.utc
     )
 
     # Start Hyper Parameters Setup

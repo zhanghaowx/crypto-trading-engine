@@ -16,7 +16,7 @@ class Parameters:
     consolidation_period_threshold: float = 0.3
     # Reward:Risk needs to be higher than X. The default value is 2.0. This
     # requires our strategy to have a win rate of 33.33% or higher.
-    target_reward_risk_ratio: float = 4.5
+    target_reward_risk_ratio: float = 3.0
     # When an opportunity score is below the cutoff, it will not be considered
     opportunity_score_cutoff: float = 0.5
     # Kraken/BTC
