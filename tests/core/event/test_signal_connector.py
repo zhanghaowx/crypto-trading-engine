@@ -1,4 +1,5 @@
 import os
+import tempfile
 import unittest
 from enum import Enum
 
@@ -13,9 +14,7 @@ from jolteon.core.event.signal_connector import (
 
 class TestSignalConnector(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
-        self.database_filepath = (
-            f"{os.path.dirname(__file__)}/unit_test.sqlite3"
-        )
+        self.database_filepath = f"{tempfile.gettempdir()}/unittest.sqlite"
         self.signal_connector = SignalConnector(self.database_filepath)
         self.signal_a = signal("signal_a")
         self.signal_b = signal("signal_b")
