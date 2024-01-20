@@ -26,7 +26,9 @@ class BullFlagRecognizer(Heartbeater):
             self.on_candlestick(sender, candlestick)
 
     def on_candlestick(self, sender: str, candlestick: Candlestick):
-        self._all_candlesticks.add_candlestick(candlestick)
+        self._all_candlesticks.add_candlestick(
+            candlestick, ignore_incomplete=True
+        )
         self._detect()
 
     def _detect(self):

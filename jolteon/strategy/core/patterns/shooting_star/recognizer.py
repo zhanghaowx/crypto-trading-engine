@@ -22,7 +22,9 @@ class ShootingStarRecognizer(Heartbeater):
         assert len(self._all_candlesticks.candlesticks) == 0
 
     def on_candlestick(self, sender: str, candlestick: Candlestick):
-        self._all_candlesticks.add_candlestick(candlestick)
+        self._all_candlesticks.add_candlestick(
+            candlestick, ignore_incomplete=True
+        )
         self._detect()
 
     def _detect(self):
@@ -55,6 +57,9 @@ class ShootingStarRecognizer(Heartbeater):
         Returns:
 
         """
+        if len(self._all_candlesticks.candlesticks) < 1:
+            return
+        
         candlestick = self._all_candlesticks.candlesticks[-1]
 
         body_ratio = abs(candlestick.open - candlestick.close) / (

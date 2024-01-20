@@ -1,5 +1,8 @@
 import unittest
-from datetime import datetime, timedelta
+from datetime import datetime
+
+import pytz
+
 from jolteon.market_data.core.candlestick import Candlestick
 from jolteon.market_data.core.candlestick_list import (
     CandlestickList,
@@ -10,7 +13,7 @@ class TestCandlestickList(unittest.TestCase):
     def test_add_candlestick_empty_list(self):
         candlestick_list = CandlestickList(max_length=5)
         candlestick = Candlestick(
-            start=datetime(2022, 1, 1),
+            start=datetime(2022, 1, 1, tzinfo=pytz.utc),
             duration_in_seconds=60,
             open=100,
             close=110,
@@ -22,13 +25,13 @@ class TestCandlestickList(unittest.TestCase):
     def test_add_candlestick_in_order(self):
         candlestick_list = CandlestickList(max_length=5)
         candlestick1 = Candlestick(
-            start=datetime(2022, 1, 1),
+            start=datetime(2022, 1, 1, tzinfo=pytz.utc),
             duration_in_seconds=60,
             open=100,
             close=110,
         )
         candlestick2 = Candlestick(
-            start=datetime(2022, 1, 2),
+            start=datetime(2022, 1, 2, tzinfo=pytz.utc),
             duration_in_seconds=60,
             open=110,
             close=120,
@@ -43,13 +46,13 @@ class TestCandlestickList(unittest.TestCase):
     def test_add_candlestick_out_of_order(self):
         candlestick_list = CandlestickList(max_length=5)
         candlestick1 = Candlestick(
-            start=datetime(2022, 1, 2),
+            start=datetime(2022, 1, 2, tzinfo=pytz.utc),
             duration_in_seconds=60,
             open=110,
             close=120,
         )
         candlestick2 = Candlestick(
-            start=datetime(2022, 1, 1),
+            start=datetime(2022, 1, 1, tzinfo=pytz.utc),
             duration_in_seconds=60,
             open=100,
             close=110,
@@ -66,13 +69,13 @@ class TestCandlestickList(unittest.TestCase):
     def test_add_candlestick_replace_existing(self):
         candlestick_list = CandlestickList(max_length=5)
         candlestick1 = Candlestick(
-            start=datetime(2022, 1, 1),
+            start=datetime(2022, 1, 1, tzinfo=pytz.utc),
             duration_in_seconds=60,
             open=100,
             close=110,
         )
         candlestick2 = Candlestick(
-            start=datetime(2022, 1, 1),
+            start=datetime(2022, 1, 1, tzinfo=pytz.utc),
             duration_in_seconds=60,
             open=105,
             close=115,
@@ -86,7 +89,7 @@ class TestCandlestickList(unittest.TestCase):
         candlestick_list = CandlestickList(max_length=5)
         # Add candlesticks with different price movements for ATR calculation
         for i in range(1, 6):
-            start = datetime(2022, 1, i)
+            start = datetime(2022, 1, i, tzinfo=pytz.utc)
             candlestick = Candlestick(
                 start=start,
                 duration_in_seconds=60,

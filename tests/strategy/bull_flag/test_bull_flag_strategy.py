@@ -16,10 +16,10 @@ from jolteon.strategy.bull_flag.bull_flag_opportunity import (
 from jolteon.strategy.bull_flag.bull_flag_round_trip import (
     BullFlagRoundTrip,
 )
+from jolteon.strategy.bull_flag.parameters import Parameters
 from jolteon.strategy.bull_flag.strategy import (
     BullFlagStrategy,
 )
-from jolteon.strategy.bull_flag.parameters import Parameters
 from jolteon.strategy.core.patterns.bull_flag.pattern import (
     BullFlagPattern,
     RecognitionResult,
@@ -119,6 +119,7 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
             minute=0,
             second=0,
             microsecond=0,
+            tzinfo=pytz.utc,
         )
 
     @staticmethod

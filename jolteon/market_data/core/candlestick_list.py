@@ -10,9 +10,13 @@ class CandlestickList:
             maxlen=max_length,
         )
 
-    def add_candlestick(self, candlestick: Candlestick):
+    def add_candlestick(
+        self, candlestick: Candlestick, ignore_incomplete=False
+    ):
         # It shall be either an update on last candlestick or a new
         # candlestick.
+        if not candlestick.is_completed() and ignore_incomplete:
+            return
 
         # Merge candlesticks
         assert (

@@ -1,6 +1,8 @@
 import unittest
 from datetime import datetime, timedelta
 
+import pytz
+
 from jolteon.market_data.core.candlestick import Candlestick
 from jolteon.strategy.core.patterns.shooting_star.parameters import (
     ShootingStarParameters,
@@ -16,7 +18,7 @@ from jolteon.strategy.core.patterns.shooting_star.recognizer import (
 class TestRecognizer(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.params = ShootingStarParameters()
-        self.start_time = datetime(2024, 1, 1, 0, 0, 0)
+        self.start_time = datetime(2024, 1, 1, 0, 0, 0, tzinfo=pytz.utc)
         self.candlesticks = [
             Candlestick(
                 self.start_time + timedelta(minutes=0),
