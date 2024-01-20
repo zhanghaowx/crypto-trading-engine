@@ -5,9 +5,9 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 
-import kraken
 import pytz
 from blinker import signal
+from kraken import spot
 
 from jolteon.core.health_monitor.heartbeat import Heartbeater, HeartbeatLevel
 from jolteon.market_data.core.order import Order
@@ -29,11 +29,11 @@ class ExecutionService(Heartbeater):
         self.order_history = dict[str, Order]()
         self.order_fill_event = signal("order_fill")
         self._dry_run = dry_run
-        self._order_client = kraken.spot.Trade(
+        self._order_client = spot.trade.Trade(
             key=os.environ.get("KRAKEN_API_KEY"),
             secret=os.environ.get("KRAKEN_API_SECRET"),
         )
-        self._user_client = kraken.spot.User(
+        self._user_client = spot.user.User(
             key=os.environ.get("KRAKEN_API_KEY"),
             secret=os.environ.get("KRAKEN_API_SECRET"),
         )
@@ -97,8 +97,11 @@ class ExecutionService(Heartbeater):
         self.remove_issue(self.ErrorCode.GET_TRADE_FAILURE)
 
         trades = list[Trade]()
-        for json_trade in response["result"]["closed"].items():
-            assert json_trade["refid"] == order.client_order_id
+        for json_trade in response["result"]["closed"].values():
+            if json_trade["userref"] != int(order.client_order_id):
+                continue
+
+            assert json_trade["userref"] == int(order.client_order_id)
             logging.info(f"Found trade {json_trade}")
             trades.append(
                 Trade(
