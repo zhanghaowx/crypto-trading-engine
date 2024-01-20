@@ -12,7 +12,9 @@ import pytz
 
 from jolteon.app import Application
 from jolteon.core.time.time_manager import time_manager
-from jolteon.strategy.bull_flag.parameters import Parameters
+from jolteon.strategy.bull_trend_rider.strategy_parameters import (
+    StrategyParameters,
+)
 from jolteon.strategy.core.patterns.bull_flag.parameters import (
     BullFlagParameters,
 )
@@ -44,7 +46,7 @@ async def train():
             for consolidate_pct in np.arange(0.1, 0.301, 0.1):
                 for reward_ratio in np.arange(2.0, 5.0, 0.5):
                     # Start Training
-                    strategy_params = Parameters(
+                    strategy_params = StrategyParameters(
                         max_number_of_recent_candlesticks=10,
                         target_reward_risk_ratio=reward_ratio,
                     )

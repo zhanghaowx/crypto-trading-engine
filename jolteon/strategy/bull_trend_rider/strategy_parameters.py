@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
-class Parameters:
+class StrategyParameters:
     """
     Parameters of the bull flag strategy.
     """

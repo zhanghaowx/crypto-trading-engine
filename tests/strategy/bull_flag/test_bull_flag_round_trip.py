@@ -6,15 +6,10 @@ from random import randint
 from jolteon.core.side import MarketSide
 from jolteon.market_data.core.order import Order, OrderType
 from jolteon.market_data.core.trade import Trade
-from jolteon.strategy.bull_flag.bull_flag_opportunity import (
-    BullFlagOpportunity,
+from jolteon.strategy.bull_trend_rider.trade_record import (
+    TradeRecord,
 )
-from jolteon.strategy.bull_flag.bull_flag_round_trip import (
-    BullFlagRoundTrip,
-)
-from jolteon.strategy.core.trade_opportunity import (
-    TradeOpportunity,
-)
+from jolteon.strategy.core.trade_opportunity import TradeOpportunityCore
 
 
 class TestBullFlagRoundTrip(unittest.TestCase):
@@ -45,25 +40,25 @@ class TestBullFlagRoundTrip(unittest.TestCase):
         )
 
     def setUp(self):
-        opportunity = TradeOpportunity(
+        opportunity = TradeOpportunityCore(
             score=1.0,
             stop_loss_price=100.0,
             profit_price=200.0,
         )
 
-        self.round_trip = BullFlagRoundTrip(
+        self.round_trip = TradeRecord(
             opportunity=opportunity,
         )
 
     def test_constructor(self):
         with self.assertRaises(AssertionError):
-            BullFlagRoundTrip(
+            TradeRecord(
                 opportunity=self.round_trip.opportunity,
                 buy_order=self.create_order(MarketSide.SELL),
             )
 
         with self.assertRaises(AssertionError):
-            BullFlagRoundTrip(
+            TradeRecord(
                 opportunity=self.round_trip.opportunity,
                 sell_order=self.create_order(MarketSide.BUY),
             )

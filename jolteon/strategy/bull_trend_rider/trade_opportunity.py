@@ -1,12 +1,14 @@
 from dataclasses import dataclass
 
-from jolteon.strategy.bull_flag.parameters import Parameters
+from jolteon.strategy.bull_trend_rider.strategy_parameters import (
+    StrategyParameters,
+)
 from jolteon.strategy.core.patterns.bull_flag.pattern import BullFlagPattern
-from jolteon.strategy.core.trade_opportunity import TradeOpportunity
+from jolteon.strategy.core.trade_opportunity import TradeOpportunityCore
 
 
 @dataclass
-class BullFlagOpportunity(TradeOpportunity):
+class TradeOpportunity(TradeOpportunityCore):
     bull_flag_pattern: BullFlagPattern
     expected_trade_price: float = 0.0
     stop_loss_from_atr: float = 0.0
@@ -45,7 +47,7 @@ class BullFlagOpportunity(TradeOpportunity):
             self.profit_price - self.expected_trade_price
         ) / max(1e-10, self.expected_trade_price - self.stop_loss_price)
 
-    def grade(self, params: Parameters) -> None:
+    def grade(self, params: StrategyParameters) -> None:
         """
         Based on all characteristics of the opportunity, assign a grade to the
         trade opportunity.

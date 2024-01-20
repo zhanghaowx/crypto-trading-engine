@@ -3,12 +3,12 @@ from typing import Union
 from jolteon.core.side import MarketSide
 from jolteon.market_data.core.order import Order
 from jolteon.market_data.core.trade import Trade
-from jolteon.strategy.bull_flag.bull_flag_opportunity import (
-    BullFlagOpportunity,
+from jolteon.strategy.bull_trend_rider.trade_opportunity import (
+    TradeOpportunity,
 )
 
 
-class BullFlagRoundTrip:
+class TradeRecord:
     """
     Represents a round trip including a buy and a sell order to lock a profit
     by buying low and selling high.
@@ -18,11 +18,11 @@ class BullFlagRoundTrip:
     buy_trades: list[Trade]
     sell_order: Union[Order, None]
     sell_trades: list[Trade]
-    opportunity: BullFlagOpportunity
+    opportunity: TradeOpportunity
 
     def __init__(
         self,
-        opportunity: BullFlagOpportunity,
+        opportunity: TradeOpportunity,
         buy_order: Order | None = None,
         sell_order: Order | None = None,
     ):

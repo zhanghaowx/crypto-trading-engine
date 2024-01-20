@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 
 @dataclass
-class TradeOpportunity:
+class TradeOpportunityCore:
     # Score of this opportunity
     score: float
 

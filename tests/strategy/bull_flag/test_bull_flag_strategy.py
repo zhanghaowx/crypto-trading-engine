@@ -10,15 +10,17 @@ from jolteon.market_data.core.candlestick import Candlestick
 from jolteon.market_data.core.order import Order, OrderType
 from jolteon.market_data.core.trade import Trade
 from jolteon.risk_limit.risk_limit import IRiskLimit
-from jolteon.strategy.bull_flag.bull_flag_opportunity import (
-    BullFlagOpportunity,
-)
-from jolteon.strategy.bull_flag.bull_flag_round_trip import (
-    BullFlagRoundTrip,
-)
-from jolteon.strategy.bull_flag.parameters import Parameters
-from jolteon.strategy.bull_flag.strategy import (
+from jolteon.strategy.bull_trend_rider.strategy import (
     BullFlagStrategy,
+)
+from jolteon.strategy.bull_trend_rider.strategy_parameters import (
+    StrategyParameters,
+)
+from jolteon.strategy.bull_trend_rider.trade_opportunity import (
+    TradeOpportunity,
+)
+from jolteon.strategy.bull_trend_rider.trade_record import (
+    TradeRecord,
 )
 from jolteon.strategy.core.patterns.bull_flag.pattern import (
     BullFlagPattern,
@@ -27,9 +29,7 @@ from jolteon.strategy.core.patterns.bull_flag.pattern import (
 from jolteon.strategy.core.patterns.shooting_star.pattern import (
     ShootingStarPattern,
 )
-from jolteon.strategy.core.trade_opportunity import (
-    TradeOpportunity,
-)
+from jolteon.strategy.core.trade_opportunity import TradeOpportunityCore
 
 
 class MockRiskLimits(IRiskLimit):
@@ -84,16 +84,16 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
         self.bull_flag_pattern.result = RecognitionResult.BULL_FLAG
 
         self.orders = list[Order]()
-        self.opportunities = list[BullFlagOpportunity]()
+        self.opportunities = list[TradeOpportunity]()
         self.bull_flag_strategy = BullFlagStrategy(
             "ETH-USD",
             risk_limits=[MockRiskLimits(True)],
-            parameters=Parameters(
+            parameters=StrategyParameters(
                 max_number_of_recent_candlesticks=3,
             ),
         )
-        self.round_trip = BullFlagRoundTrip(
-            opportunity=BullFlagOpportunity(
+        self.round_trip = TradeRecord(
+            opportunity=TradeOpportunity(
                 pattern=self.bull_flag_pattern,
                 target_reward_risk_ratio=2,
                 atr=1,
@@ -106,7 +106,7 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
     def on_order(self, sender: str, order: Order):
         self.orders.append(order)
 
-    def on_opportunity(self, sender: str, opportunity: BullFlagOpportunity):
+    def on_opportunity(self, sender: str, opportunity: TradeOpportunity):
         self.opportunities.append(opportunity)
 
     @staticmethod
@@ -199,8 +199,8 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(0, len(self.orders))
 
         self.bull_flag_strategy._round_trips.append(
-            BullFlagRoundTrip(
-                opportunity=TradeOpportunity(
+            TradeRecord(
+                opportunity=TradeOpportunityCore(
                     score=1.0,
                     stop_loss_price=self.candlesticks[2].close + 0.01,
                     profit_price=1,
@@ -244,8 +244,8 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
 
         # noinspection PyTypeChecker
         self.bull_flag_strategy._round_trips.append(
-            BullFlagRoundTrip(
-                opportunity=TradeOpportunity(
+            TradeRecord(
+                opportunity=TradeOpportunityCore(
                     score=1.0,
                     stop_loss_price=1,
                     profit_price=self.candlesticks[2].close - 0.01,
@@ -288,8 +288,8 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
 
         # noinspection PyTypeChecker
         self.bull_flag_strategy._round_trips.append(
-            BullFlagRoundTrip(
-                opportunity=TradeOpportunity(
+            TradeRecord(
+                opportunity=TradeOpportunityCore(
                     score=1.0,
                     stop_loss_price=-1000,
                     profit_price=10000,
@@ -331,7 +331,9 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
     async def test_on_fill(self):
         # Act
         self.bull_flag_strategy = BullFlagStrategy(
-            "ETH-USD", risk_limits=[MockRiskLimits()], parameters=Parameters()
+            "ETH-USD",
+            risk_limits=[MockRiskLimits()],
+            parameters=StrategyParameters(),
         )
         self.bull_flag_strategy._round_trips.append(self.round_trip)
 
@@ -376,7 +378,7 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
         self.bull_flag_strategy._risk_limits = [MockRiskLimits(False)]
         # noinspection PyTypeChecker
         self.bull_flag_strategy._try_buy(
-            opportunity=TradeOpportunity(
+            opportunity=TradeOpportunityCore(
                 score=1.0,
                 stop_loss_price=0.1,
                 profit_price=10,
@@ -387,7 +389,7 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
         self.bull_flag_strategy._risk_limits = [MockRiskLimits(True)]
         # noinspection PyTypeChecker
         self.bull_flag_strategy._try_buy(
-            opportunity=TradeOpportunity(
+            opportunity=TradeOpportunityCore(
                 score=1.0,
                 stop_loss_price=0.1,
                 profit_price=10,

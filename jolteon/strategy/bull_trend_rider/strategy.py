@@ -11,11 +11,13 @@ from jolteon.market_data.core.candlestick_list import CandlestickList
 from jolteon.market_data.core.order import Order, OrderType
 from jolteon.market_data.core.trade import Trade
 from jolteon.risk_limit.risk_limit import IRiskLimit
-from jolteon.strategy.bull_flag.bull_flag_opportunity import (
-    BullFlagOpportunity,
+from jolteon.strategy.bull_trend_rider.strategy_parameters import (
+    StrategyParameters,
 )
-from jolteon.strategy.bull_flag.bull_flag_round_trip import BullFlagRoundTrip
-from jolteon.strategy.bull_flag.parameters import Parameters
+from jolteon.strategy.bull_trend_rider.trade_opportunity import (
+    TradeOpportunity,
+)
+from jolteon.strategy.bull_trend_rider.trade_record import TradeRecord
 from jolteon.strategy.core.patterns.bull_flag.pattern import (
     BullFlagPattern,
     RecognitionResult,
@@ -30,7 +32,7 @@ class BullFlagStrategy(Heartbeater):
         self,
         symbol: str,
         risk_limits: list[IRiskLimit],
-        parameters: Parameters,
+        parameters: StrategyParameters,
     ):
         """
         Idea take from the book "How to day-trade for a living",
@@ -58,11 +60,11 @@ class BullFlagStrategy(Heartbeater):
 
         # Signals to send out
         self.order_event = signal("order")
-        self.opportunity_event = signal("opportunity")
-        self.trade_result_event = signal("trade_result")
+        self.opportunity_event = signal("bull_trend_rider_opportunity")
+        self.trade_result_event = signal("bull_trend_rider_trade_result")
 
         # Records of orders and market data
-        self._round_trips = list[BullFlagRoundTrip]()
+        self._round_trips = list[TradeRecord]()
         self._market_history = CandlestickList(
             max_length=parameters.max_number_of_recent_candlesticks
         )
@@ -77,7 +79,7 @@ class BullFlagStrategy(Heartbeater):
         if pattern.result != RecognitionResult.BULL_FLAG:
             return
 
-        opportunity = BullFlagOpportunity(
+        opportunity = TradeOpportunity(
             pattern=pattern,
             atr=self._market_history.atr(),
             target_reward_risk_ratio=self._parameters.target_reward_risk_ratio,
@@ -107,7 +109,7 @@ class BullFlagStrategy(Heartbeater):
     def on_fill(self, _: str, trade: Trade):
         logging.info(f"Received {trade} for {self.symbol}")
 
-        def _matching_trip_in(order_field: str) -> BullFlagRoundTrip | None:
+        def _matching_trip_in(order_field: str) -> TradeRecord | None:
             return next(
                 (
                     trip
@@ -148,7 +150,7 @@ class BullFlagStrategy(Heartbeater):
         else:
             assert False, f"Unexpected trade: {trade}"
 
-    def _try_buy(self, opportunity: BullFlagOpportunity) -> bool:
+    def _try_buy(self, opportunity: TradeOpportunity) -> bool:
         # Don't buy if opportunity is not good enough
         if not opportunity or not opportunity.good(
             self._parameters.opportunity_score_cutoff
@@ -183,7 +185,7 @@ class BullFlagStrategy(Heartbeater):
             creation_time=time_manager().now(),
         )
         self._round_trips.append(
-            BullFlagRoundTrip(
+            TradeRecord(
                 opportunity=opportunity,
                 buy_order=buy_order,
             )

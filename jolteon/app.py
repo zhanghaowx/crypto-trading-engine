@@ -16,8 +16,10 @@ from jolteon.market_data.kraken.historical_feed import HistoricalFeed
 from jolteon.market_data.kraken.public_feed import PublicFeed
 from jolteon.position.position_manager import PositionManager
 from jolteon.risk_limit.order_frequency_limit import OrderFrequencyLimit
-from jolteon.strategy.bull_flag.parameters import Parameters
-from jolteon.strategy.bull_flag.strategy import BullFlagStrategy
+from jolteon.strategy.bull_trend_rider.strategy import BullFlagStrategy
+from jolteon.strategy.bull_trend_rider.strategy_parameters import (
+    StrategyParameters,
+)
 from jolteon.strategy.core.patterns.bull_flag.parameters import (
     BullFlagParameters,
 )
@@ -42,7 +44,7 @@ class Application:
         candlestick_interval_in_seconds=60,
         bull_flag_params=BullFlagParameters(),
         shooting_star_params=ShootingStarParameters(),
-        strategy_params=Parameters(),
+        strategy_params=StrategyParameters(),
     ):
         """
         Connects different components, starts the engine.

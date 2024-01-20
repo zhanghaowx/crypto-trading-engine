@@ -116,7 +116,7 @@ class PostTradePlot:
         return df
 
     def load_bull_flag_pattern(self) -> pd.DataFrame:
-        df = pd.read_sql("select * from bull_flag", con=self._conn)
+        df = pd.read_sql("select * from bull_trend_rider", con=self._conn)
         df = df[df["result"] == "BULL_FLAG"]
         return df
 
@@ -222,8 +222,8 @@ class PostTradePlot:
     def draw_bull_flag_pattern(self) -> go.Scatter:
         df = self.load_bull_flag_pattern()
         return go.Scatter(
-            x=df["bull_flag.start_time"],
-            y=(df["bull_flag.open"] + df["bull_flag.close"]) / 2.0,
+            x=df["bull_trend_rider.start_time"],
+            y=(df["bull_trend_rider.open"] + df["bull_trend_rider.close"]) / 2.0,
             mode="markers",
             marker=dict(color="orange", size=5, symbol="x-thin-open"),
             name="Bull Flag",

@@ -7,8 +7,8 @@ from unittest.mock import MagicMock, patch, AsyncMock
 import pytz
 
 from jolteon.core.time.time_manager import time_manager
-from jolteon.strategy.bull_flag.parameters import (
-    Parameters,
+from jolteon.strategy.bull_trend_rider.strategy_parameters import (
+    StrategyParameters,
 )
 
 
@@ -32,7 +32,7 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
             symbol=self.symbol,
             database_name=f"{tempfile.gettempdir()}/unittest.sqlite",
             logfile_name=f"{tempfile.gettempdir()}/unittest.log",
-            strategy_params=Parameters(),
+            strategy_params=StrategyParameters(),
         )
 
         # Disconnect all signals before changing to mock implementation

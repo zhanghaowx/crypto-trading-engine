@@ -1,10 +1,9 @@
-import math
 import unittest
-from datetime import datetime, timedelta
+from datetime import datetime
+
 from jolteon.market_data.core.candlestick import Candlestick
-from jolteon.strategy.bull_flag.parameters import Parameters
-from jolteon.strategy.bull_flag.bull_flag_opportunity import (
-    BullFlagOpportunity,
+from jolteon.strategy.bull_trend_rider.strategy_parameters import (
+    StrategyParameters,
 )
 
 
@@ -20,4 +19,4 @@ class TestBullFlagOpportunity(unittest.TestCase):
             low=99,
             close=100,
         )
-        self.params = Parameters()
+        self.params = StrategyParameters()
