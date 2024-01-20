@@ -47,7 +47,8 @@ class CandlestickGenerator:
                     f"{self.current_candlestick} is expected to be completed "
                     f"at {time_manager().now()} after seeing {trade}"
                 )
-                candlesticks.append(self.current_candlestick)
+                # It should have already been raised last time when the last
+                # trade was added. Here we don't re-raise it again.
 
             # Calculate the start time of the new candlestick
             start_time = trade.transaction_time.replace(

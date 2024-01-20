@@ -58,4 +58,4 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
 
         print(self.candlesticks)
         self.assertEqual(len(self.market_trades), 2)
-        self.assertEqual(len(self.candlesticks), 3)
+        self.assertEqual(len(self.candlesticks), 2)
