@@ -83,14 +83,27 @@ class HistoricalFeed(Heartbeater):
 
             return result_time_ranges
 
-        interval_minutes = 5
+        interval_minutes = min((end_time - start_time).total_seconds() / 60, 3)
+        max_number_of_trades_limit = 1000
         for period_start, period_end in _generate_time_ranges(
-            interval_minutes=interval_minutes
+            interval_minutes=int(interval_minutes)
         ):
             market_trades = self._get_market_trades(
-                symbol, period_start, period_end, limit=1000
+                symbol,
+                period_start,
+                period_end,
+                limit=max_number_of_trades_limit,
             )
             market_trades.sort(key=lambda x: x.transaction_time)
+
+            if len(market_trades) == max_number_of_trades_limit:
+                logging.warning(
+                    f"Max number of trades({len(market_trades)}) "
+                    f"returned for {period_start} - {period_end}, "
+                    f"consider using a time range smaller than "
+                    f"{interval_minutes} minutes when downloading "
+                    f"historical market trades"
+                )
 
             for market_trade in market_trades:
                 time_manager().use_fake_time(
@@ -110,8 +123,10 @@ class HistoricalFeed(Heartbeater):
                         self.events.candlestick,
                         candlestick=candlestick,
                     )
-
-                await asyncio.sleep(interval_minutes * 60 / self._replay_speed)
+            # Wait between each API call
+            await asyncio.sleep(
+                int(interval_minutes * 60 / self._replay_speed)
+            )
 
     # noinspection PyArgumentList
     def _get_market_trades(

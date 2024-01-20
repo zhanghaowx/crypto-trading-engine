@@ -41,6 +41,7 @@ class ApplicationBase:
         one symbol and one strategy.
         """
         self._symbol = symbol
+        print(f"Using {self._symbol}")
 
         # Data Dumping Setup
         logging.basicConfig(
@@ -101,6 +102,8 @@ class ApplicationBase:
             await self._md.connect([self._symbol])
         except Exception as e:
             logging.error(f"Error: {e}", exc_info=True)
+
+        return self._position_manager.pnl
 
     async def run_replay(self, start: datetime, end: datetime):
         logging.info(f"Replaying {self._symbol} from {start} to {end}")

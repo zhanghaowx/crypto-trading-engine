@@ -52,7 +52,7 @@ class KrakenApplication(ApplicationBase):
         super().use_market_data_service(
             PublicFeed, self._candlestick_interval_in_seconds
         )
-        await super().run()
+        return await super().run()
 
     async def run_replay(self, start: datetime, end: datetime):
         super().use_market_data_service(

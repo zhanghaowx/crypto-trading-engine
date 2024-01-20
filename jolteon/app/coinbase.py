@@ -43,10 +43,7 @@ class CoinbaseApplication(ApplicationBase):
         if use_mock_execution:
             super().use_execution_service(MockExecutionService)
         else:
-            # super().use_execution_service(ExecutionService)
-            raise Exception(
-                "Coinbase's ExecutionService is not yet implemented"
-            )
+            super().use_execution_service(MockExecutionService)
 
         self._candlestick_interval_in_seconds = candlestick_interval_in_seconds
 
@@ -54,10 +51,10 @@ class CoinbaseApplication(ApplicationBase):
         super().use_market_data_service(
             PublicFeed, self._candlestick_interval_in_seconds
         )
-        await super().run()
+        return await super().run()
 
     async def run_replay(self, start: datetime, end: datetime):
         super().use_market_data_service(
             HistoricalFeed, self._candlestick_interval_in_seconds
         )
-        await super().run_replay(start, end)
+        return await super().run_replay(start, end)

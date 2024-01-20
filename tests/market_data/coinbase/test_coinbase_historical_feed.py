@@ -74,44 +74,44 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
         self.historical_feed._replay_speed = 1
         await self.historical_feed.connect(
             symbol,
-            start_time=time_manager().now() - timedelta(minutes=5),
+            start_time=time_manager().now() - timedelta(minutes=1),
             end_time=time_manager().now(),
         )
-        mock_sleep.assert_called_once_with(300)
+        mock_sleep.assert_called_once_with(60)
         mock_sleep.reset_mock()
 
         self.historical_feed._replay_speed = 2
         await self.historical_feed.connect(
             symbol,
-            start_time=time_manager().now() - timedelta(minutes=5),
+            start_time=time_manager().now() - timedelta(minutes=1),
             end_time=time_manager().now(),
         )
-        mock_sleep.assert_called_once_with(150)
+        mock_sleep.assert_called_once_with(30)
         mock_sleep.reset_mock()
 
         self.historical_feed._replay_speed = 3
         await self.historical_feed.connect(
             symbol,
-            start_time=time_manager().now() - timedelta(minutes=5),
+            start_time=time_manager().now() - timedelta(minutes=1),
             end_time=time_manager().now(),
         )
-        mock_sleep.assert_called_once_with(100)
+        mock_sleep.assert_called_once_with(20)
         mock_sleep.reset_mock()
 
         self.historical_feed._replay_speed = 30
         await self.historical_feed.connect(
             symbol,
-            start_time=time_manager().now() - timedelta(minutes=5),
+            start_time=time_manager().now() - timedelta(minutes=1),
             end_time=time_manager().now(),
         )
-        mock_sleep.assert_called_once_with(10)
+        mock_sleep.assert_called_once_with(2)
         mock_sleep.reset_mock()
 
         self.historical_feed._replay_speed = 60
         await self.historical_feed.connect(
             symbol,
-            start_time=time_manager().now() - timedelta(minutes=5),
+            start_time=time_manager().now() - timedelta(minutes=1),
             end_time=time_manager().now(),
         )
-        mock_sleep.assert_called_once_with(5)
+        mock_sleep.assert_called_once_with(1)
         mock_sleep.reset_mock()
