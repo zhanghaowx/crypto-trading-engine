@@ -77,4 +77,4 @@ class TestRecognizer(unittest.IsolatedAsyncioTestCase):
 
     def test_shooting_star_equal_open_close_small_upper_shadows(self):
         self.pattern_recognizer.on_candlestick("_", self.candlesticks[1])
-        self.assertEqual(1, len(self.patterns))
+        self.assertEqual(0, len(self.patterns))

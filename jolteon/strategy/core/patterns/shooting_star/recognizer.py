@@ -75,9 +75,9 @@ class ShootingStarRecognizer(Heartbeater):
         ) / max(0.01, candlestick.high - candlestick.low)
 
         if (
-            body_ratio < self._params.max_body_ratio
+            0 < body_ratio < self._params.max_body_ratio
             and upper_shadow_ratio >= self._params.min_upper_shadow_ratio
-            and lower_shadow_ratio < self._params.max_lower_shadow_ratio
+            and 0 < lower_shadow_ratio < self._params.max_lower_shadow_ratio
         ):
             self.shooting_star_signal.send(
                 self.shooting_star_signal,
