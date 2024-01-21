@@ -29,7 +29,4 @@ class TestCryptoTradingEngineTraining(unittest.IsolatedAsyncioTestCase):
         # Add assertions based on your expectations
         # For example, check if the connect methods were called
         self.assertLess(1, mock_app.run_replay.call_count)
-        self.assertRegex(
-            captured_output.getvalue().split("\n")[-2], "^Best Parameters"
-        )
         self.assertEqual(captured_output.getvalue().split("\n")[-1], "")

@@ -4,10 +4,13 @@ CLI interface for jolteon project.
 import asyncio
 import logging
 import signal
+import sqlite3
 import sys
+import tempfile
 from datetime import datetime
 
 import numpy as np
+import pandas as pd
 import pytz
 
 from jolteon.app.kraken import KrakenApplication as Application
@@ -40,7 +43,7 @@ async def train():
     )
 
     # Start Hyper Parameters Setup
-    train_result = dict[float, dict]()
+    train_result = list[dict]()
     for minute in range(1, 6):
         for bull_flag_pct in np.arange(0.001, 0.002, 0.0002):
             for consolidate_pct in np.arange(0.1, 0.301, 0.1):
@@ -57,40 +60,35 @@ async def train():
                     app = Application(
                         symbol,
                         candlestick_interval_in_seconds=minute * 60,
-                        database_name=f"/tmp/train_{len(train_result)}.sqlite",
-                        logfile_name=f"/tmp/train_{len(train_result)}.log",
+                        database_name=f"/{tempfile.gettempdir()}/"
+                                      f"train_{len(train_result)}.sqlite",
+                        logfile_name=f"/{tempfile.gettempdir()}/"
+                                     f"train_{len(train_result)}.log",
                         strategy_params=strategy_params,
                         bull_flag_params=bull_flag_params,
                     )
                     pnl = await app.run_replay(replay_start, replay_end)
                     app.stop()
 
-                    train_result[pnl] = {
-                        "strategy_params": strategy_params,
-                        "bull_flag_params": bull_flag_params,
+                    result = {
+                        **vars(strategy_params),
+                        **vars(bull_flag_params),
                         "candlestick_interval_in_seconds": minute * 60,
+                        "pnl": pnl,
                     }
-                    print(
-                        f"Training PnL: {pnl}, Parameters: {train_result[pnl]}"
-                    )
-                    logging.info(
-                        f"Training PnL: {pnl}, Parameters: {train_result[pnl]}"
-                    )
+                    train_result.append(result)
+
+                    print(f"Training PnL: {pnl}, Parameters: {result}")
+                    logging.info(f"Training PnL: {pnl}, Parameters: {result}")
 
                     # Prepare for next iteration
                     time_manager().force_reset()
                     # End of one run
 
-    if len(train_result) == 0:
-        logging.warning("No best parameters found. Exiting...")
-    else:
-        sorted_dict = dict(
-            sorted(train_result.items(), key=lambda x: x[0], reverse=True)
-        )
-        print(f"Best Parameters: {sorted_dict[next(iter(sorted_dict))]}")
-        logging.info(
-            f"Best Parameters: {sorted_dict[next(iter(sorted_dict))]}"
-        )
+    # Save result into a database
+    conn = sqlite3.connect(f"/{tempfile.gettempdir()}/train_result.sqlite")
+    df = pd.DataFrame(train_result)
+    df.to_sql(name="train_result", con=conn, if_exists="replace", index=False)
 
 
 if __name__ == "__main__":
