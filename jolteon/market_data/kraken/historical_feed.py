@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import datetime
 
@@ -53,6 +54,11 @@ class HistoricalFeed(Heartbeater):
         market_trades = self._get_market_trades(symbol, start_time, end_time)
         market_trades.sort(key=lambda x: x.transaction_time)
 
+        logging.info(
+            f"Replaying {len(market_trades)} market trades "
+            f"from {start_time} to {end_time}"
+        )
+
         for market_trade in market_trades:
             time_manager().use_fake_time(
                 market_trade.transaction_time, admin=self
@@ -71,6 +77,9 @@ class HistoricalFeed(Heartbeater):
                     self.events.candlestick,
                     candlestick=candlestick,
                 )
+
+            # Add some delays between trades to
+            await asyncio.sleep(0.01)
 
     # noinspection PyArgumentList
     def _get_market_trades(

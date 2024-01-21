@@ -7,6 +7,8 @@ import signal
 import sys
 from datetime import datetime, timezone
 
+import pytz
+
 from jolteon.app.kraken import KrakenApplication as Application
 
 
@@ -21,6 +23,8 @@ signal.signal(signal.SIGINT, graceful_exit)
 
 
 async def main():
+    app_start_time = datetime.now(tz=pytz.utc)
+
     parser = argparse.ArgumentParser(description="Jolteon Trading Engine")
 
     # Add command-line arguments
@@ -72,8 +76,10 @@ async def main():
             logfile_name="/tmp/jolteon.log",
         )
         pnl = await app.run()
-
     print(f"PnL: {pnl}")
+
+    app_end_time = datetime.now(tz=pytz.utc)
+    print(f"Total Runtime: {app_end_time - app_start_time}")
 
 
 if __name__ == "__main__":
