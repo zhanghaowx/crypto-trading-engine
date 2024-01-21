@@ -1,23 +1,21 @@
 from collections import deque
+from enum import Enum, auto
 
 from jolteon.market_data.core.candlestick import Candlestick
 from jolteon.strategy.core.algorithms import calculate_atr
 
 
 class CandlestickList:
+    class AddResult(Enum):
+        APPENDED = auto()
+        MERGED = auto()
+
     def __init__(self, max_length: int):
         self.candlesticks = deque[Candlestick](
             maxlen=max_length,
         )
 
-    def add_candlestick(
-        self, candlestick: Candlestick, ignore_incomplete=False
-    ):
-        # It shall be either an update on last candlestick or a new
-        # candlestick.
-        if not candlestick.is_completed() and ignore_incomplete:
-            return
-
+    def add_candlestick(self, candlestick: Candlestick):
         # Merge candlesticks
         assert (
             len(self.candlesticks) == 0
@@ -33,10 +31,16 @@ class CandlestickList:
             len(self.candlesticks) == 0
             or self.candlesticks[-1].start_time < candlestick.start_time
         ):
+            assert (
+                len(self.candlesticks) == 0
+                or self.candlesticks[-1].end_time == candlestick.start_time
+            ), "Expects a continuous list of candlesticks without gaps"
             self.candlesticks.append(candlestick)
+            return CandlestickList.AddResult.APPENDED
         else:
             assert self.candlesticks[-1].start_time == candlestick.start_time
             self.candlesticks[-1] = candlestick
+            return CandlestickList.AddResult.MERGED
 
     def atr(self, period: int = -1) -> float:
         if period < 0:

@@ -2,6 +2,7 @@ import unittest
 from datetime import datetime, timedelta
 
 import pytz
+from freezegun import freeze_time
 
 from jolteon.market_data.core.candlestick import Candlestick
 from jolteon.strategy.core.patterns.shooting_star.parameters import (
@@ -29,7 +30,7 @@ class TestRecognizer(unittest.IsolatedAsyncioTestCase):
                 high=10.0,
             ),
             Candlestick(
-                self.start_time + timedelta(minutes=0),
+                self.start_time + timedelta(minutes=1),
                 duration_in_seconds=60,
                 open=1.0,
                 low=0.99,
@@ -37,7 +38,7 @@ class TestRecognizer(unittest.IsolatedAsyncioTestCase):
                 high=10.0,
             ),
             Candlestick(
-                self.start_time + timedelta(minutes=0),
+                self.start_time + timedelta(minutes=2),
                 duration_in_seconds=60,
                 open=1.0,
                 low=0.99,
@@ -45,7 +46,7 @@ class TestRecognizer(unittest.IsolatedAsyncioTestCase):
                 high=1.01,
             ),
             Candlestick(
-                self.start_time + timedelta(minutes=0),
+                self.start_time + timedelta(minutes=3),
                 duration_in_seconds=60,
                 open=1.0,
                 low=1.0,
@@ -62,6 +63,24 @@ class TestRecognizer(unittest.IsolatedAsyncioTestCase):
 
     def handle_signal(self, _: str, pattern: ShootingStarPattern):
         self.patterns.append(pattern)
+
+    @freeze_time("2024-01-01 00:00:30 UTC")
+    def test_incomplete_candlestick(self):
+        self.pattern_recognizer.on_candlestick("_", self.candlesticks[0])
+        self.assertEqual(0, len(self.patterns))
+
+    def test_multiple_incomplete_candlestick(self):
+        with freeze_time("2024-01-01 00:00:30 UTC"):
+            self.pattern_recognizer.on_candlestick("_", self.candlesticks[0])
+            self.assertEqual(0, len(self.patterns))
+
+        with freeze_time("2024-01-01 00:00:40 UTC"):
+            self.pattern_recognizer.on_candlestick("_", self.candlesticks[0])
+            self.assertEqual(0, len(self.patterns))
+
+        with freeze_time("2024-01-01 00:01:01 UTC"):
+            self.pattern_recognizer.on_candlestick("_", self.candlesticks[1])
+            self.assertEqual(1, len(self.patterns))
 
     def test_shooting_star(self):
         self.pattern_recognizer.on_candlestick("_", self.candlesticks[0])

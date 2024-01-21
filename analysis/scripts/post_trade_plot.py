@@ -30,7 +30,7 @@ class PostTradePlot:
         )
         win_rate = len(df[df["profit"] > 0]) / len(df) * 100
         pnl = sum(df["profit"])
-        return {"Win Rate": f"{win_rate}%", "PnL": pnl}
+        return {"Number of Opportunities": len(df), "Win Rate": f"{win_rate}%", "PnL": pnl}
 
     def get_volume(self):
         df = self.load_candlesticks("calculated_candlestick_feed")
@@ -104,14 +104,6 @@ class PostTradePlot:
         df["profit"] = (
             df["sell_trades.0.price"] * df["sell_trades.0.quantity"]
             - df["buy_trades.0.price"] * df["buy_trades.0.quantity"]
-        )
-        df.rename(
-            columns={
-                "opportunity.bull_flag_pattern.start": "start",
-                "opportunity.profit_price": "profit_price",
-                "opportunity.stop_loss_price": "stop_loss_price",
-            },
-            inplace=True,
         )
         return df
 
@@ -204,15 +196,15 @@ class PostTradePlot:
             return []
         return [
             go.Scatter(
-                x=df["start"],
-                y=df["profit_price"],
+                x=df["opportunity.bull_flag_pattern.bull_flag.start_time"],
+                y=df["opportunity.profit_price"],
                 mode="markers",
                 marker=dict(color="green", size=10, symbol="line-ew-open"),
                 name="Profit",
             ),
             go.Scatter(
-                x=df["start"],
-                y=df["stop_loss_price"],
+                x=df["opportunity.bull_flag_pattern.bull_flag.start_time"],
+                y=df["opportunity.stop_loss_price"],
                 mode="markers",
                 marker=dict(color="red", size=10, symbol="line-ew-open"),
                 name="Stop Loss",

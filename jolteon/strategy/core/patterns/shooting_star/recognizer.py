@@ -1,8 +1,9 @@
+from typing import Union
+
 from blinker import signal
 
 from jolteon.core.health_monitor.heartbeat import Heartbeater
 from jolteon.market_data.core.candlestick import Candlestick
-from jolteon.market_data.core.candlestick_list import CandlestickList
 from jolteon.strategy.core.patterns.shooting_star.parameters import (
     ShootingStarParameters,
 )
@@ -16,18 +17,23 @@ class ShootingStarRecognizer(Heartbeater):
         super().__init__(type(self).__name__, interval_in_seconds=10)
         self.shooting_star_signal = signal("shooting_star")
         self._params = params
-        self._all_candlesticks = CandlestickList(
-            max_length=params.max_number_of_recent_candlesticks
-        )
-        assert len(self._all_candlesticks.candlesticks) == 0
+        self._last_candlestick: Union[Candlestick, None] = None
 
     def on_candlestick(self, sender: str, candlestick: Candlestick):
-        self._all_candlesticks.add_candlestick(
-            candlestick, ignore_incomplete=True
-        )
-        self._detect()
+        # Check last candlestick
+        if self._last_candlestick and self._last_candlestick.is_completed():
+            self._detect_shooting_star(self._last_candlestick)
+            # Once a candlestick is checked we no longer store it
+            self._last_candlestick = None
 
-    def _detect(self):
+        # Check current candlestick
+        if candlestick.is_completed():
+            # Once a candlestick is checked we no longer store it
+            self._detect_shooting_star(candlestick)
+        else:
+            self._last_candlestick = candlestick
+
+    def _detect_shooting_star(self, candlestick: Candlestick):
         """
         A shooting star is a specific candlestick pattern in technical analysis
         that is generally considered a bearish reversal pattern.
@@ -57,11 +63,6 @@ class ShootingStarRecognizer(Heartbeater):
         Returns:
 
         """
-        if len(self._all_candlesticks.candlesticks) < 1:
-            return
-
-        candlestick = self._all_candlesticks.candlesticks[-1]
-
         body_ratio = abs(candlestick.open - candlestick.close) / (
             max(0.01, candlestick.high - candlestick.low)
         )
@@ -88,3 +89,6 @@ class ShootingStarRecognizer(Heartbeater):
                     lower_shadow_ratio=lower_shadow_ratio,
                 ),
             )
+            return True
+
+        return False

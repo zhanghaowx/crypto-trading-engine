@@ -25,19 +25,23 @@ class BullFlagRecognizer(Heartbeater):
         for candlestick in candlesticks:
             self.on_candlestick(sender, candlestick)
 
-    def on_candlestick(self, sender: str, candlestick: Candlestick):
-        self._all_candlesticks.add_candlestick(
-            candlestick, ignore_incomplete=True
-        )
-        self._detect()
+    def on_candlestick(self, _: str, candlestick: Candlestick):
+        if (
+            self._all_candlesticks.add_candlestick(candlestick)
+            == CandlestickList.AddResult.APPENDED
+        ):
+            self._detect()
 
     def _detect(self):
         # Try search back N candlesticks and see if a bull flag pattern could
         # be found.
-        for i in range(0, len(self._all_candlesticks.candlesticks)):
-            index = len(self._all_candlesticks.candlesticks) - 1 - i
+        completed_candlesticks = [
+            c for c in self._all_candlesticks.candlesticks if c.is_completed()
+        ]
+        for i in range(0, len(completed_candlesticks)):
+            index = len(completed_candlesticks) - 1 - i
             pattern = self._is_bull_flag_pattern(
-                candlesticks=list(self._all_candlesticks.candlesticks)[index:]
+                candlesticks=list(completed_candlesticks)[index:]
             )
             # Only send valid bull flag pattern to gain some performance boost.
             if pattern and (

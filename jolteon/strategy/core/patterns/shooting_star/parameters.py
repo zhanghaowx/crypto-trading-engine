@@ -3,7 +3,6 @@ from dataclasses import dataclass
 
 @dataclass
 class ShootingStarParameters:
-    max_number_of_recent_candlesticks: int = 10
     # The body of the candlestick is smaller than body_ratio * (high - low)
     max_body_ratio: float = 0.2
     # Upper shadow of the candlestick is larger than

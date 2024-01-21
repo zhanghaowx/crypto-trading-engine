@@ -3,6 +3,7 @@ import unittest
 from datetime import datetime, timedelta
 
 import pytz
+from freezegun import freeze_time
 
 from jolteon.market_data.core.candlestick import Candlestick
 from jolteon.strategy.core.patterns.bull_flag.parameters import (
@@ -91,7 +92,7 @@ class TestRecognizer(unittest.IsolatedAsyncioTestCase):
         self.pattern_recognizer.on_candlesticks("_", self.candlesticks[0:2])
         self.assertEqual(0, len(self.patterns))
 
-        self.pattern_recognizer.on_candlestick("_", self.candlesticks[3])
+        self.pattern_recognizer.on_candlestick("_", self.candlesticks[2])
         self.assertEqual(1, len(self.patterns))
 
     def test_not_extremely_bullish(self):
@@ -103,6 +104,28 @@ class TestRecognizer(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             RecognitionResult.NO_EXTREME_BULLISH, self.patterns[0].result
         )
+
+    @freeze_time("2022-01-01 00:00:00 UTC")
+    def test_not_completed_candlestick(self):
+        self.pattern_recognizer.on_candlesticks("_", self.candlesticks[0:3])
+        self.assertEqual(0, len(self.patterns))
+
+    def test_multiple_incomplete_candlestick(self):
+        with freeze_time("2024-01-01 00:00:30 UTC"):
+            self.pattern_recognizer.on_candlestick("_", self.candlesticks[0])
+            self.assertEqual(0, len(self.patterns))
+
+        with freeze_time("2024-01-01 00:01:30 UTC"):
+            self.pattern_recognizer.on_candlestick("_", self.candlesticks[1])
+            self.assertEqual(0, len(self.patterns))
+
+        with freeze_time("2024-01-01 00:02:30 UTC"):
+            self.pattern_recognizer.on_candlestick("_", self.candlesticks[2])
+            self.assertEqual(0, len(self.patterns))
+
+        with freeze_time("2024-01-01 00:04:01 UTC"):
+            self.pattern_recognizer.on_candlestick("_", self.candlesticks[3])
+            self.assertEqual(2, len(self.patterns))
 
     def test_not_extremely_bullish_equal_open_close(self):
         # Change close price to make it not extremely bullish

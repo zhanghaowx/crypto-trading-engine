@@ -1,5 +1,5 @@
 import unittest
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pytz
 
@@ -31,7 +31,7 @@ class TestCandlestickList(unittest.TestCase):
             close=110,
         )
         candlestick2 = Candlestick(
-            start=datetime(2022, 1, 2, tzinfo=pytz.utc),
+            start=datetime(2022, 1, 1, tzinfo=pytz.utc) + timedelta(minutes=1),
             duration_in_seconds=60,
             open=110,
             close=120,
@@ -89,7 +89,7 @@ class TestCandlestickList(unittest.TestCase):
         candlestick_list = CandlestickList(max_length=5)
         # Add candlesticks with different price movements for ATR calculation
         for i in range(1, 6):
-            start = datetime(2022, 1, i, tzinfo=pytz.utc)
+            start = datetime(2022, 1, 1, 1, i, tzinfo=pytz.utc)
             candlestick = Candlestick(
                 start=start,
                 duration_in_seconds=60,
