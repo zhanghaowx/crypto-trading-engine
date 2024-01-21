@@ -1,3 +1,4 @@
+import math
 import unittest
 from datetime import datetime, timedelta
 
@@ -20,23 +21,23 @@ class TestCandlestick(unittest.IsolatedAsyncioTestCase):
 
         candle = Candlestick(now, 1)
 
-        self.assertEqual(candle.open, 0.0)
-        self.assertEqual(candle.high, 0.0)
-        self.assertEqual(candle.low, 0.0)
-        self.assertEqual(candle.close, 0.0)
+        self.assertTrue(math.isnan(candle.open))
+        self.assertTrue(math.isnan(candle.high))
+        self.assertTrue(math.isnan(candle.low))
+        self.assertTrue(math.isnan(candle.close))
         self.assertEqual(candle.volume, 0.0)
         self.assertEqual(
             str(candle),
             "Candlestick("
-            "Open=0.0, "
-            "High=0.0, "
-            "Low=0.0, "
-            "Close=0.0, "
+            "Open=nan, "
+            "High=nan, "
+            "Low=nan, "
+            "Close=nan, "
             "Volume=0.0, "
             "StartTime=2024-01-01 00:00:00, "
             "EndTime=2024-01-01 00:00:01, "
-            "ReturnPct=0.0, "
-            "CashValueChange=0.0)",
+            "ReturnPct=nan, "
+            "CashValueChange=nan)",
         )
 
     async def test_candlestick_add_trade_failure(self):

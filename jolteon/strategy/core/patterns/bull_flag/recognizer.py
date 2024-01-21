@@ -41,7 +41,7 @@ class BullFlagRecognizer(Heartbeater):
         for i in range(0, len(completed_candlesticks)):
             index = len(completed_candlesticks) - 1 - i
             pattern = self._is_bull_flag_pattern(
-                candlesticks=list(completed_candlesticks)[index:]
+                candlesticks=completed_candlesticks[index:]
             )
             # Only send valid bull flag pattern to gain some performance boost.
             if pattern and (

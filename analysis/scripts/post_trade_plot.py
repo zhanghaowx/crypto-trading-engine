@@ -96,24 +96,30 @@ class PostTradePlot:
         else:
             return pd.DataFrame()
 
-    def load_opportunities(self):
-        if not self.table_exists("bull_trend_rider_trade_result"):
+    def load_opportunities(self, table_name="bull_trend_rider_trade_result"):
+        if not self.table_exists(table_name):
             return pd.DataFrame()
 
-        df = pd.read_sql("select * from bull_trend_rider_trade_result", con=self._conn)
+        df = pd.read_sql(f"select * from {table_name}", con=self._conn)
         df["profit"] = (
             df["sell_trades.0.price"] * df["sell_trades.0.quantity"]
             - df["buy_trades.0.price"] * df["buy_trades.0.quantity"]
         )
         return df
 
-    def load_bull_flag_pattern(self) -> pd.DataFrame:
-        df = pd.read_sql("select * from bull_flag", con=self._conn)
+    def load_bull_flag_pattern(self, table_name="bull_flag") -> pd.DataFrame:
+        if not self.table_exists(table_name):
+            return pd.DataFrame()
+
+        df = pd.read_sql(f"select * from {table_name}", con=self._conn)
         df = df[df["result"] == "BULL_FLAG"]
         return df
 
-    def load_shooting_star_pattern(self) -> pd.DataFrame:
-        df = pd.read_sql("select * from shooting_star", con=self._conn)
+    def load_shooting_star_pattern(self, table_name="shooting_star") -> pd.DataFrame:
+        if not self.table_exists(table_name):
+            return pd.DataFrame()
+
+        df = pd.read_sql(f"select * from {table_name}", con=self._conn)
         return df
 
     def table_exists(self, table_name: str) -> bool:
@@ -211,25 +217,29 @@ class PostTradePlot:
             ),
         ]
 
-    def draw_bull_flag_pattern(self) -> go.Scatter:
+    def draw_bull_flag_pattern(self) -> [go.Scatter]:
         df = self.load_bull_flag_pattern()
-        return go.Scatter(
+        if len(df) == 0:
+            return []
+        return [go.Scatter(
             x=df["bull_flag.start_time"],
             y=(df["bull_flag.open"] + df["bull_flag.close"]) / 2.0,
             mode="markers",
             marker=dict(color="orange", size=5, symbol="x-thin-open"),
             name="Bull Flag",
-        )
+        )]
 
-    def draw_shooting_star_pattern(self) -> go.Scatter:
+    def draw_shooting_star_pattern(self) -> [go.Scatter]:
         df = self.load_shooting_star_pattern()
-        return go.Scatter(
+        if len(df) == 0:
+            return []
+        return [go.Scatter(
             x=df["shooting_star.start_time"],
             y=(df["shooting_star.open"] + df["shooting_star.close"]) / 2.0,
             mode="markers",
             marker=dict(color="gold", size=5, symbol="asterisk-open"),
             name="Shooting Star",
-        )
+        )]
 
     def draw_vwap(self):
         df = self.load_market_trades()
@@ -248,7 +258,10 @@ class PostTradePlot:
         layout = go.Layout(
             title="Candlesticks and Trades",
             xaxis=dict(title="Date (UTC)"),
-            yaxis=dict(title="Price (Dollars)", fixedrange=False),
+            yaxis=dict(
+                title="Price (Dollars)",
+                fixedrange=False
+            ),
             yaxis2=dict(
                 title="Volume",
                 overlaying="y",
@@ -263,12 +276,12 @@ class PostTradePlot:
                 self.draw_candlesticks(),
                 self.draw_vwap(),
                 self.draw_trade_volume(),
-                self.draw_bull_flag_pattern(),
-                self.draw_shooting_star_pattern(),
             ]
             + self.draw_profit_and_stop_loss()
             + self.draw_buy_trades()
-            + self.draw_sell_trades(),
+            + self.draw_sell_trades()
+            + self.draw_bull_flag_pattern()
+            + self.draw_shooting_star_pattern(),
             layout=layout,
         )
         fig.show()

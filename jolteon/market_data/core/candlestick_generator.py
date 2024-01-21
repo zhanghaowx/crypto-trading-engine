@@ -106,5 +106,11 @@ class CandlestickGenerator:
         """
         assert self.current_candlestick is not None
         self.current_candlestick = Candlestick(
-            self.current_candlestick.end_time, self.interval_in_seconds
+            start=self.current_candlestick.end_time,
+            duration_in_seconds=self.interval_in_seconds,
+            open=self.current_candlestick.close,
+            high=self.current_candlestick.close,
+            close=self.current_candlestick.close,
+            low=self.current_candlestick.close,
+            volume=0,
         )

@@ -1,3 +1,4 @@
+import math
 from datetime import datetime, timedelta
 from typing import Union
 
@@ -29,10 +30,10 @@ class Candlestick:
         self,
         start: datetime,
         duration_in_seconds: float,
-        open: float = 0.0,
-        high: float = 0.0,
-        low: float = 0.0,
-        close: float = 0.0,
+        open: float = math.nan,
+        high: float = math.nan,
+        low: float = math.nan,
+        close: float = math.nan,
         volume: float = 0.0,
     ):
         """
@@ -94,10 +95,13 @@ class Candlestick:
         ):
             return False
 
-        if self.volume == 0.0:
+        if math.isnan(self.open):
             self.open = trade_price
+        if math.isnan(self.high):
             self.high = trade_price
+        if math.isnan(self.low):
             self.low = trade_price
+        if math.isnan(self.close):
             self.close = trade_price
 
         self.high = max(self.high, trade_price)

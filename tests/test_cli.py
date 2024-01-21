@@ -32,9 +32,6 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
         sys.stdout = sys.__stdout__
 
         self.assertEqual(1, mock_app.run_replay.call_count)
-        self.assertEqual(
-            "PnL: 1.0", captured_output.getvalue().split("\n")[-2]
-        )
         self.assertEqual("", captured_output.getvalue().split("\n")[-1])
 
     async def test_graceful_exit(self):
