@@ -31,8 +31,8 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
 
         # Set up test parameters
         symbol = "BTC/USD"
-        start_time = datetime(2023, 1, 1, tzinfo=timezone.utc)
-        end_time = datetime(2023, 1, 1, 1, tzinfo=timezone.utc)
+        start_time = datetime(2023, 1, 1, 1, 1, 0, tzinfo=timezone.utc)
+        end_time = datetime(2023, 1, 1, 1, 2, 0, tzinfo=timezone.utc)
 
         # Mock the requests.get method to return a custom JSON response
         mock_response = {

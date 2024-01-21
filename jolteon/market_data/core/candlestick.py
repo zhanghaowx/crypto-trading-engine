@@ -31,7 +31,7 @@ class Candlestick:
         duration_in_seconds: float,
         open: float = 0.0,
         high: float = 0.0,
-        low: float = float("inf"),
+        low: float = 0.0,
         close: float = 0.0,
         volume: float = 0.0,
     ):
@@ -96,6 +96,9 @@ class Candlestick:
 
         if self.volume == 0.0:
             self.open = trade_price
+            self.high = trade_price
+            self.low = trade_price
+            self.close = trade_price
 
         self.high = max(self.high, trade_price)
         self.low = min(self.low, trade_price)

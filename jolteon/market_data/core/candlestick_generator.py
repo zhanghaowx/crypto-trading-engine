@@ -29,52 +29,82 @@ class CandlestickGenerator:
         """
         candlesticks: list[Candlestick] = []
 
-        if self.current_candlestick and self.current_candlestick.add_trade(
-            trade.price, trade.quantity, trade.transaction_time
-        ):
-            candlesticks.append(self.current_candlestick)
+        if not self.current_candlestick:
+            self._set_current_candlestick(trade)
         else:
-            # Deliver previous candlestick before starting a new one
-            if self.current_candlestick:
-                assert not self.current_candlestick.add_trade(
-                    trade.price, trade.quantity, trade.transaction_time
-                )
-                logging.debug(
-                    f"Generated Completed Candlestick: "
-                    f"{self.current_candlestick}"
-                )
+            while not self.current_candlestick.add_trade(
+                trade.price, trade.quantity, trade.transaction_time
+            ):
                 assert self.current_candlestick.is_completed(), (
                     f"{self.current_candlestick} is expected to be completed "
                     f"at {time_manager().now()} after seeing {trade}"
                 )
-                # It should have already been raised last time when the last
-                # trade was added. Here we don't re-raise it again.
+                self._complete_candlestick(candlesticks)
+                self._move_to_next_candlestick()
 
-            # Calculate the start time of the new candlestick
-            start_time = trade.transaction_time.replace(
-                second=trade.transaction_time.second
-                // self.interval_in_seconds
-                * self.interval_in_seconds,
-                microsecond=0,
-            )
+        # Finally, the current candlestick will include trade and we should
+        # report it as well.
+        candlesticks.append(self.current_candlestick)
+        return candlesticks
 
-            # Create new candlestick
-            self.current_candlestick = Candlestick(
-                start_time, self.interval_in_seconds
-            )
-            assert (
-                self.current_candlestick.start_time
-                <= trade.transaction_time
-                <= self.current_candlestick.end_time
-            )
+    def _set_current_candlestick(self, trade):
+        """
+        Sets the current candlestick time range based on the 1st seen trade.
+        This is the starting of our candlestick history.
+        """
 
-            trade_added = self.current_candlestick.add_trade(
-                trade.price, trade.quantity, trade.transaction_time
-            )
-            assert trade_added, (
-                "Trade should be added to a newly created "
-                "candlestick successfully"
-            )
+        assert self.current_candlestick is None
+
+        # Calculate the start time of the new candlestick
+        start_time = trade.transaction_time.replace(
+            second=trade.transaction_time.second
+            // self.interval_in_seconds
+            * self.interval_in_seconds,
+            microsecond=0,
+        )
+
+        # Create new candlestick for the trade
+        self.current_candlestick = Candlestick(
+            start_time, self.interval_in_seconds
+        )
+        assert (
+            self.current_candlestick.start_time
+            <= trade.transaction_time
+            <= self.current_candlestick.end_time
+        )
+        trade_added = self.current_candlestick.add_trade(
+            trade.price, trade.quantity, trade.transaction_time
+        )
+        assert (
+            trade_added
+        ), "Trade should be added to a newly created candlestick successfully"
+
+    def _complete_candlestick(self, candlesticks: list[Candlestick]) -> None:
+        """
+        Mark the current candlestick as completed
+
+        Returns:
+            None
+        """
+        logging.debug(
+            f"Generated Completed Candlestick: " f"{self.current_candlestick}"
+        )
+        # In some case, we may get trades far away from each other. And there
+        # will be multiple empty candlesticks between them. For those
+        # special candlesticks we still want to report them and maintain a
+        # continuous time series.
+        if self.current_candlestick.volume == 0:
             candlesticks.append(self.current_candlestick)
 
-        return candlesticks
+    def _move_to_next_candlestick(self):
+        """
+        Set the current candlestick to be the next expected candlestick after
+        it.
+
+        Returns:
+            None
+        """
+        assert self.current_candlestick is not None
+        self.current_candlestick = Candlestick(
+            self.current_candlestick.end_time, self.interval_in_seconds
+        )

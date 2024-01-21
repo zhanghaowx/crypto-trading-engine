@@ -22,7 +22,7 @@ class TestCandlestick(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(candle.open, 0.0)
         self.assertEqual(candle.high, 0.0)
-        self.assertEqual(candle.low, float("inf"))
+        self.assertEqual(candle.low, 0.0)
         self.assertEqual(candle.close, 0.0)
         self.assertEqual(candle.volume, 0.0)
         self.assertEqual(
@@ -30,7 +30,7 @@ class TestCandlestick(unittest.IsolatedAsyncioTestCase):
             "Candlestick("
             "Open=0.0, "
             "High=0.0, "
-            "Low=inf, "
+            "Low=0.0, "
             "Close=0.0, "
             "Volume=0.0, "
             "StartTime=2024-01-01 00:00:00, "

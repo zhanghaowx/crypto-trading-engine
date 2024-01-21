@@ -61,13 +61,14 @@ class TestCandlestickGenerator(unittest.IsolatedAsyncioTestCase):
         candlesticks = candlestick_generator.on_market_trade(
             self.create_mock_trade(price=3.0, second=0)
         )
+        self.assertEqual(len(candlesticks), 1)
         self.assertEqual(candlesticks[0].open, 2)
         self.assertEqual(candlesticks[0].high, 3)
         self.assertEqual(candlesticks[0].low, 2)
         self.assertEqual(candlesticks[0].close, 3)
         self.assertEqual(candlesticks[0].volume, 2)
 
-    async def test_candlestick_generator_2_trades_in_different_time_window(
+    async def test_candlestick_generator_2_trades_with_no_time_gap(
         self,
     ):
         candlestick_generator = CandlestickGenerator(interval_in_seconds=1)
@@ -83,10 +84,43 @@ class TestCandlestickGenerator(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(candlesticks[0].volume, 1)
 
         candlesticks = candlestick_generator.on_market_trade(
-            self.create_mock_trade(price=3.0, second=10)
+            self.create_mock_trade(price=3.0, second=2)
         )
+        self.assertEqual(len(candlesticks), 1)
         self.assertEqual(candlesticks[0].open, 3)
         self.assertEqual(candlesticks[0].high, 3)
         self.assertEqual(candlesticks[0].low, 3)
         self.assertEqual(candlesticks[0].close, 3)
         self.assertEqual(candlesticks[0].volume, 1)
+
+    async def test_candlestick_generator_2_trades_with_time_gaps(
+        self,
+    ):
+        candlestick_generator = CandlestickGenerator(interval_in_seconds=1)
+        candlesticks = candlestick_generator.on_market_trade(
+            self.create_mock_trade(price=2.0, second=0)
+        )
+        self.assertEqual(len(candlesticks), 1)
+
+        self.assertEqual(candlesticks[0].open, 2)
+        self.assertEqual(candlesticks[0].high, 2)
+        self.assertEqual(candlesticks[0].low, 2)
+        self.assertEqual(candlesticks[0].close, 2)
+        self.assertEqual(candlesticks[0].volume, 1)
+
+        # No trades on the 2nd second (or within 2nd candlestick)
+
+        candlesticks = candlestick_generator.on_market_trade(
+            self.create_mock_trade(price=3.0, second=3)
+        )
+        self.assertEqual(len(candlesticks), 2)
+        self.assertEqual(candlesticks[0].open, 0)
+        self.assertEqual(candlesticks[0].high, 0)
+        self.assertEqual(candlesticks[0].low, 0)
+        self.assertEqual(candlesticks[0].close, 0)
+        self.assertEqual(candlesticks[0].volume, 0)
+        self.assertEqual(candlesticks[1].open, 3)
+        self.assertEqual(candlesticks[1].high, 3)
+        self.assertEqual(candlesticks[1].low, 3)
+        self.assertEqual(candlesticks[1].close, 3)
+        self.assertEqual(candlesticks[1].volume, 1)

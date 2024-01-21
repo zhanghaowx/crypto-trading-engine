@@ -34,7 +34,11 @@ class CandlestickList:
             assert (
                 len(self.candlesticks) == 0
                 or self.candlesticks[-1].end_time == candlestick.start_time
-            ), "Expects a continuous list of candlesticks without gaps"
+            ), (
+                f"Expects a continuous list of candlesticks without gaps, "
+                f"last candlestick is {self.candlesticks[-1]}, "
+                f" next candlestick is {candlestick}"
+            )
             self.candlesticks.append(candlestick)
             return CandlestickList.AddResult.APPENDED
         else:
