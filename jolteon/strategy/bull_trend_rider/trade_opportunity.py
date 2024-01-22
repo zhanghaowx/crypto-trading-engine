@@ -19,7 +19,7 @@ class TradeOpportunity(TradeOpportunityCore):
         self,
         pattern: BullFlagPattern,
         target_reward_risk_ratio: float,
-        atr: float,
+        adjusted_atr: float,
     ):
         super().__init__(
             score=0.0,
@@ -29,8 +29,7 @@ class TradeOpportunity(TradeOpportunityCore):
         self.bull_flag_pattern = pattern
         self.expected_trade_price = pattern.consolidation[-1].close
 
-        atr_factor = 1.1  # The factor by which to check down movement.
-        self.stop_loss_from_atr = self.expected_trade_price - atr * atr_factor
+        self.stop_loss_from_atr = self.expected_trade_price - adjusted_atr
         self.stop_loss_from_support = min(
             [x.low for x in pattern.consolidation]
         )

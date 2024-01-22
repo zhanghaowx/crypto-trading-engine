@@ -69,6 +69,15 @@ class TestRecognizer(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(1, len(self.patterns))
         self.assertEqual(RecognitionResult.BULL_FLAG, self.patterns[0].result)
 
+    def test_bull_flag_start_with_a_zero_body_candlestick(self):
+        self.candlesticks[0].open = 100
+        self.candlesticks[0].high = 100
+        self.candlesticks[0].close = 100
+        self.candlesticks[0].low = 100
+        self.pattern_recognizer.on_candlesticks("_", self.candlesticks[0:3])
+        self.assertEqual(1, len(self.patterns))
+        self.assertEqual(RecognitionResult.BULL_FLAG, self.patterns[0].result)
+
     def test_consolidation_period(self):
         self.pattern_recognizer.on_candlesticks("_", self.candlesticks[0:3])
         self.assertEqual(1, len(self.patterns))

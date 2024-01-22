@@ -96,7 +96,7 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
             opportunity=TradeOpportunity(
                 pattern=self.bull_flag_pattern,
                 target_reward_risk_ratio=2,
-                atr=1,
+                adjusted_atr=1,
             ),
             buy_order=self.create_mock_order(MarketSide.BUY),
         )

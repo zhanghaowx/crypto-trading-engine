@@ -71,9 +71,9 @@ class SignalConnector:
         Returns:
             None
         """
-        self._save_data()
-        self._clear_signals()
         self._auto_save_task.cancel()
+        self._clear_signals()
+        self._save_data()
 
     async def _save_data_every(self, interval_in_seconds=30):
         while True:

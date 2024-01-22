@@ -81,7 +81,8 @@ class BullFlagStrategy(Heartbeater):
 
         opportunity = TradeOpportunity(
             pattern=pattern,
-            atr=self._market_history.atr(),
+            adjusted_atr=self._market_history.atr()
+            * self._parameters.atr_factor,
             target_reward_risk_ratio=self._parameters.target_reward_risk_ratio,
         )
         opportunity.grade(params=self._parameters)
@@ -107,8 +108,6 @@ class BullFlagStrategy(Heartbeater):
         self._try_close_positions(force=True)
 
     def on_fill(self, _: str, trade: Trade):
-        logging.info(f"Received {trade} for {self.symbol}")
-
         def _matching_trip_in(order_field: str) -> TradeRecord | None:
             return next(
                 (
@@ -123,6 +122,7 @@ class BullFlagStrategy(Heartbeater):
 
         if trade.side == MarketSide.BUY:
             found_round_trip = _matching_trip_in("buy_order")
+            logging.info(f"Received {trade} for {vars(found_round_trip)}")
             assert (
                 found_round_trip is not None
             ), f"No buy order located for a buy trade: {trade}"
@@ -136,6 +136,7 @@ class BullFlagStrategy(Heartbeater):
 
         elif trade.side == MarketSide.SELL:
             found_round_trip = _matching_trip_in("sell_order")
+            logging.info(f"Received {trade} for {vars(found_round_trip)}")
 
             assert (
                 found_round_trip is not None
@@ -203,11 +204,6 @@ class BullFlagStrategy(Heartbeater):
         if len(self._round_trips) == 0:
             return
 
-        assert (
-            len(self._market_history.candlesticks)
-            == self._market_history.candlesticks.maxlen
-        )
-
         for round_trip in self._round_trips:
             # Skip if sell order has been placed
             if round_trip.sell_order:
@@ -227,19 +223,26 @@ class BullFlagStrategy(Heartbeater):
                 creation_time=time_manager().now(),
             )
 
-            if round_trip.should_sell_for_loss(
-                self._market_history.candlesticks[-1].close
-            ):
+            latest_market_price = self._market_history.candlesticks[-1].close
+            if round_trip.should_sell_for_loss(latest_market_price):
                 # crossed stop loss line, we need sell for limiting losses
-                logging.warning(f"Placed {sell_order} for limiting loss.")
+                logging.warning(
+                    f"Placed {sell_order} for limiting loss "
+                    f"when last market trade is at "
+                    f"{latest_market_price} "
+                    f"and our trade record is "
+                    f"{vars(round_trip)}."
+                )
 
                 round_trip.sell_order = sell_order
                 self.order_event.send(self.order_event, order=sell_order)
-            elif round_trip.should_sell_for_profit(
-                self._market_history.candlesticks[-1].close
-            ):
+            elif round_trip.should_sell_for_profit(latest_market_price):
                 # crossed profit line, we need sell for profit
-                logging.info(f"Placed {sell_order} for profit.")
+                logging.info(
+                    f"Placed {sell_order} for profit "
+                    f"with expectations to be traded near "
+                    f"{latest_market_price}."
+                )
 
                 round_trip.sell_order = sell_order
                 self.order_event.send(self.order_event, order=sell_order)

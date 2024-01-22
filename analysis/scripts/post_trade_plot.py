@@ -242,19 +242,20 @@ class PostTradePlot:
 
     def draw_bull_flag_pattern(self) -> [go.Scatter]:
         df = self.load_bull_flag_pattern()
-        df = df[df["result"] == "BULL_FLAG"]
 
         if len(df) == 0:
             return []
-        return [
-            go.Scatter(
-                x=df["bull_flag.start_time"],
-                y=(df["bull_flag.open"] + df["bull_flag.close"]) / 2.0,
-                mode="markers",
-                marker=dict(color="orange", size=5, symbol="x-thin-open"),
-                name="Bull Flag",
-            )
-        ]
+        else:
+            df = df[df["result"] == "BULL_FLAG"]
+            return [
+                go.Scatter(
+                    x=df["bull_flag.start_time"],
+                    y=(df["bull_flag.open"] + df["bull_flag.close"]) / 2.0,
+                    mode="markers",
+                    marker=dict(color="orange", size=5, symbol="x-thin-open"),
+                    name="Bull Flag",
+                )
+            ]
 
     def draw_shooting_star_pattern(self) -> [go.Scatter]:
         df = self.load_shooting_star_pattern()
