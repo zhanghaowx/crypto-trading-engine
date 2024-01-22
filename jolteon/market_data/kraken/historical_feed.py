@@ -1,14 +1,15 @@
 import asyncio
 import logging
+from dataclasses import dataclass
 from datetime import datetime
+from enum import StrEnum, auto
 
 import pytz
 import requests
 
-from jolteon.core.health_monitor.heartbeat import Heartbeater
+from jolteon.core.health_monitor.heartbeat import Heartbeater, HeartbeatLevel
 from jolteon.core.side import MarketSide
 from jolteon.core.time.time_manager import time_manager
-from jolteon.core.time.time_range import TimeRange
 from jolteon.market_data.core.candlestick_generator import CandlestickGenerator
 from jolteon.market_data.core.events import Events
 from jolteon.market_data.core.trade import Trade
@@ -16,6 +17,10 @@ from jolteon.market_data.core.trade import Trade
 
 class HistoricalFeed(Heartbeater):
     CACHE = dict[tuple, list[Trade]]()
+
+    @dataclass
+    class ErrorCode(StrEnum):
+        DOWNLOADING = auto()
 
     """
     Access the historical market data feed using Kraken's REST API.
@@ -44,7 +49,6 @@ class HistoricalFeed(Heartbeater):
         symbol: str,
         start_time: datetime,
         end_time: datetime,
-        interval_minutes=24 * 60,
     ):
         """
         Download the historical market data feed for the given symbol and
@@ -53,62 +57,60 @@ class HistoricalFeed(Heartbeater):
             symbol: Symbol of the product to download historical market data
             start_time: Start time of the historical market data feed.
             end_time: End time of the historical market data feed.
-            interval_minutes: Split time in smaller time ranges to make
-                              several API calls. This will help reduce chances
-                              of hitting API limit.
         Returns:
             A asyncio task to be waiting for incoming messages
         """
-        time_range = TimeRange(start_time, end_time)
-        for period in time_range.generate_time_ranges(
-            interval_in_minutes=int(interval_minutes)
-        ):
-            market_trades = self._get_market_trades(
-                symbol, period.start, period.end
+        self.add_issue(
+            HeartbeatLevel.WARN, HistoricalFeed.ErrorCode.DOWNLOADING.name
+        )
+        market_trades = await self._get_market_trades(
+            symbol, start_time, end_time
+        )
+        self.remove_issue(HistoricalFeed.ErrorCode.DOWNLOADING.name)
+
+        # Filter out unnecessary market trades
+        market_trades = [
+            trade
+            for trade in market_trades
+            if start_time <= trade.transaction_time <= end_time
+        ]
+        # Sort all market trades by timestamp
+        market_trades.sort(key=lambda x: x.transaction_time)
+
+        logging.info(
+            f"Replaying {len(market_trades)} market trades "
+            f"from {start_time} to {end_time}"
+        )
+
+        assert (
+            len(market_trades)
+            == market_trades[-1].trade_id - market_trades[0].trade_id + 1
+        )
+
+        for market_trade in market_trades:
+            time_manager().use_fake_time(
+                market_trade.transaction_time, admin=self
             )
-            # Filter out unnecessary market trades
-            market_trades = [
-                trade
-                for trade in market_trades
-                if period.start <= trade.transaction_time <= period.end
-            ]
-            # Sort all market trades by timestamp
-            market_trades.sort(key=lambda x: x.transaction_time)
-
-            logging.info(
-                f"Replaying {len(market_trades)} market trades "
-                f"from {period.start} to {period.end}"
+            self.events.matches.send(
+                self.events.matches, market_trade=market_trade
             )
+            logging.debug(f"Received Market Trade: {market_trade}")
 
-            assert (
-                len(market_trades)
-                == market_trades[-1].trade_id - market_trades[0].trade_id + 1
+            # Calculate our own candlesticks using market trades
+            candlesticks = self._candlestick_generator.on_market_trade(
+                market_trade
             )
-
-            for market_trade in market_trades:
-                time_manager().use_fake_time(
-                    market_trade.transaction_time, admin=self
+            for candlestick in candlesticks:
+                self.events.candlestick.send(
+                    self.events.candlestick,
+                    candlestick=candlestick,
                 )
-                self.events.matches.send(
-                    self.events.matches, market_trade=market_trade
-                )
-                logging.debug(f"Received Market Trade: {market_trade}")
 
-                # Calculate our own candlesticks using market trades
-                candlesticks = self._candlestick_generator.on_market_trade(
-                    market_trade
-                )
-                for candlestick in candlesticks:
-                    self.events.candlestick.send(
-                        self.events.candlestick,
-                        candlestick=candlestick,
-                    )
-
-                # Add some delays between trades to
-                await asyncio.sleep(0.01)
+            # Add some delays between trades to make replay result to stable
+            await asyncio.sleep(0.01)
 
     # noinspection PyArgumentList
-    def _get_market_trades(
+    async def _get_market_trades(
         self, symbol: str, start_time: datetime, end_time: datetime
     ) -> list[Trade]:
         key = (symbol, start_time)
@@ -171,7 +173,18 @@ class HistoricalFeed(Heartbeater):
                 )
                 market_trades.append(trade)
 
-            request_timestamp = json_resp["result"]["last"]
+            last_timestamp = int(int(json_resp["result"]["last"]) / 1e9)
+
+            logging.info(
+                f"Downloaded historical data for {symbol} "
+                f"from {datetime.fromtimestamp(request_timestamp)} "
+                f"to {datetime.fromtimestamp(last_timestamp)}"
+            )
+
+            request_timestamp = last_timestamp
+
+            # Wait a while before making another API call to avoid errors
+            await asyncio.sleep(0.5)
 
         # Save in the cache to reduce calls to Kraken's API
         self.CACHE[key] = market_trades
