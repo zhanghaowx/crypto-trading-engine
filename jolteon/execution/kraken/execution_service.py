@@ -63,21 +63,29 @@ class ExecutionService(Heartbeater):
         # order details to be checked for errors, but the API response will
         # never include an order ID (which would always be returned for a
         # successful order without the validate parameter).
-        response = self._order_client.create_order(
-            ordertype=order.order_type.value.lower(),
-            side=order.side.value.lower(),
-            volume=order.quantity,
-            pair=order.symbol,
-            price=order.price,
-            userref=int(order.client_order_id),
-            validate=self._dry_run,
-        )
-        logging.info(f"Create order: {response}")
+        try:
+            response = self._order_client.create_order(
+                ordertype=order.order_type.value.lower(),
+                side=order.side.value.lower(),
+                volume=order.quantity,
+                pair=order.symbol,
+                price=order.price,
+                userref=int(order.client_order_id),
+                validate=self._dry_run,
+            )
+            logging.info(f"Create order: {response}")
 
-        if not self.__handle_possible_error(
-            response, self.ErrorCode.CREATE_ORDER_FAILURE
-        ):
-            self.remove_issue(self.ErrorCode.CREATE_ORDER_FAILURE)
+            if not self.__handle_possible_error(
+                response, self.ErrorCode.CREATE_ORDER_FAILURE
+            ):
+                self.remove_issue(self.ErrorCode.CREATE_ORDER_FAILURE)
+        except Exception as e:
+            logging.error(f"Fail to create order: {e}")
+
+            self.add_issue(
+                HeartbeatLevel.ERROR, self.ErrorCode.CREATE_ORDER_FAILURE.name
+            )
+            return
 
         # Record every order in history
         self.order_history[order.client_order_id] = order
