@@ -103,6 +103,8 @@ class ApplicationBase:
         except Exception as e:
             logging.error(f"Error: {e}", exc_info=True)
 
+        for symbol, position in self._position_manager.positions.items():
+            print(f"{symbol}: {position.volume}")
         return self._position_manager.pnl
 
     async def run_replay(self, start: datetime, end: datetime):
@@ -113,6 +115,9 @@ class ApplicationBase:
         await self._md.connect(  # type: ignore[attr-defined]
             self._symbol, start, min(datetime.now(tz=pytz.utc), end)
         )
+
+        for symbol, position in self._position_manager.positions.items():
+            print(f"{symbol}: {position.volume}")
         return self._position_manager.pnl
 
     def stop(self):
