@@ -6,7 +6,7 @@ from enum import Enum
 from typing import Any
 
 import pandas as pd
-from blinker import NamedSignal, Signal, signal
+from blinker import NamedSignal, Signal
 from pandas import json_normalize
 
 
@@ -24,13 +24,16 @@ class SignalConnector:
         # work even if the table schema changes
         REPLACE_AND_KEEP = 1
 
-    def __init__(self, database_name="/tmp/jolteon.sqlite"):
+    def __init__(
+        self, database_name="/tmp/jolteon.sqlite", auto_save_interval: int = 30
+    ):
         self._database_name = database_name
         self._events = dict[str, pd.DataFrame]()
-        self._signals = list[signal]()
+        self._signals = list[Signal]()
         self._receivers = list[object]()
-
-        asyncio.create_task(self._save_data_every(interval_in_seconds=30))
+        self._auto_save_task = asyncio.create_task(
+            self._save_data_every(interval_in_seconds=auto_save_interval)
+        )
         atexit.register(self.close)
 
     def __del__(self):
@@ -70,6 +73,7 @@ class SignalConnector:
         """
         self._save_data()
         self._clear_signals()
+        self._auto_save_task.cancel()
 
     async def _save_data_every(self, interval_in_seconds=30):
         while True:
@@ -87,7 +91,10 @@ class SignalConnector:
         """
         conn = sqlite3.connect(self._database_name)
         for name, df in self._events.items():
-            logging.info(f"Saving DataFrame {name} with shape {df.shape}...")
+            logging.info(
+                f"Saving DataFrame {name} with shape {df.shape} "
+                f"to {self._database_name}..."
+            )
             try:
                 if policy == self.WritePolicy.APPEND_AND_CLEAR:
                     df.to_sql(name=name, con=conn, if_exists="append")

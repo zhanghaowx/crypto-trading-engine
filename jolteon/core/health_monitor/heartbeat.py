@@ -92,7 +92,15 @@ class Heartbeater:
         ]
 
         if self._interval_in_seconds > 0:
-            asyncio.create_task(self._start_heartbeating())
+            self._heartbeating_task = asyncio.create_task(
+                self._start_heartbeating()
+            )
+        else:
+            self._heartbeating_task = None  # type: ignore[assignment]
+
+    def __del__(self):
+        if self._heartbeating_task:
+            self._heartbeating_task.cancel()
 
     def heartbeat_signal(self):
         """

@@ -38,7 +38,12 @@ class HeartbeatMonitor:
             str, HeartbeatMonitor.DecoratedHeartbeat
         ] = {}
         self._timeout_in_seconds: float = timeout_in_seconds
-        asyncio.create_task(self._detect_zombies_periodically())
+        self._heartbeat_monitor_task = asyncio.create_task(
+            self._detect_zombies_periodically()
+        )
+
+    def __del__(self):
+        self._heartbeat_monitor_task.cancel()
 
     def on_heartbeat(self, _: str, heartbeat: Heartbeat):
         """

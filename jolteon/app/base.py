@@ -116,6 +116,7 @@ class ApplicationBase:
         return self._position_manager.pnl
 
     def stop(self):
+        # Disconnect every blinker signal from its receivers
         self._signal_connector.close()
 
     def _connect_signals(self):
