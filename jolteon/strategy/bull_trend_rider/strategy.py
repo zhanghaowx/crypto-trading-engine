@@ -209,6 +209,10 @@ class BullFlagStrategy(Heartbeater):
             if round_trip.sell_order:
                 continue
 
+            # Skip if buy orders has not been confirmed yet
+            if not round_trip.buy_trades:
+                continue
+
             assert (
                 round_trip.buy_order
             ), "Buy order has to be placed before sending a sell order!"

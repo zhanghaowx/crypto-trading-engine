@@ -85,6 +85,7 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
 
         self.orders = list[Order]()
         self.opportunities = list[TradeOpportunity]()
+
         self.bull_flag_strategy = BullFlagStrategy(
             "ETH-USD",
             risk_limits=[MockRiskLimits(True)],
@@ -100,6 +101,10 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
             ),
             buy_order=self.create_mock_order(MarketSide.BUY),
         )
+        self.round_trip.buy_trades.append(
+            self.create_mock_trade(1.0, MarketSide.BUY)
+        )
+
         self.bull_flag_strategy.order_event.connect(self.on_order)
         self.bull_flag_strategy.opportunity_event.connect(self.on_opportunity)
 
@@ -198,16 +203,12 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(0, len(self.orders))
 
-        self.bull_flag_strategy._round_trips.append(
-            TradeRecord(
-                opportunity=TradeOpportunityCore(
-                    score=1.0,
-                    stop_loss_price=self.candlesticks[2].close + 0.01,
-                    profit_price=1,
-                ),
-                buy_order=self.create_mock_order(MarketSide.BUY),
-            )
+        self.round_trip.opportunity.stop_loss_price = (
+            self.candlesticks[2].close + 0.01
         )
+        self.round_trip.opportunity.profit_price = 1.0
+        self.bull_flag_strategy._round_trips.append(self.round_trip)
+
         self.assertEqual(1, len(self.bull_flag_strategy._round_trips))
         self.assertFalse(self.bull_flag_strategy._round_trips[0].completed())
 
@@ -242,18 +243,13 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
             )
         self.assertEqual(0, len(self.orders))
 
-        # noinspection PyTypeChecker
-        self.bull_flag_strategy._round_trips.append(
-            TradeRecord(
-                opportunity=TradeOpportunityCore(
-                    score=1.0,
-                    stop_loss_price=1,
-                    profit_price=self.candlesticks[2].close - 0.01,
-                ),
-                buy_order=self.create_mock_order(MarketSide.BUY),
-            )
+        self.round_trip.opportunity.stop_loss_price = 1.0
+        self.round_trip.opportunity.profit_price = (
+            self.candlesticks[2].close - 0.01
         )
+        self.bull_flag_strategy._round_trips.append(self.round_trip)
         self.assertEqual(1, len(self.bull_flag_strategy._round_trips))
+        self.assertFalse(self.bull_flag_strategy._round_trips[0].completed())
 
         # Act
         self.bull_flag_strategy.on_candlestick(
@@ -286,18 +282,11 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
             )
         self.assertEqual(0, len(self.orders))
 
-        # noinspection PyTypeChecker
-        self.bull_flag_strategy._round_trips.append(
-            TradeRecord(
-                opportunity=TradeOpportunityCore(
-                    score=1.0,
-                    stop_loss_price=-1000,
-                    profit_price=10000,
-                ),
-                buy_order=self.create_mock_order(MarketSide.BUY),
-            )
-        )
+        self.round_trip.opportunity.stop_loss_price = 10000
+        self.round_trip.opportunity.profit_price = 10000
+        self.bull_flag_strategy._round_trips.append(self.round_trip)
         self.assertEqual(1, len(self.bull_flag_strategy._round_trips))
+        self.assertFalse(self.bull_flag_strategy._round_trips[0].completed())
 
         # Act
         self.bull_flag_strategy.on_shooting_star_pattern(
@@ -335,6 +324,8 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
             risk_limits=[MockRiskLimits()],
             parameters=StrategyParameters(),
         )
+        self.round_trip.buy_trades.clear()
+        self.round_trip.sell_trades.clear()
         self.bull_flag_strategy._round_trips.append(self.round_trip)
 
         # Buys
