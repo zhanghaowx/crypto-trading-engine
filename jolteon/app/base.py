@@ -76,9 +76,6 @@ class ApplicationBase:
         self._exec_service: object = None
         self._md: object = None
 
-    def __del__(self):
-        self.stop()
-
     def use_execution_service(self, ExecutionServiceClass: Type):
         print(f"Using {ExecutionServiceClass.__name__}")
         self._exec_service = ExecutionServiceClass()
@@ -105,6 +102,8 @@ class ApplicationBase:
 
         for symbol, position in self._position_manager.positions.items():
             print(f"{symbol}: {position.volume}")
+
+        self.stop()
         return self._position_manager.pnl
 
     async def run_replay(self, start: datetime, end: datetime):
@@ -118,6 +117,8 @@ class ApplicationBase:
 
         for symbol, position in self._position_manager.positions.items():
             print(f"{symbol}: {position.volume}")
+
+        self.stop()
         return self._position_manager.pnl
 
     def stop(self):

@@ -36,9 +36,6 @@ class SignalConnector:
         )
         atexit.register(self.close)
 
-    def __del__(self):
-        self.close()
-
     def connect(self, sender: Signal, receiver=None):
         """
         Connects a signal sender to receiver, as well as making a copy of each

@@ -68,7 +68,6 @@ async def train():
                         bull_flag_params=bull_flag_params,
                     )
                     pnl = await app.run_replay(replay_start, replay_end)
-                    app.stop()
 
                     result = {
                         **vars(strategy_params),
