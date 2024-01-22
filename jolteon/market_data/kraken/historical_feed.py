@@ -52,11 +52,23 @@ class HistoricalFeed(Heartbeater):
             A asyncio task to be waiting for incoming messages
         """
         market_trades = self._get_market_trades(symbol, start_time, end_time)
+        # Filter out unnecessary market trades
+        market_trades = [
+            trade
+            for trade in market_trades
+            if start_time <= trade.transaction_time <= end_time
+        ]
+        # Sort all market trades by timestamp
         market_trades.sort(key=lambda x: x.transaction_time)
 
         logging.info(
             f"Replaying {len(market_trades)} market trades "
             f"from {start_time} to {end_time}"
+        )
+
+        assert (
+            len(market_trades)
+            == market_trades[-1].trade_id - market_trades[0].trade_id + 1
         )
 
         for market_trade in market_trades:
