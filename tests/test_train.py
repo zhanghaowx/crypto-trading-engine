@@ -6,8 +6,10 @@ from unittest.mock import patch, AsyncMock
 
 class TestCryptoTradingEngineTraining(unittest.IsolatedAsyncioTestCase):
     @patch("jolteon.train.Application")
+    @patch("asyncio.sleep", return_value=None)
     async def test_main_training_mode_with_best_parameters_found(
         self,
+        mock_sleep,
         MockApplication,
     ):
         mock_app = MockApplication.return_value

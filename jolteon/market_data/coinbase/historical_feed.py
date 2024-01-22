@@ -10,6 +10,7 @@ from jolteon.core.health_monitor.heartbeat import Heartbeater
 from jolteon.core.id_generator import id_generator
 from jolteon.core.side import MarketSide
 from jolteon.core.time.time_manager import time_manager
+from jolteon.core.time.time_range import TimeRange
 from jolteon.market_data.core.candlestick_generator import CandlestickGenerator
 from jolteon.market_data.core.events import Events
 from jolteon.market_data.core.trade import Trade
@@ -68,30 +69,17 @@ class HistoricalFeed(Heartbeater):
             A asyncio task to be waiting for incoming messages
         """
 
-        def _generate_time_ranges(interval_minutes: int = 1):
-            """
-            Coinbase REST API has some limitations on how much you could
-            request for each request.
-            """
-            result_time_ranges = []
-
-            current_time = start_time
-            while (end_time - current_time).total_seconds() > 1:
-                next_time = current_time + timedelta(minutes=interval_minutes)
-                result_time_ranges.append((current_time, next_time))
-                current_time = next_time
-
-            return result_time_ranges
-
         interval_minutes = min((end_time - start_time).total_seconds() / 60, 3)
         max_number_of_trades_limit = 1000
-        for period_start, period_end in _generate_time_ranges(
-            interval_minutes=int(interval_minutes)
+
+        time_range = TimeRange(start_time, end_time)
+        for period in time_range.generate_time_ranges(
+            interval_in_minutes=int(interval_minutes)
         ):
             market_trades = self._get_market_trades(
                 symbol,
-                period_start,
-                period_end,
+                period.start,
+                period.end,
                 limit=max_number_of_trades_limit,
             )
             market_trades.sort(key=lambda x: x.transaction_time)
@@ -99,7 +87,7 @@ class HistoricalFeed(Heartbeater):
             if len(market_trades) == max_number_of_trades_limit:
                 logging.warning(
                     f"Max number of trades({len(market_trades)}) "
-                    f"returned for {period_start} - {period_end}, "
+                    f"returned for {period.start} - {period.end}, "
                     f"consider using a time range smaller than "
                     f"{interval_minutes} minutes when downloading "
                     f"historical market trades"

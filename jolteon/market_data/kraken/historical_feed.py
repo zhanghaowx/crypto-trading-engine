@@ -8,6 +8,7 @@ import requests
 from jolteon.core.health_monitor.heartbeat import Heartbeater
 from jolteon.core.side import MarketSide
 from jolteon.core.time.time_manager import time_manager
+from jolteon.core.time.time_range import TimeRange
 from jolteon.market_data.core.candlestick_generator import CandlestickGenerator
 from jolteon.market_data.core.events import Events
 from jolteon.market_data.core.trade import Trade
@@ -39,7 +40,11 @@ class HistoricalFeed(Heartbeater):
         time_manager().claim_admin(self)
 
     async def connect(
-        self, symbol: str, start_time: datetime, end_time: datetime
+        self,
+        symbol: str,
+        start_time: datetime,
+        end_time: datetime,
+        interval_minutes=24 * 60,
     ):
         """
         Download the historical market data feed for the given symbol and
@@ -48,50 +53,59 @@ class HistoricalFeed(Heartbeater):
             symbol: Symbol of the product to download historical market data
             start_time: Start time of the historical market data feed.
             end_time: End time of the historical market data feed.
+            interval_minutes: Split time in smaller time ranges to make
+                              several API calls. This will help reduce chances
+                              of hitting API limit.
         Returns:
             A asyncio task to be waiting for incoming messages
         """
-        market_trades = self._get_market_trades(symbol, start_time, end_time)
-        # Filter out unnecessary market trades
-        market_trades = [
-            trade
-            for trade in market_trades
-            if start_time <= trade.transaction_time <= end_time
-        ]
-        # Sort all market trades by timestamp
-        market_trades.sort(key=lambda x: x.transaction_time)
-
-        logging.info(
-            f"Replaying {len(market_trades)} market trades "
-            f"from {start_time} to {end_time}"
-        )
-
-        assert (
-            len(market_trades)
-            == market_trades[-1].trade_id - market_trades[0].trade_id + 1
-        )
-
-        for market_trade in market_trades:
-            time_manager().use_fake_time(
-                market_trade.transaction_time, admin=self
+        time_range = TimeRange(start_time, end_time)
+        for period in time_range.generate_time_ranges(
+            interval_in_minutes=int(interval_minutes)
+        ):
+            market_trades = self._get_market_trades(
+                symbol, period.start, period.end
             )
-            self.events.matches.send(
-                self.events.matches, market_trade=market_trade
-            )
-            logging.debug(f"Received Market Trade: {market_trade}")
+            # Filter out unnecessary market trades
+            market_trades = [
+                trade
+                for trade in market_trades
+                if period.start <= trade.transaction_time <= period.end
+            ]
+            # Sort all market trades by timestamp
+            market_trades.sort(key=lambda x: x.transaction_time)
 
-            # Calculate our own candlesticks using market trades
-            candlesticks = self._candlestick_generator.on_market_trade(
-                market_trade
+            logging.info(
+                f"Replaying {len(market_trades)} market trades "
+                f"from {period.start} to {period.end}"
             )
-            for candlestick in candlesticks:
-                self.events.candlestick.send(
-                    self.events.candlestick,
-                    candlestick=candlestick,
+
+            assert (
+                len(market_trades)
+                == market_trades[-1].trade_id - market_trades[0].trade_id + 1
+            )
+
+            for market_trade in market_trades:
+                time_manager().use_fake_time(
+                    market_trade.transaction_time, admin=self
                 )
+                self.events.matches.send(
+                    self.events.matches, market_trade=market_trade
+                )
+                logging.debug(f"Received Market Trade: {market_trade}")
 
-            # Add some delays between trades to
-            await asyncio.sleep(0.01)
+                # Calculate our own candlesticks using market trades
+                candlesticks = self._candlestick_generator.on_market_trade(
+                    market_trade
+                )
+                for candlestick in candlesticks:
+                    self.events.candlestick.send(
+                        self.events.candlestick,
+                        candlestick=candlestick,
+                    )
+
+                # Add some delays between trades to
+                await asyncio.sleep(0.01)
 
     # noinspection PyArgumentList
     def _get_market_trades(

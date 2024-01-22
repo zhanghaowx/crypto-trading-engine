@@ -2,7 +2,6 @@
 CLI interface for jolteon project.
 """
 import asyncio
-import gc
 import logging
 import signal
 import sqlite3
@@ -89,7 +88,7 @@ async def train():
 
                     # Force garbage collection to destroy old Application
                     # instance
-                    gc.collect()
+                    # gc.collect()
                     # End of one run
 
     # Save result into a database
