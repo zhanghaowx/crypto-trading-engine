@@ -20,7 +20,9 @@ from jolteon.strategy.core.patterns.bull_flag.recognizer import (
 
 class TestRecognizer(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        self.params = BullFlagParameters(verbose=True)
+        self.params = BullFlagParameters(
+            verbose=True, max_number_of_pre_bull_flag_candlesticks=1
+        )
         self.start_time = datetime(2024, 1, 1, 0, 0, 0, tzinfo=pytz.utc)
         self.candlesticks = [
             Candlestick(
@@ -65,6 +67,33 @@ class TestRecognizer(unittest.IsolatedAsyncioTestCase):
         self.patterns.append(pattern)
 
     def test_bull_flag(self):
+        self.pattern_recognizer.on_candlesticks("_", self.candlesticks[0:3])
+        self.assertEqual(1, len(self.patterns))
+        self.assertEqual(RecognitionResult.BULL_FLAG, self.patterns[0].result)
+
+    def test_bull_flag_with_2_pre_candlesticks_fail(self):
+        self.pattern_recognizer._params = BullFlagParameters(
+            verbose=True, max_number_of_pre_bull_flag_candlesticks=2
+        )
+        self.pattern_recognizer.on_candlesticks("_", self.candlesticks[0:3])
+        self.assertEqual(0, len(self.patterns))
+
+    def test_bull_flag_with_2_pre_candlesticks_success(self):
+        self.pattern_recognizer._params = BullFlagParameters(
+            verbose=True, max_number_of_pre_bull_flag_candlesticks=2
+        )
+
+        self.pattern_recognizer.on_candlestick(
+            "_",
+            Candlestick(
+                self.start_time - timedelta(minutes=1),
+                duration_in_seconds=60,
+                open=100,
+                high=120,
+                close=110,
+                low=90,
+            ),
+        )
         self.pattern_recognizer.on_candlesticks("_", self.candlesticks[0:3])
         self.assertEqual(1, len(self.patterns))
         self.assertEqual(RecognitionResult.BULL_FLAG, self.patterns[0].result)

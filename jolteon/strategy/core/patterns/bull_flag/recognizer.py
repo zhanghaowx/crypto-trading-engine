@@ -67,25 +67,44 @@ class BullFlagRecognizer(Heartbeater):
         assert len(candlesticks) > 0
 
         # Check if number of candlesticks is less than the shortest bull flag
-        # pattern length
-        shortest_bull_flag_pattern_length = 3
+        # pattern length.
+        # The shortest bull flag pattern at least has:
+        # 1. A list of pre Bull-Flag candlesticks
+        # 2. The Bull-Flag candlestick
+        # 3. A list of post Bull-Flag consolidation candlesticks
+        shortest_bull_flag_pattern_length = (
+            self._params.max_number_of_pre_bull_flag_candlesticks + 2
+        )
+
         if len(candlesticks) < shortest_bull_flag_pattern_length:
             return None
 
         # Divide the candlesticks into 3 periods
-        previous_candlestick = candlesticks[0]
-        bull_flag_candlestick = candlesticks[1]
+        previous_candlesticks = candlesticks[
+            : self._params.max_number_of_pre_bull_flag_candlesticks
+        ]
+        bull_flag_candlestick = candlesticks[
+            self._params.max_number_of_pre_bull_flag_candlesticks
+        ]
+        consolidation_candlesticks = candlesticks[
+            self._params.max_number_of_pre_bull_flag_candlesticks + 1 :  # noqa
+        ]
 
         pattern = BullFlagPattern(
             bull_flag_candlestick=bull_flag_candlestick,
-            consolidation_period_candlesticks=candlesticks[2:],
+            consolidation_period_candlesticks=consolidation_candlesticks,
         )
 
         # Check if the first candlestick is extremely bullish
-        starts_extremely_bullish = self._is_extremely_bullish(
-            current=bull_flag_candlestick,
-            previous=previous_candlestick,
-        )
+        starts_extremely_bullish = True
+        for previous_candlestick in previous_candlesticks:
+            if not self._is_extremely_bullish(
+                current=bull_flag_candlestick,
+                previous=previous_candlestick,
+            ):
+                starts_extremely_bullish = False
+                break
+
         if not starts_extremely_bullish:
             pattern.result = RecognitionResult.NO_EXTREME_BULLISH
             return pattern
