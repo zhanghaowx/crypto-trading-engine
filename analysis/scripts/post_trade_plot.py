@@ -11,10 +11,19 @@ class PostTradePlot:
         assert database_name, "Require a valid database name"
         self._conn = sqlite3.connect(database_name)
 
-    def get_profit(self):
+    def get_summary(self):
         df = self.load_opportunities()
+        # Tables
+        n_bull_flag = len(self.load_bull_flag_pattern())
+        n_shooting_star = len(self.load_shooting_star_pattern())
+
         if len(df) == 0:
-            return {"Win Rate": "0%", "PnL": "0"}
+            return {
+                "Number of Bull Flag": n_bull_flag,
+                "Number of Shooting Star": n_shooting_star,
+                "Win Rate": "0%",
+                "PnL": "0",
+            }
         # Assume 1 trade per order
         if (
             "sell_trades.0.price" not in df.columns
@@ -22,15 +31,27 @@ class PostTradePlot:
             or "buy_trades.0.price" not in df.columns
             or "buy_trades.0.quantity" not in df.columns
         ):
-            return {"Win Rate": "???%", "PnL": "???"}
+            return {
+                "Number of Bull Flag": n_bull_flag,
+                "Number of Shooting Star": n_shooting_star,
+                "Win Rate": "???%",
+                "PnL": "???",
+            }
 
+        # Profit/Win Rate
         df["profit"] = (
             df["sell_trades.0.price"] * df["sell_trades.0.quantity"]
             - df["buy_trades.0.price"] * df["buy_trades.0.quantity"]
         )
         win_rate = len(df[df["profit"] > 0]) / len(df) * 100
         pnl = sum(df["profit"])
-        return {"Number of Opportunities": len(df), "Win Rate": f"{win_rate}%", "PnL": pnl}
+        return {
+            "Number of Bull Flag": n_bull_flag,
+            "Number of Shooting Star": n_shooting_star,
+            "Number of Opportunities": len(df),
+            "Win Rate": f"{win_rate}%",
+            "PnL": pnl,
+        }
 
     def get_volume(self):
         df = self.load_candlesticks("calculated_candlestick_feed")
@@ -48,6 +69,9 @@ class PostTradePlot:
             df["start_time"], format="%Y-%m-%d %H:%M:%S%z"
         )
         df["end_time"] = pd.to_datetime(df["end_time"], format="%Y-%m-%d %H:%M:%S%z")
+
+        # Add Return Pct column
+        df["return_pct"] = (df["close"] - df["open"]) / df["open"]
 
         # Add VWAP column
         typical_price = (df["low"] + df["close"] + df["high"]) / 3.0
@@ -112,7 +136,6 @@ class PostTradePlot:
             return pd.DataFrame()
 
         df = pd.read_sql(f"select * from {table_name}", con=self._conn)
-        df = df[df["result"] == "BULL_FLAG"]
         return df
 
     def load_shooting_star_pattern(self, table_name="shooting_star") -> pd.DataFrame:
@@ -219,27 +242,33 @@ class PostTradePlot:
 
     def draw_bull_flag_pattern(self) -> [go.Scatter]:
         df = self.load_bull_flag_pattern()
+        df = df[df["result"] == "BULL_FLAG"]
+
         if len(df) == 0:
             return []
-        return [go.Scatter(
-            x=df["bull_flag.start_time"],
-            y=(df["bull_flag.open"] + df["bull_flag.close"]) / 2.0,
-            mode="markers",
-            marker=dict(color="orange", size=5, symbol="x-thin-open"),
-            name="Bull Flag",
-        )]
+        return [
+            go.Scatter(
+                x=df["bull_flag.start_time"],
+                y=(df["bull_flag.open"] + df["bull_flag.close"]) / 2.0,
+                mode="markers",
+                marker=dict(color="orange", size=5, symbol="x-thin-open"),
+                name="Bull Flag",
+            )
+        ]
 
     def draw_shooting_star_pattern(self) -> [go.Scatter]:
         df = self.load_shooting_star_pattern()
         if len(df) == 0:
             return []
-        return [go.Scatter(
-            x=df["shooting_star.start_time"],
-            y=(df["shooting_star.open"] + df["shooting_star.close"]) / 2.0,
-            mode="markers",
-            marker=dict(color="gold", size=5, symbol="asterisk-open"),
-            name="Shooting Star",
-        )]
+        return [
+            go.Scatter(
+                x=df["shooting_star.start_time"],
+                y=(df["shooting_star.open"] + df["shooting_star.close"]) / 2.0,
+                mode="markers",
+                marker=dict(color="gold", size=5, symbol="asterisk-open"),
+                name="Shooting Star",
+            )
+        ]
 
     def draw_vwap(self):
         df = self.load_market_trades()
@@ -258,10 +287,7 @@ class PostTradePlot:
         layout = go.Layout(
             title="Candlesticks and Trades",
             xaxis=dict(title="Date (UTC)"),
-            yaxis=dict(
-                title="Price (Dollars)",
-                fixedrange=False
-            ),
+            yaxis=dict(title="Price (Dollars)", fixedrange=False),
             yaxis2=dict(
                 title="Volume",
                 overlaying="y",
