@@ -1,6 +1,8 @@
 import uuid
+from datetime import datetime
 from random import randint
 
+import pytz
 import requests
 from blinker import signal
 
@@ -46,7 +48,7 @@ class MockExecutionService(Heartbeater):
 
         # Get a random market trader near the fake time and do a match
         # close to the market in history
-        price = self._get_closest_market_trade_price(order.symbol)
+        price = self._get_closest_market_trade_price(order)
         self._generate_order_fill(
             order=order,
             filled_price=price,
@@ -54,28 +56,38 @@ class MockExecutionService(Heartbeater):
 
     # noinspection PyArgumentList
     @staticmethod
-    def _get_closest_market_trade_price(symbol) -> float:
-        now = time_manager().now()
-
+    def _get_closest_market_trade_price(order: Order) -> float:
         # First search in the cache
         for trades in HistoricalFeed.CACHE.values():
             for trade in trades:
-                if abs(trade.transaction_time - now).total_seconds() < 15:
+                time_difference = (
+                    trade.transaction_time - order.creation_time
+                ).total_seconds()
+                if 0 < time_difference < 15:
                     return trade.price
 
         # Second search using Kraken's API
         response = requests.get(
             f"https://api.kraken.com/0/public/Trades?"
-            f"pair={symbol}&"
-            f"since={int(now.timestamp())}&"
-            f"limit=1"
+            f"pair={order.symbol}&"
+            f"since={int(order.creation_time.timestamp())}&"
+            f"limit=10"
         )
         assert response.status_code == 200, response
 
         json_resp = response.json()
         assert json_resp["error"] == [], json_resp
         assert json_resp["result"] is not None, json_resp
-        return float(json_resp["result"][symbol][0][0])
+
+        json_trades = json_resp["result"][order.symbol]
+        for json_trade in json_trades:
+            transaction_time = datetime.fromtimestamp(
+                json_trade[2], tz=pytz.utc
+            )
+            if transaction_time > order.creation_time:
+                return float(json_trade[0])
+
+        return 0.0
 
     def _generate_order_fill(
         self,
