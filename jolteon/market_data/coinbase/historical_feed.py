@@ -170,7 +170,8 @@ class HistoricalFeed(Heartbeater):
                 market_trades.append(trade)
             except Exception as e:
                 logging.error(
-                    f"Could not parse market trade '{trade_json}': {e}"
+                    f"Could not parse market trade '{trade_json}': {e}",
+                    exc_info=True,
                 )
                 continue  # Try next trade in the JSON response
 

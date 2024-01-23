@@ -112,7 +112,8 @@ class SignalConnector:
         if len(kwargs.values()) != 1:
             logging.error(
                 f"Fail to persist signal {name}: "
-                f"{len(kwargs.values())} payloads found, expecting one!"
+                f"{len(kwargs.values())} payloads found, expecting one!",
+                exc_info=True,
             )
             return
 
@@ -122,7 +123,8 @@ class SignalConnector:
             ):
                 logging.error(
                     f"Fail to persist signal {name}: "
-                    f"Cannot convert {type(payload)} to dict!"
+                    f"Cannot convert {type(payload)} to dict!",
+                    exc_info=True,
                 )
                 return
 

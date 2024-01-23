@@ -80,7 +80,7 @@ class ExecutionService(Heartbeater):
             ):
                 self.remove_issue(self.ErrorCode.CREATE_ORDER_FAILURE)
         except Exception as e:
-            logging.error(f"Fail to create order: {e}")
+            logging.error(f"Fail to create order: {e}", exc_info=True)
 
             self.add_issue(
                 HeartbeatLevel.ERROR, self.ErrorCode.CREATE_ORDER_FAILURE.name
@@ -146,7 +146,9 @@ class ExecutionService(Heartbeater):
     def __handle_possible_error(self, response: dict, error_code: ErrorCode):
         possible_error = response.get("error")
         if possible_error:
-            logging.error(f"REST API returned error: {response}")
+            logging.error(
+                f"REST API returned error: {response}", exc_info=True
+            )
             self.add_issue(HeartbeatLevel.ERROR, error_code.name)
             return True
         return False

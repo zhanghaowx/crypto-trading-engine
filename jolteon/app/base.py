@@ -46,7 +46,7 @@ class ApplicationBase:
             filename=logfile_name,
             filemode="w",
             format="[%(asctime)s][%(name)s][%(levelname)s] - %(message)s",
-            level=logging.INFO,
+            level=logging.DEBUG,
         )
         self._signal_connector = SignalConnector(
             database_name=database_name,

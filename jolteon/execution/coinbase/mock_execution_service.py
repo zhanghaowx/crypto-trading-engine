@@ -178,10 +178,14 @@ class MockExecutionService(Heartbeater):
             try:
                 return float(trade_json["price"])
             except ValueError as e:
-                logging.error(f"Could not parse trade '{trade_json}': {e}")
+                logging.error(
+                    f"Could not parse trade '{trade_json}': {e}", exc_info=True
+                )
                 continue  # Try next trade in the JSON response
 
-        logging.error(f"No valid trades found for '{symbol}' at {now}")
+        logging.error(
+            f"No valid trades found for '{symbol}' at {now}", exc_info=True
+        )
         return np.nan
 
     def _generate_order_fill(

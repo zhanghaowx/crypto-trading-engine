@@ -55,7 +55,10 @@ class PublicFeed(Heartbeater):
         while not self._exception_occurred:
             await asyncio.sleep(10)
 
-        logging.error("Encountered exception: shutting down market data feed!")
+        logging.error(
+            "Encountered exception: shutting down market data feed!",
+            exc_info=True,
+        )
 
     async def on_message(self, message):
         try:
