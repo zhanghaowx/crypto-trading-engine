@@ -154,6 +154,7 @@ class PublicFeed(Heartbeater):
                     else:
                         pass  # Ignore unsupported message types
 
-                except websockets.exceptions.ConnectionClosedError:
+                except websockets.exceptions.ConnectionClosedError as e:
                     self.add_issue(HeartbeatLevel.ERROR, "Connection Lost")
+                    logging.error(f"Connection Closed: {e}", exc_info=True)
                     break

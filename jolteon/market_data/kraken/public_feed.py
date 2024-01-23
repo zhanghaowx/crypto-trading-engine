@@ -68,15 +68,15 @@ class PublicFeed(Heartbeater):
                             exc_info=True,
                         )
                         self.add_issue(HeartbeatLevel.ERROR, f"{e}")
-                except websockets.exceptions.ConnectionClosedError:
+                except websockets.exceptions.ConnectionClosedError as e:
                     self.add_issue(HeartbeatLevel.ERROR, "Connection Lost")
+                    logging.error(f"Connection Closed: {e}", exc_info=True)
                     break
                 except StopAsyncIteration:
                     break
 
-        logging.error(
-            "Encountered exception: shutting down market data feed!",
-            exc_info=True,
+        logging.warning(
+            "Encountered exception: shutting down market data feed!"
         )
 
     def _decode_message(self, response):
