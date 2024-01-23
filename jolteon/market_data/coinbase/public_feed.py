@@ -65,6 +65,8 @@ class PublicFeed(Heartbeater):
                 f"Public feed connect task exception: {e}", exc_info=True
             )
 
+        loop.close()
+
     async def async_connect(self, product_id: str):
         """
         Establish a connection to the remote service and subscribe to the

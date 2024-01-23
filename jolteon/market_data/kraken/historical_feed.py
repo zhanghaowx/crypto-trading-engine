@@ -61,6 +61,8 @@ class HistoricalFeed(Heartbeater):
                 f"Public feed connect task exception: {e}", exc_info=True
             )
 
+        loop.close()
+
     async def async_connect(
         self,
         symbol: str,

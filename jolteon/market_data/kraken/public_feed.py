@@ -1,11 +1,13 @@
 import asyncio
+import json
 import logging
 from datetime import datetime
 from enum import Enum
 
-from kraken.spot import KrakenSpotWSClientV2
+import websockets
 
 from jolteon.core.health_monitor.heartbeat import Heartbeater, HeartbeatLevel
+from jolteon.core.id_generator import id_generator
 from jolteon.core.side import MarketSide
 from jolteon.market_data.core.candlestick_generator import CandlestickGenerator
 from jolteon.market_data.core.events import Events
@@ -13,14 +15,19 @@ from jolteon.market_data.core.trade import Trade
 
 
 class PublicFeed(Heartbeater):
+    """
+    Download Kraken's public market data using Websockets. This class
+    implements the v2 version of Kraken's websocket API.
+    """
+
+    PRODUCTION_URI = "wss://ws.kraken.com/v2"
+
     def __init__(self, candlestick_interval_in_seconds: int = 60):
         super().__init__(type(self).__name__, interval_in_seconds=10)
         self.events = Events()
         self._candlestick_generator = CandlestickGenerator(
             interval_in_seconds=candlestick_interval_in_seconds
         )
-        self._client = KrakenSpotWSClientV2(callback=self.on_message)
-        self._exception_occurred = False
 
     def connect(self, symbol: str):
         # Create a new event loop for the thread
@@ -37,6 +44,8 @@ class PublicFeed(Heartbeater):
                 f"Public feed connect task exception: {e}", exc_info=True
             )
 
+        loop.close()
+
     async def async_connect(self, symbol: str):
         """Establish a connection to the remote service and subscribe to the
         public market data feed.
@@ -45,33 +54,49 @@ class PublicFeed(Heartbeater):
             An asyncio task to be waiting for incoming messages
         """
 
-        # Trade channel pushes trades in real-time. Multiple trades may be
-        # batched in a single message but that does not necessarily mean that
-        # every trade in a single message resulted from a single taker order.
-        await self._client.subscribe(
-            params={"channel": "trade", "symbol": [symbol]}
-        )
+        async with websockets.connect(PublicFeed.PRODUCTION_URI) as websocket:
+            # Trade channel pushes trades in real-time. Multiple trades may be
+            # batched in a single message but that does not necessarily mean
+            # that every trade in a single message resulted from a single taker
+            # order.
+            subscribe_message = {
+                "method": "subscribe",
+                "params": {
+                    "channel": "trade",
+                    "snapshot": True,
+                    "symbol": [symbol],
+                },
+                "req_id": id_generator().next(),
+            }
 
-        while not self._exception_occurred:
-            await asyncio.sleep(10)
+            # Send the subscribe message as a JSON string
+            await websocket.send(json.dumps(subscribe_message))
+
+            while True:
+                try:
+                    # Receive and process messages from WebSocket
+                    data = await websocket.recv()
+                    response = json.loads(data)
+
+                    try:
+                        self._decode_message(response)
+                    except Exception as e:
+                        logging.error(
+                            f"Error '{e}' when decoding message '{response}'",
+                            exc_info=True,
+                        )
+                        self.add_issue(HeartbeatLevel.ERROR, f"{e}")
+                except websockets.exceptions.ConnectionClosedError:
+                    self.add_issue(HeartbeatLevel.ERROR, "Connection Lost")
+                    break
 
         logging.error(
             "Encountered exception: shutting down market data feed!",
             exc_info=True,
         )
 
-    async def on_message(self, message):
-        try:
-            self._decode_message(message)
-        except Exception as e:
-            logging.error(
-                f"Error '{e}' when decoding message '{message}'", exc_info=True
-            )
-            self.add_issue(HeartbeatLevel.ERROR, f"{e}")
-            self._exception_occurred = True
-
     def _decode_message(self, response):
-        class Error(Enum):
+        class ErrorCode(Enum):
             CONNECTION_LOST = "Connection Lost"
 
         possible_error = response.get("error")
@@ -79,15 +104,16 @@ class PublicFeed(Heartbeater):
             logging.error(
                 f"Encountered error: {possible_error}", exc_info=True
             )
-            self.add_issue(HeartbeatLevel.ERROR, Error.CONNECTION_LOST.value)
+            self.add_issue(
+                HeartbeatLevel.ERROR, ErrorCode.CONNECTION_LOST.value
+            )
             return
 
         possible_method = response.get("method")
         if possible_method == "pong":
-            logging.error(f"Pong message: {response}")
             return
         elif possible_method == "subscribe":
-            self.remove_issue(Error.CONNECTION_LOST.value)
+            self.remove_issue(ErrorCode.CONNECTION_LOST.value)
             return
 
         message_type = response.get("channel")
@@ -163,6 +189,7 @@ class PublicFeed(Heartbeater):
                     market_trade
                 )
                 for candlestick in candlesticks:
+                    print(candlestick)
                     self.events.candlestick.send(
                         self.events.candlestick,
                         candlestick=candlestick,

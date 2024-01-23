@@ -68,7 +68,8 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
     }
     """
 
-    def start_md_thread(self, symbol: str, env: CoinbaseEnvironment, *args):
+    @staticmethod
+    def start_md_thread(symbol: str, env: CoinbaseEnvironment, *args):
         md = PublicFeed(env)
         md.events = MagicMock()
         md_thread = threading.Thread(
@@ -79,19 +80,25 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
         md_thread.join()
         return md
 
-    @patch("websockets.connect")
-    async def test_connect_to_production_feed(self, mock_connect):
+    @staticmethod
+    async def create_mock_websocket(
+        mock_connect: object, feeds: list[object]
+    ) -> AsyncMock:
         # Create a mock websocket object
         mock_websocket = AsyncMock()
-        mock_websocket.__aenter__.return_value.recv.side_effect = [
+        mock_websocket.__aenter__.return_value.recv.side_effect = feeds + [
             TestPublicFeed.error
         ]
 
-        # Set up the mock context manager
         async def async_context_manager(*args, **kwargs):
             return mock_websocket
 
         mock_connect.return_value = await async_context_manager()
+        return mock_websocket
+
+    @patch("websockets.connect")
+    async def test_connect_to_production_feed(self, mock_connect):
+        await self.create_mock_websocket(mock_connect, [])
 
         self.start_md_thread("ETH-USD", CoinbaseEnvironment.PRODUCTION)
 
@@ -102,17 +109,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
 
     @patch("websockets.connect")
     async def test_connect_to_sandbox_feed(self, mock_connect):
-        # Create a mock websocket object
-        mock_websocket = AsyncMock()
-        mock_websocket.__aenter__.return_value.recv.side_effect = [
-            TestPublicFeed.error
-        ]
-
-        # Set up the mock context manager
-        async def async_context_manager(*args, **kwargs):
-            return mock_websocket
-
-        mock_connect.return_value = await async_context_manager()
+        await self.create_mock_websocket(mock_connect, [])
 
         self.start_md_thread("ETH-USD", CoinbaseEnvironment.SANDBOX)
 
@@ -123,18 +120,9 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
 
     @patch("websockets.connect")
     async def test_heartbeat_feed(self, mock_connect):
-        # Create a mock websocket object
-        mock_websocket = AsyncMock()
-        mock_websocket.__aenter__.return_value.recv.side_effect = [
-            TestPublicFeed.heartbeat_feed,
-            TestPublicFeed.error,
-        ]
-
-        # Set up the mock context manager
-        async def async_context_manager(*args, **kwargs):
-            return mock_websocket
-
-        mock_connect.return_value = await async_context_manager()
+        mock_websocket = await self.create_mock_websocket(
+            mock_connect, [TestPublicFeed.heartbeat_feed]
+        )
 
         feed = self.start_md_thread("ETH-USD", CoinbaseEnvironment.SANDBOX)
 
@@ -146,18 +134,9 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
 
     @patch("websockets.connect")
     async def test_subscriptions_feed(self, mock_connect):
-        # Create a mock websocket object
-        mock_websocket = AsyncMock()
-        mock_websocket.__aenter__.return_value.recv.side_effect = [
-            TestPublicFeed.subscriptions_feed,
-            TestPublicFeed.error,
-        ]
-
-        # Set up the mock context manager
-        async def async_context_manager(*args, **kwargs):
-            return mock_websocket
-
-        mock_connect.return_value = await async_context_manager()
+        mock_websocket = await self.create_mock_websocket(
+            mock_connect, [TestPublicFeed.subscriptions_feed]
+        )
 
         self.start_md_thread("ETH-USD", CoinbaseEnvironment.SANDBOX)
 
@@ -168,18 +147,9 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
 
     @patch("websockets.connect")
     async def test_ticker_feed(self, mock_connect):
-        # Create a mock websocket object
-        mock_websocket = AsyncMock()
-        mock_websocket.__aenter__.return_value.recv.side_effect = [
-            TestPublicFeed.ticker_feed,
-            TestPublicFeed.error,
-        ]
-
-        # Set up the mock context manager
-        async def async_context_manager(*args, **kwargs):
-            return mock_websocket
-
-        mock_connect.return_value = await async_context_manager()
+        mock_websocket = await self.create_mock_websocket(
+            mock_connect, [TestPublicFeed.ticker_feed]
+        )
 
         feed = self.start_md_thread("ETH-USD", CoinbaseEnvironment.SANDBOX)
 
@@ -191,18 +161,9 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
 
     @patch("websockets.connect")
     async def test_match_feed(self, mock_connect):
-        # Create a mock websocket object
-        mock_websocket = AsyncMock()
-        mock_websocket.__aenter__.return_value.recv.side_effect = [
-            TestPublicFeed.match_feed,
-            TestPublicFeed.error,
-        ]
-
-        # Set up the mock context manager
-        async def async_context_manager(*args, **kwargs):
-            return mock_websocket
-
-        mock_connect.return_value = await async_context_manager()
+        mock_websocket = await self.create_mock_websocket(
+            mock_connect, [TestPublicFeed.match_feed]
+        )
 
         feed = self.start_md_thread("ETH-USD", CoinbaseEnvironment.SANDBOX)
 
@@ -214,20 +175,11 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
 
     @patch("websockets.connect")
     async def test_unknown_feed(self, mock_connect):
-        # Create a mock websocket object
-        mock_websocket = AsyncMock()
-        mock_websocket.__aenter__.return_value.recv.side_effect = [
-            TestPublicFeed.unknown_feed,
-            TestPublicFeed.error,
-        ]
+        mock_websocket = await self.create_mock_websocket(
+            mock_connect, [TestPublicFeed.unknown_feed]
+        )
 
-        # Set up the mock context manager
-        async def async_context_manager(*args, **kwargs):
-            return mock_websocket
-
-        mock_connect.return_value = await async_context_manager()
-
-        feed = self.start_md_thread("ETH-USD", CoinbaseEnvironment.SANDBOX)
+        self.start_md_thread("ETH-USD", CoinbaseEnvironment.SANDBOX)
 
         # Assertions
         self.assertEqual(
@@ -236,19 +188,16 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
 
     @patch("websockets.connect")
     async def test_exception(self, mock_connect):
-        # Create a mock websocket object
-        mock_websocket = AsyncMock()
-        mock_websocket.__aenter__.return_value.recv.side_effect = [
-            websockets.exceptions.ConnectionClosedError(rcvd=None, sent=None),
-        ]
+        mock_websocket = await self.create_mock_websocket(
+            mock_connect,
+            [
+                websockets.exceptions.ConnectionClosedError(
+                    rcvd=None, sent=None
+                ),
+            ],
+        )
 
-        # Set up the mock context manager
-        async def async_context_manager(*args, **kwargs):
-            return mock_websocket
-
-        mock_connect.return_value = await async_context_manager()
-
-        feed = self.start_md_thread("ETH-USD", CoinbaseEnvironment.SANDBOX)
+        self.start_md_thread("ETH-USD", CoinbaseEnvironment.SANDBOX)
 
         # Assertions
         self.assertEqual(
