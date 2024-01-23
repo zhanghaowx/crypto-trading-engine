@@ -1,15 +1,13 @@
+import asyncio
 import atexit
 import logging
 import sqlite3
-from datetime import timedelta
 from enum import Enum
 from typing import Any
 
 import pandas as pd
 from blinker import NamedSignal, Signal
 from pandas import json_normalize
-
-from jolteon.core.time.time_manager import time_manager
 
 
 class SignalConnector:
@@ -26,10 +24,12 @@ class SignalConnector:
         self._signals = list[Signal]()
         self._receivers = list[object]()
         self._auto_save_interval = auto_save_interval
-        self._auto_save_time = time_manager().now() + timedelta(
-            seconds=auto_save_interval
-        )
+        self._auto_save_task = asyncio.create_task(self._auto_save_data())
         atexit.register(self.close)
+
+    def __del__(self):
+        if self._auto_save_task is not None:
+            self._auto_save_task.cancel()
 
     def connect(self, sender: Signal, receiver=None):
         """
@@ -66,6 +66,11 @@ class SignalConnector:
         self._clear_signals()
         self._save_data()
 
+    async def _auto_save_data(self):
+        while True:
+            await asyncio.sleep(self._auto_save_interval)
+            self._save_data()
+
     def _save_data(self) -> None:
         """
         Dump all data into a SQLite database
@@ -84,17 +89,6 @@ class SignalConnector:
             except Exception as e:
                 raise Exception(f"Cannot save DataFrame {name}: {e}")
         conn.close()
-
-    def _auto_save_data(self):
-        if time_manager().now() > self._auto_save_time:
-            self._auto_save_time = time_manager().now() + timedelta(
-                seconds=self._auto_save_interval
-            )
-            logging.debug(
-                f"Performing auto save, next auto save will be at"
-                f"{self._auto_save_time}"
-            )
-            self._save_data()
 
     def _clear_signals(self):
         for named_signal in self._signals:
@@ -153,8 +147,6 @@ class SignalConnector:
                     )
                 else:
                     self._events[name].reset_index()
-
-        self._auto_save_data()
 
     @staticmethod
     def _to_dict(obj: Any):

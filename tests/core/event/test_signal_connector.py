@@ -1,13 +1,12 @@
+import asyncio
 import os
 import tempfile
 import unittest
-from datetime import datetime, timezone
 from enum import Enum
 from unittest.mock import patch, MagicMock
 
 import pandas as pd
 from blinker import signal
-from freezegun import freeze_time
 from pandas.testing import assert_frame_equal
 
 from jolteon.core.event.signal_connector import (
@@ -18,7 +17,9 @@ from jolteon.core.event.signal_connector import (
 class TestSignalConnector(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
         self.database_filepath = f"{tempfile.gettempdir()}/unittest.sqlite"
-        self.signal_connector = SignalConnector(self.database_filepath)
+        self.signal_connector = SignalConnector(
+            self.database_filepath, auto_save_interval=0.001
+        )
         self.signal_a = signal("signal_a")
         self.signal_b = signal("signal_b")
 
@@ -257,21 +258,10 @@ class TestSignalConnector(unittest.IsolatedAsyncioTestCase):
     async def test_auto_save(self, mock_to_sql):
         mock_to_sql.return_value = MagicMock()
 
-        self.signal_connector._auto_save_time = datetime(
-            2024, 1, 1, 1, 0, 0, tzinfo=timezone.utc
-        )
+        self.signal_a.send(self.signal_a, message={"payload": "Signal A"})
+        mock_to_sql.assert_not_called()
 
-        with freeze_time("2024-01-01 01:00:00 UTC"):
-            self.signal_a.send(self.signal_a, message={"payload": "Signal A"})
-            mock_to_sql.assert_not_called()
-            mock_to_sql.reset_mock()
+        await asyncio.sleep(0.001)
 
-        with freeze_time("2024-01-01 01:00:31 UTC"):
-            self.signal_a.send(self.signal_a, message={"payload": "Signal A"})
-            mock_to_sql.assert_called_once()
-            mock_to_sql.reset_mock()
-
-        with freeze_time("2024-01-01 02:00:00 UTC"):
-            self.signal_a.send(self.signal_a, message={"payload": "Signal A"})
-            mock_to_sql.assert_called_once()
-            mock_to_sql.reset_mock()
+        self.signal_a.send(self.signal_a, message={"payload": "Signal A"})
+        mock_to_sql.assert_called_once()
