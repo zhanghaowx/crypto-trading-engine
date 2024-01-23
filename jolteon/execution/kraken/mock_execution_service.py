@@ -1,12 +1,12 @@
 import uuid
 from datetime import datetime
-from random import randint
 
 import pytz
 import requests
 from blinker import signal
 
 from jolteon.core.health_monitor.heartbeat import Heartbeater
+from jolteon.core.id_generator import id_generator
 from jolteon.core.time.time_manager import time_manager
 from jolteon.market_data.core.order import Order
 from jolteon.market_data.core.trade import Trade
@@ -95,7 +95,7 @@ class MockExecutionService(Heartbeater):
         filled_price: float,
     ):
         trade = Trade(
-            trade_id=randint(1, 1000),
+            trade_id=id_generator().next(),
             client_order_id=order.client_order_id,
             symbol=order.symbol,
             maker_order_id=str(uuid.uuid4()),

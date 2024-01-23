@@ -3,7 +3,6 @@ import os
 import uuid
 from copy import copy
 from datetime import timedelta
-from random import randint
 from typing import Union
 
 import numpy as np
@@ -11,6 +10,7 @@ from blinker import signal
 from coinbase.rest import RESTClient
 
 from jolteon.core.health_monitor.heartbeat import Heartbeater
+from jolteon.core.id_generator import id_generator
 from jolteon.core.side import MarketSide
 from jolteon.core.time.time_manager import time_manager
 from jolteon.market_data.core.order import Order
@@ -197,7 +197,7 @@ class MockExecutionService(Heartbeater):
         quantity: float,
     ):
         trade = Trade(
-            trade_id=randint(1, 1000),
+            trade_id=id_generator().next(),
             client_order_id=client_order_id,
             symbol=symbol,
             maker_order_id=str(uuid.uuid4()),
