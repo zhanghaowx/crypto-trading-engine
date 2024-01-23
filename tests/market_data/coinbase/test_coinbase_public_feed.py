@@ -1,4 +1,3 @@
-import threading
 import unittest
 from unittest.mock import patch, AsyncMock, MagicMock
 
@@ -69,15 +68,10 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
     """
 
     @staticmethod
-    def start_md_thread(symbol: str, env: CoinbaseEnvironment, *args):
+    async def start_md_task(symbol: str, env: CoinbaseEnvironment):
         md = PublicFeed(env)
         md.events = MagicMock()
-        md_thread = threading.Thread(
-            target=md.connect,
-            args=(symbol, *args),
-        )
-        md_thread.start()
-        md_thread.join()
+        await md.connect(symbol)
         return md
 
     @staticmethod
@@ -99,8 +93,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
     @patch("websockets.connect")
     async def test_connect_to_production_feed(self, mock_connect):
         await self.create_mock_websocket(mock_connect, [])
-
-        self.start_md_thread("ETH-USD", CoinbaseEnvironment.PRODUCTION)
+        await self.start_md_task("ETH-USD", CoinbaseEnvironment.PRODUCTION)
 
         # Assertions
         mock_connect.assert_called_once_with(
@@ -110,8 +103,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
     @patch("websockets.connect")
     async def test_connect_to_sandbox_feed(self, mock_connect):
         await self.create_mock_websocket(mock_connect, [])
-
-        self.start_md_thread("ETH-USD", CoinbaseEnvironment.SANDBOX)
+        await self.start_md_task("ETH-USD", CoinbaseEnvironment.SANDBOX)
 
         # Assertions
         mock_connect.assert_called_once_with(
@@ -123,8 +115,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
         mock_websocket = await self.create_mock_websocket(
             mock_connect, [TestPublicFeed.heartbeat_feed]
         )
-
-        feed = self.start_md_thread("ETH-USD", CoinbaseEnvironment.SANDBOX)
+        feed = await self.start_md_task("ETH-USD", CoinbaseEnvironment.SANDBOX)
 
         # Assertions
         self.assertEqual(
@@ -137,8 +128,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
         mock_websocket = await self.create_mock_websocket(
             mock_connect, [TestPublicFeed.subscriptions_feed]
         )
-
-        self.start_md_thread("ETH-USD", CoinbaseEnvironment.SANDBOX)
+        await self.start_md_task("ETH-USD", CoinbaseEnvironment.SANDBOX)
 
         # Assertions
         self.assertEqual(
@@ -150,8 +140,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
         mock_websocket = await self.create_mock_websocket(
             mock_connect, [TestPublicFeed.ticker_feed]
         )
-
-        feed = self.start_md_thread("ETH-USD", CoinbaseEnvironment.SANDBOX)
+        feed = await self.start_md_task("ETH-USD", CoinbaseEnvironment.SANDBOX)
 
         # Assertions
         self.assertEqual(
@@ -164,8 +153,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
         mock_websocket = await self.create_mock_websocket(
             mock_connect, [TestPublicFeed.match_feed]
         )
-
-        feed = self.start_md_thread("ETH-USD", CoinbaseEnvironment.SANDBOX)
+        feed = await self.start_md_task("ETH-USD", CoinbaseEnvironment.SANDBOX)
 
         # Assertions
         self.assertEqual(
@@ -178,8 +166,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
         mock_websocket = await self.create_mock_websocket(
             mock_connect, [TestPublicFeed.unknown_feed]
         )
-
-        self.start_md_thread("ETH-USD", CoinbaseEnvironment.SANDBOX)
+        await self.start_md_task("ETH-USD", CoinbaseEnvironment.SANDBOX)
 
         # Assertions
         self.assertEqual(
@@ -196,8 +183,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
                 ),
             ],
         )
-
-        self.start_md_thread("ETH-USD", CoinbaseEnvironment.SANDBOX)
+        await self.start_md_task("ETH-USD", CoinbaseEnvironment.SANDBOX)
 
         # Assertions
         self.assertEqual(

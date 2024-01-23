@@ -1,4 +1,3 @@
-import threading
 import unittest
 from unittest.mock import Mock, AsyncMock, patch
 
@@ -73,14 +72,6 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
         self.feed = PublicFeed()
         self.feed.events = Mock()
 
-    def start_md_thread(self, symbol, *args):
-        md_thread = threading.Thread(
-            target=self.feed.connect,
-            args=(symbol, *args),
-        )
-        md_thread.start()
-        md_thread.join()
-
     @staticmethod
     async def create_mock_websocket(
         mock_connect: object, feeds: list[object]
@@ -99,7 +90,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
     async def test_connect_to_production_feed(self, mock_connect):
         await self.create_mock_websocket(mock_connect, [])
 
-        self.start_md_thread("ETH-USD")
+        await self.feed.connect("ETH-USD")
 
         # Assertions
         mock_connect.assert_called_once_with("wss://ws.kraken.com/v2")
@@ -110,7 +101,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
             mock_connect, [TestPublicFeed.heartbeat_feed]
         )
 
-        self.start_md_thread("ETH-USD")
+        await self.feed.connect("ETH-USD")
 
         # Assertions
         self.assertEqual(
@@ -125,7 +116,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
             mock_connect, [TestPublicFeed.subscribe_feed]
         )
 
-        self.start_md_thread("ETH-USD")
+        await self.feed.connect("ETH-USD")
 
         # Assertions
         self.assertEqual(
@@ -139,7 +130,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
             mock_connect, [TestPublicFeed.pong_feed]
         )
 
-        self.start_md_thread("ETH-USD")
+        await self.feed.connect("ETH-USD")
 
         # Assertions
         self.assertEqual(
@@ -152,7 +143,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
             mock_connect, [TestPublicFeed.trade_feed]
         )
 
-        self.start_md_thread("ETH-USD")
+        await self.feed.connect("ETH-USD")
 
         # Assertions
         self.assertEqual(
@@ -166,7 +157,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
             mock_connect, [TestPublicFeed.unknown_feed]
         )
 
-        self.start_md_thread("ETH-USD")
+        await self.feed.connect("ETH-USD")
 
         # Assertions
         self.assertEqual(
@@ -184,7 +175,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
             ],
         )
 
-        self.start_md_thread("ETH-USD")
+        await self.feed.connect("ETH-USD")
 
         # Assertions
         self.assertEqual(

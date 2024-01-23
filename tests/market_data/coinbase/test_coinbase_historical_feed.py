@@ -1,4 +1,3 @@
-import threading
 import unittest
 from datetime import timedelta
 from unittest.mock import Mock, patch
@@ -39,20 +38,12 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
     async def asyncTearDown(self):
         time_manager().force_reset()
 
-    def start_md_thread(self, symbol: str, *args):
-        md_thread = threading.Thread(
-            target=self.historical_feed.connect,
-            args=(symbol, *args),
-        )
-        md_thread.start()
-        md_thread.join()
-
     def on_candlestick(self, _, candlestick):
         self.candlesticks.append(candlestick)
 
     async def test_connect_with_valid_symbol(self):
         symbol = "BTC-USD"
-        self.start_md_thread(
+        await self.historical_feed.connect(
             symbol,
             time_manager().now() - timedelta(minutes=1),
             time_manager().now(),
@@ -71,8 +62,12 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
 
         symbol = "BTC-USD"
         now = time_manager().now()
-        self.start_md_thread(symbol, now - timedelta(minutes=1), now)
-        self.start_md_thread(symbol, now - timedelta(minutes=1), now)
+        await self.historical_feed.connect(
+            symbol, now - timedelta(minutes=1), now
+        )
+        await self.historical_feed.connect(
+            symbol, now - timedelta(minutes=1), now
+        )
 
         self.assertEqual(1, len(HistoricalFeed.CACHE))
         self.assertEqual(2, len(self.candlesticks))
@@ -86,7 +81,7 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
         symbol = "BTC-USD"
 
         self.historical_feed._replay_speed = 1
-        self.start_md_thread(
+        await self.historical_feed.connect(
             symbol,
             time_manager().now() - timedelta(minutes=1),
             time_manager().now(),
@@ -95,7 +90,7 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
         mock_sleep.reset_mock()
 
         self.historical_feed._replay_speed = 2
-        self.start_md_thread(
+        await self.historical_feed.connect(
             symbol,
             time_manager().now() - timedelta(minutes=1),
             time_manager().now(),
@@ -104,7 +99,7 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
         mock_sleep.reset_mock()
 
         self.historical_feed._replay_speed = 3
-        self.start_md_thread(
+        await self.historical_feed.connect(
             symbol,
             time_manager().now() - timedelta(minutes=1),
             time_manager().now(),
@@ -113,7 +108,7 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
         mock_sleep.reset_mock()
 
         self.historical_feed._replay_speed = 30
-        self.start_md_thread(
+        await self.historical_feed.connect(
             symbol,
             time_manager().now() - timedelta(minutes=1),
             time_manager().now(),
@@ -122,7 +117,7 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
         mock_sleep.reset_mock()
 
         self.historical_feed._replay_speed = 60
-        self.start_md_thread(
+        await self.historical_feed.connect(
             symbol,
             time_manager().now() - timedelta(minutes=1),
             time_manager().now(),

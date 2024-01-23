@@ -2,7 +2,7 @@ import os
 import tempfile
 import unittest
 from datetime import datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, AsyncMock
 
 import pytz
 
@@ -26,6 +26,8 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
 
         from jolteon.app.kraken import KrakenApplication
 
+        KrakenApplication.THREAD_SYNC_INTERVAL = 0.01
+
         self.application = KrakenApplication(
             symbol=self.symbol,
             database_name=f"{tempfile.gettempdir()}/unittest.sqlite",
@@ -43,7 +45,7 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
     def create_mock_feed(self, MockFeed):
         MockFeed.__name__ = "MockFeed"
         mock_feed = MockFeed.return_value
-        mock_feed.connect = MagicMock()
+        mock_feed.connect = AsyncMock()
         return mock_feed
 
     def set_local_position(self, symbol: str, volume: float):

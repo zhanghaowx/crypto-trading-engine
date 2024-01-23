@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import threading
 from typing import Type
@@ -26,6 +27,8 @@ from jolteon.strategy.core.patterns.shooting_star.recognizer import (
 
 
 class ApplicationBase:
+    THREAD_SYNC_INTERVAL: float = 10
+
     def __init__(
         self,
         symbol: str,
@@ -46,7 +49,7 @@ class ApplicationBase:
             filename=logfile_name,
             filemode="w",
             format="[%(asctime)s][%(name)s][%(levelname)s] - %(message)s",
-            level=logging.DEBUG,
+            level=logging.INFO,
         )
         self._signal_connector = SignalConnector(
             database_name=database_name,
@@ -92,14 +95,16 @@ class ApplicationBase:
         self._connect_signals()
 
         # Start receiving market data
-        md_thread = threading.Thread(
-            target=self._md.connect,  # type: ignore[attr-defined]
-            args=(self._symbol, *args),
+        md_thread = self._start_thread(
+            "MD", self._md.connect(self._symbol, *args)
         )
-        md_thread.start()
 
-        # Wait for threads to complete
-        md_thread.join()
+        # Start other asyncio tasks (heartbeating, ..., etc)
+        async def main_asyncio_tasks() -> None:
+            while md_thread.is_alive():
+                await asyncio.sleep(self.THREAD_SYNC_INTERVAL)
+
+        await main_asyncio_tasks()
 
         for symbol, position in self._position_manager.positions.items():
             print(f"{symbol}: {position.volume}")
@@ -154,3 +159,27 @@ class ApplicationBase:
         self._signal_connector.connect(self._strategy.opportunity_event)
         self._signal_connector.connect(self._strategy.trade_result_event)
         self._signal_connector.connect(signal("heartbeat"))
+
+    @staticmethod
+    def _start_thread(name: str, task):
+        def run_task():
+            # Create a new event loop for the thread
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+            # Run the first async task with arguments in the event loop
+            try:
+                loop.run_until_complete(task)
+            except asyncio.CancelledError:
+                pass  # Ignore CancelledError on cleanup
+            except Exception as e:
+                logging.error(f"{name} got exception: {e}", exc_info=True)
+
+            loop.close()
+
+        thread = threading.Thread(
+            target=run_task,
+        )
+        thread.start()
+
+        return thread

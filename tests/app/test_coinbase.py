@@ -2,7 +2,7 @@ import os
 import tempfile
 import unittest
 from datetime import datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, AsyncMock
 
 import pytz
 
@@ -26,6 +26,8 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
 
         from jolteon.app.coinbase import CoinbaseApplication
 
+        CoinbaseApplication.THREAD_SYNC_INTERVAL = 0.01
+
         self.application = CoinbaseApplication(
             symbol=self.symbol,
             database_name=f"{tempfile.gettempdir()}/unittest.sqlite",
@@ -47,7 +49,7 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
     async def test_run_replay(self, MockFeed):
         MockFeed.__name__ = "MockFeed"
         mock_feed = MockFeed.return_value
-        mock_feed.connect = MagicMock()
+        mock_feed.connect = AsyncMock()
 
         start_time = datetime(
             2023, 1, 1, hour=0, minute=0, second=0, tzinfo=pytz.utc
@@ -69,7 +71,7 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
     async def test_run(self, MockFeed):
         MockFeed.__name__ = "MockFeed"
         mock_feed = MockFeed.return_value
-        mock_feed.connect = MagicMock()
+        mock_feed.connect = AsyncMock()
 
         # Mock the live feed connection
         await self.application.start()
