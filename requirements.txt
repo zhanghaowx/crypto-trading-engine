@@ -30,5 +30,5 @@ websockets
 # These requirements are for data analysis only, may or may not for production
 jupyter
 plotly
-mplfinance
+kaleido
 ###

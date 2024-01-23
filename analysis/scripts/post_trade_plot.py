@@ -1,4 +1,6 @@
+import os
 import sqlite3
+from datetime import datetime, timedelta
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -83,15 +85,23 @@ class PostTradePlot:
 
         return df
 
-    def load_trades(self, table_name: str, market_side: MarketSide) -> pd.DataFrame:
+    def load_trades(
+        self, table_name: str, market_side: MarketSide = None
+    ) -> pd.DataFrame:
         assert table_name, "Require a valid table name"
 
         if self.table_exists(table_name):
             # Read candlesticks from database
-            df = pd.read_sql(
-                f"SELECT * FROM {table_name} WHERE side='{market_side.value}'",
-                con=self._conn,
-            )
+            if market_side == None:
+                df = pd.read_sql(
+                    f"SELECT * FROM {table_name}",
+                    con=self._conn,
+                )
+            else:
+                df = pd.read_sql(
+                    f"SELECT * FROM {table_name} WHERE side='{market_side.value}'",
+                    con=self._conn,
+                )
             df["transaction_time"] = pd.to_datetime(
                 df["transaction_time"], format="ISO8601"
             )
@@ -311,4 +321,43 @@ class PostTradePlot:
             + self.draw_shooting_star_pattern(),
             layout=layout,
         )
-        fig.show()
+        return fig
+
+    def save_draw(self):
+        fig = self.draw()
+        opportunities = self.load_opportunities()
+        for i in range(0, len(opportunities)):
+            opportunity = opportunities.iloc[i]
+            fig.update_xaxes(
+                range=[
+                    datetime.fromisoformat(
+                        opportunity["opportunity.bull_flag_pattern.start"]
+                    )
+                    - timedelta(minutes=15),
+                    datetime.fromisoformat(
+                        opportunity["opportunity.bull_flag_pattern.end"]
+                    )
+                    + timedelta(minutes=15),
+                ]
+            )
+            min_y = min(opportunity["buy_trades.0.price"], opportunity["sell_trades.0.price"], opportunity["opportunity.stop_loss_price"])
+            max_y = max(opportunity["buy_trades.0.price"], opportunity["sell_trades.0.price"], opportunity["opportunity.profit_price"])
+            fig.update_yaxes(
+                range=[
+                    min_y
+                    - opportunity["opportunity.bull_flag_pattern.bull_flag_body"] * 2,
+                    max_y
+                    + opportunity["opportunity.bull_flag_pattern.bull_flag_body"] * 2,
+                ]
+            )
+
+            if opportunity["profit"] > 0:
+                directory_path = "/tmp/analysis/profit"
+                if not os.path.exists(directory_path):
+                    os.makedirs(directory_path)
+                fig.write_image(f"{directory_path}/trade_{i}.png")
+            else:
+                directory_path = "/tmp/analysis/loss"
+                if not os.path.exists(directory_path):
+                    os.makedirs(directory_path)
+                fig.write_image(f"{directory_path}/trade_{i}.png")
