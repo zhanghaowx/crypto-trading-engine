@@ -1,10 +1,13 @@
 import os
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from enum import Enum
+from unittest.mock import patch, MagicMock
 
 import pandas as pd
 from blinker import signal
+from freezegun import freeze_time
 from pandas.testing import assert_frame_equal
 
 from jolteon.core.event.signal_connector import (
@@ -45,6 +48,13 @@ class TestSignalConnector(unittest.IsolatedAsyncioTestCase):
 
         self.signal_b.send(self.signal_b, message="Signal B")
         self.assertNotIn("signal_b", self.signal_connector._events)
+
+        # Send signals that cannot be converted to dict, should be skipped
+        self.signal_a.send(self.signal_a, message={"payload": "Signal A"})
+        self.assertIn("signal_a", self.signal_connector._events)
+
+        self.signal_b.send(self.signal_b, message={"payload": "Signal B"})
+        self.assertIn("signal_b", self.signal_connector._events)
 
     async def test_handle_payload_has_primary_key(self):
         class SomeEnum(Enum):
@@ -242,3 +252,26 @@ class TestSignalConnector(unittest.IsolatedAsyncioTestCase):
 
         self.assertNotIn("signal_a", self.signal_connector._events)
         self.assertNotIn("signal_b", self.signal_connector._events)
+
+    @patch("pandas.DataFrame.to_sql")
+    async def test_auto_save(self, mock_to_sql):
+        mock_to_sql.return_value = MagicMock()
+
+        self.signal_connector._auto_save_time = datetime(
+            2024, 1, 1, 1, 0, 0, tzinfo=timezone.utc
+        )
+
+        with freeze_time("2024-01-01 01:00:00 UTC"):
+            self.signal_a.send(self.signal_a, message={"payload": "Signal A"})
+            mock_to_sql.assert_not_called()
+            mock_to_sql.reset_mock()
+
+        with freeze_time("2024-01-01 01:00:31 UTC"):
+            self.signal_a.send(self.signal_a, message={"payload": "Signal A"})
+            mock_to_sql.assert_called_once()
+            mock_to_sql.reset_mock()
+
+        with freeze_time("2024-01-01 02:00:00 UTC"):
+            self.signal_a.send(self.signal_a, message={"payload": "Signal A"})
+            mock_to_sql.assert_called_once()
+            mock_to_sql.reset_mock()

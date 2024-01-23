@@ -40,7 +40,6 @@ class ApplicationBase:
         one symbol and one strategy.
         """
         self._symbol = symbol
-        print(f"Using {self._symbol}")
 
         # Data Dumping Setup
         logging.basicConfig(

@@ -1,12 +1,15 @@
 import atexit
 import logging
 import sqlite3
+from datetime import timedelta
 from enum import Enum
 from typing import Any
 
 import pandas as pd
 from blinker import NamedSignal, Signal
 from pandas import json_normalize
+
+from jolteon.core.time.time_manager import time_manager
 
 
 class SignalConnector:
@@ -15,14 +18,6 @@ class SignalConnector:
     database
     """
 
-    class WritePolicy(Enum):
-        # Append to an existing table and clear stored data. Good for
-        # performance. But will not work if the table schema changes.
-        APPEND_AND_CLEAR = 0
-        # Replace existing table with new data. Bad for performance. But will
-        # work even if the table schema changes
-        REPLACE_AND_KEEP = 1
-
     def __init__(
         self, database_name="/tmp/jolteon.sqlite", auto_save_interval: int = 30
     ):
@@ -30,6 +25,10 @@ class SignalConnector:
         self._events = dict[str, pd.DataFrame]()
         self._signals = list[Signal]()
         self._receivers = list[object]()
+        self._auto_save_interval = auto_save_interval
+        self._auto_save_time = time_manager().now() + timedelta(
+            seconds=auto_save_interval
+        )
         atexit.register(self.close)
 
     def connect(self, sender: Signal, receiver=None):
@@ -67,9 +66,7 @@ class SignalConnector:
         self._clear_signals()
         self._save_data()
 
-    def _save_data(
-        self, policy: WritePolicy = WritePolicy.REPLACE_AND_KEEP
-    ) -> None:
+    def _save_data(self) -> None:
         """
         Dump all data into a SQLite database
 
@@ -83,18 +80,17 @@ class SignalConnector:
                 f"to {self._database_name}..."
             )
             try:
-                if policy == self.WritePolicy.APPEND_AND_CLEAR:
-                    df.to_sql(name=name, con=conn, if_exists="append")
-                else:
-                    df.to_sql(name=name, con=conn, if_exists="replace")
+                df.to_sql(name=name, con=conn, if_exists="replace")
             except Exception as e:
                 raise Exception(f"Cannot save DataFrame {name}: {e}")
         conn.close()
 
-        if policy == self.WritePolicy.APPEND_AND_CLEAR:
-            self._events.clear()
-        else:
-            pass
+    def _auto_save_data(self):
+        if time_manager().now() > self._auto_save_time:
+            self._auto_save_time = time_manager().now() + timedelta(
+                seconds=self._auto_save_interval
+            )
+            self._save_data()
 
     def _clear_signals(self):
         for named_signal in self._signals:
@@ -121,7 +117,9 @@ class SignalConnector:
             return
 
         for payload in kwargs.values():
-            if not hasattr(payload, "__dict__"):
+            if not hasattr(payload, "__dict__") and not isinstance(
+                payload, dict
+            ):
                 logging.error(
                     f"Fail to persist signal {name}: "
                     f"Cannot convert {type(payload)} to dict!"
@@ -147,6 +145,8 @@ class SignalConnector:
                     )
                 else:
                     self._events[name].reset_index()
+
+        self._auto_save_data()
 
     @staticmethod
     def _to_dict(obj: Any):

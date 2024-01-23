@@ -36,6 +36,7 @@ class KrakenApplication(ApplicationBase):
         shooting_star_params=ShootingStarParameters(),
         strategy_params=StrategyParameters(),
     ):
+        print(f"Using {type(self).__name__}")
         super().__init__(
             symbol=symbol.replace("-", "/"),
             database_name=database_name,
@@ -50,19 +51,22 @@ class KrakenApplication(ApplicationBase):
             super().use_execution_service(ExecutionService)
 
         self._candlestick_interval_in_seconds = candlestick_interval_in_seconds
-        print(f"Using {type(self).__name__}")
 
     async def start(self):
-        logging.info(f"Running {self._symbol}")
         super().use_market_data_service(
             PublicFeed, self._candlestick_interval_in_seconds
         )
+
+        logging.info(f"Running {self._symbol} live")
+        print(f"Running {self._symbol} live")
         return await super().start()
 
     async def run_replay(self, start: datetime, end: datetime):
-        logging.info(f"Replaying {self._symbol} from {start} to {end}")
         super().use_market_data_service(
             HistoricalFeed, self._candlestick_interval_in_seconds
         )
+
+        logging.info(f"Replaying {self._symbol} from {start} to {end}")
+        print(f"Replaying {self._symbol} from {start} to {end}")
         now = datetime.now(tz=pytz.utc)
         return await super().start(start, min(now, end))

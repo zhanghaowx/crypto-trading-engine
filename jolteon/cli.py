@@ -26,28 +26,13 @@ async def main():
     app_start_time = datetime.now(tz=pytz.utc)
 
     parser = argparse.ArgumentParser(description="Jolteon Trading Engine")
-
-    # Add command-line arguments
-    # parser.add_argument(
-    #     "--database", help="Path to the database file", required=True
-    # )
-    # parser.add_argument(
-    #     "--logfile", help="Path to the log file", required=True
-    # )
     parser.add_argument("--replay-start", help="Start time in ISO format")
     parser.add_argument("--replay-end", help="End time in ISO format")
 
-    args = parser.parse_args()
-
     # Access the arguments
-    # database_path = args.database
-    # logfile_path = args.logfile
+    args = parser.parse_args()
     replay_start = args.replay_start
     replay_end = args.replay_end
-
-    # Your application logic here
-    # print(f"Database Path: {database_path}")
-    # print(f"Logfile Path: {logfile_path}")
 
     symbol = "BTC-USD"
 

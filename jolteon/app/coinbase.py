@@ -35,6 +35,7 @@ class CoinbaseApplication(ApplicationBase):
         shooting_star_params=ShootingStarParameters(),
         strategy_params=StrategyParameters(),
     ):
+        print(f"Using {type(self).__name__}")
         super().__init__(
             symbol=symbol,
             database_name=database_name,
@@ -49,7 +50,6 @@ class CoinbaseApplication(ApplicationBase):
             super().use_execution_service(MockExecutionService)
 
         self._candlestick_interval_in_seconds = candlestick_interval_in_seconds
-        print(f"Using {type(self).__name__}")
 
     async def start(self):
         logging.info(f"Running {self._symbol}")
