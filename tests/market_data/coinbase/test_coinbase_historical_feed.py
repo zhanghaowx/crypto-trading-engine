@@ -43,7 +43,7 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
 
     async def test_connect_with_valid_symbol(self):
         symbol = "BTC-USD"
-        await self.historical_feed.connect(symbol)
+        await self.historical_feed.async_connect(symbol)
 
         # Validate raised candlestick event
         self.assertEqual(1, len(self.candlesticks))
@@ -57,8 +57,8 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
         HistoricalFeed.CACHE.clear()
 
         symbol = "BTC-USD"
-        await self.historical_feed.connect(symbol)
-        await self.historical_feed.connect(symbol)
+        await self.historical_feed.async_connect(symbol)
+        await self.historical_feed.async_connect(symbol)
 
         self.assertEqual(1, len(HistoricalFeed.CACHE))
         self.assertEqual(2, len(self.candlesticks))
@@ -72,7 +72,7 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
         symbol = "BTC-USD"
 
         self.historical_feed._replay_speed = 1
-        await self.historical_feed.connect(
+        await self.historical_feed.async_connect(
             symbol,
             start_time=time_manager().now() - timedelta(minutes=1),
             end_time=time_manager().now(),
@@ -81,7 +81,7 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
         mock_sleep.reset_mock()
 
         self.historical_feed._replay_speed = 2
-        await self.historical_feed.connect(
+        await self.historical_feed.async_connect(
             symbol,
             start_time=time_manager().now() - timedelta(minutes=1),
             end_time=time_manager().now(),
@@ -90,7 +90,7 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
         mock_sleep.reset_mock()
 
         self.historical_feed._replay_speed = 3
-        await self.historical_feed.connect(
+        await self.historical_feed.async_connect(
             symbol,
             start_time=time_manager().now() - timedelta(minutes=1),
             end_time=time_manager().now(),
@@ -99,7 +99,7 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
         mock_sleep.reset_mock()
 
         self.historical_feed._replay_speed = 30
-        await self.historical_feed.connect(
+        await self.historical_feed.async_connect(
             symbol,
             start_time=time_manager().now() - timedelta(minutes=1),
             end_time=time_manager().now(),
@@ -108,7 +108,7 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
         mock_sleep.reset_mock()
 
         self.historical_feed._replay_speed = 60
-        await self.historical_feed.connect(
+        await self.historical_feed.async_connect(
             symbol,
             start_time=time_manager().now() - timedelta(minutes=1),
             end_time=time_manager().now(),

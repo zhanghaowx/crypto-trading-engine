@@ -2,7 +2,7 @@ import os
 import tempfile
 import unittest
 from datetime import datetime
-from unittest.mock import MagicMock, patch, AsyncMock
+from unittest.mock import MagicMock, patch
 
 import pytz
 
@@ -47,7 +47,7 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
     async def test_run_replay(self, MockFeed):
         MockFeed.__name__ = "MockFeed"
         mock_feed = MockFeed.return_value
-        mock_feed.connect = AsyncMock()
+        mock_feed.connect = MagicMock()
 
         start_time = datetime(
             2023, 1, 1, hour=0, minute=0, second=0, tzinfo=pytz.utc
@@ -69,10 +69,10 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
     async def test_run(self, MockFeed):
         MockFeed.__name__ = "MockFeed"
         mock_feed = MockFeed.return_value
-        mock_feed.connect = AsyncMock()
+        mock_feed.connect = MagicMock()
 
         # Mock the live feed connection
-        await self.application.run()
+        await self.application.start()
 
         # Ensure the live feed connection is called with the correct arguments
-        mock_feed.connect.assert_called_once_with([self.symbol])
+        mock_feed.connect.assert_called_once_with(self.symbol)

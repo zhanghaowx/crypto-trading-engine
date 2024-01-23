@@ -76,7 +76,7 @@ async def main():
             database_name="/tmp/jolteon.sqlite",
             logfile_name="/tmp/jolteon.log",
         )
-        pnl = await app.run()
+        pnl = await app.start()
     print(f"PnL: {pnl}")
 
     app_end_time = datetime.now(tz=pytz.utc)

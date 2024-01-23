@@ -81,7 +81,9 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
 
         mock_connect.return_value = await async_context_manager()
 
-        await PublicFeed(CoinbaseEnvironment.PRODUCTION).connect(["ETH-USD"])
+        await PublicFeed(CoinbaseEnvironment.PRODUCTION).async_connect(
+            "ETH-USD"
+        )
 
         # Assertions
         mock_connect.assert_called_once_with(
@@ -102,7 +104,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
 
         mock_connect.return_value = await async_context_manager()
 
-        await PublicFeed(CoinbaseEnvironment.SANDBOX).connect(["ETH-USD"])
+        await PublicFeed(CoinbaseEnvironment.SANDBOX).async_connect("ETH-USD")
 
         # Assertions
         mock_connect.assert_called_once_with(
@@ -126,7 +128,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
 
         feed = PublicFeed(CoinbaseEnvironment.SANDBOX)
         feed.events = Mock()
-        await feed.connect(["ETH-USD"])
+        await feed.async_connect("ETH-USD")
 
         # Assertions
         self.assertEqual(
@@ -151,7 +153,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
 
         feed = PublicFeed(CoinbaseEnvironment.SANDBOX)
         feed.events = Mock()
-        await feed.connect(["ETH-USD"])
+        await feed.async_connect("ETH-USD")
 
         # Assertions
         self.assertEqual(
@@ -175,7 +177,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
 
         feed = PublicFeed(CoinbaseEnvironment.SANDBOX)
         feed.events = Mock()
-        await feed.connect(["ETH-USD"])
+        await feed.async_connect("ETH-USD")
 
         # Assertions
         self.assertEqual(
@@ -200,7 +202,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
 
         feed = PublicFeed(CoinbaseEnvironment.SANDBOX)
         feed.events = Mock()
-        await feed.connect(["ETH-USD"])
+        await feed.async_connect("ETH-USD")
 
         # Assertions
         self.assertEqual(
@@ -225,7 +227,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
 
         feed = PublicFeed(CoinbaseEnvironment.SANDBOX)
         feed.events = Mock()
-        await feed.connect(["ETH-USD"])
+        await feed.async_connect("ETH-USD")
 
         # Assertions
         self.assertEqual(
@@ -248,7 +250,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
 
         feed = PublicFeed(CoinbaseEnvironment.SANDBOX)
         feed.events = Mock()
-        await feed.connect(["ETH-USD"])
+        await feed.async_connect("ETH-USD")
 
         # Assertions
         self.assertEqual(

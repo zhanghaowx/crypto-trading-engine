@@ -1,7 +1,10 @@
 """
 Application interface for Jolteon
 """
+import logging
 from datetime import datetime
+
+import pytz
 
 from jolteon.app.base import ApplicationBase
 from jolteon.execution.kraken.execution_service import ExecutionService
@@ -49,14 +52,17 @@ class KrakenApplication(ApplicationBase):
         self._candlestick_interval_in_seconds = candlestick_interval_in_seconds
         print(f"Using {type(self).__name__}")
 
-    async def run(self):
+    async def start(self):
+        logging.info(f"Running {self._symbol}")
         super().use_market_data_service(
             PublicFeed, self._candlestick_interval_in_seconds
         )
-        return await super().run()
+        return await super().start()
 
     async def run_replay(self, start: datetime, end: datetime):
+        logging.info(f"Replaying {self._symbol} from {start} to {end}")
         super().use_market_data_service(
             HistoricalFeed, self._candlestick_interval_in_seconds
         )
-        return await super().run_replay(start, end)
+        now = datetime.now(tz=pytz.utc)
+        return await super().start(start, min(now, end))

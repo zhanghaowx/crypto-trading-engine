@@ -22,7 +22,22 @@ class PublicFeed(Heartbeater):
         self._client = KrakenSpotWSClientV2(callback=self.on_message)
         self._exception_occurred = False
 
-    async def connect(self, symbols: list[str]):
+    def connect(self, symbol: str):
+        # Create a new event loop for the thread
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        # Run the first async task with arguments in the event loop
+        try:
+            loop.run_until_complete(self.async_connect(symbol))
+        except asyncio.CancelledError:
+            pass  # Ignore CancelledError on cleanup
+        except Exception as e:
+            logging.error(
+                f"Public feed connect task exception: {e}", exc_info=True
+            )
+
+    async def async_connect(self, symbol: str):
         """Establish a connection to the remote service and subscribe to the
         public market data feed.
 
@@ -33,10 +48,8 @@ class PublicFeed(Heartbeater):
         # Trade channel pushes trades in real-time. Multiple trades may be
         # batched in a single message but that does not necessarily mean that
         # every trade in a single message resulted from a single taker order.
-        if not isinstance(symbols, list):
-            symbols = [symbols]
         await self._client.subscribe(
-            params={"channel": "trade", "symbol": symbols}
+            params={"channel": "trade", "symbol": [symbol]}
         )
 
         while not self._exception_occurred:
@@ -68,6 +81,7 @@ class PublicFeed(Heartbeater):
 
         possible_method = response.get("method")
         if possible_method == "pong":
+            logging.error(f"Pong message: {response}")
             return
         elif possible_method == "subscribe":
             self.remove_issue(Error.CONNECTION_LOST.value)

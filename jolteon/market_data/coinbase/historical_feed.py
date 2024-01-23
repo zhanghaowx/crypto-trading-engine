@@ -52,7 +52,24 @@ class HistoricalFeed(Heartbeater):
         )
         time_manager().claim_admin(self)
 
-    async def connect(
+    def connect(self, symbol: str, start_time: datetime, end_time: datetime):
+        # Create a new event loop for the thread
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        # Run the first async task with arguments in the event loop
+        try:
+            loop.run_until_complete(
+                self.async_connect(symbol, start_time, end_time)
+            )
+        except asyncio.CancelledError:
+            pass  # Ignore CancelledError on cleanup
+        except Exception as e:
+            logging.error(
+                f"Public feed connect task exception: {e}", exc_info=True
+            )
+
+    async def async_connect(
         self,
         symbol: str,
         start_time: datetime = time_manager().now() - timedelta(minutes=1),

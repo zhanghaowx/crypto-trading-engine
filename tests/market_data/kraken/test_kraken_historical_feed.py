@@ -54,7 +54,9 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
             mock_get.return_value.json.return_value = mock_response
 
             # Connect and simulate the asynchronous event loop
-            await self.historical_feed.connect(symbol, start_time, end_time)
+            await self.historical_feed.async_connect(
+                symbol, start_time, end_time
+            )
 
         print(self.candlesticks)
         self.assertEqual(len(self.market_trades), 2)

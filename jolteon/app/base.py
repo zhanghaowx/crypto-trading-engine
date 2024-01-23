@@ -1,8 +1,7 @@
 import logging
-from datetime import datetime
+import threading
 from typing import Type
 
-import pytz
 from blinker import signal
 
 from jolteon.core.event.signal_connector import SignalConnector
@@ -90,30 +89,18 @@ class ApplicationBase:
         )
         return self
 
-    async def run(self):
-        logging.info(f"Running {self._symbol}")
+    async def start(self, *args):
         self._connect_signals()
 
         # Start receiving market data
-        try:
-            await self._md.connect([self._symbol])
-        except Exception as e:
-            logging.error(f"Error: {e}", exc_info=True)
-
-        for symbol, position in self._position_manager.positions.items():
-            print(f"{symbol}: {position.volume}")
-
-        self.stop()
-        return self._position_manager.pnl
-
-    async def run_replay(self, start: datetime, end: datetime):
-        logging.info(f"Replaying {self._symbol} from {start} to {end}")
-        self._connect_signals()
-
-        # Start receiving market data
-        await self._md.connect(  # type: ignore[attr-defined]
-            self._symbol, start, min(datetime.now(tz=pytz.utc), end)
+        thread1 = threading.Thread(
+            target=self._md.connect,  # type: ignore[attr-defined]
+            args=(self._symbol, *args),
         )
+        thread1.start()
+
+        # Wait for threads to complete
+        thread1.join()
 
         for symbol, position in self._position_manager.positions.items():
             print(f"{symbol}: {position.volume}")

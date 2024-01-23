@@ -80,7 +80,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
         # Avoid entering an infinite loop
         self.feed._exception_occurred = True
         # noinspection PyTypeChecker
-        await self.feed.connect(symbol)
+        await self.feed.async_connect(symbol)
 
         # Assert that the subscribe method was called with the correct
         # parameters

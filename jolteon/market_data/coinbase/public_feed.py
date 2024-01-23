@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 from datetime import datetime
@@ -49,13 +50,28 @@ class PublicFeed(Heartbeater):
             interval_in_seconds=candlestick_interval_in_seconds
         )
 
-    async def connect(self, product_ids: list[str]):
+    def connect(self, symbol: str):
+        # Create a new event loop for the thread
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        # Run the first async task with arguments in the event loop
+        try:
+            loop.run_until_complete(self.async_connect(symbol))
+        except asyncio.CancelledError:
+            pass  # Ignore CancelledError on cleanup
+        except Exception as e:
+            logging.error(
+                f"Public feed connect task exception: {e}", exc_info=True
+            )
+
+    async def async_connect(self, product_id: str):
         """
         Establish a connection to the remote service and subscribe to the
         public market data feed.
 
         Args:
-            product_ids: A list of product ids(symbols) to subscribe to.
+            product_id: A product id(symbols) to subscribe to.
         Returns:
             An asyncio task to be waiting for incoming messages
         """
@@ -72,7 +88,7 @@ class PublicFeed(Heartbeater):
             # Define the message to subscribe to a specific product's channel
             subscribe_message = {
                 "type": "subscribe",
-                "product_ids": product_ids,
+                "product_ids": [product_id],
                 "channels": ["heartbeat", "ticker", "matches"],
             }
 

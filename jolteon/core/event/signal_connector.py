@@ -1,4 +1,3 @@
-import asyncio
 import atexit
 import logging
 import sqlite3
@@ -31,9 +30,6 @@ class SignalConnector:
         self._events = dict[str, pd.DataFrame]()
         self._signals = list[Signal]()
         self._receivers = list[object]()
-        self._auto_save_task = asyncio.create_task(
-            self._save_data_every(interval_in_seconds=auto_save_interval)
-        )
         atexit.register(self.close)
 
     def connect(self, sender: Signal, receiver=None):
@@ -68,14 +64,8 @@ class SignalConnector:
         Returns:
             None
         """
-        self._auto_save_task.cancel()
         self._clear_signals()
         self._save_data()
-
-    async def _save_data_every(self, interval_in_seconds=30):
-        while True:
-            self._save_data()
-            await asyncio.sleep(interval_in_seconds)
 
     def _save_data(
         self, policy: WritePolicy = WritePolicy.REPLACE_AND_KEEP
