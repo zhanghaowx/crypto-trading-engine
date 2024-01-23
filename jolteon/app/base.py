@@ -93,14 +93,14 @@ class ApplicationBase:
         self._connect_signals()
 
         # Start receiving market data
-        thread1 = threading.Thread(
+        md_thread = threading.Thread(
             target=self._md.connect,  # type: ignore[attr-defined]
             args=(self._symbol, *args),
         )
-        thread1.start()
+        md_thread.start()
 
         # Wait for threads to complete
-        thread1.join()
+        md_thread.join()
 
         for symbol, position in self._position_manager.positions.items():
             print(f"{symbol}: {position.volume}")

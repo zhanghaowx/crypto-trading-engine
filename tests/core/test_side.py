@@ -26,3 +26,11 @@ class TestMarketSideEnum(unittest.TestCase):
         self.assertEqual(MarketSide.BUY, MarketSide.BUY)
         self.assertEqual(MarketSide.SELL, MarketSide.SELL)
         self.assertNotEqual(MarketSide.BUY, MarketSide.SELL)
+
+    def test_parse_enum_value(self):
+        self.assertEqual(MarketSide.UNKNOWN, MarketSide.parse("UNKNOWN"))
+        self.assertEqual(MarketSide.UNKNOWN, MarketSide.parse("SHORT_SELL"))
+        self.assertEqual(MarketSide.BUY, MarketSide.parse("BUY"))
+        self.assertEqual(MarketSide.BUY, MarketSide.parse("buy"))
+        self.assertEqual(MarketSide.SELL, MarketSide.parse("SELL"))
+        self.assertEqual(MarketSide.SELL, MarketSide.parse("sell"))

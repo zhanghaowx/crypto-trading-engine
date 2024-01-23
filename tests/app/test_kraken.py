@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytz
 
 from jolteon.core.time.time_manager import time_manager
+from jolteon.position.position_manager import Position
 from jolteon.strategy.bull_trend_rider.strategy_parameters import (
     StrategyParameters,
 )
@@ -22,7 +23,6 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
         self.mock_md_historical = MagicMock()
         self.mock_strategy = MagicMock()
         self.mock_exec_service = MagicMock()
-        self.mock_position_manager = MagicMock()
 
         from jolteon.app.kraken import KrakenApplication
 
@@ -32,31 +32,41 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
             logfile_name=f"{tempfile.gettempdir()}/unittest.log",
             strategy_params=StrategyParameters(),
         )
-
         self.application._signal_connector = self.mock_connector
         self.application._md_live = self.mock_md_live
         self.application._md_historical = self.mock_md_historical
         self.application._strategy = self.mock_strategy
         self.application._exec_service = self.mock_exec_service
-        self.application._position_manager = self.mock_position_manager
+
+        self.set_local_position(self.symbol, 0.123)
+
+    def create_mock_feed(self, MockFeed):
+        MockFeed.__name__ = "MockFeed"
+        mock_feed = MockFeed.return_value
+        mock_feed.connect = MagicMock()
+        return mock_feed
+
+    def set_local_position(self, symbol: str, volume: float):
+        self.application._position_manager.positions[self.symbol] = Position(
+            symbol=symbol,
+            volume=volume,
+            cash_value=1.0,
+        )
 
     async def asyncTearDown(self):
         time_manager().force_reset()
 
     @patch("jolteon.app.kraken.HistoricalFeed")
     async def test_run_replay(self, MockFeed):
-        MockFeed.__name__ = "MockFeed"
-        mock_feed = MockFeed.return_value
-        mock_feed.connect = MagicMock()
+        mock_feed = self.create_mock_feed(MockFeed)
 
+        # Exec
         start_time = datetime(
             2023, 1, 1, hour=0, minute=0, second=0, tzinfo=pytz.utc
         )
         end_time = datetime(
             2023, 1, 1, hour=0, minute=0, second=1, tzinfo=pytz.utc
         )
-
-        # Mock the historical feed connection
         await self.application.run_replay(start_time, end_time)
 
         # Ensure the historical feed connection is called with the correct
@@ -67,9 +77,7 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
 
     @patch("jolteon.app.kraken.PublicFeed")
     async def test_run(self, MockFeed):
-        MockFeed.__name__ = "MockFeed"
-        mock_feed = MockFeed.return_value
-        mock_feed.connect = MagicMock()
+        mock_feed = self.create_mock_feed(MockFeed)
 
         # Mock the live feed connection
         await self.application.start()

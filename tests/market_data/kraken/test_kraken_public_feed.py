@@ -1,4 +1,5 @@
 import json
+import threading
 import unittest
 from unittest.mock import Mock, AsyncMock, patch
 
@@ -72,6 +73,14 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
         self.feed = PublicFeed()
         self.feed.events = Mock()
 
+    def start_md_thread(self, symbol, *args):
+        md_thread = threading.Thread(
+            target=self.feed.connect,
+            args=(symbol, *args),
+        )
+        md_thread.start()
+        md_thread.join()
+
     @patch("asyncio.sleep", return_value=None)
     async def test_connect(self, mock_sleep):
         symbol = "BTC/USD"
@@ -80,7 +89,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
         # Avoid entering an infinite loop
         self.feed._exception_occurred = True
         # noinspection PyTypeChecker
-        await self.feed.async_connect(symbol)
+        self.start_md_thread(symbol)
 
         # Assert that the subscribe method was called with the correct
         # parameters

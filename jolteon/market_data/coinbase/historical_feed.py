@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Union
 
 from coinbase.rest import RESTClient
@@ -72,8 +72,8 @@ class HistoricalFeed(Heartbeater):
     async def async_connect(
         self,
         symbol: str,
-        start_time: datetime = time_manager().now() - timedelta(minutes=1),
-        end_time: datetime = time_manager().now(),
+        start_time: datetime,
+        end_time: datetime,
     ):
         """
         Download the historical market data feed for the given symbol and

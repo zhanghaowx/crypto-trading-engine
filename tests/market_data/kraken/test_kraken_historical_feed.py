@@ -1,3 +1,4 @@
+import threading
 import unittest
 from datetime import datetime, timezone
 from unittest.mock import patch, MagicMock
@@ -24,6 +25,14 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
 
     async def asyncTearDown(self):
         time_manager().force_reset()
+
+    def start_md_thread(self, symbol: str, *args):
+        md_thread = threading.Thread(
+            target=self.historical_feed.connect,
+            args=(symbol, *args),
+        )
+        md_thread.start()
+        md_thread.join()
 
     async def test_connect_replays_trades_and_generates_candlesticks(self):
         self.assertEqual(len(self.market_trades), 0)
@@ -54,9 +63,7 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
             mock_get.return_value.json.return_value = mock_response
 
             # Connect and simulate the asynchronous event loop
-            await self.historical_feed.async_connect(
-                symbol, start_time, end_time
-            )
+            self.start_md_thread(symbol, start_time, end_time)
 
         print(self.candlesticks)
         self.assertEqual(len(self.market_trades), 2)
