@@ -59,14 +59,3 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
         self.assertGreater(len(df), 0)
 
         conn.close()
-
-    # async def test_replay_on_bull_trend_following(self):
-    #     start_time = datetime(
-    #         2024, 1, 22, hour=3, minute=30, second=0, tzinfo=pytz.utc
-    #     )
-    #     end_time = datetime(
-    #         2024, 1, 22, hour=4, minute=30, second=0, tzinfo=pytz.utc
-    #     )
-    #     pnl = await self.application.run_replay(start_time, end_time)
-    #     print(f"PnL: {pnl}")
-    #     self.assertEqual(pnl, 0)
