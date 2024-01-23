@@ -68,6 +68,7 @@ class HistoricalFeed(Heartbeater):
         Returns:
             A asyncio task to be waiting for incoming messages
         """
+        time_manager().use_fake_time(start_time, admin=self)
 
         interval_minutes = min((end_time - start_time).total_seconds() / 60, 3)
         max_number_of_trades_limit = 1000
@@ -132,7 +133,7 @@ class HistoricalFeed(Heartbeater):
             end=int(end_time.timestamp()),
             limit=limit,
         )
-        assert len(json_response["trades"]) > 0
+        assert "trades" in json_response
 
         market_trades = list[Trade]()
         for trade_json in json_response["trades"]:

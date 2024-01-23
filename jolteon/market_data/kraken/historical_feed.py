@@ -60,6 +60,8 @@ class HistoricalFeed(Heartbeater):
         Returns:
             A asyncio task to be waiting for incoming messages
         """
+        time_manager().use_fake_time(start_time, admin=self)
+
         self.add_issue(
             HeartbeatLevel.WARN, HistoricalFeed.ErrorCode.DOWNLOADING.name
         )
@@ -83,7 +85,8 @@ class HistoricalFeed(Heartbeater):
         )
 
         assert (
-            len(market_trades)
+            len(market_trades) == 0
+            or len(market_trades)
             == market_trades[-1].trade_id - market_trades[0].trade_id + 1
         )
 
@@ -118,7 +121,7 @@ class HistoricalFeed(Heartbeater):
             return self.CACHE[key]
 
         market_trades = list[Trade]()
-        request_timestamp = int(start_time.timestamp())
+        request_timestamp = start_time.timestamp()
 
         while (
             len(market_trades) == 0
@@ -145,6 +148,9 @@ class HistoricalFeed(Heartbeater):
 
             assert json_resp["result"] is not None
             json_trades = json_resp["result"][symbol]
+            if len(json_trades) == 0:
+                break  # No more trades after a certain timestamp, stop
+
             for json_trade in json_trades:
                 # Array of trade entries
                 # [
@@ -171,20 +177,27 @@ class HistoricalFeed(Heartbeater):
                         json_trade[2], tz=pytz.utc
                     ),
                 )
-                market_trades.append(trade)
+                if (
+                    len(market_trades) == 0
+                    or trade.trade_id > market_trades[-1].trade_id
+                ):
+                    # Don't add the same trade more than once to the list
+                    market_trades.append(trade)
 
-            last_timestamp = int(int(json_resp["result"]["last"]) / 1e9)
+            last_timestamp = int(json_resp["result"]["last"]) / 1e9
 
             logging.info(
                 f"Downloaded historical data for {symbol} "
-                f"from {datetime.fromtimestamp(request_timestamp)} "
-                f"to {datetime.fromtimestamp(last_timestamp)}"
+                f"from "
+                f"{datetime.fromtimestamp(request_timestamp, tz=pytz.utc)} "
+                f"to "
+                f"{datetime.fromtimestamp(last_timestamp, tz=pytz.utc)}"
             )
 
             request_timestamp = last_timestamp
 
             # Wait a while before making another API call to avoid errors
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(1.0)
 
         # Save in the cache to reduce calls to Kraken's API
         self.CACHE[key] = market_trades

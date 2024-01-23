@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from datetime import datetime
 from enum import Enum
 from typing import Union
@@ -163,6 +164,7 @@ class Heartbeater:
         self._heartbeat_signal.send(
             self._heartbeat_signal, heartbeat=last_heartbeat
         )
+        logging.debug(f"Sent {last_heartbeat}")
 
     async def _start_heartbeating(self):
         assert (

@@ -90,6 +90,10 @@ class SignalConnector:
             self._auto_save_time = time_manager().now() + timedelta(
                 seconds=self._auto_save_interval
             )
+            logging.debug(
+                f"Performing auto save, next auto save will be at"
+                f"{self._auto_save_time}"
+            )
             self._save_data()
 
     def _clear_signals(self):
@@ -108,6 +112,8 @@ class SignalConnector:
     def _handle_signal(self, sender: NamedSignal | str, **kwargs):
         assert isinstance(sender, NamedSignal)
         name = sender.name
+
+        logging.debug(f"Received signal {kwargs} from {name}")
 
         if len(kwargs.values()) != 1:
             logging.error(

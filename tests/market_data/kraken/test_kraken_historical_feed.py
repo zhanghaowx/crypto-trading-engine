@@ -58,3 +58,30 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(len(self.market_trades), 2)
         self.assertEqual(len(self.candlesticks), 2)
+
+    async def test_connect_with_empty_trades(self):
+        time_manager().use_fake_time = MagicMock()
+        HistoricalFeed.CACHE.clear()
+
+        # Set up test parameters
+        symbol = "BTC/USD"
+        start_time = datetime(2023, 1, 1, tzinfo=timezone.utc)
+        end_time = datetime(2023, 1, 2, tzinfo=timezone.utc)
+
+        # Mock the requests.get method to return a custom JSON response
+        mock_response = {
+            "error": [],
+            "result": {symbol: [], "last": datetime(2024, 1, 1).timestamp()},
+        }
+
+        with patch("requests.get", new_callable=MagicMock) as mock_get:
+            # Set the return value of the mock to the custom JSON response
+            mock_get.return_value = MagicMock()
+            mock_get.return_value.status_code = 200
+            mock_get.return_value.json.return_value = mock_response
+
+            # Connect and simulate the asynchronous event loop
+            await self.historical_feed.connect(symbol, start_time, end_time)
+
+        # Verify mock time is set properly
+        time_manager().use_fake_time.assert_called_once()

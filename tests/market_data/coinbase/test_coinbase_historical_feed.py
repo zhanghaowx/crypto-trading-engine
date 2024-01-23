@@ -1,6 +1,6 @@
 import unittest
 from datetime import timedelta
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, MagicMock
 
 from jolteon.core.time.time_manager import time_manager
 from jolteon.market_data.coinbase.historical_feed import (
@@ -74,6 +74,29 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.candlesticks[0], self.candlesticks[1])
 
         self.historical_feed._client.get_market_trades.assert_called_once()
+
+    async def test_connect_with_empty_trades(self):
+        # Setup
+        self.historical_feed._client.get_market_trades.return_value = {
+            "trades": [],
+        }
+        time_manager().use_fake_time = MagicMock()
+        HistoricalFeed.CACHE.clear()
+
+        # Connect
+        symbol = "BTC-USD"
+        now = time_manager().now()
+        await self.historical_feed.connect(
+            symbol, now - timedelta(minutes=1), now
+        )
+
+        self.assertEqual(1, len(HistoricalFeed.CACHE))
+        self.assertEqual(0, len(self.candlesticks))
+
+        self.historical_feed._client.get_market_trades.assert_called_once()
+
+        # Verify mock time is set properly
+        time_manager().use_fake_time.assert_called_once()
 
     @patch("asyncio.sleep", return_value=None)
     @patch.object(Events.candlestick, "send")
