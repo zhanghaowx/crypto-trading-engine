@@ -4,13 +4,13 @@ import logging
 
 class SmartFormatter(logging.Formatter):
     def format(self, record):
-        log_message = (
+        record.msg = (
             f"[{record.name}]"
             f"[{record.levelname}]"
             f"[{record.filename}:{record.lineno}]"
             f" - {record.msg}"
         )
-        return log_message
+        return super().format(record)
 
 
 def setup_global_logger(log_level, logfile_name: str):
