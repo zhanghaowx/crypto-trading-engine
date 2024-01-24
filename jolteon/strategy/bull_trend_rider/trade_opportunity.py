@@ -1,5 +1,7 @@
 from dataclasses import dataclass
+from typing import Union
 
+from jolteon.market_data.core.candlestick_list import CandlestickList
 from jolteon.strategy.bull_trend_rider.strategy_parameters import (
     StrategyParameters,
 )
@@ -13,7 +15,7 @@ class TradeOpportunity(TradeOpportunityCore):
     expected_trade_price: float = 0.0
     stop_loss_from_atr: float = 0.0
     stop_loss_from_support: float = 0.0
-    risk_reward_ratio: float = 0.0
+    score_details: Union[dict, None] = None
 
     def __init__(
         self,
@@ -42,28 +44,35 @@ class TradeOpportunity(TradeOpportunityCore):
         self.profit_price = (
             self.expected_trade_price - self.stop_loss_price
         ) * target_reward_risk_ratio + self.expected_trade_price
-        self.risk_reward_ratio = (
-            self.profit_price - self.expected_trade_price
-        ) / max(1e-10, self.expected_trade_price - self.stop_loss_price)
 
-    def grade(self, params: StrategyParameters) -> None:
+    def grade(
+        self, history: CandlestickList, params: StrategyParameters
+    ) -> None:
         """
         Based on all characteristics of the opportunity, assign a grade to the
         trade opportunity.
 
         Args:
+            history: All current/previous candlesticks for this opportunity
             params: Parameters for bull flag strategy.
         Returns:
             None
         """
-        assert (
-            self.bull_flag_pattern.consolidation_max_ratio >= 0.0
-        ), f"Unexpected bull flag pattern {self.bull_flag_pattern}"
-        self.score = 1.0 - max(
-            0.0,
-            (
-                self.bull_flag_pattern.consolidation_max_ratio
-                - params.consolidation_period_threshold
-            )
-            / params.consolidation_period_threshold,
-        )
+        self.score = 1.0
+        self.score_details = {}
+
+        previous_candlesticks = [
+            candlestick
+            for candlestick in history.candlesticks
+            if candlestick.end_time
+            <= self.bull_flag_pattern.bull_flag.start_time
+        ]
+
+        # The percentage of bullish candlesticks in history
+        is_bullish = [
+            candlestick.is_bullish() for candlestick in previous_candlesticks
+        ]
+        is_bullish_pct = sum(is_bullish) / max(1e-10, len(is_bullish))
+        self.score_details["is_bullish_pct"] = is_bullish_pct
+        if self.score_details["is_bullish_pct"] <= 0.5:
+            self.score -= 0.5

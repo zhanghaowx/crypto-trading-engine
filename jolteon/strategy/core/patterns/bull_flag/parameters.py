@@ -29,7 +29,7 @@ class BullFlagParameters:
     # Recommendation:
     # Pick the 75th/90th percentile return percentage from all candlesticks of
     # the previous day
-    extreme_bullish_return_pct: float = 0.0002
+    extreme_bullish_return_pct: float = 0.00075
     # A candlestick needs to be smaller than `threshold * body of previous
     # extremely bullish candlestick` in order to be considered as part of
     # the consolidation period.

@@ -68,7 +68,8 @@ class ApplicationBase:
         self._strategy = BullFlagStrategy(
             symbol,
             risk_limits=[
-                OrderFrequencyLimit(number_of_orders=1, in_seconds=60)
+                OrderFrequencyLimit(number_of_orders=1, in_seconds=60),
+                OrderFrequencyLimit(number_of_orders=2, in_seconds=60 * 5),
             ],
             parameters=strategy_params,
         )

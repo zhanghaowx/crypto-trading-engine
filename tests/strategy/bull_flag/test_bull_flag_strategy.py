@@ -90,7 +90,7 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
             "ETH-USD",
             risk_limits=[MockRiskLimits(True)],
             parameters=StrategyParameters(
-                max_number_of_recent_candlesticks=3,
+                max_number_of_recent_candlesticks=4,
             ),
         )
         self.round_trip = TradeRecord(
@@ -159,15 +159,19 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
         # Arrange
 
         # Act
-        self.bull_flag_strategy.on_candlestick(
-            "mock_sender", self.candlesticks[0]
-        )
-        self.bull_flag_strategy.on_candlestick(
-            "mock_sender", self.candlesticks[1]
-        )
-        self.bull_flag_strategy.on_candlestick(
-            "mock_sender", self.candlesticks[2]
-        )
+        for i in range(5, 0, -1):
+            candlestick = Candlestick(
+                BullFlagStrategyTest.create_mock_timestamp()
+                - timedelta(minutes=i),
+                duration_in_seconds=60,
+                open=10,
+                low=1,
+                close=11,
+                high=12,
+                volume=100,
+            )
+            self.bull_flag_strategy.on_candlestick("mock_sender", candlestick)
+
         self.bull_flag_strategy.on_bull_flag_pattern(
             "mock_sender", self.bull_flag_pattern
         )
