@@ -181,3 +181,23 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             1, mock_websocket.__aenter__.return_value.recv.call_count
         )
+
+    @patch("websockets.connect")
+    async def test_exception_with_retries(self, mock_connect):
+        mock_websocket = await self.create_mock_websocket(
+            mock_connect,
+            [
+                websockets.exceptions.ConnectionClosedError(
+                    rcvd=None, sent=None
+                ),
+            ],
+        )
+
+        await self.feed.connect(
+            "ETH-USD", max_retries=2, retry_interval_in_seconds=0.001
+        )
+
+        # Assertions
+        self.assertEqual(
+            3, mock_websocket.__aenter__.return_value.recv.call_count
+        )

@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 from datetime import datetime
@@ -21,6 +22,10 @@ class PublicFeed(Heartbeater):
 
     PRODUCTION_URI = "wss://ws.kraken.com/v2"
 
+    class ErrorCode(Enum):
+        CONNECTION_LOST = "Connection Lost"
+        MALFORMAT_RESPONSE = "Malformatted Response from Kraken"
+
     def __init__(self, candlestick_interval_in_seconds: int = 60):
         super().__init__(type(self).__name__, interval_in_seconds=10)
         self.events = Events()
@@ -28,7 +33,25 @@ class PublicFeed(Heartbeater):
             interval_in_seconds=candlestick_interval_in_seconds
         )
 
-    async def connect(self, symbol: str):
+    async def connect(
+        self,
+        symbol: str,
+        max_retries: int = 0,
+        retry_interval_in_seconds: int = 0,
+    ):
+        n_retries = 0
+        while n_retries <= max_retries:
+            try:
+                await self.connect_once(symbol)
+            except Exception as e:
+                logging.warning(
+                    "Schedule a reconnect after encountering an error "
+                    f"while connecting to Kraken's websocket: {e}"
+                )
+                await asyncio.sleep(retry_interval_in_seconds)
+            n_retries += 1
+
+    async def connect_once(self, symbol: str):
         """Establish a connection to the remote service and subscribe to the
         public market data feed.
 
@@ -67,29 +90,32 @@ class PublicFeed(Heartbeater):
                             f"Error '{e}' when decoding message '{response}'",
                             exc_info=True,
                         )
-                        self.add_issue(HeartbeatLevel.ERROR, f"{e}")
+                        self.add_issue(
+                            HeartbeatLevel.ERROR,
+                            PublicFeed.ErrorCode.MALFORMAT_RESPONSE.value,
+                        )
+                        break
                 except websockets.exceptions.ConnectionClosedError as e:
-                    self.add_issue(HeartbeatLevel.ERROR, "Connection Lost")
+                    self.add_issue(
+                        HeartbeatLevel.ERROR,
+                        PublicFeed.ErrorCode.CONNECTION_LOST.value,
+                    )
                     logging.error(f"Connection Closed: {e}", exc_info=True)
-                    break
+                    raise e
                 except StopAsyncIteration:
                     break
 
-        logging.warning(
-            "Encountered exception: shutting down market data feed!"
-        )
+        return False
 
     def _decode_message(self, response):
-        class ErrorCode(Enum):
-            CONNECTION_LOST = "Connection Lost"
-
         possible_error = response.get("error")
         if possible_error:
             logging.error(
                 f"Encountered error: {possible_error}", exc_info=True
             )
             self.add_issue(
-                HeartbeatLevel.ERROR, ErrorCode.CONNECTION_LOST.value
+                HeartbeatLevel.ERROR,
+                PublicFeed.ErrorCode.CONNECTION_LOST.value,
             )
             return
 
@@ -97,7 +123,7 @@ class PublicFeed(Heartbeater):
         if possible_method == "pong":
             return
         elif possible_method == "subscribe":
-            self.remove_issue(ErrorCode.CONNECTION_LOST.value)
+            self.remove_issue(PublicFeed.ErrorCode.CONNECTION_LOST.value)
             return
 
         message_type = response.get("channel")
