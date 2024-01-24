@@ -6,6 +6,7 @@ from typing import Type
 from blinker import signal
 
 from jolteon.core.event.signal_connector import SignalConnector
+from jolteon.core.logging.logger import setup_global_logger
 from jolteon.position.position_manager import PositionManager
 from jolteon.risk_limit.order_frequency_limit import OrderFrequencyLimit
 from jolteon.strategy.bull_trend_rider.strategy import BullFlagStrategy
@@ -45,12 +46,8 @@ class ApplicationBase:
         self._symbol = symbol
 
         # Data Dumping Setup
-        logging.basicConfig(
-            filename=logfile_name,
-            filemode="w",
-            format="[%(asctime)s][%(name)s][%(levelname)s] - %(message)s",
-            level=logging.INFO,
-        )
+        setup_global_logger(log_level=logging.DEBUG, logfile_name=logfile_name)
+
         self._signal_connector = SignalConnector(
             database_name=database_name,
         )
