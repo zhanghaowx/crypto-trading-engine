@@ -181,7 +181,9 @@ class ExecutionService(Heartbeater):
         possible_error = response.json().get("error")
         if possible_error:
             logging.error(
-                f"REST API returned error: {response}", exc_info=True
+                f"REST API returned error: {possible_error}, "
+                f"full response: {response.json()}",
+                exc_info=True,
             )
             self.add_issue(HeartbeatLevel.ERROR, error_code.name)
             return True
