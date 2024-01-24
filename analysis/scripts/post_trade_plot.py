@@ -131,29 +131,21 @@ class PostTradePlot:
             return pd.DataFrame()
 
     def load_opportunities(self, table_name="bull_trend_rider_trade_result"):
-        if not self.table_exists(table_name):
+        df = self.load_table(table_name)
+        if len(df) == 0:
             return pd.DataFrame()
-
-        df = pd.read_sql(f"select * from {table_name}", con=self._conn)
+        
         df["profit"] = (
             df["sell_trades.0.price"] * df["sell_trades.0.quantity"]
             - df["buy_trades.0.price"] * df["buy_trades.0.quantity"]
         )
         return df
 
-    def load_bull_flag_pattern(self, table_name="bull_flag") -> pd.DataFrame:
-        if not self.table_exists(table_name):
-            return pd.DataFrame()
+    def load_bull_flag_pattern(self) -> pd.DataFrame:
+        return self.load_table("bull_flag")
 
-        df = pd.read_sql(f"select * from {table_name}", con=self._conn)
-        return df
-
-    def load_shooting_star_pattern(self, table_name="shooting_star") -> pd.DataFrame:
-        if not self.table_exists(table_name):
-            return pd.DataFrame()
-
-        df = pd.read_sql(f"select * from {table_name}", con=self._conn)
-        return df
+    def load_shooting_star_pattern(self) -> pd.DataFrame:
+        return self.load_table("shooting_str")
 
     def table_exists(self, table_name: str) -> bool:
         assert table_name, "Require a valid table name"
@@ -167,6 +159,13 @@ class PostTradePlot:
         # Execute the query
         query_result = pd.read_sql_query(query, self._conn)
         return len(query_result) > 0
+
+    def load_table(self, table_name: str) -> pd.DataFrame:
+        if not self.table_exists(table_name):
+            return pd.DataFrame()
+
+        df = pd.read_sql(f"select * from {table_name}", con=self._conn)
+        return df
 
     def draw_candlesticks(self) -> go.Candlestick:
         df = self.load_candlesticks("calculated_candlestick_feed")
@@ -333,11 +332,11 @@ class PostTradePlot:
                     datetime.fromisoformat(
                         opportunity["opportunity.bull_flag_pattern.start"]
                     )
-                    - timedelta(minutes=15),
+                    - timedelta(minutes=10),
                     datetime.fromisoformat(
                         opportunity["opportunity.bull_flag_pattern.end"]
                     )
-                    + timedelta(minutes=15),
+                    + timedelta(minutes=10),
                 ]
             )
             min_y = min(opportunity["buy_trades.0.price"], opportunity["sell_trades.0.price"], opportunity["opportunity.stop_loss_price"])
