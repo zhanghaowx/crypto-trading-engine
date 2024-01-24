@@ -7,9 +7,10 @@ from enum import StrEnum
 
 import pytz
 from blinker import signal
-from kraken import spot
+from requests import Response
 
 from jolteon.core.health_monitor.heartbeat import Heartbeater, HeartbeatLevel
+from jolteon.execution.kraken.rest_client import KrakenRESTClient
 from jolteon.market_data.core.order import Order
 from jolteon.market_data.core.trade import Trade
 
@@ -29,14 +30,7 @@ class ExecutionService(Heartbeater):
         self.order_history = dict[str, Order]()
         self.order_fill_event = signal("order_fill")
         self._dry_run = dry_run
-        self._order_client = spot.trade.Trade(
-            key=os.environ.get("KRAKEN_API_KEY"),
-            secret=os.environ.get("KRAKEN_API_SECRET"),
-        )
-        self._user_client = spot.user.User(
-            key=os.environ.get("KRAKEN_API_KEY"),
-            secret=os.environ.get("KRAKEN_API_SECRET"),
-        )
+        self._client = KrakenRESTClient()
         assert os.environ.get(
             "KRAKEN_API_KEY"
         ), "Please set the KRAKEN_API_KEY environment variable"
@@ -57,30 +51,10 @@ class ExecutionService(Heartbeater):
             None
 
         """
-
-        # Calling AddOrder/addOrder with the validate parameter set to true
-        # (validate=1, validate=true, validate=anything, etc.) will cause the
-        # order details to be checked for errors, but the API response will
-        # never include an order ID (which would always be returned for a
-        # successful order without the validate parameter).
         try:
-            response = self._order_client.create_order(
-                ordertype=order.order_type.value.lower(),
-                side=order.side.value.lower(),
-                volume=order.quantity,
-                pair=order.symbol,
-                price=order.price,
-                userref=int(order.client_order_id),
-                validate=self._dry_run,
-            )
-            logging.info(f"Create order: {response}")
-
-            if not self.__handle_possible_error(
-                response, self.ErrorCode.CREATE_ORDER_FAILURE
-            ):
-                self.remove_issue(self.ErrorCode.CREATE_ORDER_FAILURE)
+            self.send_order(order)
         except Exception as e:
-            logging.error(f"Fail to create order: {e}", exc_info=True)
+            logging.error(f"Fail to send order: {e}", exc_info=True)
 
             self.add_issue(
                 HeartbeatLevel.ERROR, self.ErrorCode.CREATE_ORDER_FAILURE.name
@@ -93,25 +67,77 @@ class ExecutionService(Heartbeater):
         if not self._dry_run:
             asyncio.create_task(self._poll_fills(order))
 
+    def send_order(self, order):
+        """
+        Using the following API to send an order to the exchange.
+        https://docs.kraken.com/rest/#tag/Trading/operation/addOrder
+
+        Args:
+            order:
+
+        Returns:
+
+        """
+
+        # Calling AddOrder/addOrder with the validate parameter set to true
+        # (validate=1, validate=true, validate=anything, etc.) will cause the
+        # order details to be checked for errors, but the API response will
+        # never include an order ID (which would always be returned for a
+        # successful order without the validate parameter).
+        post_data = {
+            "pair": order.symbol,
+            "type": order.side.value.lower(),
+            "ordertype": order.order_type.value.lower(),
+            "volume": order.quantity,
+            "userref": int(order.client_order_id),
+            "validate": self._dry_run,
+        }
+        response = self._client.send_request("/0/private/AddOrder", post_data)
+
+        if self._handle_possible_error(
+            response, self.ErrorCode.CREATE_ORDER_FAILURE
+        ):
+            return
+
+        self.remove_issue(self.ErrorCode.CREATE_ORDER_FAILURE)
+        logging.debug(
+            f"AddOrder request received response from exchange: " f"{response}"
+        )
+
     # Poll for trade confirmations
     async def _poll_fills(self, order: Order):
         while not self._get_fills(order):
             await asyncio.sleep(1)
 
     def _get_fills(self, order: Order):
-        response = self._user_client.get_closed_orders(
-            userref=int(order.client_order_id), trades=True
+        """
+        Use the following API to get fill notice.
+        https://docs.kraken.com/rest/#tag/Account-Data/operation/getTradesInfo
+
+        Args:
+            order:
+
+        Returns:
+
+        """
+        response = self._client.send_request(
+            "/0/private/ClosedOrders",
+            {"userref": order.client_order_id, "trades": True},
         )
 
-        if self.__handle_possible_error(
+        if self._handle_possible_error(
             response, self.ErrorCode.GET_TRADE_FAILURE
         ):
             return False
 
         self.remove_issue(self.ErrorCode.GET_TRADE_FAILURE)
+        logging.debug(
+            f"ClosedOrders query received response from exchange "
+            f"{response}"
+        )
 
         trades = list[Trade]()
-        for json_trade in response["result"]["closed"].values():
+        for json_trade in response.json()["result"]["closed"].values():
             if json_trade["userref"] != int(order.client_order_id):
                 continue
 
@@ -143,8 +169,16 @@ class ExecutionService(Heartbeater):
 
         return False
 
-    def __handle_possible_error(self, response: dict, error_code: ErrorCode):
-        possible_error = response.get("error")
+    def _handle_possible_error(
+        self, response: Response, error_code: ErrorCode
+    ):
+        if response.status_code != 200:
+            logging.error(
+                f"REST API returned error: {response}", exc_info=True
+            )
+            self.add_issue(HeartbeatLevel.ERROR, error_code.name)
+
+        possible_error = response.json().get("error")
         if possible_error:
             logging.error(
                 f"REST API returned error: {response}", exc_info=True

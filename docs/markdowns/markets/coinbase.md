@@ -1,5 +1,8 @@
 # Coinbase
 
+> [!WARNING]  
+> The support of using coinbase's Advanced Trade API is paused due to coinbase's action on reviewing my accounts. As of now only replay feature is complete for coinbase.
+
 [Coinbase](https://www.coinbase.com/home) is one of the largest cryptocurrency exchange in the United States in terms of
 trading volume. It uses [Financial Information eXchange](http://en.wikipedia.org/wiki/Financial_Information_eXchange),
 or FIX, for its market data and order entry [API](https://docs.cloud.coinbase.com/exchange/docs/welcome).

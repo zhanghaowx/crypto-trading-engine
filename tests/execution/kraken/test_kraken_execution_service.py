@@ -2,7 +2,7 @@ import asyncio
 import os
 from datetime import datetime
 from unittest import IsolatedAsyncioTestCase
-from unittest.mock import Mock, patch
+from unittest.mock import patch, MagicMock
 
 import pytz
 
@@ -13,13 +13,17 @@ from jolteon.market_data.core.trade import Trade
 
 class TestExecutionService(IsolatedAsyncioTestCase):
     @patch.dict(os.environ, {"KRAKEN_API_KEY": "api_key"})
-    @patch.dict(os.environ, {"KRAKEN_API_SECRET": "api_secret"})
+    @patch.dict(
+        os.environ,
+        {
+            "KRAKEN_API_SECRET": "kQH5HW/8p1uGOVjbgWA7FunAmGO8lsSUXNsu3eow76sz"
+            "84Q18fWxnyRzBHCd3pd5nE9qa99HAZtuZuj6F1huXg=="
+        },
+    )
     async def asyncSetUp(self):
         from jolteon.execution.kraken.execution_service import ExecutionService
 
         self.execution_service = ExecutionService(dry_run=False)
-        self.execution_service._order_client = Mock()
-        self.execution_service._user_client = Mock()
         self.mock_order = Order(
             client_order_id="123",
             order_type=OrderType.MARKET_ORDER,
@@ -105,6 +109,7 @@ class TestExecutionService(IsolatedAsyncioTestCase):
             },
         }
         self.fills = list[Trade]()
+        self.execution_service.order_fill_event.connect(self.on_fill)
 
     async def asyncTearDown(self):
         pass
@@ -113,44 +118,42 @@ class TestExecutionService(IsolatedAsyncioTestCase):
         self.fills.append(trade)
 
     async def test_on_create_order(self):
-        self.execution_service.order_fill_event.connect(self.on_fill)
-        order_client = self.execution_service._order_client
-        user_client = self.execution_service._user_client
+        with patch("requests.post", new_callable=MagicMock) as mock_post:
+            mock_post.return_value = MagicMock()
+            mock_post.return_value.status_code = 200
+            mock_post.return_value.json.return_value = (
+                self.create_order_response
+            )
 
-        order_client.return_value = self.create_order_response
-        user_client.get_closed_orders.return_value = (
-            self.closed_orders_response
-        )
+            # Act
+            self.execution_service.on_order(self, self.mock_order)
 
-        # Act
-        self.execution_service.on_order(self, self.mock_order)
+            # Assert
+            mock_post.assert_called_once()
+            self.assertEqual(1, len(self.execution_service.order_history))
+            self.assertEqual(
+                self.execution_service.order_history["123"], self.mock_order
+            )
 
-        # Assert
-        self.assertEqual(
-            self.execution_service.order_history["123"], self.mock_order
-        )
-        order_client.create_order.assert_called_once()
-        user_client.get_closed_orders.assert_not_called()
+        with patch("requests.post", new_callable=MagicMock) as mock_post:
+            mock_post.return_value = MagicMock()
+            mock_post.return_value.status_code = 200
+            mock_post.return_value.json.return_value = (
+                self.closed_orders_response
+            )
 
-        await asyncio.sleep(0.01)
-
-        user_client.get_closed_orders.assert_called_once()
-
-        await asyncio.sleep(1.01)
-
-        user_client.get_closed_orders.assert_called_once()
-
-        self.assertEqual(len(self.fills), 1)
-        self.assertEqual(self.fills[0].trade_id, 0)
-        self.assertEqual(self.fills[0].client_order_id, "123")
-        self.assertEqual(self.fills[0].price, 1.23)
-        self.assertEqual(self.fills[0].symbol, "BTC-USD")
-        self.assertEqual(self.fills[0].maker_order_id, "")
-        self.assertEqual(self.fills[0].taker_order_id, "")
-        self.assertEqual(self.fills[0].side, MarketSide.BUY)
-        self.assertEqual(self.fills[0].price, 1.23)
-        self.assertEqual(self.fills[0].quantity, 1.0)
-        self.assertEqual(
-            self.fills[0].transaction_time,
-            datetime(2023, 6, 30, 18, 10, 10, tzinfo=pytz.utc),
-        )
+            await asyncio.sleep(1.01)
+            self.assertEqual(len(self.fills), 1)
+            self.assertEqual(self.fills[0].trade_id, 0)
+            self.assertEqual(self.fills[0].client_order_id, "123")
+            self.assertEqual(self.fills[0].price, 1.23)
+            self.assertEqual(self.fills[0].symbol, "BTC-USD")
+            self.assertEqual(self.fills[0].maker_order_id, "")
+            self.assertEqual(self.fills[0].taker_order_id, "")
+            self.assertEqual(self.fills[0].side, MarketSide.BUY)
+            self.assertEqual(self.fills[0].price, 1.23)
+            self.assertEqual(self.fills[0].quantity, 1.0)
+            self.assertEqual(
+                self.fills[0].transaction_time,
+                datetime(2023, 6, 30, 18, 10, 10, tzinfo=pytz.utc),
+            )
