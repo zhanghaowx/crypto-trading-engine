@@ -91,6 +91,7 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
             risk_limits=[MockRiskLimits(True)],
             parameters=StrategyParameters(
                 max_number_of_recent_candlesticks=4,
+                opportunity_score_cutoff=0.0,
             ),
         )
         self.round_trip = TradeRecord(

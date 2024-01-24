@@ -58,9 +58,6 @@ class TradeOpportunity(TradeOpportunityCore):
         Returns:
             None
         """
-        self.score = 1.0
-        self.score_details = {}
-
         previous_candlesticks = [
             candlestick
             for candlestick in history.candlesticks
@@ -68,11 +65,53 @@ class TradeOpportunity(TradeOpportunityCore):
             <= self.bull_flag_pattern.bull_flag.start_time
         ]
 
+        #######################
+        # Build Score Details #
+        #######################
+        self.score_details = {
+            "n_prev_candlesticks": len(previous_candlesticks)
+        }
+
         # The percentage of bullish candlesticks in history
         is_bullish = [
             candlestick.is_bullish() for candlestick in previous_candlesticks
         ]
-        is_bullish_pct = sum(is_bullish) / max(1e-10, len(is_bullish))
-        self.score_details["is_bullish_pct"] = is_bullish_pct
-        if self.score_details["is_bullish_pct"] <= 0.5:
-            self.score -= 0.5
+        prev_bullish_pct = sum(is_bullish) / max(1e-10, len(is_bullish))
+        self.score_details["prev_bullish_pct"] = prev_bullish_pct
+
+        # Min/Max return percentage of candlesticks in history
+        return_percentages = [
+            candlestick.return_percentage()
+            for candlestick in previous_candlesticks
+        ]
+        if len(return_percentages) == 0:
+            self.score_details["min_prev_return_pct"] = 0
+            self.score_details["max_prev_return_pct"] = 0
+        else:
+            self.score_details["min_prev_return_pct"] = min(return_percentages)
+            self.score_details["max_prev_return_pct"] = max(return_percentages)
+        self.score_details[
+            "bull_flag_return_pct"
+        ] = self.bull_flag_pattern.bull_flag.return_percentage()
+
+        ###############
+        # Build Score #
+        ###############
+        self.score = 0.0
+
+        # Before the "bull flag", we hope the previous trend is a bearish trend
+        # so that we are not following a bullish trend at a late point
+
+        self.score += 0.25 * (1 - self.score_details["prev_bullish_pct"])
+        self.score += 0.25 * (
+            1
+            - max(
+                abs(self.score_details["max_prev_return_pct"]),
+                abs(self.score_details["min_prev_return_pct"]),
+            )
+            / self.score_details["bull_flag_return_pct"]
+        )
+        self.score += 0.5 * (
+            self.score_details["n_prev_candlesticks"]
+            / params.max_number_of_recent_candlesticks
+        )
