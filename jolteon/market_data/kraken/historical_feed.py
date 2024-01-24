@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import StrEnum, auto
 
 import pytz
@@ -123,10 +123,7 @@ class HistoricalFeed(Heartbeater):
         market_trades = list[Trade]()
         request_timestamp = start_time.timestamp()
 
-        while (
-            len(market_trades) == 0
-            or market_trades[-1].transaction_time < end_time
-        ):
+        while request_timestamp < end_time.timestamp():
             # Start requesting REST API for data
             response = requests.get(
                 f"https://api.kraken.com/0/public/Trades?"
@@ -187,14 +184,21 @@ class HistoricalFeed(Heartbeater):
             last_timestamp = int(json_resp["result"]["last"]) / 1e9
 
             logging.info(
-                f"Downloaded historical data for {symbol} "
-                f"from "
-                f"{datetime.fromtimestamp(request_timestamp, tz=pytz.utc)} "
-                f"to "
+                f"Downloaded {len(json_trades)} historical trades "
+                f"for {symbol} from "
+                f"{datetime.fromtimestamp(request_timestamp, tz=pytz.utc)} to "
                 f"{datetime.fromtimestamp(last_timestamp, tz=pytz.utc)}"
             )
 
-            request_timestamp = last_timestamp
+            # Should at least advance 1 second
+            request_timestamp = max(
+                (
+                    datetime.fromtimestamp(request_timestamp, tz=pytz.utc)
+                    + timedelta(seconds=1)
+                ).timestamp(),
+                last_timestamp,
+            )
+            assert request_timestamp >= last_timestamp
 
             # Wait a while before making another API call to avoid errors
             await asyncio.sleep(1.0)
