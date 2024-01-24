@@ -84,11 +84,19 @@ class HistoricalFeed(Heartbeater):
             f"from {start_time} to {end_time}"
         )
 
-        assert (
-            len(market_trades) == 0
-            or len(market_trades)
+        if len(market_trades) == 0:
+            return
+
+        if (
+            len(market_trades)
             == market_trades[-1].trade_id - market_trades[0].trade_id + 1
-        )
+        ):
+            logging.warning(
+                f"Got {len(market_trades)} market trades "
+                f"from trade id {market_trades[0].trade_id + 1} "
+                f"to {market_trades[-1].trade_id}. "
+                f"Some market trades might be missing!"
+            )
 
         for market_trade in market_trades:
             time_manager().use_fake_time(
