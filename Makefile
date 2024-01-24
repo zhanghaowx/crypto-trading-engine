@@ -29,6 +29,8 @@ fmt:              ## Format code using black & isort.
 	$(ENV_PREFIX)isort jolteon/
 	$(ENV_PREFIX)black -l 79 jolteon/
 	$(ENV_PREFIX)black -l 79 tests/
+	$(ENV_PREFIX)black -l 79 integration-tests/
+	$(ENV_PREFIX)black -l 79 analysis/
 
 .PHONY: lint
 lint:             ## Run pep8, black, mypy linters.

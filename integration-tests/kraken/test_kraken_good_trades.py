@@ -49,7 +49,7 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
         self.assertGreater(pnl, 0)
 
         profiler.disable()
-        profiler.print_stats(sort='cumulative')
+        profiler.print_stats(sort="cumulative")
 
         conn = sqlite3.connect(f"{tempfile.gettempdir()}/unittest.sqlite")
         df = pd.read_sql_query("SELECT * FROM sqlite_master", con=conn)

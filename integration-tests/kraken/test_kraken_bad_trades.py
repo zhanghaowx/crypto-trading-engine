@@ -49,4 +49,4 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(pnl, 0)
 
         profiler.disable()
-        profiler.print_stats(sort='cumulative')
+        profiler.print_stats(sort="cumulative")

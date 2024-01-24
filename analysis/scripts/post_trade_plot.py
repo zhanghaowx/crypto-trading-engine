@@ -430,8 +430,10 @@ class PostTradePlot:
             ].tolist()
             for correlated_col in correlated_cols:
                 correlation_value = correlation_matrix.loc[correlated_col, col]
-                print(f"  * {col} and {correlated_col}: "
-                      f"{correlation_value:.2f}")
+                print(
+                    f"  * {col} and {correlated_col}: "
+                    f"{correlation_value:.2f}"
+                )
 
         y = "is_profit"
         X = [x for x in train_df.columns if x != y]
