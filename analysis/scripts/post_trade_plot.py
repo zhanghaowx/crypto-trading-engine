@@ -2,10 +2,10 @@ import os
 import sqlite3
 from datetime import datetime, timedelta
 
-import numpy as np
+import joblib
 import pandas as pd
 import plotly.graph_objects as go
-from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import RandomForestRegressor
 
 from jolteon.core.side import MarketSide
 
@@ -405,9 +405,12 @@ class PostTradePlot:
             return
 
         score_details = [
-            col for col in df if col.startswith("opportunity.score_details")
+            col for col in df if col.startswith("opportunity.score_details.")
         ]
         train_df = df[score_details].copy()
+        train_df = train_df.rename(
+            columns=lambda x: x.replace("opportunity.score_details.", "")
+        )
         train_df["is_profit"] = (df["profit"] > 0).astype(int)
 
         if len(drop_columns) > 0:
@@ -437,31 +440,31 @@ class PostTradePlot:
 
         y = "is_profit"
         X = [x for x in train_df.columns if x != y]
-        model = LinearRegression()
+        print(f"Features: {X}")
+        model = RandomForestRegressor(n_estimators=100, random_state=42)
         model.fit(train_df[X], train_df[y])
-
-        # Extract coefficients, intercept, and feature names
-        coefficients = model.coef_
-        intercept = model.intercept_
-        feature_names = train_df[X].columns
-
-        # Round coefficients and intercept to 0.01
-        coefficients_rounded = np.round(coefficients, decimals=3)
-        intercept_rounded = round(intercept, 3)
-
-        # Print out the equation with rounded values
-        equation = f"y = {intercept_rounded}"
-        for i in range(0, len(feature_names)):
-            equation += f" + {coefficients_rounded[i]} * {feature_names[i]}"
-        print("Linear Regression Equation:")
-        print(equation)
 
         # Combine train_df with predict
         train_df["predict"] = model.predict(train_df[X])
 
         # Print new win rate after prediction
         final = train_df[train_df["predict"] > predict_cutoff]
-        win_rate = len(final[final["is_profit"] > 0]) / len(final)
-        print(f"Win Rate (After Prediction Cutoff): {win_rate:.2f}")
+        success_count = len(final[final["is_profit"] > 0])
+        total_count = len(final)
+        win_rate = success_count / total_count
+        print(
+            f"Win Rate (After Prediction Cutoff): {win_rate * 100:.2f}% "
+            f"with {success_count}/{total_count} opportunities"
+        )
 
-        return train_df
+        script_directory = os.path.dirname(os.path.abspath(__file__))
+        repo_directory = os.path.dirname(os.path.dirname(script_directory))
+        model_filename = "random_forest_model.joblib"
+        joblib.dump(
+            model,
+            f"{repo_directory}"
+            f"/jolteon/strategy/bull_trend_rider/models/"
+            f"{model_filename}",
+        )
+
+        return model, train_df
