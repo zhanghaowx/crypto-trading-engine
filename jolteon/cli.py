@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 import pytz
 
 from jolteon.app.kraken import KrakenApplication as Application
+from jolteon.app.progress_bar import ProgressBar
 
 
 def graceful_exit(signum, frame):
@@ -52,7 +53,12 @@ async def main():
             database_name="/tmp/replay.sqlite",
             logfile_name="/tmp/replay.log",
         )
+        pb = ProgressBar(replay_start_time, replay_end_time)
+
+        pb.start()
         pnl = await app.run_replay(replay_start_time, replay_end_time)
+        pb.stop()
+
     else:
         app = Application(
             symbol,
@@ -62,6 +68,7 @@ async def main():
             logfile_name="/tmp/jolteon.log",
         )
         pnl = await app.start()
+
     print(f"PnL: {pnl}")
 
     app_end_time = datetime.now(tz=pytz.utc)
