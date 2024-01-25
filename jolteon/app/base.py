@@ -46,7 +46,7 @@ class ApplicationBase:
         self._symbol = symbol
 
         # Data Dumping Setup
-        setup_global_logger(log_level=logging.DEBUG, logfile_name=logfile_name)
+        setup_global_logger(log_level=logging.INFO, logfile_name=logfile_name)
 
         self._signal_connector = SignalConnector(
             database_name=database_name,
@@ -65,8 +65,8 @@ class ApplicationBase:
         self._strategy = BullFlagStrategy(
             symbol,
             risk_limits=[
-                OrderFrequencyLimit(number_of_orders=1, in_seconds=60),
-                OrderFrequencyLimit(number_of_orders=2, in_seconds=60 * 5),
+                OrderFrequencyLimit(number_of_orders=1, in_seconds=60 * 2),
+                OrderFrequencyLimit(number_of_orders=2, in_seconds=60 * 10),
             ],
             parameters=strategy_params,
         )
