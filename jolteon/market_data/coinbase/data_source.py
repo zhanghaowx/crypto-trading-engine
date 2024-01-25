@@ -30,7 +30,7 @@ class CoinbaseHistoricalDataSource(IDataSource):
 
         # Begin download
         time_range = TimeRange(start_time, end_time)
-        for period in time_range.generate_time_ranges(interval_in_minutes=30):
+        for period in time_range.generate_time_ranges(interval_in_minutes=1):
             new_trades = self._download(symbol, period.start, period.end)
             market_trades = market_trades + new_trades
 
@@ -76,13 +76,19 @@ class CoinbaseHistoricalDataSource(IDataSource):
                 )
                 continue  # Try next trade in the JSON response
 
-        if len(market_trades) == max_number_of_trades_limit:
+        market_trades.sort(key=lambda x: x.transaction_time)
+        if (
+            len(market_trades) == max_number_of_trades_limit
+            and market_trades[-1].transaction_time < end_time
+        ):
             logging.warning(
-                f"Max number of trades({len(market_trades)}) "
+                f"Max number of trades ({len(market_trades)}) "
                 f"returned for {start_time} - {end_time}, "
-                f"consider using a time range smaller than "
+                f"first trade at {market_trades[0].transaction_time}. "
+                f"last trade at {market_trades[-1].transaction_time}. "
+                f"Consider using a time range smaller than "
                 f"{int((end_time - start_time).total_seconds() / 60)} minutes "
-                f"when downloading historical market trades"
+                f"when downloading historical market trades!"
             )
 
         return market_trades

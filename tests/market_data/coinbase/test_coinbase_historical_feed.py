@@ -49,8 +49,8 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
         symbol = "BTC-USD"
         await self.historical_feed.connect(
             symbol,
-            time_manager().now() - timedelta(minutes=1),
-            time_manager().now() + timedelta(minutes=1),
+            time_manager().now() - timedelta(seconds=1),
+            time_manager().now() + timedelta(seconds=1),
         )
 
         # Validate raised candlestick event
