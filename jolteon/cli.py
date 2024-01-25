@@ -11,6 +11,7 @@ import pytz
 
 from jolteon.app.progress_bar import ProgressBar
 from jolteon.core.market import Market
+from jolteon.market_data.data_source import DatabaseDataSource
 
 
 def graceful_exit(signum, frame):
@@ -27,6 +28,7 @@ async def main():
     app_start_time = datetime.now(tz=pytz.utc)
 
     parser = argparse.ArgumentParser(description="Jolteon Trading Engine")
+    parser.add_argument("--replay-db", help="Path to a SQLite database file")
     parser.add_argument("--replay-start", help="Start time in ISO format")
     parser.add_argument("--replay-end", help="End time in ISO format")
     parser.add_argument("--exchange", help="Name of the exchange")
@@ -35,6 +37,7 @@ async def main():
     args = parser.parse_args()
     replay_start = args.replay_start
     replay_end = args.replay_end
+    replay_db = args.replay_db
 
     # Instantiate the correct market's application instance
     market = Market.parse(args.exchange)
@@ -49,13 +52,25 @@ async def main():
 
     symbol = "BTC-USD"
 
-    if replay_start and replay_end:
-        replay_start_time = datetime.fromisoformat(replay_start).replace(
-            tzinfo=timezone.utc
+    if replay_start and replay_end and replay_db:
+        assert False, (
+            "No need to specify both replay start, "
+            "end time and replay database path"
         )
-        replay_end_time = datetime.fromisoformat(replay_end).replace(
-            tzinfo=timezone.utc
-        )
+
+    if (replay_start and replay_end) or replay_db:
+        if replay_start and replay_end:
+            replay_start_time = datetime.fromisoformat(replay_start).replace(
+                tzinfo=timezone.utc
+            )
+            replay_end_time = datetime.fromisoformat(replay_end).replace(
+                tzinfo=timezone.utc
+            )
+        else:
+            data_source = DatabaseDataSource(replay_db)
+            replay_start_time = data_source.start_time()
+            replay_end_time = data_source.end_time()
+
         print(f"Replay Start: {replay_start_time}")
         print(f"Replay End  : {replay_end_time}")
         app = Application(
@@ -68,7 +83,11 @@ async def main():
         pb = ProgressBar(replay_start_time, replay_end_time)
 
         pb.start()
-        pnl = await app.run_replay(replay_start_time, replay_end_time)
+
+        if replay_start and replay_end:
+            pnl = await app.run_replay(replay_start_time, replay_end_time)
+        else:
+            pnl = await app.run_local_replay(replay_db)
         pb.stop()
 
     else:

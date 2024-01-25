@@ -43,6 +43,7 @@ class CoinbaseApplication(ApplicationBase):
             symbol=symbol,
             database_name=database_name,
             logfile_name=logfile_name,
+            candlestick_interval_in_seconds=candlestick_interval_in_seconds,
             bull_flag_params=bull_flag_params,
             shooting_star_params=shooting_star_params,
             strategy_params=strategy_params,
@@ -52,16 +53,15 @@ class CoinbaseApplication(ApplicationBase):
         else:
             super().use_execution_service(MockExecutionService())
 
-        self._candlestick_interval_in_seconds = candlestick_interval_in_seconds
-
     async def start(self):
         logging.info(f"Running {self._symbol}")
 
-        interval = self._candlestick_interval_in_seconds
+        print(type(super()))
+        interval_in_seconds = self._candlestick_interval_in_seconds
         super().use_market_data_service(
-            PublicFeed(candlestick_interval_in_seconds=interval)
+            PublicFeed(candlestick_interval_in_seconds=interval_in_seconds)
         )
-        return await super().start()
+        return await super().run_start()
 
     async def run_replay(self, start: datetime, end: datetime):
         logging.info(f"Replaying {self._symbol} from {start} to {end}")
@@ -72,4 +72,4 @@ class CoinbaseApplication(ApplicationBase):
             )
         )
         now = datetime.now(tz=pytz.utc)
-        return await super().start(start, min(now, end))
+        return await super().run_start(start, min(now, end))

@@ -1,25 +1,20 @@
 import asyncio
 import logging
 import threading
+from datetime import datetime
 
+import pytz
 from blinker import signal
 
 from jolteon.core.event.signal_connector import SignalConnector
 from jolteon.core.logging.logger import setup_global_logger
+from jolteon.market_data.data_source import DatabaseDataSource
+from jolteon.market_data.historical_feed import HistoricalFeed
 from jolteon.position.position_manager import PositionManager
 from jolteon.risk_limit.order_frequency_limit import OrderFrequencyLimit
 from jolteon.strategy.bull_trend_rider.strategy import BullFlagStrategy
-from jolteon.strategy.bull_trend_rider.strategy_parameters import (
-    StrategyParameters,
-)
-from jolteon.strategy.core.patterns.bull_flag.parameters import (
-    BullFlagParameters,
-)
 from jolteon.strategy.core.patterns.bull_flag.recognizer import (
     BullFlagRecognizer,
-)
-from jolteon.strategy.core.patterns.shooting_star.parameters import (
-    ShootingStarParameters,
 )
 from jolteon.strategy.core.patterns.shooting_star.recognizer import (
     ShootingStarRecognizer,
@@ -32,17 +27,19 @@ class ApplicationBase:
     def __init__(
         self,
         symbol: str,
-        database_name="/tmp/jolteon.sqlite",
-        logfile_name="/tmp/jolteon.log",
-        bull_flag_params=BullFlagParameters(),
-        shooting_star_params=ShootingStarParameters(),
-        strategy_params=StrategyParameters(),
+        database_name,
+        logfile_name,
+        candlestick_interval_in_seconds,
+        bull_flag_params,
+        shooting_star_params,
+        strategy_params,
     ):
         """
         Connects different components to build the trading engine. It supports
         one symbol and one strategy.
         """
         self._symbol = symbol
+        self._candlestick_interval_in_seconds = candlestick_interval_in_seconds
 
         # Data Dumping Setup
         setup_global_logger(log_level=logging.DEBUG, logfile_name=logfile_name)
@@ -84,7 +81,7 @@ class ApplicationBase:
         self._md = market_data
         return self
 
-    async def start(self, *args):
+    async def run_start(self, *args):
         self._connect_signals()
 
         # Start receiving market data
@@ -104,6 +101,23 @@ class ApplicationBase:
 
         self.stop()
         return self._position_manager.pnl
+
+    async def run_local_replay(self, db: str):
+        data_source = DatabaseDataSource(db)
+        start = data_source.start_time()
+        end = data_source.end_time()
+
+        self.use_market_data_service(
+            HistoricalFeed(
+                data_source,
+                self._candlestick_interval_in_seconds,
+            )
+        )
+
+        logging.info(f"Replaying {self._symbol} from {start} to {end}")
+        print(f"Replaying {self._symbol} from {start} to {end}")
+        now = datetime.now(tz=pytz.utc)
+        return await self.run_start(start, min(now, end))
 
     def stop(self):
         # Disconnect every blinker signal from its receivers

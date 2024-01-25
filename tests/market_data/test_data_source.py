@@ -1,6 +1,6 @@
 import unittest
 from datetime import datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch, Mock
 
 import pandas as pd
 
@@ -11,11 +11,12 @@ from jolteon.market_data.data_source import DatabaseDataSource
 
 
 class TestDatabaseDataSource(unittest.IsolatedAsyncioTestCase):
-    @patch("sqlite3.connect")
-    @patch("pandas.read_sql")
-    async def test_download_market_trades(self, mock_read_sql, mock_connect):
-        # Mock the database connection and read_sql function
-        mock_read_sql.return_value = pd.DataFrame(
+    async def asyncSetUp(self):
+        # Create an instance of DatabaseDataSource
+        self.database_data_source = DatabaseDataSource(database_name="test.db")
+
+        # Define the expected Trade objects
+        self.sql_result = pd.DataFrame(
             {
                 "trade_id": [1, 2],
                 "client_order_id": ["client1", "client2"],
@@ -27,18 +28,12 @@ class TestDatabaseDataSource(unittest.IsolatedAsyncioTestCase):
                 "quantity": [1.0, 2.0],
                 "transaction_time": [
                     "2022-01-01 10:00:00",
-                    "2022-01-01 11:00:00",
+                    "2022-01-01 10:00:00",
                 ],
             }
         )
-
-        mock_connect.return_value = MagicMock()
-
-        # Create an instance of DatabaseDataSource
-        database_data_source = DatabaseDataSource(database_name="test.db")
-
-        # Define the expected Trade objects
-        expected_trades = [
+        self.transaction_time = datetime.fromisoformat("2022-01-01 10:00:00")
+        self.expected_trades = [
             Trade(
                 trade_id=1,
                 client_order_id="client1",
@@ -48,7 +43,7 @@ class TestDatabaseDataSource(unittest.IsolatedAsyncioTestCase):
                 side=MarketSide.BUY,
                 price=100.0,
                 quantity=1.0,
-                transaction_time=datetime.fromisoformat("2022-01-01 10:00:00"),
+                transaction_time=self.transaction_time,
             ),
             Trade(
                 trade_id=2,
@@ -59,23 +54,71 @@ class TestDatabaseDataSource(unittest.IsolatedAsyncioTestCase):
                 side=MarketSide.SELL,
                 price=200.0,
                 quantity=2.0,
-                transaction_time=datetime.fromisoformat("2022-01-01 11:00:00"),
+                transaction_time=self.transaction_time,
             ),
         ]
 
+    @patch("sqlite3.connect")
+    @patch("pandas.read_sql")
+    async def test_download_market_trades(self, mock_read_sql, mock_connect):
+        # Mock the database connection and read_sql function
+        mock_connect.return_value = Mock()
+        mock_read_sql.return_value = self.sql_result
+
         # Call the method to test
-        result = await database_data_source.download_market_trades(
+        result = await self.database_data_source.download_market_trades(
             symbol="BTC/USD",
             start_time=datetime(2022, 1, 1, 0, 0, 0),
             end_time=datetime(2022, 1, 2, 0, 0, 0),
         )
 
         # Assert that the expected trades match the actual result
-        self.assertEqual(result, expected_trades)
+        self.assertEqual(result, self.expected_trades)
 
         # Assert that the database connection and read_sql function were called
         mock_connect.assert_called_once_with("test.db")
         mock_read_sql.assert_called_once_with(
             f"select * from {Events().matches.name}",
+            con=mock_connect.return_value,
+        )
+
+    @patch("sqlite3.connect")
+    @patch("pandas.read_sql")
+    async def test_get_start_time(self, mock_read_sql, mock_connect):
+        # Mock the database connection and read_sql function
+        mock_connect.return_value = Mock()
+        mock_read_sql.return_value = self.sql_result
+
+        # Assert that the expected trades match the actual result
+        self.assertEqual(
+            self.database_data_source.start_time(),
+            self.transaction_time,
+        )
+
+        # Assert that the database connection and read_sql function were called
+        mock_connect.assert_called_once_with("test.db")
+        mock_read_sql.assert_called_once_with(
+            f"select * from {Events().matches.name} "
+            f"order by transaction_time asc limit 1",
+            con=mock_connect.return_value,
+        )
+
+    @patch("sqlite3.connect")
+    @patch("pandas.read_sql")
+    async def test_get_end_time(self, mock_read_sql, mock_connect):
+        # Mock the database connection and read_sql function
+        mock_connect.return_value = Mock()
+        mock_read_sql.return_value = self.sql_result
+
+        self.assertEqual(
+            self.database_data_source.end_time(),
+            self.transaction_time,
+        )
+
+        # Assert that the database connection and read_sql function were called
+        mock_connect.assert_called_once_with("test.db")
+        mock_read_sql.assert_called_once_with(
+            f"select * from {Events().matches.name} "
+            f"order by transaction_time desc limit 1",
             con=mock_connect.return_value,
         )

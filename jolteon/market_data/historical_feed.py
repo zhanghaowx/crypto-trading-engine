@@ -24,7 +24,6 @@ class HistoricalFeed(Heartbeater):
         self,
         data_source: IDataSource,
         candlestick_interval_in_seconds: int = 60,
-        replay_speed: int = 600,
     ):
         """
         Creates a historical market data feed client for the given time frame.
@@ -36,7 +35,6 @@ class HistoricalFeed(Heartbeater):
         super().__init__(type(self).__name__, interval_in_seconds=10)
         self.events = Events()
         self._data_source = data_source
-        self._replay_speed = replay_speed
         self._candlestick_generator = CandlestickGenerator(
             interval_in_seconds=candlestick_interval_in_seconds
         )
