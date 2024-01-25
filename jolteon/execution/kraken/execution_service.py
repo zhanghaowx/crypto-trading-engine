@@ -21,7 +21,7 @@ class ExecutionService(Heartbeater):
         CREATE_ORDER_FAILURE = "CREATE_ORDER_FAILURE"
         GET_TRADE_FAILURE = "GET_TRADE_FAILURE"
 
-    def __init__(self, dry_run=True):
+    def __init__(self, dry_run=False):
         """
         Creates an execution service to act as the exchange. It will
         respond to requests such as buy and sell.
