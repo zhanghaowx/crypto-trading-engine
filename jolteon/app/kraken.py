@@ -11,7 +11,8 @@ from jolteon.execution.kraken.execution_service import ExecutionService
 from jolteon.execution.kraken.mock_execution_service import (
     MockExecutionService,
 )
-from jolteon.market_data.kraken.historical_feed import HistoricalFeed
+from jolteon.market_data.historical_feed import HistoricalFeed
+from jolteon.market_data.kraken.data_source import KrakenHistoricalDataSource
 from jolteon.market_data.kraken.public_feed import PublicFeed
 from jolteon.strategy.bull_trend_rider.strategy_parameters import (
     StrategyParameters,
@@ -54,7 +55,7 @@ class KrakenApplication(ApplicationBase):
 
     async def start(self):
         super().use_market_data_service(
-            PublicFeed, self._candlestick_interval_in_seconds
+            PublicFeed(self._candlestick_interval_in_seconds)
         )
 
         logging.info(f"Running {self._symbol} live")
@@ -63,7 +64,10 @@ class KrakenApplication(ApplicationBase):
 
     async def run_replay(self, start: datetime, end: datetime):
         super().use_market_data_service(
-            HistoricalFeed, self._candlestick_interval_in_seconds
+            HistoricalFeed(
+                KrakenHistoricalDataSource(),
+                self._candlestick_interval_in_seconds,
+            )
         )
 
         logging.info(f"Replaying {self._symbol} from {start} to {end}")

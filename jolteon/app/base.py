@@ -80,13 +80,9 @@ class ApplicationBase:
         self._exec_service = ExecutionServiceClass()
         return self
 
-    def use_market_data_service(
-        self, MarketDataClass: Type, candlestick_interval_in_seconds: int = 60
-    ):
-        print(f"Using {MarketDataClass.__name__}")
-        self._md = MarketDataClass(
-            candlestick_interval_in_seconds=candlestick_interval_in_seconds,
-        )
+    def use_market_data_service(self, market_data: object):
+        print(f"Using {type(market_data).__name__}")
+        self._md = market_data
         return self
 
     async def start(self, *args):

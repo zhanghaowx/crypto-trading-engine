@@ -45,6 +45,8 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
     async def asyncTearDown(self):
         time_manager().force_reset()
 
+    @patch.dict(os.environ, {"COINBASE_API_KEY": "api_key"})
+    @patch.dict(os.environ, {"COINBASE_API_SECRET": "api_secret"})
     @patch("jolteon.app.coinbase.HistoricalFeed")
     async def test_run_replay(self, MockFeed):
         MockFeed.__name__ = "MockFeed"
@@ -67,6 +69,8 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
             self.symbol, start_time, end_time
         )
 
+    @patch.dict(os.environ, {"COINBASE_API_KEY": "api_key"})
+    @patch.dict(os.environ, {"COINBASE_API_SECRET": "api_secret"})
     @patch("jolteon.app.coinbase.PublicFeed")
     async def test_run(self, MockFeed):
         MockFeed.__name__ = "MockFeed"

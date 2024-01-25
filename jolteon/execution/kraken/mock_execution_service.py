@@ -10,7 +10,7 @@ from jolteon.core.id_generator import id_generator
 from jolteon.core.time.time_manager import time_manager
 from jolteon.market_data.core.order import Order
 from jolteon.market_data.core.trade import Trade
-from jolteon.market_data.kraken.historical_feed import HistoricalFeed
+from jolteon.market_data.kraken.data_source import KrakenHistoricalDataSource
 
 
 class MockExecutionService(Heartbeater):
@@ -58,7 +58,7 @@ class MockExecutionService(Heartbeater):
     @staticmethod
     def _get_closest_market_trade_price(order: Order) -> float:
         # First search in the cache
-        for trades in HistoricalFeed.CACHE.values():
+        for trades in KrakenHistoricalDataSource.CACHE.values():
             for trade in trades:
                 time_difference = (
                     trade.transaction_time - order.creation_time
