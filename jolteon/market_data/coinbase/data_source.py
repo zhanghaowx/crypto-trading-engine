@@ -15,8 +15,6 @@ class CoinbaseHistoricalDataSource(IDataSource):
     CACHE = dict[tuple, list[Trade]]()
 
     def __init__(self):
-        print("API KEY: ", os.getenv("COINBASE_API_KEY"))
-        print("API SECRET: ", os.getenv("COINBASE_API_SECRET"))
         self._client = RESTClient(
             api_key=os.getenv("COINBASE_API_KEY"),
             api_secret=os.getenv("COINBASE_API_SECRET"),

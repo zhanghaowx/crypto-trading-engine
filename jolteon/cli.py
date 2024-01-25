@@ -9,8 +9,8 @@ from datetime import datetime, timezone
 
 import pytz
 
-from jolteon.app.kraken import KrakenApplication as Application
 from jolteon.app.progress_bar import ProgressBar
+from jolteon.core.market import Market
 
 
 def graceful_exit(signum, frame):
@@ -29,11 +29,23 @@ async def main():
     parser = argparse.ArgumentParser(description="Jolteon Trading Engine")
     parser.add_argument("--replay-start", help="Start time in ISO format")
     parser.add_argument("--replay-end", help="End time in ISO format")
+    parser.add_argument("--exchange", help="Name of the exchange")
 
     # Access the arguments
     args = parser.parse_args()
     replay_start = args.replay_start
     replay_end = args.replay_end
+
+    # Instantiate the correct market's application instance
+    market = Market.parse(args.exchange)
+    if market == Market.KRAKEN:
+        from jolteon.app.kraken import KrakenApplication as Application
+    elif market == Market.COINBASE:
+        from jolteon.app.coinbase import CoinbaseApplication as Application
+    else:
+        raise NotImplementedError(
+            f"Application is not implemented " f"for market {args.exchange}"
+        )
 
     symbol = "BTC-USD"
 
