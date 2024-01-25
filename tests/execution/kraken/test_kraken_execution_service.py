@@ -12,13 +12,17 @@ from jolteon.market_data.core.trade import Trade
 
 
 class TestExecutionService(IsolatedAsyncioTestCase):
+    # KRAKEN_API_SECRET comes from Kraken's API documentation. It is not a real
+    # one.
+    KRAKEN_API_TEST_SECRET = (
+        "kQH5HW/8p1uGOVjbgWA7FunAmGO8lsSUXNsu3eow76sz84Q18"
+        "fWxnyRzBHCd3pd5nE9qa99HAZtuZuj6F1huXg=="
+    )
+
     @patch.dict(os.environ, {"KRAKEN_API_KEY": "api_key"})
     @patch.dict(
         os.environ,
-        {
-            "KRAKEN_API_SECRET": "kQH5HW/8p1uGOVjbgWA7FunAmGO8lsSUXNsu3eow76sz"
-            "84Q18fWxnyRzBHCd3pd5nE9qa99HAZtuZuj6F1huXg=="
-        },
+        {"KRAKEN_API_SECRET": KRAKEN_API_TEST_SECRET},
     )
     async def asyncSetUp(self):
         from jolteon.execution.kraken.execution_service import ExecutionService
