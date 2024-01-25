@@ -48,9 +48,9 @@ class CoinbaseApplication(ApplicationBase):
             strategy_params=strategy_params,
         )
         if use_mock_execution:
-            super().use_execution_service(MockExecutionService)
+            super().use_execution_service(MockExecutionService())
         else:
-            super().use_execution_service(MockExecutionService)
+            super().use_execution_service(MockExecutionService())
 
         self._candlestick_interval_in_seconds = candlestick_interval_in_seconds
 

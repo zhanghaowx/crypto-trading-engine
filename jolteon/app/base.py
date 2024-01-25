@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import threading
-from typing import Type
 
 from blinker import signal
 
@@ -75,9 +74,9 @@ class ApplicationBase:
         self._exec_service: object = None
         self._md: object = None
 
-    def use_execution_service(self, ExecutionServiceClass: Type):
-        print(f"Using {ExecutionServiceClass.__name__}")
-        self._exec_service = ExecutionServiceClass()
+    def use_execution_service(self, service: object):
+        print(f"Using {type(service).__name__}")
+        self._exec_service = service
         return self
 
     def use_market_data_service(self, market_data: object):
