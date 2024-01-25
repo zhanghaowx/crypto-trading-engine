@@ -172,6 +172,7 @@ class ApplicationBase:
                 pass  # Ignore CancelledError on cleanup
             except Exception as e:
                 logging.error(f"{name} got exception: {e}", exc_info=True)
+                raise e
 
             loop.close()
 

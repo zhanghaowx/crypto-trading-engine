@@ -476,8 +476,10 @@ class PostTradePlot:
         return best_model, train_df
 
     @staticmethod
-    def wrangle(df, drop_columns):
+    def wrangle(df, drop_columns=None):
         # ----- Prepare the training data -----#
+        if drop_columns is None:
+            drop_columns = []
         score_details = [
             col for col in df if col.startswith("opportunity.score_details.")
         ]
