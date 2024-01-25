@@ -31,5 +31,6 @@ jupyter
 plotly
 seaborn
 scikit-learn
+joblib
 kaleido
 ###

@@ -5,7 +5,8 @@ from datetime import datetime, timedelta
 import joblib
 import pandas as pd
 import plotly.graph_objects as go
-from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import GridSearchCV
 
 from jolteon.core.side import MarketSide
 
@@ -384,7 +385,7 @@ class PostTradePlot:
                     os.makedirs(directory_path)
                 fig.write_image(f"{directory_path}/trade_{i}.png")
 
-    def predict(self, predict_cutoff: float, drop_columns: list[str]):
+    def predict(self, drop_columns: list[str]):
         """
         Use linear regression model trying to predict whether
         an opportunity will profit
@@ -404,19 +405,9 @@ class PostTradePlot:
         if len(df) == 0:
             return
 
-        score_details = [
-            col for col in df if col.startswith("opportunity.score_details.")
-        ]
-        train_df = df[score_details].copy()
-        train_df = train_df.rename(
-            columns=lambda x: x.replace("opportunity.score_details.", "")
-        )
-        train_df["is_profit"] = (df["profit"] > 0).astype(int)
+        train_df = self.wrangle(df, drop_columns)
 
-        if len(drop_columns) > 0:
-            train_df = train_df.drop(columns=drop_columns)
-        # Find strong correlations above the threshold
-
+        # Find strong correlations above the threshold and warn users
         strong_correlation_threshold = 0.75
         correlation_matrix = train_df.corr()
         strong_correlations = (
@@ -438,17 +429,30 @@ class PostTradePlot:
                     f"{correlation_value:.2f}"
                 )
 
+        # ----- Start training -----#
         y = "is_profit"
         X = [x for x in train_df.columns if x != y]
         print(f"Features: {X}")
-        model = RandomForestRegressor(n_estimators=100, random_state=42)
-        model.fit(train_df[X], train_df[y])
+        print(f"X: {train_df[X].shape}")
+        print(f"y: {train_df[y].shape}")
+
+        # Use grid search to find the best hyperparameters
+        model = RandomForestClassifier()
+        grid_search = GridSearchCV(
+            model,
+            param_grid={
+                "n_estimators": range(1, 5),
+                "max_depth": range(1, 5),
+            },
+        )
+        grid_search.fit(train_df[X], train_df[y])
+        print("Best hyperparameters:", grid_search.best_params_)
 
         # Combine train_df with predict
-        train_df["predict"] = model.predict(train_df[X])
+        train_df["predict"] = grid_search.predict(train_df[X])
 
         # Print new win rate after prediction
-        final = train_df[train_df["predict"] > predict_cutoff]
+        final = train_df[train_df["predict"] == 1]
         success_count = len(final[final["is_profit"] > 0])
         total_count = len(final)
         win_rate = success_count / total_count
@@ -457,14 +461,31 @@ class PostTradePlot:
             f"with {success_count}/{total_count} opportunities"
         )
 
+        # ----- Save result -----#
+        best_model = grid_search.best_estimator_
         script_directory = os.path.dirname(os.path.abspath(__file__))
         repo_directory = os.path.dirname(os.path.dirname(script_directory))
         model_filename = "random_forest_model.joblib"
-        joblib.dump(
-            model,
-            f"{repo_directory}"
-            f"/jolteon/strategy/bull_trend_rider/models/"
-            f"{model_filename}",
+        save_path = (
+            f"{repo_directory}/jolteon/strategy/bull_trend_rider/"
+            f"models/{model_filename}"
         )
+        joblib.dump(best_model, save_path)
+        print(f"Saved model to {save_path}")
 
-        return model, train_df
+        return best_model, train_df
+
+    @staticmethod
+    def wrangle(df, drop_columns):
+        # ----- Prepare the training data -----#
+        score_details = [
+            col for col in df if col.startswith("opportunity.score_details.")
+        ]
+        train_df = df[score_details].copy()
+        train_df = train_df.rename(
+            columns=lambda x: x.replace("opportunity.score_details.", "")
+        )
+        train_df["is_profit"] = (df["profit"] > 0).astype(int)
+        if len(drop_columns) > 0:
+            train_df = train_df.drop(columns=drop_columns)
+        return train_df
