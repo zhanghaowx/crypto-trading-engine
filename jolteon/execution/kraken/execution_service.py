@@ -101,8 +101,10 @@ class ExecutionService(Heartbeater):
 
         self.remove_issue(self.ErrorCode.CREATE_ORDER_FAILURE)
         logging.debug(
-            f"AddOrder request received response from exchange: " f"{response}"
+            f"AddOrder request received response from exchange: "
+            f"{response.json()}"
         )
+        return response.json()
 
     # Poll for trade confirmations
     async def _poll_fills(self, order: Order):

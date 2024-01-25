@@ -19,7 +19,6 @@ class OrderFrequencyLimit(IRiskLimit):
         return len(self.timestamps) < self.number_of_orders
 
     def do_send(self):
-        assert self.can_send()
         now = time_manager().now()
         self.timestamps.append(now)
         self._update()

@@ -1,6 +1,7 @@
 import unittest
 from copy import copy
 from datetime import datetime, timedelta
+from unittest.mock import MagicMock, call
 
 import pytz
 from blinker import ANY
@@ -371,7 +372,11 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_buy_order_blocked_by_risk_limits(self):
-        self.bull_flag_strategy._risk_limits = [MockRiskLimits(False)]
+        # Risk Limit allows all
+
+        mock_limit = MagicMock()
+        mock_limit.can_send.return_value = False
+        self.bull_flag_strategy._risk_limits = [mock_limit]
         # noinspection PyTypeChecker
         self.bull_flag_strategy._try_buy(
             opportunity=TradeOpportunityCore(
@@ -381,8 +386,13 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
             ),
         )
         self.assertEqual(0, len(self.orders))
+        mock_limit.do_send.assert_not_called()
 
-        self.bull_flag_strategy._risk_limits = [MockRiskLimits(True)]
+        # Risk Limit blocks all
+
+        mock_limit = MagicMock()
+        mock_limit.can_send.return_value = True
+        self.bull_flag_strategy._risk_limits = [mock_limit]
         # noinspection PyTypeChecker
         self.bull_flag_strategy._try_buy(
             opportunity=TradeOpportunityCore(
@@ -392,9 +402,12 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
             ),
         )
         self.assertEqual(1, len(self.orders))
+        mock_limit.do_send.assert_called_once()
 
     async def test_sell_order_not_blocked_by_risk_limits(self):
-        self.bull_flag_strategy._risk_limits = [MockRiskLimits(False)]
+        mock_limit = MagicMock()
+        mock_limit.can_send.return_value = False
+        self.bull_flag_strategy._risk_limits = [mock_limit]
 
         for i in range(0, 3):
             self.bull_flag_strategy.on_candlestick(
@@ -408,7 +421,9 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
 
         self.bull_flag_strategy._try_close_positions()
         self.assertEqual(3, len(self.orders))
+        mock_limit.do_send.assert_has_calls([call(), call(), call()])
 
         # Invoke the function again won't create more orders
         self.bull_flag_strategy._try_close_positions()
         self.assertEqual(3, len(self.orders))
+        mock_limit.do_send.assert_has_calls([call(), call(), call()])

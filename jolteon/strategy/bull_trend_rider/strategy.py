@@ -176,8 +176,6 @@ class BullFlagStrategy(Heartbeater):
         for limit in self._risk_limits:
             if not limit.can_send():
                 return False
-        for limit in self._risk_limits:
-            limit.do_send()
 
         buy_order = Order(
             client_order_id=str(id_generator().next()),
@@ -199,7 +197,7 @@ class BullFlagStrategy(Heartbeater):
             f"Placed {buy_order} with candlesticks at "
             f"{time_manager().now()}."
         )
-        self.order_event.send(self.order_event, order=buy_order)
+        self._send_order(buy_order)
 
         return True
 
@@ -242,7 +240,7 @@ class BullFlagStrategy(Heartbeater):
                 )
 
                 round_trip.sell_order = sell_order
-                self.order_event.send(self.order_event, order=sell_order)
+                self._send_order(sell_order)
             elif round_trip.should_sell_for_profit(latest_market_price):
                 # crossed profit line, we need sell for profit
                 logging.info(
@@ -252,13 +250,18 @@ class BullFlagStrategy(Heartbeater):
                 )
 
                 round_trip.sell_order = sell_order
-                self.order_event.send(self.order_event, order=sell_order)
+                self._send_order(sell_order)
             elif force:
                 # crossed profit line, we need sell for profit
                 logging.info(f"Placed {sell_order} for other reasons.")
 
                 round_trip.sell_order = sell_order
-                self.order_event.send(self.order_event, order=sell_order)
+                self._send_order(sell_order)
                 return
             else:
                 return
+
+    def _send_order(self, order):
+        for limit in self._risk_limits:
+            limit.do_send()
+        self.order_event.send(self.order_event, order=order)

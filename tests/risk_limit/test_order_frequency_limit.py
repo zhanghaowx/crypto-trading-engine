@@ -1,8 +1,5 @@
 import unittest
-from datetime import datetime, timedelta
-from unittest.mock import patch
 
-import pytz
 from freezegun import freeze_time
 
 from jolteon.risk_limit.order_frequency_limit import (
@@ -44,11 +41,6 @@ class TestOrderFrequencyLimit(unittest.TestCase):
 
         # Send the second order
         order_limit.do_send()
-
-        # The third attempt should raise an AssertionError
-        # as the limit is reached
-        with self.assertRaises(AssertionError):
-            order_limit.do_send()
 
     @freeze_time("2022-01-01 00:00:00 UTC")
     def test_update(self):
