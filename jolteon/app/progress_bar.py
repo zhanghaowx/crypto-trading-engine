@@ -9,7 +9,7 @@ from jolteon.core.time.time_manager import time_manager
 
 
 class ProgressBar:
-    UPDATE_INTERVAL = 1
+    UPDATE_INTERVAL = 0.1
 
     """
     Displays a progress bar based on current time elapsed since the start.
@@ -55,8 +55,9 @@ class ProgressBar:
         self._sys_stdout.write(buffered_content)
 
     async def _update(self):
-        percentage = self.calculate_percentage()
-        while percentage <= 1.0:
+        # Avoid using "while percentage <= 1.0" because this check might be
+        # performed before mock time is set properly
+        while True:
             percentage = self.calculate_percentage()
             self._print_progress_bar(percentage)
             await asyncio.sleep(ProgressBar.UPDATE_INTERVAL)
