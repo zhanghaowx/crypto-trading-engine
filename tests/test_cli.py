@@ -6,6 +6,8 @@ from datetime import datetime
 from io import StringIO
 from unittest.mock import patch, AsyncMock
 
+import pytz
+
 from jolteon.cli import main
 
 
@@ -56,8 +58,12 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
         mock_app.run_local_replay.return_value = 1.0
 
         mock_data_source = MockDatabaseDataSource.return_value
-        mock_data_source.start_time.return_value = datetime(2024, 1, 1)
-        mock_data_source.end_time.return_value = datetime(2024, 1, 1)
+        mock_data_source.start_time.return_value = datetime(
+            2024, 1, 1, tzinfo=pytz.utc
+        )
+        mock_data_source.end_time.return_value = datetime(
+            2024, 1, 1, tzinfo=pytz.utc
+        )
 
         # Redirect stdout to capture output
         captured_output = StringIO()
@@ -117,8 +123,12 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
         mock_app.run_local_replay.return_value = 1.0
 
         mock_data_source = MockDatabaseDataSource.return_value
-        mock_data_source.start_time.return_value = datetime(2024, 1, 1)
-        mock_data_source.end_time.return_value = datetime(2024, 1, 1)
+        mock_data_source.start_time.return_value = datetime(
+            2024, 1, 1, tzinfo=pytz.utc
+        )
+        mock_data_source.end_time.return_value = datetime(
+            2024, 1, 1, tzinfo=pytz.utc
+        )
 
         # Redirect stdout to capture output
         captured_output = StringIO()
