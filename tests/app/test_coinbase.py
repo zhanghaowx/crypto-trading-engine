@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch, AsyncMock
 import pytz
 
 from jolteon.core.time.time_manager import time_manager
+from jolteon.market_data.core.trade import Trade
 from jolteon.strategy.bull_trend_rider.strategy_parameters import (
     StrategyParameters,
 )
@@ -68,6 +69,22 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
         mock_feed.connect.assert_called_once_with(
             self.symbol, start_time, end_time
         )
+
+    @patch("jolteon.app.base.DatabaseDataSource")
+    async def test_run_local_replay(self, MockDatabaseDataSource):
+        mock_data_source = MockDatabaseDataSource.return_value
+        mock_data_source.start_time.return_value = datetime(
+            2024, 1, 1, tzinfo=pytz.utc
+        )
+        mock_data_source.end_time.return_value = datetime(
+            2024, 1, 1, tzinfo=pytz.utc
+        )
+        mock_data_source.download_market_trades = AsyncMock()
+        mock_data_source.download_market_trades.return_value = list[Trade]()
+
+        await self.application.run_local_replay("/tmp/unittest.sqlite")
+
+        mock_data_source.download_market_trades.assert_called_once()
 
     @patch.dict(os.environ, {"COINBASE_API_KEY": "api_key"})
     @patch.dict(os.environ, {"COINBASE_API_SECRET": "api_secret"})

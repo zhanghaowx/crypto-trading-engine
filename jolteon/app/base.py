@@ -22,6 +22,7 @@ from jolteon.strategy.core.patterns.shooting_star.recognizer import (
 
 
 class ApplicationBase:
+    THREAD_ENABLED: bool = True
     THREAD_SYNC_INTERVAL: float = 10
 
     def __init__(
@@ -84,19 +85,20 @@ class ApplicationBase:
     async def run_start(self, *args):
         self._connect_signals()
 
-        # # Start receiving market data
-        # md_thread = self._start_thread(
-        #     "MD", self._md.connect(self._symbol, *args)
-        # )
-        #
-        # # Start other asyncio tasks (heartbeating, ..., etc)
-        # async def main_asyncio_tasks() -> None:
-        #     while md_thread.is_alive():
-        #         await asyncio.sleep(self.THREAD_SYNC_INTERVAL)
-        #
-        # await main_asyncio_tasks()
+        if ApplicationBase.THREAD_ENABLED:
+            # Start receiving market data
+            md_thread = self._start_thread(
+                "MD", self._md.connect(self._symbol, *args)
+            )
 
-        await self._md.connect(self._symbol, *args)
+            # Start other asyncio tasks (heartbeating, ..., etc)
+            async def main_asyncio_tasks() -> None:
+                while md_thread.is_alive():
+                    await asyncio.sleep(self.THREAD_SYNC_INTERVAL)
+
+            await main_asyncio_tasks()
+        else:
+            await self._md.connect(self._symbol, *args)
 
         for symbol, position in self._position_manager.positions.items():
             print(f"{symbol}: {position.volume}")
