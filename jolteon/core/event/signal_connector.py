@@ -100,7 +100,7 @@ class SignalConnector:
                 # do an update.
                 existing_df = pd.read_sql(f"SELECT * FROM {name}", con=conn)
                 if len(existing_df) > 0:
-                    combined_df = pd.concat([existing_df, df], axis=1)
+                    combined_df = pd.merge(existing_df, df, how="inner")
                 else:
                     combined_df = df
 
@@ -112,9 +112,6 @@ class SignalConnector:
                     raise Exception(
                         f"Cannot save DataFrame {name}: "
                         f"'{another_e}', already retried after: '{e}'"
-                        f", combined_df = {combined_df.columns}"
-                        f", existing_df = {existing_df.columns}"
-                        f", df = {df.columns}"
                     )
 
         # Clear all saved data
