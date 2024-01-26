@@ -8,6 +8,7 @@ from jolteon.market_data.coinbase.data_source import (
     CoinbaseHistoricalDataSource,
 )
 from jolteon.market_data.core.candlestick import Candlestick
+from jolteon.market_data.data_source import IDataSource
 from jolteon.market_data.historical_feed import (
     HistoricalFeed,
 )
@@ -62,7 +63,7 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(4.0, self.candlesticks[0].volume)
 
     async def test_connect_with_valid_symbol_and_cache(self):
-        CoinbaseHistoricalDataSource.CACHE.clear()
+        IDataSource.TRADE_CACHE.clear()
 
         symbol = "BTC-USD"
         now = time_manager().now()
@@ -73,7 +74,7 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
             symbol, now - timedelta(minutes=1), now
         )
 
-        self.assertEqual(1, len(CoinbaseHistoricalDataSource.CACHE))
+        self.assertEqual(1, len(IDataSource.TRADE_CACHE))
         self.assertEqual(2, len(self.candlesticks))
         self.assertEqual(self.candlesticks[0], self.candlesticks[1])
 
@@ -85,7 +86,7 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
             "trades": [],
         }
         time_manager().use_fake_time = MagicMock()
-        CoinbaseHistoricalDataSource.CACHE.clear()
+        IDataSource.TRADE_CACHE.clear()
 
         # Connect
         symbol = "BTC-USD"
@@ -94,7 +95,7 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
             symbol, now - timedelta(minutes=1), now
         )
 
-        self.assertEqual(1, len(CoinbaseHistoricalDataSource.CACHE))
+        self.assertEqual(1, len(IDataSource.TRADE_CACHE))
         self.assertEqual(0, len(self.candlesticks))
 
         self.data_source._client.get_market_trades.assert_called_once()

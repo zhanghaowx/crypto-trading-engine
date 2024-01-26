@@ -16,20 +16,21 @@ class SignalConnector:
     database
     """
 
-    def __init__(
-        self, database_name="/tmp/jolteon.sqlite", auto_save_interval: int = 30
-    ):
+    def __init__(self, database_name="/tmp/jolteon.sqlite"):
         self._database_name = database_name
         self._events = dict[str, pd.DataFrame]()
         self._signals = list[Signal]()
         self._receivers = list[object]()
-        self._auto_save_interval = auto_save_interval
-        self._auto_save_task = asyncio.create_task(self._auto_save_data())
+        self._auto_save_interval = 0
+        self._auto_save_task = None
         atexit.register(self.close)
 
     def __del__(self):
         if self._auto_save_task is not None:
             self._auto_save_task.cancel()
+
+    def enable_auto_save(self, auto_save_interval: float = 30):
+        asyncio.create_task(self._auto_save_data(auto_save_interval))
 
     def connect(self, sender: Signal, receiver=None):
         """
@@ -66,9 +67,9 @@ class SignalConnector:
         self._clear_signals()
         self._save_data()
 
-    async def _auto_save_data(self):
+    async def _auto_save_data(self, auto_save_interval):
         while True:
-            await asyncio.sleep(self._auto_save_interval)
+            await asyncio.sleep(auto_save_interval)
             self._save_data()
 
     def _save_data(self) -> None:
@@ -85,9 +86,23 @@ class SignalConnector:
                 f"to {self._database_name}..."
             )
             try:
-                df.to_sql(name=name, con=conn, if_exists="replace")
-            except Exception as e:
-                raise Exception(f"Cannot save DataFrame {name}: {e}")
+                df.to_sql(name=name, con=conn, if_exists="append")
+            except Exception:
+                logging.warning(
+                    f"Error saving DataFrame {name} "
+                    f"with shape {df}, "
+                    f"try to replace the whole table."
+                )
+                # In case more columns in df than what's already stored in DB,
+                # do an update.
+                existing_df = pd.read_sql(f"SELECT * FROM {name}", con=conn)
+                combined_df = pd.concat([existing_df, df])
+                try:
+                    combined_df.to_sql(
+                        name=name, con=conn, if_exists="replace"
+                    )
+                except Exception as e:
+                    raise Exception(f"Cannot save DataFrame {name}: {e}")
         conn.close()
 
     def _clear_signals(self):

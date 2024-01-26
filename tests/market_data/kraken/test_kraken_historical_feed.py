@@ -5,6 +5,7 @@ from unittest.mock import patch, MagicMock
 from jolteon.core.time.time_manager import time_manager
 from jolteon.market_data.core.candlestick import Candlestick
 from jolteon.market_data.core.trade import Trade
+from jolteon.market_data.data_source import IDataSource
 from jolteon.market_data.historical_feed import HistoricalFeed
 from jolteon.market_data.kraken.data_source import KrakenHistoricalDataSource
 
@@ -64,7 +65,7 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
 
     async def test_connect_with_empty_trades(self):
         time_manager().use_fake_time = MagicMock()
-        KrakenHistoricalDataSource.CACHE.clear()
+        IDataSource.TRADE_CACHE.clear()
 
         # Set up test parameters
         symbol = "BTC/USD"
@@ -91,7 +92,7 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
 
     async def test_response_with_last_timestamp_equals_request_timestamp(self):
         time_manager().use_fake_time = MagicMock()
-        KrakenHistoricalDataSource.CACHE.clear()
+        IDataSource.TRADE_CACHE.clear()
 
         # Set up test parameters
         symbol = "BTC/USD"

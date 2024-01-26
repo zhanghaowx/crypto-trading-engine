@@ -18,7 +18,7 @@ class TestSignalConnector(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
         self.database_filepath = f"{tempfile.gettempdir()}/unittest.sqlite"
         self.signal_connector = SignalConnector(
-            self.database_filepath, auto_save_interval=0.001
+            self.database_filepath
         )
         self.signal_a = signal("signal_a")
         self.signal_b = signal("signal_b")
@@ -258,10 +258,11 @@ class TestSignalConnector(unittest.IsolatedAsyncioTestCase):
     async def test_auto_save(self, mock_to_sql):
         mock_to_sql.return_value = MagicMock()
 
+        self.signal_connector.enable_auto_save(auto_save_interval=0.001)
+
         self.signal_a.send(self.signal_a, message={"payload": "Signal A"})
         mock_to_sql.assert_not_called()
 
-        await asyncio.sleep(0.001)
+        await asyncio.sleep(0.0015)
 
-        self.signal_a.send(self.signal_a, message={"payload": "Signal A"})
         mock_to_sql.assert_called_once()

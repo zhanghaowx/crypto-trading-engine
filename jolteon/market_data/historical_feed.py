@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import datetime
@@ -101,7 +100,7 @@ class HistoricalFeed(Heartbeater):
             self.events.matches.send(
                 self.events.matches, market_trade=market_trade
             )
-            logging.debug(f"Received Market Trade: {market_trade}")
+            logging.debug("Received Market Trade: %s", market_trade)
 
             # Calculate our own candlesticks using market trades
             candlesticks = self._candlestick_generator.on_market_trade(
@@ -112,6 +111,3 @@ class HistoricalFeed(Heartbeater):
                     self.events.candlestick,
                     candlestick=candlestick,
                 )
-
-            # Add some delays between trades to make replay result to stable
-            await asyncio.sleep(1e-6)

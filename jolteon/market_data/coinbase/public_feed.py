@@ -139,7 +139,9 @@ class PublicFeed(Heartbeater):
                         self.events.matches.send(
                             self.events.matches, market_trade=market_trade
                         )
-                        logging.debug(f"Received Market Trade: {market_trade}")
+                        logging.debug(
+                            "Received Market Trade: %s", market_trade
+                        )
 
                         candlesticks = (
                             self._candlestick_generator.on_market_trade(

@@ -11,14 +11,12 @@ from jolteon.market_data.data_source import IDataSource
 
 
 class KrakenHistoricalDataSource(IDataSource):
-    CACHE = dict[tuple, list[Trade]]()
-
     async def download_market_trades(
         self, symbol: str, start_time: datetime, end_time: datetime
     ) -> list[Trade]:
         key = (symbol, start_time, end_time)
-        if self.CACHE.get(key) is not None:
-            return self.CACHE[key]
+        if self.TRADE_CACHE.get(key) is not None:
+            return self.TRADE_CACHE[key]
 
         market_trades = list[Trade]()
         request_timestamp = start_time.timestamp()
@@ -104,5 +102,5 @@ class KrakenHistoricalDataSource(IDataSource):
             await asyncio.sleep(1.0)
 
         # Save in the cache to reduce calls to Kraken's API
-        self.CACHE[key] = market_trades
+        self.TRADE_CACHE[key] = market_trades
         return market_trades

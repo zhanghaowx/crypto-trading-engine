@@ -10,6 +10,8 @@ from jolteon.market_data.core.trade import Trade
 
 
 class IDataSource(ABC):
+    TRADE_CACHE = dict[tuple, list[Trade]]()
+
     @abstractmethod
     async def download_market_trades(
         self, symbol: str, start_time: datetime, end_time: datetime
@@ -51,7 +53,13 @@ class DatabaseDataSource(IDataSource):
     ):
         conn = sqlite3.connect(self._database_name)
         df = pd.read_sql(f"select * from {Events().matches.name}", con=conn)
-        return self.to_trades(df)
+        market_trades = self.to_trades(df)
+
+        # Save in the cache to reduce calls to Kraken's API
+        key = (symbol, start_time, end_time)
+        self.TRADE_CACHE[key] = market_trades
+
+        return market_trades
 
     @staticmethod
     def to_trades(df: pd.DataFrame) -> list[Trade]:

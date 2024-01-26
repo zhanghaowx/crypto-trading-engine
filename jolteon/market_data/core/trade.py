@@ -6,7 +6,6 @@ from jolteon.core.side import MarketSide
 
 @dataclass(frozen=True, order=True)
 class Trade:
-    PRIMARY_KEY = "trade_id"
     trade_id: int
     client_order_id: str
     symbol: str

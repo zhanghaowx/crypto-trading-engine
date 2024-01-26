@@ -1,3 +1,4 @@
+import logging
 import uuid
 from datetime import datetime
 
@@ -10,7 +11,7 @@ from jolteon.core.id_generator import id_generator
 from jolteon.core.time.time_manager import time_manager
 from jolteon.market_data.core.order import Order
 from jolteon.market_data.core.trade import Trade
-from jolteon.market_data.kraken.data_source import KrakenHistoricalDataSource
+from jolteon.market_data.data_source import IDataSource
 
 
 class MockExecutionService(Heartbeater):
@@ -57,14 +58,22 @@ class MockExecutionService(Heartbeater):
     # noinspection PyArgumentList
     @staticmethod
     def _get_closest_market_trade_price(order: Order) -> float:
+        cached_trades = IDataSource.TRADE_CACHE.values()
+
         # First search in the cache
-        for trades in KrakenHistoricalDataSource.CACHE.values():
+        for trades in cached_trades:
             for trade in trades:
                 time_difference = (
                     trade.transaction_time - order.creation_time
                 ).total_seconds()
                 if 0 < time_difference < 15:
                     return trade.price
+
+        logging.warning(
+            f"Fail to generate a trade from "
+            f"{sum([len(trade_list) for trade_list in cached_trades])} "
+            f"cached trades"
+        )
 
         # Second search using Kraken's API
         response = requests.get(

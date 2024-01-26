@@ -12,8 +12,6 @@ from jolteon.market_data.data_source import IDataSource
 
 
 class CoinbaseHistoricalDataSource(IDataSource):
-    CACHE = dict[tuple, list[Trade]]()
-
     def __init__(self):
         self._client = RESTClient(
             api_key=os.getenv("COINBASE_API_KEY"),
@@ -24,8 +22,8 @@ class CoinbaseHistoricalDataSource(IDataSource):
         self, symbol: str, start_time: datetime, end_time: datetime
     ):
         key = (symbol, start_time, end_time)
-        if self.CACHE.get(key) is not None:
-            return self.CACHE[key]
+        if self.TRADE_CACHE.get(key) is not None:
+            return self.TRADE_CACHE[key]
         market_trades = list[Trade]()
 
         # Begin download
@@ -35,7 +33,7 @@ class CoinbaseHistoricalDataSource(IDataSource):
             market_trades = market_trades + new_trades
 
         # Save in the cache to reduce calls to Coinbase API
-        self.CACHE[key] = market_trades
+        self.TRADE_CACHE[key] = market_trades
         return market_trades
 
     def _download(

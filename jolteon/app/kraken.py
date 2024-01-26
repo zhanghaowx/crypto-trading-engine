@@ -59,6 +59,10 @@ class KrakenApplication(ApplicationBase):
 
         logging.info(f"Running {self._symbol} live")
         print(f"Running {self._symbol} live")
+
+        # When running in live mode, we want to be able to monitor via checking
+        # updates in database
+        self._signal_connector.enable_auto_save(auto_save_interval=30)
         return await super().run_start()
 
     async def run_replay(self, start: datetime, end: datetime):

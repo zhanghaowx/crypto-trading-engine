@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
-from typing import ClassVar, Union
+from typing import Union
 
 from jolteon.core.side import MarketSide
 
@@ -25,7 +25,6 @@ class Order:
     as of now. More types of orders will be added.
     """
 
-    PRIMARY_KEY: ClassVar[str] = "client_order_id"
     client_order_id: str
     order_type: OrderType
     symbol: str

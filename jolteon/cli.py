@@ -3,8 +3,10 @@ CLI interface for jolteon project.
 """
 import argparse
 import asyncio
+import cProfile
 import signal
 import sys
+import tempfile
 from datetime import datetime, timezone
 
 import pytz
@@ -80,15 +82,19 @@ async def main():
             database_name="/tmp/replay.sqlite",
             logfile_name="/tmp/replay.log",
         )
+        profiler = cProfile.Profile()
+        profiler.enable()
+
         pb = ProgressBar(replay_start_time, replay_end_time)
-
         pb.start()
-
         if replay_start and replay_end:
             pnl = await app.run_replay(replay_start_time, replay_end_time)
         else:
             pnl = await app.run_local_replay(replay_db)
         pb.stop()
+
+        profiler.disable()
+        profiler.dump_stats(f"{tempfile.gettempdir()}/jolteon.stat")
 
     else:
         app = Application(
