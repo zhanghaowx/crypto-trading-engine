@@ -87,8 +87,6 @@ class PostTradePlot:
             / df["volume"].cumsum()
         )
 
-        df.drop(columns=["index"], axis=1, inplace=True)
-
         return df
 
     def load_trades(
@@ -111,7 +109,6 @@ class PostTradePlot:
             df["transaction_time"] = pd.to_datetime(
                 df["transaction_time"], format="ISO8601"
             )
-            df.drop(columns=["index"], axis=1, inplace=True)
 
             return df
         else:
@@ -132,7 +129,6 @@ class PostTradePlot:
                 df["transaction_time"], format="ISO8601"
             )
             df = df.sort_values(by="transaction_time")
-            df.drop(columns=["index"], axis=1, inplace=True)
 
             return df
         else:

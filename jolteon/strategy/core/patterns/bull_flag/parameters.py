@@ -14,6 +14,7 @@ class BullFlagParameters:
     max_number_of_recent_candlesticks: int = 15
     # Maximum number of candlesticks to check before the bull flag candlestick
     max_number_of_pre_bull_flag_candlesticks: int = 2
+    max_number_of_consolidation_candlesticks: int = 5
     # A candlestick's body needs to be larger than `threshold * body of its
     # previous candlestick` in order to be considered as an extremely
     # bullish candlestick and potentially marked as the starting of a

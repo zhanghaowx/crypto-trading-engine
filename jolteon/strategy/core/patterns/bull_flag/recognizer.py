@@ -90,6 +90,12 @@ class BullFlagRecognizer(Heartbeater):
             self._params.max_number_of_pre_bull_flag_candlesticks + 1 :  # noqa
         ]
 
+        if (
+            len(consolidation_candlesticks)
+            > self._params.max_number_of_consolidation_candlesticks
+        ):
+            return None
+
         pattern = BullFlagPattern(
             bull_flag_candlestick=bull_flag_candlestick,
             consolidation_period_candlesticks=consolidation_candlesticks,
