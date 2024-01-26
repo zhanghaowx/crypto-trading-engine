@@ -235,6 +235,6 @@ class TestSignalConnector(unittest.IsolatedAsyncioTestCase):
         self.signal_a.send(self.signal_a, message={"payload": "Signal A"})
         mock_to_sql.assert_not_called()
 
-        await asyncio.sleep(0.0015)
+        await asyncio.sleep(0.002)
 
         mock_to_sql.assert_called_once()

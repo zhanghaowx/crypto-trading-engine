@@ -42,7 +42,7 @@ class ApplicationBase:
         self._candlestick_interval_in_seconds = candlestick_interval_in_seconds
 
         # Data Dumping Setup
-        setup_global_logger(log_level=logging.DEBUG, logfile_name=logfile_name)
+        setup_global_logger(log_level=logging.INFO, logfile_name=logfile_name)
 
         self._signal_connector = SignalConnector(
             database_name=database_name,
@@ -84,17 +84,19 @@ class ApplicationBase:
     async def run_start(self, *args):
         self._connect_signals()
 
-        # Start receiving market data
-        md_thread = self._start_thread(
-            "MD", self._md.connect(self._symbol, *args)
-        )
+        # # Start receiving market data
+        # md_thread = self._start_thread(
+        #     "MD", self._md.connect(self._symbol, *args)
+        # )
+        #
+        # # Start other asyncio tasks (heartbeating, ..., etc)
+        # async def main_asyncio_tasks() -> None:
+        #     while md_thread.is_alive():
+        #         await asyncio.sleep(self.THREAD_SYNC_INTERVAL)
+        #
+        # await main_asyncio_tasks()
 
-        # Start other asyncio tasks (heartbeating, ..., etc)
-        async def main_asyncio_tasks() -> None:
-            while md_thread.is_alive():
-                await asyncio.sleep(self.THREAD_SYNC_INTERVAL)
-
-        await main_asyncio_tasks()
+        await self._md.connect(self._symbol, *args)
 
         for symbol, position in self._position_manager.positions.items():
             print(f"{symbol}: {position.volume}")

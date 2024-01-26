@@ -82,13 +82,14 @@ class SignalConnector:
         conn = sqlite3.connect(self._database_name)
         for name, payload_list in self._events.items():
             df = pd.DataFrame(payload_list)
+
             logging.info(
                 f"Saving DataFrame {name} with shape {df.shape} "
                 f"to {self._database_name}..."
             )
 
             try:
-                df.to_sql(name=name, con=conn, if_exists="append")
+                df.to_sql(name=name, con=conn, if_exists="append", index=False)
             except Exception as e:
                 logging.warning(
                     f"Fail to save DataFrame {name} "
@@ -99,18 +100,25 @@ class SignalConnector:
                 # do an update.
                 existing_df = pd.read_sql(f"SELECT * FROM {name}", con=conn)
                 if len(existing_df) > 0:
-                    combined_df = pd.concat([existing_df, df])
+                    combined_df = pd.concat([existing_df, df], axis=1)
                 else:
                     combined_df = df
 
                 try:
                     combined_df.to_sql(
-                        name=name, con=conn, if_exists="replace"
+                        name=name, con=conn, if_exists="replace", index=False
                     )
                 except Exception as another_e:
                     raise Exception(
-                        f"Cannot save DataFrame {name}: " f"{another_e}"
+                        f"Cannot save DataFrame {name}: "
+                        f"'{another_e}', already retried after: '{e}'"
+                        f", combined_df = {combined_df.columns}"
+                        f", existing_df = {existing_df.columns}"
+                        f", df = {df.columns}"
                     )
+
+        # Clear all saved data
+        self._events.clear()
         conn.close()
 
     def _clear_signals(self):
