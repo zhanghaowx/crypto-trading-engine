@@ -5,9 +5,9 @@ import sqlite3
 from enum import Enum
 from typing import Any
 
+import flatdict
 import pandas as pd
 from blinker import NamedSignal, Signal
-from pandas import json_normalize
 
 
 class SignalConnector:
@@ -18,7 +18,7 @@ class SignalConnector:
 
     def __init__(self, database_name="/tmp/jolteon.sqlite"):
         self._database_name = database_name
-        self._events = dict[str, pd.DataFrame]()
+        self._events = dict[str, list]()
         self._signals = list[Signal]()
         self._receivers = list[object]()
         self._auto_save_interval = 0
@@ -80,29 +80,37 @@ class SignalConnector:
             None
         """
         conn = sqlite3.connect(self._database_name)
-        for name, df in self._events.items():
+        for name, payload_list in self._events.items():
+            df = pd.DataFrame(payload_list)
             logging.info(
                 f"Saving DataFrame {name} with shape {df.shape} "
                 f"to {self._database_name}..."
             )
+
             try:
                 df.to_sql(name=name, con=conn, if_exists="append")
-            except Exception:
+            except Exception as e:
                 logging.warning(
-                    f"Error saving DataFrame {name} "
-                    f"with shape {df}, "
-                    f"try to replace the whole table."
+                    f"Fail to save DataFrame {name} "
+                    f"with shape {df.shape}: {e}. "
+                    f"Try again to replace the whole table."
                 )
                 # In case more columns in df than what's already stored in DB,
                 # do an update.
                 existing_df = pd.read_sql(f"SELECT * FROM {name}", con=conn)
-                combined_df = pd.concat([existing_df, df])
+                if len(existing_df) > 0:
+                    combined_df = pd.concat([existing_df, df])
+                else:
+                    combined_df = df
+
                 try:
                     combined_df.to_sql(
                         name=name, con=conn, if_exists="replace"
                     )
-                except Exception as e:
-                    raise Exception(f"Cannot save DataFrame {name}: {e}")
+                except Exception as another_e:
+                    raise Exception(
+                        f"Cannot save DataFrame {name}: " f"{another_e}"
+                    )
         conn.close()
 
     def _clear_signals(self):
@@ -122,7 +130,7 @@ class SignalConnector:
         assert isinstance(sender, NamedSignal)
         name = sender.name
 
-        logging.debug(f"Received signal {kwargs} from {name}")
+        logging.debug("Received signal %s from %s", kwargs, name)
 
         if len(kwargs.values()) != 1:
             logging.error(
@@ -144,24 +152,29 @@ class SignalConnector:
                 return
 
         for data in kwargs.values():
-            row_data = self._flatten_dict(self._to_dict(data))
-
-            # Convert Enum values to its string representation
-            for key, value in row_data.items():
-                if isinstance(value, Enum):
-                    row_data[key] = value.name
-
-            df = pd.DataFrame([row_data])
+            # It is much more expensive to invoke _flatten_dict
+            row_data = dict(
+                flatdict.FlatDict(self._to_dict(data), delimiter=".")
+            )
             if name not in self._events:
-                self._events[name] = df
+                self._events[name] = [row_data]
             else:
-                self._events[name] = pd.concat([self._events[name], df])
-                if hasattr(data, "PRIMARY_KEY"):
-                    self._events[name] = self._events[name].drop_duplicates(
-                        subset=data.PRIMARY_KEY, keep="last"
-                    )
+                payload_list = self._events[name]
+                if (
+                    hasattr(data, "PRIMARY_KEY")
+                    and len(payload_list) > 0
+                    and payload_list[-1][data.PRIMARY_KEY]
+                    == row_data[data.PRIMARY_KEY]
+                ):
+                    # If PRIMARY_KEY is set, remove duplicates based on
+                    # PRIMARY_KEY.
+                    # However, for performance reasons, only the last element
+                    # is checked.
+                    # We don't have any other use case than the Candlestick
+                    # event. Hence, we will treat it as a special case.
+                    payload_list[-1] = row_data
                 else:
-                    self._events[name].reset_index()
+                    payload_list.append(row_data)
 
     @staticmethod
     def _to_dict(obj: Any):
@@ -182,16 +195,17 @@ class SignalConnector:
             )
         elif isinstance(obj, (list,)):
             return dict(
-                {i: SignalConnector._to_dict(v) for i, v in enumerate(obj)}
+                {
+                    str(i): SignalConnector._to_dict(v)
+                    for i, v in enumerate(obj)
+                }
             )
         elif isinstance(obj, (tuple,)):
             return dict(
-                {i: SignalConnector._to_dict(v) for i, v in enumerate(obj)}
+                {
+                    str(i): SignalConnector._to_dict(v)
+                    for i, v in enumerate(obj)
+                }
             )
         else:
             return obj
-
-    @staticmethod
-    def _flatten_dict(d: dict, sep: str = ".") -> dict:
-        [flat_dict] = json_normalize(d, sep=sep).to_dict(orient="records")
-        return flat_dict

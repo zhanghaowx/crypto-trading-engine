@@ -1,4 +1,5 @@
 # Core
+flatdict
 
 ## Timezone
 pytz
