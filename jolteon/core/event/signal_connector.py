@@ -2,6 +2,7 @@ import asyncio
 import atexit
 import logging
 import sqlite3
+from datetime import datetime
 from enum import Enum
 from typing import Any
 
@@ -90,7 +91,7 @@ class SignalConnector:
 
             try:
                 df.to_sql(name=name, con=conn, if_exists="append", index=False)
-            except Exception as e:
+            except sqlite3.OperationalError as e:
                 logging.warning(
                     f"Fail to save DataFrame {name} "
                     f"with shape {df.shape}: {e}. "
@@ -187,6 +188,8 @@ class SignalConnector:
             return None
         if isinstance(obj, Enum):
             return obj.value
+        if isinstance(obj, datetime):
+            return obj.timestamp()
         elif hasattr(obj, "__dict__") and obj.__dict__:
             return dict(
                 [

@@ -10,6 +10,7 @@ from blinker import signal
 from jolteon.core.event.signal_connector import (
     SignalConnector,
 )
+from jolteon.core.time.time_manager import time_manager
 
 
 class TestSignalConnector(unittest.IsolatedAsyncioTestCase):
@@ -218,6 +219,32 @@ class TestSignalConnector(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(event_a, expected_event_a)
         self.assertEqual(event_b, expected_event_b)
+
+    async def test_handle_payload_has_datetime(self):
+        class Payload:
+            def __init__(self, new_key, new_value):
+                self.dict = {
+                    "A": "1",
+                    "B": "2",
+                    "time": time_manager().now(),
+                    new_key: new_value,
+                }
+
+        payload_a = Payload("C", "3")
+
+        self.signal_a.send(self.signal_a, payload=payload_a)
+        self.assertIn("signal_a", self.signal_connector._events)
+
+        self.signal_connector._save_data()
+        self.assertNotIn("signal_a", self.signal_connector._events)
+
+        payload_aa = Payload("D", "4")
+
+        self.signal_a.send(self.signal_a, payload=payload_aa)
+        self.assertIn("signal_a", self.signal_connector._events)
+
+        self.signal_connector._save_data()
+        self.assertNotIn("signal_a", self.signal_connector._events)
 
     async def test_handle_payload_is_none(self):
         self.signal_a.send(self.signal_a, payload=None)

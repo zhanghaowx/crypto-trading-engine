@@ -53,12 +53,8 @@ class DatabaseTool:
         # Read candlesticks from database
         df = self.load_table(table_name)
 
-        df["start_time"] = pd.to_datetime(
-            df["start_time"], format="%Y-%m-%d %H:%M:%S%z"
-        )
-        df["end_time"] = pd.to_datetime(
-            df["end_time"], format="%Y-%m-%d %H:%M:%S%z"
-        )
+        df["start_time"] = pd.to_datetime(df["start_time"], unit="s")
+        df["end_time"] = pd.to_datetime(df["end_time"], unit="s")
 
         # Add Return Pct column
         df["return_pct"] = (df["close"] - df["open"]) / df["open"]
@@ -91,7 +87,7 @@ class DatabaseTool:
                     con=self._conn,
                 )
             df["transaction_time"] = pd.to_datetime(
-                df["transaction_time"], format="ISO8601"
+                df["transaction_time"], unit="s"
             )
 
             return df
@@ -110,7 +106,7 @@ class DatabaseTool:
                 return pd.DataFrame()
 
             df["transaction_time"] = pd.to_datetime(
-                df["transaction_time"], format="ISO8601"
+                df["transaction_time"], unit="s"
             )
             df = df.sort_values(by="transaction_time")
 

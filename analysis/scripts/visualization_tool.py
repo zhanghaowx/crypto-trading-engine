@@ -1,6 +1,7 @@
 import os
 from datetime import datetime, timedelta
 
+import pandas as pd
 import plotly.graph_objects as go
 
 from analysis.scripts.database_tool import DatabaseTool
@@ -80,14 +81,20 @@ class VisualizationTool:
             return []
         return [
             go.Scatter(
-                x=df["opportunity.bull_flag_pattern.bull_flag.start_time"],
+                x=pd.to_datetime(
+                    df["opportunity.bull_flag_pattern.bull_flag.start_time"],
+                    unit="s",
+                ),
                 y=df["opportunity.profit_price"],
                 mode="markers",
                 marker=dict(color="green", size=10, symbol="line-ew-open"),
                 name="Profit",
             ),
             go.Scatter(
-                x=df["opportunity.bull_flag_pattern.bull_flag.start_time"],
+                x=pd.to_datetime(
+                    df["opportunity.bull_flag_pattern.bull_flag.start_time"],
+                    unit="s",
+                ),
                 y=df["opportunity.stop_loss_price"],
                 mode="markers",
                 marker=dict(color="red", size=10, symbol="line-ew-open"),
@@ -104,7 +111,7 @@ class VisualizationTool:
             df = df[df["result"] == "BULL_FLAG"]
             return [
                 go.Scatter(
-                    x=df["bull_flag.start_time"],
+                    x=pd.to_datetime(df["bull_flag.start_time"], unit="s"),
                     y=(df["bull_flag.open"] + df["bull_flag.close"]) / 2.0,
                     mode="markers",
                     marker=dict(color="orange", size=5, symbol="x-thin-open"),
@@ -118,7 +125,7 @@ class VisualizationTool:
             return []
         return [
             go.Scatter(
-                x=df["shooting_star.start_time"],
+                x=pd.to_datetime(df["shooting_star.start_time"], unit="s"),
                 y=(df["shooting_star.open"] + df["shooting_star.close"]) / 2.0,
                 mode="markers",
                 marker=dict(color="gold", size=5, symbol="asterisk-open"),
