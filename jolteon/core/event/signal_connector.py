@@ -31,7 +31,9 @@ class SignalConnector:
             self._auto_save_task.cancel()
 
     def enable_auto_save(self, auto_save_interval: float = 30):
-        asyncio.create_task(self._auto_save_data(auto_save_interval))
+        self._auto_save_task = asyncio.create_task(
+            self._auto_save_data(auto_save_interval)
+        )
 
     def connect(self, sender: Signal, receiver=None):
         """

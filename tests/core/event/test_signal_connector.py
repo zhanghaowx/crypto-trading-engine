@@ -257,11 +257,13 @@ class TestSignalConnector(unittest.IsolatedAsyncioTestCase):
     async def test_auto_save(self, mock_to_sql):
         mock_to_sql.return_value = MagicMock()
 
-        self.signal_connector.enable_auto_save(auto_save_interval=0.001)
+        self.signal_connector.enable_auto_save(auto_save_interval=0.1)
 
         self.signal_a.send(self.signal_a, message={"payload": "Signal A"})
         mock_to_sql.assert_not_called()
 
-        await asyncio.sleep(0.002)
+        self.assertIn("signal_a", self.signal_connector._events)
+        await asyncio.sleep(0.2)
 
+        self.assertNotIn("signal_b", self.signal_connector._events)
         mock_to_sql.assert_called_once()
