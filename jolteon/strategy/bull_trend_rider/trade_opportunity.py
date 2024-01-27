@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import Union
 
 from jolteon.market_data.core.candlestick_list import CandlestickList
+from jolteon.strategy.bull_trend_rider.models.score_model import score_model
 from jolteon.strategy.bull_trend_rider.strategy_parameters import (
     StrategyParameters,
 )
@@ -64,13 +65,12 @@ class TradeOpportunity(TradeOpportunityCore):
             if candlestick.end_time
             <= self.bull_flag_pattern.bull_flag.start_time
         ]
+        assert previous_candlesticks
 
         #######################
         # Build Score Details #
         #######################
-        self.score_details = {
-            "n_prev_candlesticks": len(previous_candlesticks),
-        }
+        self.score_details = {}
 
         # The percentage of bullish candlesticks in history
         is_bullish = [
@@ -79,21 +79,18 @@ class TradeOpportunity(TradeOpportunityCore):
         prev_bullish_pct = sum(is_bullish) / max(1e-10, len(is_bullish))
         self.score_details["prev_bullish_pct"] = prev_bullish_pct
 
-        is_bearish = [
-            candlestick.is_bearish() for candlestick in previous_candlesticks
-        ]
-        prev_bearish_pct = sum(is_bearish) / max(1e-10, len(is_bearish))
-        self.score_details["prev_bearish_pct"] = prev_bearish_pct
-
         # Min/Max return percentage of candlesticks in history
         change_percentages = [
             abs(candlestick.return_percentage())
             for candlestick in previous_candlesticks
         ]
         if len(change_percentages) == 0:
-            self.score_details["max_prev_return_pct"] = 0.0
+            self.score_details["prev_vs_bull_flag_return_pct"] = 0.0
         else:
-            self.score_details["max_prev_return_pct"] = max(change_percentages)
+            self.score_details["prev_vs_bull_flag_return_pct"] = (
+                max(change_percentages)
+                / self.bull_flag_pattern.bull_flag.return_percentage()
+            )
 
         # Whether the bull flag candlesticks reaches a new high
         if len(change_percentages) == 0:
@@ -104,28 +101,16 @@ class TradeOpportunity(TradeOpportunityCore):
             ] = self.bull_flag_pattern.bull_flag.close > max(
                 [x.high for x in previous_candlesticks]
             )
-        if len(change_percentages) == 0:
-            self.score_details["cumulative_return_pct"] = 0.0
-        else:
-            self.score_details["cumulative_return_pct"] = (
-                previous_candlesticks[-1].close - previous_candlesticks[0].open
-            ) / previous_candlesticks[0].open
+
+        # Volume
+        self.score_details[
+            "volume_change_pct"
+        ] = self.bull_flag_pattern.bull_flag.volume / max(
+            1e-10,
+            previous_candlesticks[-1].volume,
+        )
 
         ###############
         # Build Score #
         ###############
-        self.score = 0.0
-
-        # Before the "bull flag", we hope the previous trend is a bearish trend
-        # so that we are not following a bullish trend at a late point
-
-        self.score += 0.75 * (0.5 - self.score_details["prev_bullish_pct"])
-        self.score += 0.5 * (
-            1.0
-            - self.score_details["max_prev_return_pct"]
-            / self.bull_flag_pattern.bull_flag.return_percentage()
-        )
-        self.score += 0.25 * (
-            self.score_details["n_prev_candlesticks"]
-            / params.max_number_of_recent_candlesticks
-        )
+        self.score = score_model().score(self.score_details)

@@ -13,7 +13,7 @@ class StrategyParameters:
     # requires our strategy to have a win rate of 33.33% or higher.
     target_reward_risk_ratio: float = 2.0
     # When an opportunity score is below the cutoff, it will not be considered
-    opportunity_score_cutoff: float = 0.6
+    opportunity_score_cutoff: float = 0.0
     # Minimum Traded Quantity:
     # - 0.0001 for Kraken/BTC
     min_quantity: float = 0.0001

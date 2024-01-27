@@ -1,7 +1,7 @@
 import unittest
 from copy import copy
 from datetime import datetime, timedelta
-from unittest.mock import MagicMock, call
+from unittest.mock import MagicMock, call, patch, Mock
 
 import pytz
 from blinker import ANY
@@ -157,8 +157,12 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
             transaction_time=BullFlagStrategyTest.create_mock_timestamp(),
         )
 
-    async def test_buy_on_candlestick(self):
+    @patch("jolteon.strategy.bull_trend_rider.trade_opportunity.score_model")
+    async def test_buy_on_candlestick(self, mock_score_model):
         # Arrange
+        mock_score_model_instance = Mock()
+        mock_score_model_instance.score.return_value = 1.0
+        mock_score_model.return_value = mock_score_model_instance
 
         # Act
         for i in range(5, 0, -1):
