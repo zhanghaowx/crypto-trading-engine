@@ -23,7 +23,7 @@ class TestMockExecutionService(IsolatedAsyncioTestCase):
             symbol="BTC/USD",
             side=MarketSide.BUY,
             price=100,
-            quantity=1,
+            quantity=0.0001,
             creation_time=datetime(2024, 1, 1, 0, 0, 0, tzinfo=pytz.utc),
         )
 
@@ -61,3 +61,4 @@ class TestMockExecutionService(IsolatedAsyncioTestCase):
             self.execution_service.on_order(self, self.mock_order)
 
         self.assertEqual(len(self.fills), 1)
+        self.assertEqual(self.fills[0].fee, 50000 * 0.0001 * 0.0026)

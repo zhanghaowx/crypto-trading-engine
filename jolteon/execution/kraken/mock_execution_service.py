@@ -93,7 +93,7 @@ class MockExecutionService(Heartbeater):
             transaction_time = datetime.fromtimestamp(
                 json_trade[2], tz=pytz.utc
             )
-            if transaction_time > order.creation_time:
+            if transaction_time >= order.creation_time:
                 return float(json_trade[0])
 
         return 0.0
@@ -112,7 +112,7 @@ class MockExecutionService(Heartbeater):
             side=order.side,
             price=filled_price,
             # Based on https://www.kraken.com/features/fee-schedule
-            fee=filled_price * 0.0026,
+            fee=filled_price * order.quantity * 0.0026,
             quantity=order.quantity,
             transaction_time=time_manager().now(),
         )
