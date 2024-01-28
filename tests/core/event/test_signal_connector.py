@@ -275,6 +275,7 @@ class TestSignalConnector(unittest.IsolatedAsyncioTestCase):
         # Verify saved table
         conn = sqlite3.connect(database=self.database_filepath)
         df = pd.read_sql("SELECT * FROM signal_a", con=conn)
+        conn.close()
 
         self.assertEqual(2, len(df))
 
