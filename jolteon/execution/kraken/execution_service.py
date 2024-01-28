@@ -139,7 +139,7 @@ class ExecutionService(Heartbeater):
     def _get_fills(self, transaction_ids: list[str], order: Order):
         """
         Use the following API to get fill notice.
-        https://docs.kraken.com/rest/#tag/Account-Data/operation/getTradesInfo
+        https://docs.kraken.com/rest/#tag/Account-Data/operation/getOrdersInfo
 
         Args:
             transaction_ids: A list of transaction IDs returned from the
@@ -151,8 +151,11 @@ class ExecutionService(Heartbeater):
 
         assert len(transaction_ids) > 0
         response = self._client.send_request(
-            "/0/private/QueryTrades",
-            {"txid": ",".join(transaction_ids), "trades": True},
+            "/0/private/QueryOrders",
+            {
+                "txid": ",".join(transaction_ids),
+                "userref": order.client_order_id,
+            },
         )
 
         if self._handle_possible_error(
@@ -164,7 +167,7 @@ class ExecutionService(Heartbeater):
 
         self.remove_issue(self.ErrorCode.GET_TRADE_FAILURE)
         logging.debug(
-            f"QueryTrades received response from exchange " f"{response}"
+            f"QueryOrders received response from exchange " f"{response}"
         )
 
         trades = list[Trade]()
@@ -174,8 +177,13 @@ class ExecutionService(Heartbeater):
             # Symbol and pair may not 100% match. For example: BTC/USD vs.
             # XBTUSD
             # assert order.symbol == json_trade["pair"]
-            assert order.side.value.lower() == json_trade["type"]
-            assert order.order_type.value.lower() == json_trade["ordertype"]
+            assert order.side.value.lower() == json_trade["descr"]["type"]
+            assert (
+                order.order_type.value.lower()
+                == json_trade["descr"]["ordertype"]
+            )
+            if json_trade["status"] != "closed":
+                continue
             trades.append(
                 Trade(
                     trade_id=0,
@@ -186,9 +194,9 @@ class ExecutionService(Heartbeater):
                     side=order.side,
                     price=float(json_trade["price"]),
                     fee=float(json_trade["fee"]),
-                    quantity=float(json_trade["vol"]),
+                    quantity=float(json_trade["vol_exec"]),
                     transaction_time=datetime.fromtimestamp(
-                        json_trade["time"], tz=pytz.utc
+                        json_trade["closetm"], tz=pytz.utc
                     ),
                 )
             )
