@@ -103,11 +103,17 @@ class SignalConnector:
                 # do an update.
                 existing_df = pd.read_sql(f"SELECT * FROM {name}", con=conn)
                 if len(existing_df) > 0:
-                    combined_df = pd.merge(existing_df, df, how="inner")
+                    combined_df = pd.concat(
+                        [existing_df, df], ignore_index=True, sort=False
+                    )
                 else:
                     combined_df = df
 
                 try:
+                    logging.info(
+                        f"Re-saving DataFrame {name} with shape "
+                        f"{combined_df.shape} to {self._database_name}..."
+                    )
                     combined_df.to_sql(
                         name=name, con=conn, if_exists="replace", index=False
                     )

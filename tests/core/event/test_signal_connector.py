@@ -1,10 +1,12 @@
 import asyncio
 import os
+import sqlite3
 import tempfile
 import unittest
 from enum import Enum
 from unittest.mock import patch, MagicMock
 
+import pandas as pd
 from blinker import signal
 
 from jolteon.core.event.signal_connector import (
@@ -224,9 +226,33 @@ class TestSignalConnector(unittest.IsolatedAsyncioTestCase):
         class Payload:
             def __init__(self, new_key, new_value):
                 self.dict = {
+                    "time": time_manager().now(),
+                    new_key: new_value,
+                }
+
+        payload_a = Payload("C", "3")
+
+        self.signal_a.send(self.signal_a, payload=payload_a)
+        self.assertIn("signal_a", self.signal_connector._events)
+
+        self.signal_connector._save_data()
+        self.assertNotIn("signal_a", self.signal_connector._events)
+
+        # Force a schema change so to trigger a table merge
+        payload_aa = Payload("D", "4")
+
+        self.signal_a.send(self.signal_a, payload=payload_aa)
+        self.assertIn("signal_a", self.signal_connector._events)
+
+        self.signal_connector._save_data()
+        self.assertNotIn("signal_a", self.signal_connector._events)
+
+    async def test_handle_payload_update_schema(self):
+        class Payload:
+            def __init__(self, new_key, new_value):
+                self.dict = {
                     "A": "1",
                     "B": "2",
-                    "time": time_manager().now(),
                     new_key: new_value,
                 }
 
@@ -245,6 +271,12 @@ class TestSignalConnector(unittest.IsolatedAsyncioTestCase):
 
         self.signal_connector._save_data()
         self.assertNotIn("signal_a", self.signal_connector._events)
+
+        # Verify saved table
+        conn = sqlite3.connect(database=self.database_filepath)
+        df = pd.read_sql("SELECT * FROM signal_a", con=conn)
+
+        self.assertEqual(2, len(df))
 
     async def test_handle_payload_is_none(self):
         self.signal_a.send(self.signal_a, payload=None)
