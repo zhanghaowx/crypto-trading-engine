@@ -104,7 +104,7 @@ class TestHeartbeater(unittest.IsolatedAsyncioTestCase):
             subscriber.all_issues[name][-1].level, HeartbeatLevel.WARN
         )
         self.assertEqual(
-            subscriber.all_issues[name][-1].message, "Pay " "Attention!"
+            subscriber.all_issues[name][-1].message, "Pay Attention!"
         )
 
         heartbeater.add_issue(HeartbeatLevel.WARN, "Pay Attention 2nd Time!")
