@@ -13,5 +13,6 @@ class Trade:
     taker_order_id: str
     side: MarketSide
     price: float
+    fee: float
     quantity: float
     transaction_time: datetime

@@ -61,6 +61,7 @@ class CoinbaseHistoricalDataSource(IDataSource):
                     taker_order_id="",
                     side=MarketSide.parse(trade_json["side"]),
                     price=float(trade_json["price"]),
+                    fee=0.0,
                     quantity=float(trade_json["size"]),
                     transaction_time=datetime.fromisoformat(
                         trade_json["time"]

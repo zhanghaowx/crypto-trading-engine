@@ -131,6 +131,7 @@ class PublicFeed(Heartbeater):
                             taker_order_id=response["taker_order_id"],
                             side=MarketSide(response["side"].upper()),
                             price=float(response["price"]),
+                            fee=0.0,
                             quantity=float(response["size"]),
                             transaction_time=datetime.fromisoformat(
                                 response["time"]

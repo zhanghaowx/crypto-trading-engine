@@ -19,6 +19,7 @@ class TestCandlestickGenerator(unittest.IsolatedAsyncioTestCase):
             taker_order_id="2",
             side=MarketSide.BUY,
             price=price,
+            fee=0.0,
             quantity=1.0,
             transaction_time=datetime(
                 year=2024,

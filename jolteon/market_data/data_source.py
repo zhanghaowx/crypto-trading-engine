@@ -82,6 +82,7 @@ class DatabaseDataSource(IDataSource):
                     taker_order_id=trade_dict["taker_order_id"],
                     side=MarketSide.parse(trade_dict["side"]),
                     price=float(trade_dict["price"]),
+                    fee=float(trade_dict["fee"]),
                     quantity=float(trade_dict["quantity"]),
                     transaction_time=datetime.fromisoformat(
                         trade_dict["transaction_time"]

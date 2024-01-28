@@ -1,5 +1,6 @@
 import unittest
 from datetime import datetime
+
 from jolteon.core.side import MarketSide
 from jolteon.market_data.core.trade import Trade
 
@@ -17,6 +18,7 @@ class TestTrade(unittest.TestCase):
             taker_order_id="order2",
             side=MarketSide.BUY,
             price=100.0,
+            fee=0.0,
             quantity=1.5,
             transaction_time=now,
         )
@@ -29,6 +31,7 @@ class TestTrade(unittest.TestCase):
             taker_order_id="order2",
             side=MarketSide.BUY,
             price=100.0,
+            fee=0.0,
             quantity=1.5,
             transaction_time=now,
         )
@@ -46,6 +49,7 @@ class TestTrade(unittest.TestCase):
             taker_order_id="order2",
             side=MarketSide.BUY,
             price=100.0,
+            fee=0.0,
             quantity=1.5,
             transaction_time=datetime.now(),
         )
@@ -58,6 +62,7 @@ class TestTrade(unittest.TestCase):
             taker_order_id="order4",
             side=MarketSide.SELL,
             price=200.0,
+            fee=0.0,
             quantity=2.0,
             transaction_time=datetime.now(),
         )
@@ -75,6 +80,7 @@ class TestTrade(unittest.TestCase):
             taker_order_id="order2",
             side=MarketSide.BUY,
             price=100.0,
+            fee=0.0,
             quantity=1.5,
             transaction_time=datetime.now(),
         )
@@ -89,6 +95,7 @@ class TestTrade(unittest.TestCase):
                 "order2",
                 MarketSide.BUY,
                 100.0,
+                0.0,
                 1.5,
                 trade.transaction_time,
             )
@@ -109,6 +116,7 @@ class TestTrade(unittest.TestCase):
             taker_order_id="order2",
             side=market_side,
             price=100.0,
+            fee=0.0,
             quantity=1.5,
             transaction_time=datetime.now(),
         )

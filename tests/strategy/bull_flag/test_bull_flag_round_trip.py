@@ -35,6 +35,7 @@ class TestBullFlagRoundTrip(unittest.TestCase):
             taker_order_id=str(uuid.uuid4()),
             side=market_side,
             price=1,
+            fee=0.0,
             quantity=1,
             transaction_time=datetime(2024, 1, 1, 0, 0, 0),
         )

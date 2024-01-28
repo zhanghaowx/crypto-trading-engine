@@ -30,6 +30,7 @@ class TestPositionManager(unittest.IsolatedAsyncioTestCase):
             taker_order_id=str(uuid.uuid4()),
             side=market_side,
             price=price,
+            fee=0.0,
             quantity=quantity,
             transaction_time=datetime.now(pytz.utc),
         )

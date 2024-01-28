@@ -33,6 +33,7 @@ class BootstrapStrategyTest(unittest.IsolatedAsyncioTestCase):
             taker_order_id="2",
             side=MarketSide.BUY,
             price=1.0,
+            fee=0.0,
             quantity=2.0,
             transaction_time=BootstrapStrategyTest.create_mock_timestamp(),
         )

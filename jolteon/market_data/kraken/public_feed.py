@@ -184,6 +184,7 @@ class PublicFeed(Heartbeater):
                     taker_order_id="",
                     side=MarketSide(trade_json["side"].upper()),
                     price=float(trade_json["price"]),
+                    fee=0.0,
                     quantity=float(trade_json["qty"]),
                     transaction_time=datetime.fromisoformat(
                         trade_json["timestamp"]

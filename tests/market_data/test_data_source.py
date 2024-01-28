@@ -25,6 +25,7 @@ class TestDatabaseDataSource(unittest.IsolatedAsyncioTestCase):
                 "taker_order_id": ["taker1", "taker2"],
                 "side": ["buy", "sell"],
                 "price": [100.0, 200.0],
+                "fee": [0.0, 0.0],
                 "quantity": [1.0, 2.0],
                 "transaction_time": [
                     "2022-01-01 10:00:00",
@@ -42,6 +43,7 @@ class TestDatabaseDataSource(unittest.IsolatedAsyncioTestCase):
                 taker_order_id="taker1",
                 side=MarketSide.BUY,
                 price=100.0,
+                fee=0.0,
                 quantity=1.0,
                 transaction_time=self.transaction_time,
             ),
@@ -53,6 +55,7 @@ class TestDatabaseDataSource(unittest.IsolatedAsyncioTestCase):
                 taker_order_id="taker2",
                 side=MarketSide.SELL,
                 price=200.0,
+                fee=0.0,
                 quantity=2.0,
                 transaction_time=self.transaction_time,
             ),

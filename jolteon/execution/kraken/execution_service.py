@@ -169,6 +169,7 @@ class ExecutionService(Heartbeater):
                     taker_order_id="",
                     side=order.side,
                     price=float(json_trade["price"]),
+                    fee=float(json_trade["fee"]),
                     quantity=float(json_trade["vol"]),
                     transaction_time=datetime.fromtimestamp(
                         json_trade["time"], tz=pytz.utc

@@ -204,6 +204,7 @@ class MockExecutionService(Heartbeater):
             taker_order_id=str(uuid.uuid4()),
             side=side,
             price=price,
+            fee=0.0,
             quantity=quantity,
             transaction_time=time_manager().now(),
         )

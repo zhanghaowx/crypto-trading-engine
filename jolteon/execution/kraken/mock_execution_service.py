@@ -111,6 +111,8 @@ class MockExecutionService(Heartbeater):
             taker_order_id=str(uuid.uuid4()),
             side=order.side,
             price=filled_price,
+            # Based on https://www.kraken.com/features/fee-schedule
+            fee=filled_price * 0.0026,
             quantity=order.quantity,
             transaction_time=time_manager().now(),
         )

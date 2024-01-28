@@ -67,6 +67,7 @@ class KrakenHistoricalDataSource(IDataSource):
                     if json_trade[3] == "b"
                     else MarketSide.SELL,
                     price=float(json_trade[0]),
+                    fee=0.0,
                     quantity=float(json_trade[1]),
                     transaction_time=datetime.fromtimestamp(
                         json_trade[2], tz=pytz.utc

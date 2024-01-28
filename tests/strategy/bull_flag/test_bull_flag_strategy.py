@@ -153,6 +153,7 @@ class BullFlagStrategyTest(unittest.IsolatedAsyncioTestCase):
             taker_order_id="2",
             side=market_side,
             price=price,
+            fee=0.0,
             quantity=1.0,
             transaction_time=BullFlagStrategyTest.create_mock_timestamp(),
         )
