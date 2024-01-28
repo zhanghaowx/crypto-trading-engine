@@ -39,7 +39,7 @@ class TestProgressBar(unittest.IsolatedAsyncioTestCase):
         )
 
         progress_bar.start()
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(progress_bar.UPDATE_INTERVAL + 0.01)
 
         # Validate the printed content
         printed_content = mock_stdout.getvalue().strip()
@@ -63,7 +63,7 @@ class TestProgressBar(unittest.IsolatedAsyncioTestCase):
         )
 
         progress_bar.start()
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(progress_bar.UPDATE_INTERVAL + 0.01)
 
         print("Hello World")
 

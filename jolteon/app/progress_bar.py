@@ -58,9 +58,9 @@ class ProgressBar:
         # Avoid using "while percentage <= 1.0" because this check might be
         # performed before mock time is set properly
         while True:
+            await asyncio.sleep(ProgressBar.UPDATE_INTERVAL)
             percentage = self.calculate_percentage()
             self._print_progress_bar(percentage)
-            await asyncio.sleep(ProgressBar.UPDATE_INTERVAL)
 
     def calculate_percentage(self):
         now = time_manager().now()
