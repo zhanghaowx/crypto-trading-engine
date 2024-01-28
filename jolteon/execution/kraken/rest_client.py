@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import hmac
+import logging
 import os
 import urllib.parse
 
@@ -39,14 +40,21 @@ class KrakenRESTClient:
         nonce = str(int(time_manager().now().timestamp() * 1000))
         data["nonce"] = nonce
 
+        logging.info(f"Sending request to {uri_path} with payload {data}")
+
         headers = {
             "API-Key": self._api_key,
             "API-Sign": self._create_signature(uri_path, data),
         }
-        req = requests.post(
+        response = requests.post(
             (KrakenRESTClient.API_URL + uri_path), headers=headers, data=data
         )
-        return req
+
+        logging.info(
+            f"Receive {response.status_code} response "
+            f"from {uri_path}: {response.text}"
+        )
+        return response
 
     def _create_signature(self, urlpath: str, data: dict) -> str:
         assert "nonce" in data
