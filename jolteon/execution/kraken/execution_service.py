@@ -2,7 +2,7 @@ import asyncio
 import logging
 import os
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import StrEnum
 
 import pytz
@@ -10,6 +10,7 @@ from blinker import signal
 from requests import Response
 
 from jolteon.core.health_monitor.heartbeat import Heartbeater, HeartbeatLevel
+from jolteon.core.time.time_manager import time_manager
 from jolteon.execution.kraken.rest_client import KrakenRESTClient
 from jolteon.market_data.core.order import Order
 from jolteon.market_data.core.trade import Trade
@@ -21,16 +22,25 @@ class ExecutionService(Heartbeater):
         CREATE_ORDER_FAILURE = "CREATE_ORDER_FAILURE"
         GET_TRADE_FAILURE = "GET_TRADE_FAILURE"
 
-    def __init__(self, dry_run=False):
+    def __init__(self, dry_run=False, poll_interval=1):
         """
         Creates an execution service to act as the exchange. It will
         respond to requests such as buy and sell.
+
+        Args:
+            dry_run: Whether to perform a dry run (default: False) with only
+                     order validation
+            poll_interval: Interval in seconds to poll trade information for
+                           the just sent orders
+
         """
         super().__init__(type(self).__name__, interval_in_seconds=10)
-        self.order_history = dict[str, Order]()
-        self.order_fill_event = signal("order_fill")
         self._dry_run = dry_run
         self._client = KrakenRESTClient()
+        self._poll_interval = poll_interval
+
+        self.order_history = dict[str, Order]()
+        self.order_fill_event = signal("order_fill")
         assert os.environ.get(
             "KRAKEN_API_KEY"
         ), "Please set the KRAKEN_API_KEY environment variable"
@@ -119,8 +129,13 @@ class ExecutionService(Heartbeater):
         if len(transaction_ids) == 0:
             return
 
-        while not self._get_fills(transaction_ids, order):
-            await asyncio.sleep(1)
+        def time_elapsed():
+            return time_manager().now() - order.creation_time
+
+        while not self._get_fills(
+            transaction_ids, order
+        ) and time_elapsed() < timedelta(seconds=5):
+            await asyncio.sleep(self._poll_interval)
 
     def _get_fills(self, transaction_ids: list[str], order: Order):
         """
@@ -191,17 +206,15 @@ class ExecutionService(Heartbeater):
         self, response: Response, error_code: ErrorCode
     ):
         if response.status_code != 200:
-            logging.error(
-                f"REST API returned error: {response}", exc_info=True
-            )
+            logging.error(f"REST API returned error: {response}")
             self.add_issue(HeartbeatLevel.ERROR, error_code.name)
+            return True
 
         possible_error = response.json().get("error")
         if possible_error:
             logging.error(
                 f"REST API returned error: {possible_error}, "
-                f"full response: {response.json()}",
-                exc_info=True,
+                f"full response: {response.json()}"
             )
             self.add_issue(HeartbeatLevel.ERROR, error_code.name)
             return True

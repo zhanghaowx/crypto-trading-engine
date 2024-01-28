@@ -7,6 +7,7 @@ from unittest.mock import patch, MagicMock
 import pytz
 
 from jolteon.core.side import MarketSide
+from jolteon.core.time.time_manager import time_manager
 from jolteon.market_data.core.order import Order, OrderType
 from jolteon.market_data.core.trade import Trade
 
@@ -27,7 +28,9 @@ class TestExecutionService(IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         from jolteon.execution.kraken.execution_service import ExecutionService
 
-        self.execution_service = ExecutionService(dry_run=False)
+        self.execution_service = ExecutionService(
+            dry_run=False, poll_interval=0.1
+        )
         self.mock_order = Order(
             client_order_id="123",
             order_type=OrderType.MARKET_ORDER,
@@ -111,7 +114,7 @@ class TestExecutionService(IsolatedAsyncioTestCase):
                 self.closed_orders_response
             )
 
-            await asyncio.sleep(1.01)
+            await asyncio.sleep(self.execution_service._poll_interval + 0.01)
             self.assertEqual(len(self.fills), 2)
             self.assertEqual(self.fills[0].trade_id, 0)
             self.assertEqual(self.fills[0].client_order_id, "123")
@@ -137,3 +140,44 @@ class TestExecutionService(IsolatedAsyncioTestCase):
                 self.fills[1].transaction_time,
                 datetime.fromtimestamp(1688082549.3138, tz=pytz.utc),
             )
+
+    async def test_poll_trades_fail(self):
+        time_manager().claim_admin(self)
+        time_manager().use_fake_time(datetime(2024, 1, 1, 0, 0, 0), admin=self)
+
+        with patch("requests.post", new_callable=MagicMock) as mock_post:
+            mock_post.return_value = MagicMock()
+            mock_post.return_value.status_code = 200
+            mock_post.return_value.json.return_value = (
+                self.create_order_response
+            )
+
+            # Act
+            self.execution_service.on_order(self, self.mock_order)
+
+        with patch("requests.post", new_callable=MagicMock) as mock_post:
+            tiny_time_advance = 1e-10
+
+            mock_post.return_value = MagicMock()
+            mock_post.return_value.status_code = 400
+            mock_post.return_value.json.return_value = {}
+
+            await asyncio.sleep(tiny_time_advance)
+            mock_post.assert_called_once()
+
+            for i in range(0, 6):
+                # When get fills fail, it will automatically send another poll
+                # request after 1 second
+                mock_post.reset_mock()
+                await asyncio.sleep(self.execution_service._poll_interval)
+                mock_post.assert_called_once()
+
+            time_manager().use_fake_time(
+                datetime(2024, 1, 1, 0, 0, 5), admin=self
+            )
+
+            mock_post.reset_mock()
+            await asyncio.sleep(tiny_time_advance)
+            mock_post.assert_not_called()
+
+        time_manager().force_reset()
