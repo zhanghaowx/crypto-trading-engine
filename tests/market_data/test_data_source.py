@@ -28,12 +28,12 @@ class TestDatabaseDataSource(unittest.IsolatedAsyncioTestCase):
                 "fee": [0.0, 0.0],
                 "quantity": [1.0, 2.0],
                 "transaction_time": [
-                    "2022-01-01 10:00:00",
-                    "2022-01-01 10:00:00",
+                    1641031200,
+                    1641031200,
                 ],
             }
         )
-        self.transaction_time = datetime.fromisoformat("2022-01-01 10:00:00")
+        self.transaction_time = datetime.fromisoformat("2022-01-01T10:00:00Z")
         self.expected_trades = [
             Trade(
                 trade_id=1,

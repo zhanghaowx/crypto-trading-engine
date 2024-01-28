@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 
 import pandas as pd
+import pytz
 
 from jolteon.core.side import MarketSide
 from jolteon.market_data.core.events import Events
@@ -84,8 +85,8 @@ class DatabaseDataSource(IDataSource):
                     price=float(trade_dict["price"]),
                     fee=float(trade_dict["fee"]),
                     quantity=float(trade_dict["quantity"]),
-                    transaction_time=datetime.fromisoformat(
-                        trade_dict["transaction_time"]
+                    transaction_time=datetime.fromtimestamp(
+                        float(trade_dict["transaction_time"]), tz=pytz.utc
                     ),
                 )
             )
