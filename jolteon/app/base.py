@@ -190,6 +190,7 @@ class ApplicationBase:
             loop.close()
 
         thread = threading.Thread(
+            name=name,
             target=run_task,
         )
         thread.start()
