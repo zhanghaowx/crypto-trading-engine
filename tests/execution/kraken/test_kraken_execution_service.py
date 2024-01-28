@@ -41,75 +41,40 @@ class TestExecutionService(IsolatedAsyncioTestCase):
             "error": [],
             "result": {
                 "descr": {"order": "buy 1.25000000 XBTUSD @ limit 27500.0"},
-                "txid": ["OU22CG-KLAF2-FWUDD7"],
+                "txid": ["THVRQM-33VKH-UCI7BS", "TTEUX3-HDAAA-RC2RUO"],
             },
         }
         self.closed_orders_response = {
             "error": [],
             "result": {
-                "closed": {
-                    "O37652-RJWRT-IMO74O": {
-                        "refid": "None",
-                        "userref": 1,
-                        "status": "canceled",
-                        "reason": "User requested",
-                        "opentm": 1688148493.7708,
-                        "closetm": 1688148610.0482,
-                        "starttm": 0,
-                        "expiretm": 0,
-                        "descr": {
-                            "pair": "XBTGBP",
-                            "type": "buy",
-                            "ordertype": "stop-loss-limit",
-                            "price": "23667.0",
-                            "price2": "0",
-                            "leverage": "none",
-                            "order": "buy 0.00100000 XBTGBP @ limit 23667.0",
-                            "close": "",
-                        },
-                        "vol": "0.00100000",
-                        "vol_exec": "0.00000000",
-                        "cost": "0.00000",
-                        "fee": "0.00000",
-                        "price": "0.00000",
-                        "stopprice": "0.00000",
-                        "limitprice": "0.00000",
-                        "misc": "",
-                        "oflags": "fciq",
-                        "trigger": "index",
-                    },
-                    "O6YDQ5-LOMWU-37YKEE": {
-                        "refid": "None",
-                        "userref": 123,
-                        "status": "traded",
-                        "reason": "User requested",
-                        "opentm": 1688148493.7708,
-                        "closetm": 1688148610.0477,
-                        "starttm": 0,
-                        "expiretm": 0,
-                        "descr": {
-                            "pair": "XBTEUR",
-                            "type": "buy",
-                            "ordertype": "take-profit-limit",
-                            "price": "27743.0",
-                            "price2": "0",
-                            "leverage": "none",
-                            "order": "buy 0.00100000 XBTEUR @ limit 27743.0",
-                            "close": "",
-                        },
-                        "vol": "0.00100000",
-                        "vol_exec": "1.00000000",
-                        "cost": "0.00000",
-                        "fee": "0.00000",
-                        "price": "1.23000",
-                        "stopprice": "0.00000",
-                        "limitprice": "0.00000",
-                        "misc": "",
-                        "oflags": "fciq",
-                        "trigger": "index",
-                    },
+                "THVRQM-33VKH-UCI7BS": {
+                    "ordertxid": "OQCLML-BW3P3-BUCMWZ",
+                    "postxid": "TKH2SE-M7IF5-CFI7LT",
+                    "pair": "XBTUSD",
+                    "time": 1688667796.8802,
+                    "type": "buy",
+                    "ordertype": "market",
+                    "price": "30010.00000",
+                    "cost": "600.20000",
+                    "fee": "0.00000",
+                    "vol": "0.02000000",
+                    "margin": "0.00000",
+                    "misc": "",
                 },
-                "count": 2,
+                "TTEUX3-HDAAA-RC2RUO": {
+                    "ordertxid": "OH76VO-UKWAD-PSBDX6",
+                    "postxid": "TKH2SE-M7IF5-CFI7LT",
+                    "pair": "XBTUSD",
+                    "time": 1688082549.3138,
+                    "type": "buy",
+                    "ordertype": "market",
+                    "price": "27732.00000",
+                    "cost": "0.20020",
+                    "fee": "0.00000",
+                    "vol": "0.980000",
+                    "margin": "0.00000",
+                    "misc": "",
+                },
             },
         }
         self.fills = list[Trade]()
@@ -147,17 +112,28 @@ class TestExecutionService(IsolatedAsyncioTestCase):
             )
 
             await asyncio.sleep(1.01)
-            self.assertEqual(len(self.fills), 1)
+            self.assertEqual(len(self.fills), 2)
             self.assertEqual(self.fills[0].trade_id, 0)
             self.assertEqual(self.fills[0].client_order_id, "123")
-            self.assertEqual(self.fills[0].price, 1.23)
             self.assertEqual(self.fills[0].symbol, "BTC-USD")
             self.assertEqual(self.fills[0].maker_order_id, "")
             self.assertEqual(self.fills[0].taker_order_id, "")
             self.assertEqual(self.fills[0].side, MarketSide.BUY)
-            self.assertEqual(self.fills[0].price, 1.23)
-            self.assertEqual(self.fills[0].quantity, 1.0)
+            self.assertEqual(self.fills[0].price, 30010.00000)
+            self.assertEqual(self.fills[0].quantity, 0.02000000)
             self.assertEqual(
                 self.fills[0].transaction_time,
-                datetime(2023, 6, 30, 18, 10, 10, tzinfo=pytz.utc),
+                datetime.fromtimestamp(1688667796.8802, tz=pytz.utc),
+            )
+            self.assertEqual(self.fills[1].trade_id, 0)
+            self.assertEqual(self.fills[1].client_order_id, "123")
+            self.assertEqual(self.fills[1].symbol, "BTC-USD")
+            self.assertEqual(self.fills[1].maker_order_id, "")
+            self.assertEqual(self.fills[1].taker_order_id, "")
+            self.assertEqual(self.fills[1].side, MarketSide.BUY)
+            self.assertEqual(self.fills[1].price, 27732.00000)
+            self.assertEqual(self.fills[1].quantity, 0.980000)
+            self.assertEqual(
+                self.fills[1].transaction_time,
+                datetime.fromtimestamp(1688082549.3138, tz=pytz.utc),
             )

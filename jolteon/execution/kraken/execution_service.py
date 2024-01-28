@@ -52,7 +52,16 @@ class ExecutionService(Heartbeater):
 
         """
         try:
-            self.send_order(order)
+            response = self.send_order(order)
+            transaction_ids = response.get("result", {}).get("txid", [])
+
+            if not self._dry_run:
+                asyncio.create_task(
+                    self._poll_fills(
+                        transaction_ids=transaction_ids, order=order
+                    )
+                )
+
         except Exception as e:
             logging.error(f"Fail to send order: {e}", exc_info=True)
 
@@ -63,9 +72,6 @@ class ExecutionService(Heartbeater):
 
         # Record every order in history
         self.order_history[order.client_order_id] = order
-
-        if not self._dry_run:
-            asyncio.create_task(self._poll_fills(order))
 
     def send_order(self, order):
         """
@@ -107,24 +113,32 @@ class ExecutionService(Heartbeater):
         return response.json()
 
     # Poll for trade confirmations
-    async def _poll_fills(self, order: Order):
-        while not self._get_fills(order):
+    async def _poll_fills(self, transaction_ids: list[str], order: Order):
+        # In case of dry run or order sent failure, no transaction ID will be
+        # returned, and we don't need to retrieve fill notice.
+        if len(transaction_ids) == 0:
+            return
+
+        while not self._get_fills(transaction_ids, order):
             await asyncio.sleep(1)
 
-    def _get_fills(self, order: Order):
+    def _get_fills(self, transaction_ids: list[str], order: Order):
         """
         Use the following API to get fill notice.
         https://docs.kraken.com/rest/#tag/Account-Data/operation/getTradesInfo
 
         Args:
-            order:
-
+            transaction_ids: A list of transaction IDs returned from the
+                             exchange when market order is sent.
+            order: The original market order sent to the exchange
         Returns:
-
+            None
         """
+
+        assert len(transaction_ids) > 0
         response = self._client.send_request(
-            "/0/private/ClosedOrders",
-            {"userref": order.client_order_id, "trades": True},
+            "/0/private/QueryTrades",
+            {"txid": ",".join(transaction_ids), "trades": True},
         )
 
         if self._handle_possible_error(
@@ -134,17 +148,18 @@ class ExecutionService(Heartbeater):
 
         self.remove_issue(self.ErrorCode.GET_TRADE_FAILURE)
         logging.debug(
-            f"ClosedOrders query received response from exchange "
-            f"{response}"
+            f"QueryTrades received response from exchange " f"{response}"
         )
 
         trades = list[Trade]()
-        for json_trade in response.json()["result"]["closed"].values():
-            if json_trade["userref"] != int(order.client_order_id):
-                continue
-
-            assert json_trade["userref"] == int(order.client_order_id)
+        for json_trade in response.json()["result"].values():
             logging.info(f"Found trade {json_trade}")
+
+            # Symbol and pair may not 100% match. For example: BTC/USD vs.
+            # XBTUSD
+            # assert order.symbol == json_trade["pair"]
+            assert order.side.value.lower() == json_trade["type"]
+            assert order.order_type.value.lower() == json_trade["ordertype"]
             trades.append(
                 Trade(
                     trade_id=0,
@@ -154,9 +169,9 @@ class ExecutionService(Heartbeater):
                     taker_order_id="",
                     side=order.side,
                     price=float(json_trade["price"]),
-                    quantity=float(json_trade["vol_exec"]),
+                    quantity=float(json_trade["vol"]),
                     transaction_time=datetime.fromtimestamp(
-                        int(json_trade["closetm"]), tz=pytz.utc
+                        json_trade["time"], tz=pytz.utc
                     ),
                 )
             )
