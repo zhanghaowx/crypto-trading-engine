@@ -30,7 +30,7 @@ class TestPositionManager(unittest.IsolatedAsyncioTestCase):
             taker_order_id=str(uuid.uuid4()),
             side=market_side,
             price=price,
-            fee=0.0,
+            fee=1.0,
             quantity=quantity,
             transaction_time=datetime.now(pytz.utc),
         )
@@ -97,6 +97,8 @@ class TestPositionManager(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(140.0, position_manager.positions["BTC"].cash_value)
         self.assertEqual(985.0, position_manager.positions["ETH"].volume)
         self.assertEqual(2480.0, position_manager.positions["ETH"].cash_value)
+
+        self.assertEqual(-2625.0, position_manager.pnl)
 
     def test_on_fill_invalid_side(self):
         trade = self.create_trade("SHORT_SELL", "BTC-USD", 100.0, 1.0)

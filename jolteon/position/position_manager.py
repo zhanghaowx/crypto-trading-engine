@@ -21,13 +21,13 @@ class PositionManager:
 
     def on_fill(self, _: str, trade: Trade):
         if trade.side == MarketSide.BUY:
-            self._on_buy(trade.symbol, trade.price, trade.quantity)
+            self._on_buy(trade.symbol, trade.price, trade.fee, trade.quantity)
         elif trade.side == MarketSide.SELL:
-            self._on_sell(trade.symbol, trade.price, trade.quantity)
+            self._on_sell(trade.symbol, trade.price, trade.fee, trade.quantity)
         else:
             assert False, f"Trade has an invalid trade side: {trade}"
 
-    def _on_buy(self, symbol: str, price: float, quantity: float):
+    def _on_buy(self, symbol: str, price: float, fee: float, quantity: float):
         """
         Adds the buy trade to tracked positions
 
@@ -45,12 +45,12 @@ class PositionManager:
         )
         self.positions[symbol].volume += quantity
         self.positions[symbol].cash_value += price * quantity
-        self.pnl -= price * quantity
+        self.pnl = self.pnl - price * quantity - fee
 
         assert symbol in self.positions.keys()
         return self.positions[symbol]
 
-    def _on_sell(self, symbol: str, price: float, quantity: float):
+    def _on_sell(self, symbol: str, price: float, fee: float, quantity: float):
         """
         Removes the sell trade from tracked positions
 
@@ -65,7 +65,7 @@ class PositionManager:
 
         self.positions[symbol].volume -= quantity
         self.positions[symbol].cash_value -= price * quantity
-        self.pnl += price * quantity
+        self.pnl = self.pnl + price * quantity - fee
 
         assert (
             self.positions[symbol].volume >= -1e-10
