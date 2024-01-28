@@ -7,7 +7,6 @@ from unittest.mock import patch, MagicMock
 import pytz
 
 from jolteon.core.side import MarketSide
-from jolteon.core.time.time_manager import time_manager
 from jolteon.market_data.core.order import Order, OrderType
 from jolteon.market_data.core.trade import Trade
 
@@ -142,9 +141,6 @@ class TestExecutionService(IsolatedAsyncioTestCase):
             )
 
     async def test_poll_trades_fail(self):
-        time_manager().claim_admin(self)
-        time_manager().use_fake_time(datetime(2024, 1, 1, 0, 0, 0), admin=self)
-
         with patch("requests.post", new_callable=MagicMock) as mock_post:
             mock_post.return_value = MagicMock()
             mock_post.return_value.status_code = 200
@@ -162,22 +158,13 @@ class TestExecutionService(IsolatedAsyncioTestCase):
             mock_post.return_value.status_code = 400
             mock_post.return_value.json.return_value = {}
 
-            await asyncio.sleep(tiny_time_advance)
-            mock_post.assert_called_once()
-
             for i in range(0, 6):
                 # When get fills fail, it will automatically send another poll
-                # request after 1 second
+                # request after _poll_interval second
                 mock_post.reset_mock()
                 await asyncio.sleep(self.execution_service._poll_interval)
                 mock_post.assert_called_once()
 
-            time_manager().use_fake_time(
-                datetime(2024, 1, 1, 0, 0, 5), admin=self
-            )
-
             mock_post.reset_mock()
             await asyncio.sleep(tiny_time_advance)
             mock_post.assert_not_called()
-
-        time_manager().force_reset()

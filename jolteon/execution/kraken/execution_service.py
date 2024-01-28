@@ -2,7 +2,7 @@ import asyncio
 import logging
 import os
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import StrEnum
 
 import pytz
@@ -10,7 +10,7 @@ from blinker import signal
 from requests import Response
 
 from jolteon.core.health_monitor.heartbeat import Heartbeater, HeartbeatLevel
-from jolteon.core.time.time_manager import time_manager
+from jolteon.core.retry import Retry
 from jolteon.execution.kraken.rest_client import KrakenRESTClient
 from jolteon.market_data.core.order import Order
 from jolteon.market_data.core.trade import Trade
@@ -129,13 +129,12 @@ class ExecutionService(Heartbeater):
         if len(transaction_ids) == 0:
             return
 
-        def time_elapsed():
-            return time_manager().now() - order.creation_time
-
-        while not self._get_fills(
-            transaction_ids, order
-        ) and time_elapsed() < timedelta(seconds=5):
-            await asyncio.sleep(self._poll_interval)
+        async with Retry(
+            max_retries=5, delay_seconds=self._poll_interval
+        ) as retry:
+            await retry.execute(
+                self._get_fills, transaction_ids=transaction_ids, order=order
+            )
 
     def _get_fills(self, transaction_ids: list[str], order: Order):
         """
@@ -159,7 +158,9 @@ class ExecutionService(Heartbeater):
         if self._handle_possible_error(
             response, self.ErrorCode.GET_TRADE_FAILURE
         ):
-            return False
+            raise RuntimeError(
+                "REST API returned an error on fetching trades."
+            )
 
         self.remove_issue(self.ErrorCode.GET_TRADE_FAILURE)
         logging.debug(
@@ -198,9 +199,11 @@ class ExecutionService(Heartbeater):
                     self.order_fill_event,
                     trade=trade,
                 )
-            return True
+            return
 
-        return False
+        raise RuntimeError(
+            "REST API doesn't return all trades associated with this order"
+        )
 
     def _handle_possible_error(
         self, response: Response, error_code: ErrorCode
