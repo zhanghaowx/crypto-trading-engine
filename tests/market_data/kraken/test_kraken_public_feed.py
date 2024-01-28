@@ -90,10 +90,18 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
     async def test_connect_to_production_feed(self, mock_connect):
         await self.create_mock_websocket(mock_connect, [])
 
-        await self.feed.connect("ETH-USD")
+        await self.feed.connect("ETH-USD", max_retries=0)
 
         # Assertions
         mock_connect.assert_called_once_with("wss://ws.kraken.com/v2")
+
+    @patch("websockets.connect")
+    async def test_reconnect_to_production_feed(self, mock_connect):
+        await self.create_mock_websocket(mock_connect, [])
+
+        await self.feed.connect("ETH-USD", max_retries=3)
+
+        self.assertEqual(mock_connect.call_count, 4)
 
     @patch("websockets.connect")
     async def test_heartbeat_feed(self, mock_connect):
@@ -101,7 +109,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
             mock_connect, [TestPublicFeed.heartbeat_feed]
         )
 
-        await self.feed.connect("ETH-USD")
+        await self.feed.connect("ETH-USD", max_retries=0)
 
         # Assertions
         self.assertEqual(
@@ -116,7 +124,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
             mock_connect, [TestPublicFeed.subscribe_feed]
         )
 
-        await self.feed.connect("ETH-USD")
+        await self.feed.connect("ETH-USD", max_retries=0)
 
         # Assertions
         self.assertEqual(
@@ -130,7 +138,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
             mock_connect, [TestPublicFeed.pong_feed]
         )
 
-        await self.feed.connect("ETH-USD")
+        await self.feed.connect("ETH-USD", max_retries=0)
 
         # Assertions
         self.assertEqual(
@@ -143,7 +151,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
             mock_connect, [TestPublicFeed.trade_feed]
         )
 
-        await self.feed.connect("ETH-USD")
+        await self.feed.connect("ETH-USD", max_retries=0)
 
         # Assertions
         self.assertEqual(
@@ -157,7 +165,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
             mock_connect, [TestPublicFeed.unknown_feed]
         )
 
-        await self.feed.connect("ETH-USD")
+        await self.feed.connect("ETH-USD", max_retries=0)
 
         # Assertions
         self.assertEqual(
@@ -175,7 +183,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
             ],
         )
 
-        await self.feed.connect("ETH-USD")
+        await self.feed.connect("ETH-USD", max_retries=0)
 
         # Assertions
         self.assertEqual(

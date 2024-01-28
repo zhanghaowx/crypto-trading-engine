@@ -36,8 +36,8 @@ class PublicFeed(Heartbeater):
     async def connect(
         self,
         symbol: str,
-        max_retries: int = 0,
-        retry_interval_in_seconds: int = 0,
+        max_retries: int = 3,
+        retry_interval_in_seconds: int = 5,
     ):
         n_retries = 0
         while n_retries <= max_retries:
