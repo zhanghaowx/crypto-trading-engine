@@ -47,6 +47,7 @@ class MLTool(object):
         df["profit"] = (
             df["sell_trades.0.price"] * df["sell_trades.0.quantity"]
             - df["buy_trades.0.price"] * df["buy_trades.0.quantity"]
+            - df["buy_trades.0.fee"] - df["sell_trades.0.fee"]
         )
         win_rate = len(df[df["profit"] > 0]) / len(df) * 100
         pnl = sum(df["profit"])
@@ -157,7 +158,7 @@ class MLTool(object):
             model,
             param_grid={
                 "n_estimators": range(1, 100),
-                "max_depth": range(1, len(X) + 1),
+                "max_depth": range(1, 20),
             },
         )
         grid_search.fit(train_df[X], train_df[y])

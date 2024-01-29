@@ -1,19 +1,18 @@
 """
 CLI interface for jolteon project.
 """
+import argparse
 import asyncio
 import logging
 import signal
 import sqlite3
 import sys
 import tempfile
-from datetime import datetime
 
 import numpy as np
 import pandas as pd
-import pytz
 
-from jolteon.app.kraken import KrakenApplication as Application
+from jolteon.core.market import Market
 from jolteon.core.time.time_manager import time_manager
 from jolteon.strategy.bull_trend_rider.strategy_parameters import (
     StrategyParameters,
@@ -34,23 +33,36 @@ signal.signal(signal.SIGINT, graceful_exit)
 
 
 async def train():
+    parser = argparse.ArgumentParser(description="Jolteon Trading Engine")
+    parser.add_argument("--train-db", help="Path to a SQLite database file")
+    parser.add_argument("--exchange", help="Name of the exchange")
+
+    # Access the arguments
+    args = parser.parse_args()
+    train_db = args.train_db
+
+    # Instantiate the correct market's application instance
+    market = Market.parse(args.exchange)
+    if market == Market.KRAKEN:
+        from jolteon.app.kraken import KrakenApplication as Application
+    elif market == Market.COINBASE:
+        from jolteon.app.coinbase import CoinbaseApplication as Application
+    else:
+        raise NotImplementedError(
+            f"Application is not implemented for market {args.exchange}"
+        )
+
     symbol = "BTC/USD"
-    replay_start = datetime(
-        2024, 1, 20, hour=11, minute=0, second=0, tzinfo=pytz.utc
-    )
-    replay_end = datetime(
-        2024, 1, 20, hour=11, minute=59, second=0, tzinfo=pytz.utc
-    )
 
     # Start Hyper Parameters Setup
     train_result = list[dict]()
     for minute in range(1, 6):
-        for bull_flag_pct in np.arange(0.001, 0.002, 0.0002):
+        for bull_flag_pct in np.arange(0.0005, 0.00201, 0.0002):
             for consolidate_pct in np.arange(0.1, 0.301, 0.1):
-                for reward_ratio in np.arange(2.0, 5.0, 0.5):
+                for reward_ratio in np.arange(2.0, 5.001, 0.5):
                     # Start Training
                     strategy_params = StrategyParameters(
-                        max_number_of_recent_candlesticks=10,
+                        max_number_of_recent_candlesticks=15,
                         target_reward_risk_ratio=reward_ratio,
                     )
                     bull_flag_params = BullFlagParameters(
@@ -67,7 +79,7 @@ async def train():
                         strategy_params=strategy_params,
                         bull_flag_params=bull_flag_params,
                     )
-                    pnl = await app.run_replay(replay_start, replay_end)
+                    pnl = await app.run_local_replay(db=train_db)
 
                     result = {
                         **vars(strategy_params),
