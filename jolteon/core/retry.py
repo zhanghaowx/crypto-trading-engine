@@ -28,7 +28,7 @@ class Retry:
                 else:
                     return user_function(*args, **kwargs)
             except self.retry_exceptions as e:
-                logging.info(
+                logging.warning(
                     f"Attempt {user_function.__name__} "
                     f"{self.retries + 1}/{self.max_retries + 1} "
                     f"failed: {e}"
