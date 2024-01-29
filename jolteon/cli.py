@@ -49,7 +49,7 @@ async def main():
         from jolteon.app.coinbase import CoinbaseApplication as Application
     else:
         raise NotImplementedError(
-            f"Application is not implemented " f"for market {args.exchange}"
+            f"Application is not implemented for market {args.exchange}"
         )
 
     symbol = "BTC-USD"
