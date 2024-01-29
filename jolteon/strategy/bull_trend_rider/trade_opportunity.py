@@ -21,8 +21,8 @@ class TradeOpportunity(TradeOpportunityCore):
     def __init__(
         self,
         pattern: BullFlagPattern,
-        target_reward_risk_ratio: float,
-        adjusted_atr: float,
+        history: CandlestickList,
+        params: StrategyParameters,
     ):
         super().__init__(
             score=0.0,
@@ -32,6 +32,7 @@ class TradeOpportunity(TradeOpportunityCore):
         self.bull_flag_pattern = pattern
         self.expected_trade_price = pattern.consolidation[-1].close
 
+        adjusted_atr = history.atr() * params.atr_factor
         self.stop_loss_from_atr = self.expected_trade_price - adjusted_atr
         self.stop_loss_from_support = min(
             [x.low for x in pattern.consolidation]
@@ -44,11 +45,15 @@ class TradeOpportunity(TradeOpportunityCore):
 
         self.profit_price = (
             self.expected_trade_price - self.stop_loss_price
-        ) * target_reward_risk_ratio + self.expected_trade_price
+        ) * params.target_reward_risk_ratio + self.expected_trade_price
+        self.profit_price += self.profit_price * params.fee_percentage
+        self.profit_price += self.expected_trade_price * params.fee_percentage
 
-    def grade(
+        self.score = self._grade(history, params)
+
+    def _grade(
         self, history: CandlestickList, params: StrategyParameters
-    ) -> None:
+    ) -> float:
         """
         Based on all characteristics of the opportunity, assign a grade to the
         trade opportunity.
@@ -113,4 +118,4 @@ class TradeOpportunity(TradeOpportunityCore):
         ###############
         # Build Score #
         ###############
-        self.score = score_model().score(self.score_details)
+        return score_model().score(self.score_details)

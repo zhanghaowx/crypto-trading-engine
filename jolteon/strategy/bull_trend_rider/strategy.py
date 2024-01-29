@@ -79,14 +79,10 @@ class BullFlagStrategy(Heartbeater):
         if pattern.result != RecognitionResult.BULL_FLAG:
             return
 
-        adjusted_atr = self._market_history.atr() * self._parameters.atr_factor
         opportunity = TradeOpportunity(
             pattern=pattern,
-            adjusted_atr=adjusted_atr,
-            target_reward_risk_ratio=self._parameters.target_reward_risk_ratio,
-        )
-        opportunity.grade(
-            history=self._market_history, params=self._parameters
+            history=self._market_history,
+            params=self._parameters,
         )
 
         self.opportunity_event.send(

@@ -19,3 +19,5 @@ class StrategyParameters:
     min_quantity: float = 0.0001
     # ATR adjustment to support stop loss price
     atr_factor: float = 3.0
+    # Percentage of order cost that will be charged by the exchange as fee
+    fee_percentage: float = 0.0026
