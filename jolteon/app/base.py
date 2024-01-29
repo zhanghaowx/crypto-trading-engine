@@ -43,7 +43,7 @@ class ApplicationBase:
         self._candlestick_interval_in_seconds = candlestick_interval_in_seconds
 
         # Data Dumping Setup
-        setup_global_logger(log_level=logging.INFO, logfile_name=logfile_name)
+        setup_global_logger(log_level=logging.DEBUG, logfile_name=logfile_name)
 
         self._signal_connector = SignalConnector(
             database_name=database_name,
