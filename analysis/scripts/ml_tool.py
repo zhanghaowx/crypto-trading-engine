@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 from typing import Literal
 
 import joblib
@@ -156,7 +157,7 @@ class MLTool(object):
             model,
             param_grid={
                 "n_estimators": range(1, 100),
-                "max_depth": range(1, 30),
+                "max_depth": range(1, len(X) + 1),
             },
         )
         grid_search.fit(train_df[X], train_df[y])
@@ -195,7 +196,9 @@ class MLTool(object):
     def _save_model(best_model):
         script_directory = os.path.dirname(os.path.abspath(__file__))
         repo_directory = os.path.dirname(os.path.dirname(script_directory))
-        model_filename = "random_forest_model.joblib"
+        model_filename = (
+            f"random_forest_model-{datetime.now().strftime('%Y-%m-%d')}.joblib"
+        )
         save_path = (
             f"{repo_directory}/jolteon/strategy/bull_trend_rider/"
             f"models/{model_filename}"
