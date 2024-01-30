@@ -32,7 +32,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
         "method":"subscribe"
     }
     """
-    trade_feed = """
+    trade_feed_1 = """
     {
       "channel": "trade",
       "data": [
@@ -43,7 +43,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
           "side": "sell",
           "symbol": "BTC/USD",
           "timestamp": "2022-06-13T08:09:10.123456Z",
-          "trade_id": 0
+          "trade_id": 1
         },
         {
           "ord_type": "market",
@@ -52,7 +52,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
           "side": "sell",
           "symbol": "BTC/USD",
           "timestamp": "2022-06-13T08:09:20.123456Z",
-          "trade_id": 0
+          "trade_id": 2
         },
         {
           "ord_type": "market",
@@ -61,12 +61,48 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
           "side": "sell",
           "symbol": "BTC/USD",
           "timestamp": "2022-06-13T08:09:30.123456Z",
-          "trade_id": 0
+          "trade_id": 3
         }
       ],
       "type": "update"
     }
     """
+    # Same as trade_feed_1 except all timestamps are +10 minute
+    trade_feed_2 = """
+        {
+          "channel": "trade",
+          "data": [
+            {
+              "ord_type": "market",
+              "price": 4136.4,
+              "qty": 0.23374249,
+              "side": "sell",
+              "symbol": "BTC/USD",
+              "timestamp": "2022-06-13T08:19:10.123456Z",
+              "trade_id": 4
+            },
+            {
+              "ord_type": "market",
+              "price": 4136.4,
+              "qty": 0.00060615,
+              "side": "sell",
+              "symbol": "BTC/USD",
+              "timestamp": "2022-06-13T08:19:20.123456Z",
+              "trade_id": 5
+            },
+            {
+              "ord_type": "market",
+              "price": 4136.4,
+              "qty": 0.00000136,
+              "side": "sell",
+              "symbol": "BTC/USD",
+              "timestamp": "2022-06-13T08:19:30.123456Z",
+              "trade_id": 6
+            }
+          ],
+          "type": "update"
+        }
+        """
 
     async def asyncSetUp(self):
         self.feed = PublicFeed()
@@ -148,7 +184,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
     @patch("websockets.connect")
     async def test_match_feed(self, mock_connect):
         mock_websocket = await self.create_mock_websocket(
-            mock_connect, [TestPublicFeed.trade_feed]
+            mock_connect, [TestPublicFeed.trade_feed_1]
         )
 
         await self.feed.connect("ETH-USD", max_retries=0)
@@ -158,6 +194,28 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
             2, mock_websocket.__aenter__.return_value.recv.call_count
         )
         self.assertEqual(3, self.feed.events.candlestick.send.call_count)
+
+    @patch("websockets.connect")
+    async def test_match_feed_reconnect(self, mock_connect):
+        # After reconnecting, application may receive trades that have
+        # already been transmitted
+        mock_websocket = await self.create_mock_websocket(
+            mock_connect,
+            [
+                TestPublicFeed.trade_feed_1,
+                TestPublicFeed.trade_feed_2,
+                TestPublicFeed.trade_feed_1,
+            ],
+        )
+
+        await self.feed.connect("ETH-USD", max_retries=0)
+
+        # Assertions
+        self.assertEqual(
+            4, mock_websocket.__aenter__.return_value.recv.call_count
+        )
+        self.assertEqual(6, self.feed.events.matches.send.call_count)
+        self.assertEqual(15, self.feed.events.candlestick.send.call_count)
 
     @patch("websockets.connect")
     async def test_unknown_feed(self, mock_connect):

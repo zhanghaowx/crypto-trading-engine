@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import math
 from datetime import datetime
 from enum import Enum
 
@@ -29,6 +30,7 @@ class PublicFeed(Heartbeater):
     def __init__(self, candlestick_interval_in_seconds: int = 60):
         super().__init__(type(self).__name__, interval_in_seconds=10)
         self.events = Events()
+        self._last_received_trade_id = -math.inf
         self._candlestick_generator = CandlestickGenerator(
             interval_in_seconds=candlestick_interval_in_seconds
         )
@@ -176,6 +178,12 @@ class PublicFeed(Heartbeater):
             }
             """
             for trade_json in response["data"]:
+                # Test if these trades are replay trades after re-connecting
+                # Note: Kraken's trade id is numerical
+                trade_id = int(trade_json["trade_id"])
+                if trade_id < self._last_received_trade_id:
+                    continue
+
                 market_trade = Trade(
                     trade_id=trade_json["trade_id"],
                     client_order_id="",
@@ -193,6 +201,7 @@ class PublicFeed(Heartbeater):
                 self.events.matches.send(
                     self.events.matches, market_trade=market_trade
                 )
+                self._last_received_trade_id = int(market_trade.trade_id)
                 logging.debug("Received Market Trade: %s", market_trade)
 
                 # Calculate our own candlesticks using market trades
