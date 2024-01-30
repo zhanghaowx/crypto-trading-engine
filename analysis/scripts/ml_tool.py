@@ -47,7 +47,8 @@ class MLTool(object):
         df["profit"] = (
             df["sell_trades.0.price"] * df["sell_trades.0.quantity"]
             - df["buy_trades.0.price"] * df["buy_trades.0.quantity"]
-            - df["buy_trades.0.fee"] - df["sell_trades.0.fee"]
+            - df["buy_trades.0.fee"]
+            - df["sell_trades.0.fee"]
         )
         win_rate = len(df[df["profit"] > 0]) / len(df) * 100
         pnl = sum(df["profit"])
