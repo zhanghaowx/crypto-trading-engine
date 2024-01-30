@@ -3,10 +3,12 @@ import os
 import sqlite3
 import tempfile
 import unittest
+from datetime import datetime
 from enum import Enum
 from unittest.mock import patch, MagicMock
 
 import pandas as pd
+import pytz
 from blinker import signal
 
 from jolteon.core.event.signal_connector import (
@@ -32,7 +34,8 @@ class TestSignalConnector(unittest.IsolatedAsyncioTestCase):
         self.signal_connector.connect(self.signal_b, receiver_b)
 
     async def asyncTearDown(self) -> None:
-        self.signal_connector.close()
+        if self.signal_connector:
+            self.signal_connector.close()
         os.remove(self.database_filepath)
 
     async def test_connect(self):
@@ -278,6 +281,39 @@ class TestSignalConnector(unittest.IsolatedAsyncioTestCase):
         conn.close()
 
         self.assertEqual(2, len(df))
+
+    async def test_handle_payload_no_change_to_schema(self):
+        class Payload:
+            def __init__(self):
+                self.dict = {
+                    "A": "1",
+                    "B": 3,
+                    "C": True,
+                    "D": datetime.now(tz=pytz.utc),
+                }
+
+        # Create an empty table
+        conn = sqlite3.connect(database=self.database_filepath)
+        conn.execute(
+            """
+        CREATE TABLE signal_a (
+            A TEXT,
+            B INTEGER,
+            C INTEGER,
+            D INTEGER
+        );"""
+        )
+
+        payload_a = Payload()
+
+        self.signal_a.send(self.signal_a, payload=payload_a)
+        self.signal_connector._save_data()
+
+        # Verify saved table
+        df = pd.read_sql("SELECT * FROM signal_a", con=conn)
+        conn.close()
+
+        self.assertEqual(1, len(df))
 
     async def test_handle_payload_is_none(self):
         self.signal_a.send(self.signal_a, payload=None)

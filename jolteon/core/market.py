@@ -10,5 +10,5 @@ class Market(StrEnum):
     def parse(value: str):
         try:
             return Market[value.upper()]
-        except KeyError as e:
-            raise e
+        except KeyError:
+            raise RuntimeError(f"Unsupported market {value}")

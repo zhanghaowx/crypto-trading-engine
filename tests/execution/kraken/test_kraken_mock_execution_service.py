@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime
 from unittest import IsolatedAsyncioTestCase
 from unittest.mock import MagicMock, patch
@@ -10,6 +11,7 @@ from jolteon.execution.kraken.mock_execution_service import (
 )
 from jolteon.market_data.core.order import Order, OrderType
 from jolteon.market_data.core.trade import Trade
+from jolteon.market_data.data_source import IDataSource
 
 
 class TestMockExecutionService(IsolatedAsyncioTestCase):
@@ -59,6 +61,44 @@ class TestMockExecutionService(IsolatedAsyncioTestCase):
 
             # Connect and simulate the asynchronous event loop
             self.execution_service.on_order(self, self.mock_order)
+
+        self.assertEqual(len(self.fills), 1)
+        self.assertEqual(self.fills[0].fee, 50000 * 0.0001 * 0.0026)
+
+    async def test_on_order_with_cache(self):
+        # Set up test parameters
+        symbol = "BTC/USD"
+        timestamp = self.mock_order.creation_time.timestamp()
+
+        IDataSource.TRADE_CACHE[(symbol, timestamp)] = [
+            Trade(
+                trade_id=1,
+                client_order_id="",
+                symbol=symbol,
+                maker_order_id=str(uuid.uuid4()),
+                taker_order_id=str(uuid.uuid4()),
+                side=MarketSide.BUY,
+                price=50000.0,
+                fee=0.0,
+                quantity=1.0,
+                transaction_time=self.mock_order.creation_time,
+            ),
+            Trade(
+                trade_id=2,
+                client_order_id="",
+                symbol=symbol,
+                maker_order_id=str(uuid.uuid4()),
+                taker_order_id=str(uuid.uuid4()),
+                side=MarketSide.SELL,
+                price=51000.0,
+                fee=0.0,
+                quantity=1.0,
+                transaction_time=self.mock_order.creation_time,
+            ),
+        ]
+
+        # Connect and simulate the asynchronous event loop
+        self.execution_service.on_order(self, self.mock_order)
 
         self.assertEqual(len(self.fills), 1)
         self.assertEqual(self.fills[0].fee, 50000 * 0.0001 * 0.0026)

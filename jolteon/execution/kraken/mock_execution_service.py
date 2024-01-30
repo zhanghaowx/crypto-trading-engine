@@ -66,7 +66,7 @@ class MockExecutionService(Heartbeater):
                 time_difference = (
                     trade.transaction_time - order.creation_time
                 ).total_seconds()
-                if 0 < time_difference < 60:
+                if 0 <= time_difference <= 60:
                     return trade.price
 
         logging.warning(
