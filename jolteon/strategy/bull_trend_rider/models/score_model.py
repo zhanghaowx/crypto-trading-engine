@@ -28,5 +28,5 @@ class ScoreModel:
         return y_predict[0]
 
 
-def score_model(instance=ScoreModel("random_forest_model.joblib")):
+def score_model(instance=ScoreModel("random_forest_model-2024-01-29.joblib")):
     return instance

@@ -158,7 +158,7 @@ class MLTool(object):
             model,
             param_grid={
                 "n_estimators": range(1, 100),
-                "max_depth": range(1, 20),
+                "max_depth": range(1, len(X) * 2),
             },
         )
         grid_search.fit(train_df[X], train_df[y])
