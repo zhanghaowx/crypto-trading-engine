@@ -10,6 +10,7 @@ import websockets
 from jolteon.core.health_monitor.heartbeat import Heartbeater, HeartbeatLevel
 from jolteon.core.id_generator import id_generator
 from jolteon.core.side import MarketSide
+from jolteon.market_data.core.bbo import BBO
 from jolteon.market_data.core.candlestick_generator import CandlestickGenerator
 from jolteon.market_data.core.events import Events
 from jolteon.market_data.core.trade import Trade
@@ -19,6 +20,8 @@ class PublicFeed(Heartbeater):
     """
     Download Kraken's public market data using Websockets. This class
     implements the v2 version of Kraken's websocket API.
+
+    See more: https://docs.kraken.com/websockets-v2/#introduction
     """
 
     PRODUCTION_URI = "wss://ws.kraken.com/v2"
@@ -62,22 +65,28 @@ class PublicFeed(Heartbeater):
         """
 
         async with websockets.connect(PublicFeed.PRODUCTION_URI) as websocket:
+
+            async def subscribe_to_channel(channel_name: str):
+                subscribe_message = {
+                    "method": "subscribe",
+                    "params": {
+                        "channel": channel_name,
+                        "snapshot": True,
+                        "symbol": [symbol],
+                    },
+                    "req_id": id_generator().next(),
+                }
+                # Send the subscribe message as a JSON string
+                await websocket.send(json.dumps(subscribe_message))
+
             # Trade channel pushes trades in real-time. Multiple trades may be
             # batched in a single message but that does not necessarily mean
             # that every trade in a single message resulted from a single taker
             # order.
-            subscribe_message = {
-                "method": "subscribe",
-                "params": {
-                    "channel": "trade",
-                    "snapshot": True,
-                    "symbol": [symbol],
-                },
-                "req_id": id_generator().next(),
-            }
-
-            # Send the subscribe message as a JSON string
-            await websocket.send(json.dumps(subscribe_message))
+            await subscribe_to_channel("trade")
+            # Ticker channel pushes updates whenever there is a trade or there
+            # is a change (price or quantity) at the top-of-book.
+            await subscribe_to_channel("ticker")
 
             while True:
                 try:
@@ -139,6 +148,64 @@ class PublicFeed(Heartbeater):
             # subscription data.
             self.events.channel_heartbeat.send(
                 self.events.channel_heartbeat, payload=response
+            )
+        elif message_type == "ticker":
+            """
+            Below is an example of 2 ticker messages from Kraken:
+            {
+              "channel": "ticker",
+              "data": [
+                {
+                  "ask": 7000.3,
+                  "ask_qty": 0.01,
+                  "bid": 6000.0,
+                  "bid_qty": 0.01,
+                  "change": -100.0,
+                  "change_pct": -1.54,
+                  "high": 6500.9,
+                  "last": 6400.6,
+                  "low": 6400.1,
+                  "symbol": "BTC/EUR",
+                  "volume": 0.02,
+                  "vwap": 6450.2
+                }
+              ],
+              "type": "snapshot"
+            }
+            {
+              "channel": "ticker",
+              "data": [
+                {
+                  "ask": 7000.3,
+                  "ask_qty": 0.01,
+                  "bid": 6000.0,
+                  "bid_qty": 0.01,
+                  "change": -100.0,
+                  "change_pct": -1.54,
+                  "high": 6500.9,
+                  "last": 6400.6,
+                  "low": 6400.1,
+                  "symbol": "BTC/EUR",
+                  "volume": 0.02,
+                  "vwap": 6450.2
+                }
+              ],
+              "type": "update"
+            }
+            """
+            assert len(response["data"]) == 1, (
+                "Should only receive " "ticker feed for one symbol"
+            )
+            ticker_json = response["data"][0]
+            self.events.ticker.send(
+                self.events.ticker,
+                bbo=BBO(
+                    symbol=ticker_json["symbol"],
+                    bid_price=ticker_json["bid"],
+                    bid_quantity=ticker_json["bid_qty"],
+                    ask_price=ticker_json["ask"],
+                    ask_quantity=ticker_json["ask_qty"],
+                ),
             )
         elif message_type == "trade":
             """

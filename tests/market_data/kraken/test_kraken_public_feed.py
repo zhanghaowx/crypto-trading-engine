@@ -103,6 +103,50 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
           "type": "update"
         }
         """
+    ticker_feed_1 = """
+    {
+      "channel": "ticker",
+      "data": [
+        {
+          "ask": 7000.3,
+          "ask_qty": 0.01,
+          "bid": 6000.0,
+          "bid_qty": 0.01,
+          "change": -100.0,
+          "change_pct": -1.54,
+          "high": 6500.9,
+          "last": 6400.6,
+          "low": 6400.1,
+          "symbol": "BTC/EUR",
+          "volume": 0.02,
+          "vwap": 6450.2
+        }
+      ],
+      "type": "snapshot"
+    }
+    """
+    ticker_feed_2 = """
+    {
+      "channel": "ticker",
+      "data": [
+        {
+          "ask": 7000.3,
+          "ask_qty": 0.01,
+          "bid": 6000.0,
+          "bid_qty": 0.01,
+          "change": -100.0,
+          "change_pct": -1.54,
+          "high": 6500.9,
+          "last": 6400.6,
+          "low": 6400.1,
+          "symbol": "BTC/EUR",
+          "volume": 0.02,
+          "vwap": 6450.2
+        }
+      ],
+      "type": "update"
+    }
+    """
 
     async def asyncSetUp(self):
         self.feed = PublicFeed()
@@ -216,6 +260,24 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(6, self.feed.events.market_trade.send.call_count)
         self.assertEqual(15, self.feed.events.candlestick.send.call_count)
+
+    @patch("websockets.connect")
+    async def test_ticker_feed(self, mock_connect):
+        mock_websocket = await self.create_mock_websocket(
+            mock_connect,
+            [
+                TestPublicFeed.ticker_feed_1,
+                TestPublicFeed.ticker_feed_2,
+            ],
+        )
+
+        await self.feed.connect("ETH-USD", max_retries=0)
+
+        # Assertions
+        self.assertEqual(
+            3, mock_websocket.__aenter__.return_value.recv.call_count
+        )
+        self.assertEqual(2, self.feed.events.ticker.send.call_count)
 
     @patch("websockets.connect")
     async def test_unknown_feed(self, mock_connect):
