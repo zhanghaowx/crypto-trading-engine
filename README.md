@@ -8,34 +8,53 @@
 ---
 ![Under Construction](https://mastersenseigenetics.com/wp-content/uploads/2021/04/UnderConstruction.jpeg)
 ---
-## Structure
+## Overview
 
-Let's take a look at the structure of this project:
+Jolteon is a sophisticated trading platform designed for crypto trading, implemented in Python. This platform empowers users to efficiently code and deploy trading strategies on various exchanges with minimal manual intervention.
 
-```text
-├── Containerfile            # The file to build a container using buildah or docker
-├── docs                     # Documentation site (add more .md files here)
-│   └── index.md             # The index page for the docs site
-├── .github                  # Github metadata for repository
-│   ├── release_message.sh   # A script to generate a release message
-│   └── workflows            # The CI pipeline for Github Actions
-├── .gitignore               # A list of files to ignore when pushing to Github
-├── HISTORY.md               # Auto generated list of changes to the project
-├── LICENSE                  # The license for the project
-├── Makefile                 # A collection of utilities to manage the project
-├── MANIFEST.in              # A list of files to include in a package
-├── mkdocs.yml               # Configuration for documentation site
-├── jolteon                  # The main python package for the project
-│   ├── base.py              # The base module for the project
-│   ├── __init__.py          # This tells Python that this is a package
-│   ├── __main__.py          # The entry point for the project
-│   └── VERSION              # The version for the project is kept in a static file
-├── README.md                # The main readme for the project
-├── requirements.txt         # An empty file to hold the requirements for the project
-├── requirements-test.txt    # List of requirements for testing and development
-├── setup.py                 # The setup.py file for installing and packaging the project
-└── tests                    # Unit tests for the project (add mote tests files here)
-    ├── conftest.py          # Configuration, hooks and fixtures for pytest
-    ├── __init__.py          # This tells Python that this is a test package
-    └── test_base.py         # The base test case for the project
-```
+## Supported Exchanges
+
+- [X] Coinbase (Partially)
+- [X] Kraken Spot Exchange
+
+## Features
+
+### 1. Backtesting
+
+Jolteon provides a robust backtesting functionality, allowing users to evaluate the performance of their trading strategies against historical data. This feature aids in refining and optimizing strategies before deploying them in live markets.
+
+### 2. Simulator with Live Market Data
+
+The platform includes a simulator that operates with live market data. This feature creates a realistic environment for users to test their strategies without risking actual capital, facilitating thorough strategy development.
+
+### 3. Automated Order Execution
+
+Jolteon is capable of executing orders autonomously. This feature enables users to implement and automate their trading strategies, reducing the need for constant manual oversight.
+
+### 4. Risk Management Component
+
+To enhance risk control, the platform incorporates a comprehensive risk management component. Users can set parameters for position sizing, implement stop-loss orders, and establish other risk mitigation measures.
+
+### 5. Instrument Scanner
+
+A powerful instrument scanner is integrated into Jolteon, enabling users to identify stocks or cryptocurrencies based on specific criteria. This feature streamlines the process of identifying assets that align with the user's trading strategies.
+
+### 6. Heartbeat Monitor Service
+
+Jolteon includes a heartbeat monitor service to ensure the seamless operation of both external APIs and internal components. This monitoring service automatically checks and alerts users in the event of any issues, ensuring the platform's reliability.
+
+## Getting Started
+
+To start using Jolteon, follow the steps outlined in the [Installation Guide](link-to-installation-guide).
+
+## Usage Examples
+
+Explore the [Examples](link-to-examples) directory for detailed examples and use cases to help you get started with coding and deploying your trading strategies.
+
+## Contributing
+
+We welcome contributions! If you would like to contribute to the development of Jolteon, please refer to the [Contribution Guidelines](link-to-contributing).
+
+## License
+
+Jolteon is licensed under the [MIT License](LICENSE). See the [License](LICENSE) file for more details.
