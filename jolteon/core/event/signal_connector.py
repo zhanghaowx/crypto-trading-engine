@@ -86,7 +86,7 @@ class SignalConnector:
         for name, payload_list in self._events.items():
             df = pd.DataFrame(payload_list)
 
-            logging.info(
+            logging.debug(
                 f"Saving DataFrame {name} with shape {df.shape} "
                 f"to {self._database_name}..."
             )
