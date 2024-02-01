@@ -198,8 +198,8 @@ class PublicFeed(Heartbeater):
                         trade_json["timestamp"]
                     ),
                 )
-                self.events.matches.send(
-                    self.events.matches, market_trade=market_trade
+                self.events.market_trade.send(
+                    self.events.market_trade, market_trade=market_trade
                 )
                 self._last_received_trade_id = int(market_trade.trade_id)
                 logging.debug("Received Market Trade: %s", market_trade)

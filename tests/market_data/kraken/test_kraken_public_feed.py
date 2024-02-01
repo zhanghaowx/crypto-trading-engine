@@ -214,7 +214,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             4, mock_websocket.__aenter__.return_value.recv.call_count
         )
-        self.assertEqual(6, self.feed.events.matches.send.call_count)
+        self.assertEqual(6, self.feed.events.market_trade.send.call_count)
         self.assertEqual(15, self.feed.events.candlestick.send.call_count)
 
     @patch("websockets.connect")

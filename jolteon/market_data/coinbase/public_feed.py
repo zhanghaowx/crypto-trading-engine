@@ -137,8 +137,8 @@ class PublicFeed(Heartbeater):
                                 response["time"]
                             ),
                         )
-                        self.events.matches.send(
-                            self.events.matches, market_trade=market_trade
+                        self.events.market_trade.send(
+                            self.events.market_trade, market_trade=market_trade
                         )
                         logging.debug(
                             "Received Market Trade: %s", market_trade

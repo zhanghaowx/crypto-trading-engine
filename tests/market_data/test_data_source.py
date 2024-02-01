@@ -81,7 +81,7 @@ class TestDatabaseDataSource(unittest.IsolatedAsyncioTestCase):
         # Assert that the database connection and read_sql function were called
         mock_connect.assert_called_once_with("test.db")
         mock_read_sql.assert_called_once_with(
-            f"select * from {Events().matches.name}",
+            f"select * from {Events().market_trade.name}",
             con=mock_connect.return_value,
         )
 
@@ -101,7 +101,7 @@ class TestDatabaseDataSource(unittest.IsolatedAsyncioTestCase):
         # Assert that the database connection and read_sql function were called
         mock_connect.assert_called_once_with("test.db")
         mock_read_sql.assert_called_once_with(
-            f"select * from {Events().matches.name} "
+            f"select * from {Events().market_trade.name} "
             f"order by transaction_time asc limit 1",
             con=mock_connect.return_value,
         )
@@ -121,7 +121,7 @@ class TestDatabaseDataSource(unittest.IsolatedAsyncioTestCase):
         # Assert that the database connection and read_sql function were called
         mock_connect.assert_called_once_with("test.db")
         mock_read_sql.assert_called_once_with(
-            f"select * from {Events().matches.name} "
+            f"select * from {Events().market_trade.name} "
             f"order by transaction_time desc limit 1",
             con=mock_connect.return_value,
         )

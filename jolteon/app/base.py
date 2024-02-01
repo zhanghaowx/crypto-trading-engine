@@ -141,7 +141,7 @@ class ApplicationBase:
             self._md.events.candlestick,
             self._shooting_star_recognizer.on_candlestick,
         )
-        self._signal_connector.connect(self._md.events.matches)
+        self._signal_connector.connect(self._md.events.market_trade)
 
         # Execution
         assert self._exec_service is not None

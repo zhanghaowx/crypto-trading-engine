@@ -97,8 +97,8 @@ class HistoricalFeed(Heartbeater):
             time_manager().use_fake_time(
                 market_trade.transaction_time, admin=self
             )
-            self.events.matches.send(
-                self.events.matches, market_trade=market_trade
+            self.events.market_trade.send(
+                self.events.market_trade, market_trade=market_trade
             )
             logging.debug("Received Market Trade: %s", market_trade)
 

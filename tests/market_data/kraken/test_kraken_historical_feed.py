@@ -23,7 +23,7 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
         self.historical_feed = HistoricalFeed(
             data_source=KrakenHistoricalDataSource()
         )
-        self.historical_feed.events.matches.connect(self.on_market_trade)
+        self.historical_feed.events.market_trade.connect(self.on_market_trade)
         self.historical_feed.events.candlestick.connect(self.on_candlestick)
 
     async def asyncTearDown(self):

@@ -27,7 +27,7 @@ class DatabaseDataSource(IDataSource):
 
     def __init__(self, database_name: str):
         self._database_name = database_name
-        self._table_name = Events().matches.name
+        self._table_name = Events().market_trade.name
 
     def start_time(self):
         conn = sqlite3.connect(self._database_name)
@@ -53,7 +53,9 @@ class DatabaseDataSource(IDataSource):
         self, symbol: str, start_time: datetime, end_time: datetime
     ):
         conn = sqlite3.connect(self._database_name)
-        df = pd.read_sql(f"select * from {Events().matches.name}", con=conn)
+        df = pd.read_sql(
+            f"select * from {Events().market_trade.name}", con=conn
+        )
         market_trades = self.to_trades(df)
 
         # Save in the cache to reduce calls to Kraken's API
