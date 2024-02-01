@@ -42,14 +42,18 @@ class ProgressBar:
         self._buffer_task = asyncio.create_task(buffer_sys_stdout())
         self._update_task = asyncio.create_task(self._update())
 
-    def stop(self):
+    def stop(self, stop_at: float = 1.0):
         assert self._update_task
         self._update_task.cancel()
-        self._print_progress_bar(1.0)
+
+        assert self._buffer_task
+        self._buffer_task.cancel()
+
+        self._print_progress_bar(stop_at)
         self._sys_stdout.write("\n")
 
         # Restore stdout
-        sys.stdout = sys.__stdout__
+        sys.stdout = self._sys_stdout
         buffered_content = self._buffer.getvalue()
         self._buffer.close()
         self._sys_stdout.write(buffered_content)
