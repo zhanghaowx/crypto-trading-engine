@@ -1,7 +1,6 @@
 import logging
 
-from blinker import signal
-
+from jolteon.core.event.signal import signal
 from jolteon.core.health_monitor.heartbeat import Heartbeater
 from jolteon.core.id_generator import id_generator
 from jolteon.core.side import MarketSide

@@ -4,8 +4,8 @@ import threading
 from datetime import datetime
 
 import pytz
-from blinker import signal
 
+from jolteon.core.event.signal import signal
 from jolteon.core.event.signal_connector import SignalConnector
 from jolteon.core.logging.logger import setup_global_logger
 from jolteon.market_data.data_source import DatabaseDataSource

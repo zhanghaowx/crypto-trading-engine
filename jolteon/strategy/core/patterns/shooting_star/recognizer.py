@@ -1,7 +1,6 @@
 from typing import Union
 
-from blinker import signal
-
+from jolteon.core.event.signal import signal
 from jolteon.core.health_monitor.heartbeat import Heartbeater
 from jolteon.market_data.core.candlestick import Candlestick
 from jolteon.strategy.core.patterns.shooting_star.parameters import (

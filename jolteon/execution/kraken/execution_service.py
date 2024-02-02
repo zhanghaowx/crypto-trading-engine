@@ -6,9 +6,9 @@ from datetime import datetime
 from enum import StrEnum
 
 import pytz
-from blinker import signal
 from requests import Response
 
+from jolteon.core.event.signal import signal
 from jolteon.core.health_monitor.heartbeat import Heartbeater, HeartbeatLevel
 from jolteon.core.retry import Retry
 from jolteon.execution.kraken.rest_client import KrakenRESTClient

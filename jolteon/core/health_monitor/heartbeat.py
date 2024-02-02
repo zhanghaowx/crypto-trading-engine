@@ -4,8 +4,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Union
 
-from blinker import signal
-
+from jolteon.core.event.signal import signal
 from jolteon.core.time.time_manager import time_manager
 
 

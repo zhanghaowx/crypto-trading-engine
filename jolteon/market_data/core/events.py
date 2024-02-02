@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from blinker import signal
+from jolteon.core.event.signal import signal
 
 
 @dataclass

@@ -9,8 +9,8 @@ from unittest.mock import patch, MagicMock
 
 import pandas as pd
 import pytz
-from blinker import signal
 
+from jolteon.core.event.signal import signal
 from jolteon.core.event.signal_connector import (
     SignalConnector,
 )
