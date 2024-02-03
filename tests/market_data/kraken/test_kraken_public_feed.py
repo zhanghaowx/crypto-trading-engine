@@ -303,7 +303,9 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
             ],
         )
 
-        await self.feed.connect("ETH-USD", max_retries=0)
+        await self.feed.connect(
+            "ETH-USD", max_retries=0, retry_interval_in_seconds=0
+        )
 
         # Assertions
         self.assertEqual(

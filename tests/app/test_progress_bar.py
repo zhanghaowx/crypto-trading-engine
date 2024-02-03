@@ -34,9 +34,8 @@ class TestProgressBar(unittest.IsolatedAsyncioTestCase):
             self.start_time + timedelta(seconds=2), admin=self
         )
 
-    @staticmethod
-    def reset_fake_time():
-        time_manager().force_reset()
+    def reset_fake_time(self):
+        time_manager().reset(admin=self)
 
     @patch("sys.stdout", new_callable=io.StringIO)
     async def test_start_stop_progress_bar(self, mock_stdout):

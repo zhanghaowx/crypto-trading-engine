@@ -26,9 +26,6 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
         self.historical_feed.events.market_trade.connect(self.on_market_trade)
         self.historical_feed.events.candlestick.connect(self.on_candlestick)
 
-    async def asyncTearDown(self):
-        time_manager().force_reset()
-
     async def test_connect_replays_trades_and_generates_candlesticks(self):
         self.assertEqual(len(self.market_trades), 0)
         self.assertEqual(len(self.candlesticks), 0)

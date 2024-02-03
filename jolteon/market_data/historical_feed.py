@@ -37,7 +37,6 @@ class HistoricalFeed(Heartbeater):
         self._candlestick_generator = CandlestickGenerator(
             interval_in_seconds=candlestick_interval_in_seconds
         )
-        time_manager().claim_admin(self)
 
     async def connect(
         self,
@@ -55,6 +54,7 @@ class HistoricalFeed(Heartbeater):
         Returns:
             A asyncio task to be waiting for incoming messages
         """
+        time_manager().claim_admin(self)
         time_manager().use_fake_time(start_time, admin=self)
 
         self.add_issue(
@@ -80,6 +80,7 @@ class HistoricalFeed(Heartbeater):
         )
 
         if len(market_trades) == 0:
+            time_manager().reset(admin=self)
             return
 
         if (
@@ -111,3 +112,4 @@ class HistoricalFeed(Heartbeater):
                     self.events.candlestick,
                     candlestick=candlestick,
                 )
+        time_manager().reset(admin=self)

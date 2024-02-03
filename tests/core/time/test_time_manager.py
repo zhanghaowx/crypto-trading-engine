@@ -1,6 +1,7 @@
 import unittest
 from datetime import datetime, timedelta
 from threading import Thread
+
 import pytz
 
 from jolteon.core.time.time_manager import (
@@ -10,9 +11,6 @@ from jolteon.core.time.time_manager import (
 
 
 class TimeManagerTest(unittest.TestCase):
-    def tearDown(self):
-        time_manager().force_reset()
-
     def test_use_real_time_admin_taken(self):
         # Arrange
         time_manager = TimeManager()
@@ -150,6 +148,8 @@ class TimeManagerTest(unittest.TestCase):
             "Admin already claimed by another user!", str(context.exception)
         )
 
+        tm.reset(admin=admin_user1)
+
     def test_claim_admin_multiple_threads(self):
         # Arrange
         time_manager = TimeManager()
@@ -179,6 +179,8 @@ class TimeManagerTest(unittest.TestCase):
 
         self.assertEqual(tm1.now(), tm2.now())
 
+        tm1.reset(admin=admin)
+
     def test_reset_time_manager(self):
         tm1 = time_manager()
         tm2 = time_manager()
@@ -188,7 +190,7 @@ class TimeManagerTest(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             tm2.claim_admin(admin)
 
-        tm1.force_reset()
+        tm1.reset(admin=admin)
         tm2.claim_admin(admin)
 
         with self.assertRaises(RuntimeError) as context:
@@ -196,3 +198,5 @@ class TimeManagerTest(unittest.TestCase):
         self.assertEqual(
             "Admin already claimed by another user!", str(context.exception)
         )
+
+        tm2.reset(admin=admin)

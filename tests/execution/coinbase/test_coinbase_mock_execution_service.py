@@ -58,9 +58,6 @@ class TestMockExecutionService(unittest.IsolatedAsyncioTestCase):
 
         self.execution_service.order_fill_event.connect(self.on_order_fill)
 
-    async def asyncTearDown(self):
-        time_manager().force_reset()
-
     def buy(self, symbol: str, price: Union[float, None], quantity: float):
         """
         Place a buy order in the market. Signals will be sent to
@@ -257,89 +254,89 @@ class TestMockExecutionService(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_replay_buy(self):
-        time_manager().claim_admin(self)
-        time_manager().use_fake_time(datetime.now(pytz.utc), self)
+        with time_manager() as manager:
+            manager.use_fake_time(datetime.now(pytz.utc), self)
 
-        # Execute
-        self.buy(symbol="BTC-USD", price=100.0, quantity=1.0)
-        self.assertEqual(1, len(self.fills))
-        self.assertEqual("BTC-USD", self.fills[-1].symbol)
-        self.assertEqual(MarketSide.BUY, self.fills[-1].side)
-        self.assertEqual(150.0, self.fills[-1].price)
-        self.assertEqual(1.0, self.fills[-1].quantity)
+            # Execute
+            self.buy(symbol="BTC-USD", price=100.0, quantity=1.0)
+            self.assertEqual(1, len(self.fills))
+            self.assertEqual("BTC-USD", self.fills[-1].symbol)
+            self.assertEqual(MarketSide.BUY, self.fills[-1].side)
+            self.assertEqual(150.0, self.fills[-1].price)
+            self.assertEqual(1.0, self.fills[-1].quantity)
 
     async def test_replay_sell(self):
-        time_manager().claim_admin(self)
-        time_manager().use_fake_time(datetime.now(pytz.utc), self)
+        with time_manager() as manager:
+            manager.use_fake_time(datetime.now(pytz.utc), self)
 
-        # Execute
-        self.sell(symbol="BTC-USD", price=100.0, quantity=1.0)
-        self.assertEqual(1, len(self.fills))
-        self.assertEqual("BTC-USD", self.fills[-1].symbol)
-        self.assertEqual(MarketSide.SELL, self.fills[-1].side)
-        self.assertEqual(150.0, self.fills[-1].price)
-        self.assertEqual(1.0, self.fills[-1].quantity)
+            # Execute
+            self.sell(symbol="BTC-USD", price=100.0, quantity=1.0)
+            self.assertEqual(1, len(self.fills))
+            self.assertEqual("BTC-USD", self.fills[-1].symbol)
+            self.assertEqual(MarketSide.SELL, self.fills[-1].side)
+            self.assertEqual(150.0, self.fills[-1].price)
+            self.assertEqual(1.0, self.fills[-1].quantity)
 
     async def test_replay_sell_getting_invalid_market_trade(self):
-        time_manager().claim_admin(self)
-        time_manager().use_fake_time(datetime.now(pytz.utc), self)
+        with time_manager() as manager:
+            manager.use_fake_time(datetime.now(pytz.utc), self)
 
-        self.execution_service._client.get_market_trades.return_value = {
-            "trades": [
-                {
-                    "trade_id": "ABC",
-                    "product_id": "BTC-USD",
-                    "price": "ABC",
-                    "size": "4",
-                    "time": "2021-05-31T09:59:59Z",
-                    "side": "UNKNOWN",
-                    "bid": "",
-                    "ask": "",
-                },
-                {
-                    "trade_id": "001",
-                    "product_id": "BTC-USD",
-                    "price": "160",
-                    "size": "4",
-                    "time": "2021-05-31T09:59:59Z",
-                    "side": "BUY",
-                    "bid": "291.13",
-                    "ask": "292.40",
-                },
-            ],
-            "best_bid": "291.13",
-            "best_ask": "292.40",
-        }
-        self.sell(symbol="BTC-USD", price=100.0, quantity=1.0)
-        self.assertEqual(1, len(self.fills))
-        self.assertEqual("BTC-USD", self.fills[-1].symbol)
-        self.assertEqual(MarketSide.SELL, self.fills[-1].side)
-        self.assertEqual(160.0, self.fills[-1].price)
-        self.assertEqual(1.0, self.fills[-1].quantity)
+            self.execution_service._client.get_market_trades.return_value = {
+                "trades": [
+                    {
+                        "trade_id": "ABC",
+                        "product_id": "BTC-USD",
+                        "price": "ABC",
+                        "size": "4",
+                        "time": "2021-05-31T09:59:59Z",
+                        "side": "UNKNOWN",
+                        "bid": "",
+                        "ask": "",
+                    },
+                    {
+                        "trade_id": "001",
+                        "product_id": "BTC-USD",
+                        "price": "160",
+                        "size": "4",
+                        "time": "2021-05-31T09:59:59Z",
+                        "side": "BUY",
+                        "bid": "291.13",
+                        "ask": "292.40",
+                    },
+                ],
+                "best_bid": "291.13",
+                "best_ask": "292.40",
+            }
+            self.sell(symbol="BTC-USD", price=100.0, quantity=1.0)
+            self.assertEqual(1, len(self.fills))
+            self.assertEqual("BTC-USD", self.fills[-1].symbol)
+            self.assertEqual(MarketSide.SELL, self.fills[-1].side)
+            self.assertEqual(160.0, self.fills[-1].price)
+            self.assertEqual(1.0, self.fills[-1].quantity)
 
     async def test_replay_sell_getting_no_valid_market_trade(self):
-        time_manager().claim_admin(self)
-        time_manager().use_fake_time(datetime.now(pytz.utc), self)
+        with time_manager() as manager:
+            manager.use_fake_time(datetime.now(pytz.utc), self)
 
-        self.execution_service._client.get_market_trades.return_value = {
-            "trades": [
-                {
-                    "trade_id": "ABC",
-                    "product_id": "BTC-USD",
-                    "price": "ABC",
-                    "size": "4",
-                    "time": "2021-05-31T09:59:59Z",
-                    "side": "UNKNOWN",
-                    "bid": "",
-                    "ask": "",
-                },
-            ],
-            "best_bid": "291.13",
-            "best_ask": "292.40",
-        }
-        self.sell(symbol="BTC-USD", price=100.0, quantity=1.0)
-        self.assertEqual(1, len(self.fills))
-        self.assertEqual("BTC-USD", self.fills[-1].symbol)
-        self.assertEqual(MarketSide.SELL, self.fills[-1].side)
-        self.assertEqual(True, math.isnan(self.fills[-1].price))
-        self.assertEqual(1.0, self.fills[-1].quantity)
+            self.execution_service._client.get_market_trades.return_value = {
+                "trades": [
+                    {
+                        "trade_id": "ABC",
+                        "product_id": "BTC-USD",
+                        "price": "ABC",
+                        "size": "4",
+                        "time": "2021-05-31T09:59:59Z",
+                        "side": "UNKNOWN",
+                        "bid": "",
+                        "ask": "",
+                    },
+                ],
+                "best_bid": "291.13",
+                "best_ask": "292.40",
+            }
+            self.sell(symbol="BTC-USD", price=100.0, quantity=1.0)
+            self.assertEqual(1, len(self.fills))
+            self.assertEqual("BTC-USD", self.fills[-1].symbol)
+            self.assertEqual(MarketSide.SELL, self.fills[-1].side)
+            self.assertEqual(True, math.isnan(self.fills[-1].price))
+            self.assertEqual(1.0, self.fills[-1].quantity)

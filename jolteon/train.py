@@ -13,7 +13,6 @@ import numpy as np
 import pandas as pd
 
 from jolteon.core.market import Market
-from jolteon.core.time.time_manager import time_manager
 from jolteon.strategy.bull_trend_rider.strategy_parameters import (
     StrategyParameters,
 )
@@ -92,14 +91,6 @@ async def train():
                     print(f"Training PnL: {pnl}, Parameters: {result}")
                     logging.info(f"Training PnL: {pnl}, Parameters: {result}")
 
-                    # Prepare for next iteration
-
-                    # Reset mock timestamp
-                    time_manager().force_reset()
-
-                    # Force garbage collection to destroy old Application
-                    # instance
-                    # gc.collect()
                     # End of one run
 
     # Save result into a database

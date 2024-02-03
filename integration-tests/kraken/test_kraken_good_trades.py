@@ -7,7 +7,6 @@ from datetime import datetime
 import pandas as pd
 import pytz
 
-from jolteon.core.time.time_manager import time_manager
 from jolteon.strategy.bull_trend_rider.strategy_parameters import (
     StrategyParameters,
 )
@@ -30,9 +29,6 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
             logfile_name=f"{tempfile.gettempdir()}/unittest.log",
             strategy_params=StrategyParameters(),
         )
-
-    async def asyncTearDown(self):
-        time_manager().force_reset()
 
     async def test_replay_on_bull_flag_opportunity(self):
         profiler = cProfile.Profile()

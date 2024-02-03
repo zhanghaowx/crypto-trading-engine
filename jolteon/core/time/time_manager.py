@@ -1,3 +1,4 @@
+import inspect
 from datetime import datetime
 from threading import Lock
 from typing import Union
@@ -21,14 +22,40 @@ class TimeManager:
         self._fake_time: Union[None, datetime] = None
         self._fake_time_admin: object = None
 
-    def force_reset(self):
+    def __enter__(self):
+        """
+        Claim admin during entering the context
+
+        Returns:
+            A TimeManager instance
+        """
+        caller_frame = inspect.currentframe().f_back
+        caller = caller_frame.f_locals.get("self")
+        self.claim_admin(caller)
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        """
+        Force reset TimeManager on the exit of the context
+
+        Returns:
+            None
+        """
+        caller_frame = inspect.currentframe().f_back
+        caller = caller_frame.f_locals.get("self")
+        self.reset(admin=caller)
+
+    def reset(self, admin: object = None) -> None:
         """
         Resets the state of the fake time and admin assignment.
 
         WARNING: This method should be only called by unit tests or
                  replay tests.
         """
-        self.__init__()
+        self._check_admin(admin)
+        with self._lock:
+            self._fake_time = None
+            self._fake_time_admin = None
 
     def is_using_fake_time(self) -> bool:
         """

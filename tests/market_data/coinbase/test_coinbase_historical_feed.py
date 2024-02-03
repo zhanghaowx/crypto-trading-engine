@@ -40,9 +40,6 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
         self.historical_feed.events.candlestick.connect(self.on_candlestick)
         self.candlesticks = list[Candlestick]()
 
-    async def asyncTearDown(self):
-        time_manager().force_reset()
-
     def on_candlestick(self, _, candlestick):
         self.candlesticks.append(candlestick)
 

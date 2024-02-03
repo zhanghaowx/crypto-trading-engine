@@ -6,7 +6,6 @@ from unittest.mock import MagicMock, patch, AsyncMock
 
 import pytz
 
-from jolteon.core.time.time_manager import time_manager
 from jolteon.market_data.core.trade import Trade
 from jolteon.position.position_manager import Position
 from jolteon.strategy.bull_trend_rider.strategy_parameters import (
@@ -55,9 +54,6 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
             volume=volume,
             cash_value=1.0,
         )
-
-    async def asyncTearDown(self):
-        time_manager().force_reset()
 
     @patch("jolteon.app.base.DatabaseDataSource")
     async def test_run_local_replay(self, MockDatabaseDataSource):

@@ -6,7 +6,6 @@ from unittest.mock import MagicMock, patch, AsyncMock
 
 import pytz
 
-from jolteon.core.time.time_manager import time_manager
 from jolteon.market_data.core.trade import Trade
 from jolteon.strategy.bull_trend_rider.strategy_parameters import (
     StrategyParameters,
@@ -42,9 +41,6 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
         self.application._strategy = self.mock_strategy
         self.application._exec_service = self.mock_exec_service
         self.application._position_manager = self.mock_position_manager
-
-    async def asyncTearDown(self):
-        time_manager().force_reset()
 
     @patch.dict(os.environ, {"COINBASE_API_KEY": "api_key"})
     @patch.dict(os.environ, {"COINBASE_API_SECRET": "api_secret"})
