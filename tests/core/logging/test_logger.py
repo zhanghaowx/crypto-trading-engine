@@ -183,15 +183,17 @@ class TestLogging(unittest.IsolatedAsyncioTestCase):
                 logging.DEBUG, logfile_db=self.database_filepath
             )
             # Number of threads
-            num_threads = 5
+            num_threads = 100
 
             # Messages to log
-            messages = ["Message 1", "Message 2", "Message 3"]
+            messages = [f"Message {i}" for i in range(num_threads)]
 
             def worker(message):
                 logging.info(
                     f"Thread {threading.current_thread().name}: {message}"
                 )
+                for log_handler in logging.getLogger().handlers:
+                    log_handler.flush()
 
             # Execute worker function concurrently using ThreadPoolExecutor
             with ThreadPoolExecutor(max_workers=num_threads) as executor:
@@ -200,5 +202,5 @@ class TestLogging(unittest.IsolatedAsyncioTestCase):
             # Ensure log messages were captured correctly
             with closing(sqlite3.connect(self.database_filepath)) as conn:
                 self.assert_number_of_logging(
-                    3, conn, should_flush_logger=True
+                    num_threads, conn, should_flush_logger=True
                 )

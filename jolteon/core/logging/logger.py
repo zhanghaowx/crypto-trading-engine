@@ -2,6 +2,7 @@
 import asyncio
 import logging
 import sqlite3
+import threading
 from contextlib import closing
 from dataclasses import dataclass
 from datetime import datetime
@@ -41,12 +42,14 @@ class SQLiteHandler(logging.Handler):
         self._batch_size = batch_size
         self._delay_seconds = delay_seconds
         self._buffer = list[dict]()
+        self._buffer_lock = threading.Lock()
         self._table_name = "logs"
 
         assert self._batch_size > 0
 
     def emit(self, record):
-        self._buffer.append(record.__dict__)
+        with self._buffer_lock:
+            self._buffer.append(record.__dict__)
 
         if len(self._buffer) == 1:
             asyncio.create_task(self.delayed_flush(delay=self._delay_seconds))
@@ -59,21 +62,22 @@ class SQLiteHandler(logging.Handler):
             if not self._buffer:
                 return
 
-            try:
-                df = pd.DataFrame(self._buffer)
-                df.map(str).to_sql(
-                    name=self._table_name,
-                    con=conn,
-                    if_exists="append",
-                    index=False,
-                )
-            except sqlite3.OperationalError as e:
-                raise sqlite3.OperationalError(
-                    f"Logger fails to save to table {self._table_name} "
-                    f"with shape {df.shape}: {e}"
-                )
-            finally:
-                self._buffer.clear()
+            with self._buffer_lock:
+                try:
+                    df = pd.DataFrame(self._buffer)
+                    df.map(str).to_sql(
+                        name=self._table_name,
+                        con=conn,
+                        if_exists="append",
+                        index=False,
+                    )
+                except sqlite3.OperationalError as e:
+                    raise sqlite3.OperationalError(
+                        f"Logger fails to save to table {self._table_name} "
+                        f"with shape {df.shape}: {e}"
+                    )
+                finally:
+                    self._buffer.clear()
 
     async def delayed_flush(self, delay: float):
         await asyncio.sleep(delay)
