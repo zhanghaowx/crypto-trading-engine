@@ -17,7 +17,7 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
     @patch.dict(os.environ, {"COINBASE_API_SECRET": "api_secret"})
     async def asyncSetUp(self):
         self.symbol = "ETH-USD"
-        self.mock_connector = MagicMock()
+        self.mock_signal_recorder = MagicMock()
         self.mock_md_live = MagicMock()
         self.mock_md_historical = MagicMock()
         self.mock_strategy = MagicMock()
@@ -35,7 +35,7 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
             strategy_params=StrategyParameters(),
         )
 
-        self.application._signal_connector = self.mock_connector
+        self.application._signal_recorder = self.mock_signal_recorder
         self.application._md_live = self.mock_md_live
         self.application._md_historical = self.mock_md_historical
         self.application._strategy = self.mock_strategy

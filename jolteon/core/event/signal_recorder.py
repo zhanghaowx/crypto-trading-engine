@@ -13,7 +13,7 @@ from blinker import NamedSignal
 from jolteon.core.event.signal import signal_namespace
 
 
-class SignalConnector:
+class SignalRecorder:
     """
     Help connect a signal to its subscribes and save a copy of every in SQLite
     database
@@ -182,27 +182,21 @@ class SignalConnector:
         elif hasattr(obj, "__dict__") and obj.__dict__:
             return dict(
                 [
-                    (k, SignalConnector._to_dict(v))
+                    (k, SignalRecorder._to_dict(v))
                     for (k, v) in obj.__dict__.items()
                 ]
             )
         elif isinstance(obj, (dict,)):
             return dict(
-                [(k, SignalConnector._to_dict(v)) for (k, v) in obj.items()]
+                [(k, SignalRecorder._to_dict(v)) for (k, v) in obj.items()]
             )
         elif isinstance(obj, (list,)):
             return dict(
-                {
-                    str(i): SignalConnector._to_dict(v)
-                    for i, v in enumerate(obj)
-                }
+                {str(i): SignalRecorder._to_dict(v) for i, v in enumerate(obj)}
             )
         elif isinstance(obj, (tuple,)):
             return dict(
-                {
-                    str(i): SignalConnector._to_dict(v)
-                    for i, v in enumerate(obj)
-                }
+                {str(i): SignalRecorder._to_dict(v) for i, v in enumerate(obj)}
             )
         else:
             return obj

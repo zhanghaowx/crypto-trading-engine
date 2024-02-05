@@ -5,8 +5,8 @@ from datetime import datetime
 
 import pytz
 
-from jolteon.core.event.signal_connector import SignalConnector
 from jolteon.core.event.signal_manager import SignalManager
+from jolteon.core.event.signal_recorder import SignalRecorder
 from jolteon.core.logging.logger import setup_global_logger
 from jolteon.market_data.data_source import DatabaseDataSource
 from jolteon.market_data.historical_feed import HistoricalFeed
@@ -49,7 +49,7 @@ class ApplicationBase(SignalManager):
             logfile_db=database_name,
         )
 
-        self._signal_connector = SignalConnector(
+        self._signal_recorder = SignalRecorder(
             database_name=database_name,
         )
 
@@ -133,11 +133,11 @@ class ApplicationBase(SignalManager):
 
     def _connect_signals(self):
         self.connect_all()
-        self._signal_connector.start_recording()
+        self._signal_recorder.start_recording()
 
     def _disconnect_signals(self):
         self.disconnect_all()
-        self._signal_connector.stop_recording()
+        self._signal_recorder.stop_recording()
 
     @staticmethod
     def _start_thread(name: str, task):
