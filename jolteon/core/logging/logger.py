@@ -25,7 +25,9 @@ class SQLiteHandler(logging.Handler):
         message: str
         created_at: float
 
-    def __init__(self, db_path: str, batch_size: int = 100):
+    def __init__(
+        self, db_path: str, batch_size: int = 100, delay_seconds: int = 1
+    ):
         """
         Initializes the SQLite handler to process log lines and save into a
         SQLite database
@@ -37,6 +39,7 @@ class SQLiteHandler(logging.Handler):
         super(SQLiteHandler, self).__init__()
         self._db_path = db_path
         self._batch_size = batch_size
+        self._delay_seconds = delay_seconds
         self._buffer = list[dict]()
         self._table_name = "logs"
 
@@ -46,7 +49,7 @@ class SQLiteHandler(logging.Handler):
         self._buffer.append(record.__dict__)
 
         if len(self._buffer) == 1:
-            asyncio.create_task(self.delayed_flush(delay=1))
+            asyncio.create_task(self.delayed_flush(delay=self._delay_seconds))
 
         if len(self._buffer) > self._batch_size:
             self.flush()
@@ -65,11 +68,12 @@ class SQLiteHandler(logging.Handler):
                     index=False,
                 )
             except sqlite3.OperationalError as e:
-                logging.warning(
-                    f"Fail to save to table {self._table_name} "
+                raise sqlite3.OperationalError(
+                    f"Logger fails to save to table {self._table_name} "
                     f"with shape {df.shape}: {e}"
                 )
-                raise e
+            finally:
+                self._buffer.clear()
 
     async def delayed_flush(self, delay: float):
         await asyncio.sleep(delay)
