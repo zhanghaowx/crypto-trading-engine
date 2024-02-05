@@ -12,7 +12,7 @@ from jolteon.strategy.bull_trend_rider.trade_record import (
 from jolteon.strategy.core.trade_opportunity import TradeOpportunityCore
 
 
-class TestBullFlagRoundTrip(unittest.TestCase):
+class TestBullTrendRiderTradeRecord(unittest.TestCase):
     @staticmethod
     def create_order(market_side: MarketSide):
         return Order(

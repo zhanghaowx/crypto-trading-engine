@@ -7,7 +7,7 @@ from jolteon.strategy.bull_trend_rider.strategy_parameters import (
 )
 
 
-class TestBullFlagOpportunity(unittest.TestCase):
+class TestBullTrendRiderTradeOpportunity(unittest.TestCase):
     def setUp(self):
         self.start_time = datetime(2024, 1, 1, 0, 0, 0)
         self.end_time = datetime(2024, 1, 2, 0, 0, 0)

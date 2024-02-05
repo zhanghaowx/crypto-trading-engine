@@ -27,7 +27,7 @@ from jolteon.strategy.core.patterns.shooting_star.pattern import (
 )
 
 
-class BullFlagStrategy(Heartbeater, SignalSubscriber):
+class BullTrendRiderStrategy(Heartbeater, SignalSubscriber):
     def __init__(
         self,
         symbol: str,

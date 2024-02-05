@@ -12,7 +12,7 @@ from jolteon.market_data.data_source import DatabaseDataSource
 from jolteon.market_data.historical_feed import HistoricalFeed
 from jolteon.position.position_manager import PositionManager
 from jolteon.risk_limit.order_frequency_limit import OrderFrequencyLimit
-from jolteon.strategy.bull_trend_rider.strategy import BullFlagStrategy
+from jolteon.strategy.bull_trend_rider.strategy import BullTrendRiderStrategy
 from jolteon.strategy.core.patterns.bull_flag.recognizer import (
     BullFlagRecognizer,
 )
@@ -63,7 +63,7 @@ class ApplicationBase(SignalManager):
         self._shooting_star_recognizer = ShootingStarRecognizer(
             params=shooting_star_params
         )
-        self._strategy = BullFlagStrategy(
+        self._strategy = BullTrendRiderStrategy(
             symbol,
             risk_limits=[
                 OrderFrequencyLimit(number_of_orders=1, in_seconds=60 * 2),
