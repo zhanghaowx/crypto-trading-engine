@@ -1,7 +1,9 @@
 import unittest
 from datetime import datetime
+
 from blinker import ANY
 
+from jolteon.core.event.signal import signal
 from jolteon.core.side import MarketSide
 from jolteon.market_data.core.candlestick import Candlestick
 from jolteon.market_data.core.trade import Trade
@@ -51,10 +53,18 @@ class BootstrapStrategyTest(unittest.IsolatedAsyncioTestCase):
 
         # Act
         boostrap_strategy = BootstrapStrategy()
-        boostrap_strategy.on_candlestick("mock_sender", candlestick)
+        boostrap_strategy.connect()
 
-        # Assert: add your own assertions below
-        self.assertFalse(boostrap_strategy.order_event.has_receivers_for(ANY))
+        # Assert
+        self.assertTrue(
+            boostrap_strategy.on_candlestick
+            in signal("calculated_candlestick_feed").receivers_for(ANY)
+        )
+
+        # Test sending a signal won't cause crash
+        signal("calculated_candlestick_feed").send(
+            "mock_sender", candlestick=candlestick
+        )
 
     async def test_on_fill(self):
         # Arrange
@@ -62,7 +72,13 @@ class BootstrapStrategyTest(unittest.IsolatedAsyncioTestCase):
 
         # Act
         boostrap_strategy = BootstrapStrategy()
-        boostrap_strategy.on_fill("mock_sender", trade)
+        boostrap_strategy.connect()
 
-        # Assert: add your own assertions below
-        self.assertFalse(boostrap_strategy.order_event.has_receivers_for(ANY))
+        # Assert
+        self.assertTrue(
+            boostrap_strategy.on_fill
+            in signal("order_fill").receivers_for(ANY)
+        )
+
+        # Test sending a signal won't cause crash
+        signal("order_fill").send("mock_sender", trade=trade)

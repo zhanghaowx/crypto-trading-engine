@@ -8,7 +8,8 @@ from enum import StrEnum
 import pytz
 from requests import Response
 
-from jolteon.core.event.signal import signal
+from jolteon.core.event.signal import signal, subscribe
+from jolteon.core.event.signal_subscriber import SignalSubscriber
 from jolteon.core.health_monitor.heartbeat import Heartbeater, HeartbeatLevel
 from jolteon.core.retry import Retry
 from jolteon.execution.kraken.rest_client import KrakenRESTClient
@@ -16,7 +17,7 @@ from jolteon.market_data.core.order import Order
 from jolteon.market_data.core.trade import Trade
 
 
-class ExecutionService(Heartbeater):
+class ExecutionService(Heartbeater, SignalSubscriber):
     @dataclass
     class ErrorCode(StrEnum):
         CREATE_ORDER_FAILURE = "CREATE_ORDER_FAILURE"
@@ -48,6 +49,7 @@ class ExecutionService(Heartbeater):
             "KRAKEN_API_SECRET"
         ), "Please set the KRAKEN_API_SECRET environment variable"
 
+    @subscribe("order")
     def on_order(self, sender: object, order: Order):
         """
         Place an order in the market. Signals will be sent to

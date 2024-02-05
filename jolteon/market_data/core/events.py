@@ -1,9 +1,6 @@
-from dataclasses import dataclass
-
 from jolteon.core.event.signal import signal
 
 
-@dataclass
 class Events:
     """
     A list of common events provided by most exchanges' in their

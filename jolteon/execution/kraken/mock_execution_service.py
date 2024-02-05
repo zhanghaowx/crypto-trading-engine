@@ -5,7 +5,8 @@ from datetime import datetime
 import pytz
 import requests
 
-from jolteon.core.event.signal import signal
+from jolteon.core.event.signal import signal, subscribe
+from jolteon.core.event.signal_subscriber import SignalSubscriber
 from jolteon.core.health_monitor.heartbeat import Heartbeater
 from jolteon.core.id_generator import id_generator
 from jolteon.core.time.time_manager import time_manager
@@ -14,7 +15,7 @@ from jolteon.market_data.core.trade import Trade
 from jolteon.market_data.data_source import IDataSource
 
 
-class MockExecutionService(Heartbeater):
+class MockExecutionService(Heartbeater, SignalSubscriber):
     def __init__(self):
         """
         Creates a mock execution service to act as the exchange. It will
@@ -31,6 +32,7 @@ class MockExecutionService(Heartbeater):
         self.order_history = dict[str, Order]()
         self.order_fill_event = signal("order_fill")
 
+    @subscribe("order")
     def on_order(self, sender: object, order: Order):
         """
         Place an order in the market. Signals will be sent to

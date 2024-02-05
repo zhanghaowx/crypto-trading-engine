@@ -8,7 +8,8 @@ from typing import Union
 import numpy as np
 from coinbase.rest import RESTClient
 
-from jolteon.core.event.signal import signal
+from jolteon.core.event.signal import signal, subscribe
+from jolteon.core.event.signal_subscriber import SignalSubscriber
 from jolteon.core.health_monitor.heartbeat import Heartbeater
 from jolteon.core.id_generator import id_generator
 from jolteon.core.side import MarketSide
@@ -18,7 +19,7 @@ from jolteon.market_data.core.order_book import OrderBook
 from jolteon.market_data.core.trade import Trade
 
 
-class MockExecutionService(Heartbeater):
+class MockExecutionService(Heartbeater, SignalSubscriber):
     def __init__(
         self,
         api_key: Union[str, None] = None,
@@ -49,6 +50,7 @@ class MockExecutionService(Heartbeater):
         self.order_history = dict[str, Order]()
         self.order_fill_event = signal("order_fill")
 
+    @subscribe("order")
     def on_order(self, sender: object, order: Order):
         """
         Place an order in the market. Signals will be sent to
@@ -101,7 +103,11 @@ class MockExecutionService(Heartbeater):
         json_response = self._client.get_product_book(
             product_id=symbol, limit=100
         )
-        assert json_response["pricebook"]["product_id"] == symbol
+        assert json_response["pricebook"]["product_id"] == symbol, (
+            f"Symbol {json_response['pricebook']['product_id'] } "
+            f"contained in JSON response doesn't match "
+            f"the expected symbol {symbol}"
+        )
 
         # Recreate the order book from JSON response
         order_book = OrderBook()

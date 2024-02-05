@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+from jolteon.core.event.signal import subscribe
+from jolteon.core.event.signal_subscriber import SignalSubscriber
 from jolteon.core.side import MarketSide
 from jolteon.market_data.core.trade import Trade
 
@@ -11,7 +13,7 @@ class Position:
     cash_value: float
 
 
-class PositionManager:
+class PositionManager(SignalSubscriber):
     def __init__(self):
         """
         Manages all bought securities and their positions
@@ -19,6 +21,7 @@ class PositionManager:
         self.positions = dict[str, Position]()
         self.pnl = float(0.0)
 
+    @subscribe("order_fill")
     def on_fill(self, _: str, trade: Trade):
         if trade.side == MarketSide.BUY:
             self._on_buy(trade.symbol, trade.price, trade.fee, trade.quantity)

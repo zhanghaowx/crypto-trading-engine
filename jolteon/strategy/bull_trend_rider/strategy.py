@@ -1,6 +1,7 @@
 import logging
 
-from jolteon.core.event.signal import signal
+from jolteon.core.event.signal import signal, subscribe
+from jolteon.core.event.signal_subscriber import SignalSubscriber
 from jolteon.core.health_monitor.heartbeat import Heartbeater
 from jolteon.core.id_generator import id_generator
 from jolteon.core.side import MarketSide
@@ -26,7 +27,7 @@ from jolteon.strategy.core.patterns.shooting_star.pattern import (
 )
 
 
-class BullFlagStrategy(Heartbeater):
+class BullFlagStrategy(Heartbeater, SignalSubscriber):
     def __init__(
         self,
         symbol: str,
@@ -68,12 +69,14 @@ class BullFlagStrategy(Heartbeater):
             max_length=parameters.max_number_of_recent_candlesticks
         )
 
+    @subscribe("calculated_candlestick_feed")
     def on_candlestick(self, _: str, candlestick: Candlestick):
         self._market_history.add_candlestick(candlestick)
 
         # Run bull flag strategy to make a decision
         self._try_close_positions()
 
+    @subscribe("bull_flag")
     def on_bull_flag_pattern(self, _: str, pattern: BullFlagPattern):
         if pattern.result != RecognitionResult.BULL_FLAG:
             return
@@ -90,6 +93,7 @@ class BullFlagStrategy(Heartbeater):
 
         self._try_buy(opportunity)
 
+    @subscribe("shooting_star")
     def on_shooting_star_pattern(self, _: str, pattern: ShootingStarPattern):
         """
         A shooting pattern appears after a bull flag pattern might indicate the
@@ -105,6 +109,7 @@ class BullFlagStrategy(Heartbeater):
         """
         self._try_close_positions(force=True)
 
+    @subscribe("order_fill")
     def on_fill(self, _: str, trade: Trade):
         def _matching_trip_in(order_field: str) -> TradeRecord | None:
             return next(

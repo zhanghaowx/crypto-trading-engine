@@ -5,8 +5,8 @@ from datetime import datetime
 
 import pytz
 
-from jolteon.core.event.signal import signal
 from jolteon.core.event.signal_connector import SignalConnector
+from jolteon.core.event.signal_manager import SignalManager
 from jolteon.core.logging.logger import setup_global_logger
 from jolteon.market_data.data_source import DatabaseDataSource
 from jolteon.market_data.historical_feed import HistoricalFeed
@@ -21,7 +21,7 @@ from jolteon.strategy.core.patterns.shooting_star.recognizer import (
 )
 
 
-class ApplicationBase:
+class ApplicationBase(SignalManager):
     THREAD_ENABLED: bool = True
     THREAD_SYNC_INTERVAL: float = 10
 
@@ -129,51 +129,15 @@ class ApplicationBase:
 
     def stop(self):
         # Disconnect every blinker signal from its receivers
-        self._signal_connector.close()
+        self._disconnect_signals()
 
     def _connect_signals(self):
-        # MD
-        assert self._md is not None
-        self._signal_connector.connect(
-            self._md.events.candlestick, self._strategy.on_candlestick
-        )
-        self._signal_connector.connect(
-            self._md.events.candlestick,
-            self._bull_flag_recognizer.on_candlestick,
-        )
-        self._signal_connector.connect(
-            self._md.events.candlestick,
-            self._shooting_star_recognizer.on_candlestick,
-        )
-        self._signal_connector.connect(self._md.events.market_trade)
+        self.connect_all()
+        self._signal_connector.start_recording()
 
-        # Execution
-        assert self._exec_service is not None
-        self._signal_connector.connect(
-            self._strategy.order_event, self._exec_service.on_order
-        )
-        self._signal_connector.connect(
-            self._strategy.order_event, self._exec_service.on_order
-        )
-        self._signal_connector.connect(
-            self._exec_service.order_fill_event, self._strategy.on_fill
-        )
-        self._signal_connector.connect(
-            self._exec_service.order_fill_event,
-            self._position_manager.on_fill,
-        )
-        # Strategy
-        self._signal_connector.connect(
-            self._bull_flag_recognizer.bull_flag_signal,
-            self._strategy.on_bull_flag_pattern,
-        )
-        self._signal_connector.connect(
-            self._shooting_star_recognizer.shooting_star_signal,
-            self._strategy.on_shooting_star_pattern,
-        )
-        self._signal_connector.connect(self._strategy.opportunity_event)
-        self._signal_connector.connect(self._strategy.trade_result_event)
-        self._signal_connector.connect(signal("heartbeat"))
+    def _disconnect_signals(self):
+        self.disconnect_all()
+        self._signal_connector.stop_recording()
 
     @staticmethod
     def _start_thread(name: str, task):

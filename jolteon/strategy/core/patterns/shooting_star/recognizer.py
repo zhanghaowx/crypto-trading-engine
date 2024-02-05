@@ -1,6 +1,7 @@
 from typing import Union
 
-from jolteon.core.event.signal import signal
+from jolteon.core.event.signal import signal, subscribe
+from jolteon.core.event.signal_subscriber import SignalSubscriber
 from jolteon.core.health_monitor.heartbeat import Heartbeater
 from jolteon.market_data.core.candlestick import Candlestick
 from jolteon.strategy.core.patterns.shooting_star.parameters import (
@@ -11,13 +12,14 @@ from jolteon.strategy.core.patterns.shooting_star.pattern import (
 )
 
 
-class ShootingStarRecognizer(Heartbeater):
+class ShootingStarRecognizer(Heartbeater, SignalSubscriber):
     def __init__(self, params: ShootingStarParameters):
         super().__init__(type(self).__name__, interval_in_seconds=10)
         self.shooting_star_signal = signal("shooting_star")
         self._params = params
         self._last_candlestick: Union[Candlestick, None] = None
 
+    @subscribe("calculated_candlestick_feed")
     def on_candlestick(self, sender: str, candlestick: Candlestick):
         # Check last candlestick
         if self._last_candlestick and self._last_candlestick.is_completed():

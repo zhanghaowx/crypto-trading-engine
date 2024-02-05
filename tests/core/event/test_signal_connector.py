@@ -20,9 +20,9 @@ from jolteon.core.time.time_manager import time_manager
 class TestSignalConnector(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.database_filepath = f"{tempfile.gettempdir()}/unittest.sqlite"
-        self.signal_connector = SignalConnector(self.database_filepath)
         self.signal_a = signal("signal_a")
         self.signal_b = signal("signal_b")
+        self.signal_connector = SignalConnector(self.database_filepath)
 
         def receiver_a(sender, **kwargs):
             pass
@@ -30,12 +30,13 @@ class TestSignalConnector(unittest.IsolatedAsyncioTestCase):
         def receiver_b(sender, **kwargs):
             pass
 
-        self.signal_connector.connect(self.signal_a, receiver_a)
-        self.signal_connector.connect(self.signal_b, receiver_b)
+        self.signal_a.connect(receiver_a)
+        self.signal_b.connect(receiver_b)
+        self.signal_connector.start_recording()
 
     async def asyncTearDown(self) -> None:
         if self.signal_connector:
-            self.signal_connector.close()
+            self.signal_connector.stop_recording()
         os.remove(self.database_filepath)
 
     async def test_connect(self):
@@ -136,8 +137,7 @@ class TestSignalConnector(unittest.IsolatedAsyncioTestCase):
         signal_a = signal("signal_a")
         signal_b = signal("signal_b")
 
-        self.signal_connector.connect(signal_a)
-        self.signal_connector.connect(signal_b)
+        self.signal_connector.start_recording()
 
         signal_a.send(signal_a, payload=payload_a)
         signal_b.send(signal_b, payload=payload_b)

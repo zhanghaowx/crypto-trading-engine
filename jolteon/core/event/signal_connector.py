@@ -8,7 +8,9 @@ from typing import Any
 
 import flatdict
 import pandas as pd
-from blinker import NamedSignal, Signal
+from blinker import NamedSignal
+
+from jolteon.core.event.signal import signal_namespace
 
 
 class SignalConnector:
@@ -20,11 +22,10 @@ class SignalConnector:
     def __init__(self, database_name="/tmp/jolteon.sqlite"):
         self._database_name = database_name
         self._events = dict[str, list]()
-        self._signals = list[Signal]()
-        self._receivers = list[object]()
         self._auto_save_interval = 0
         self._auto_save_task = None
-        atexit.register(self.close)
+
+        atexit.register(self.stop_recording)
 
     def __del__(self):
         if self._auto_save_task is not None:
@@ -35,39 +36,32 @@ class SignalConnector:
             self._auto_save_data(auto_save_interval)
         )
 
-    def connect(self, sender: Signal, receiver=None):
+    def start_recording(self):
         """
-        Connects a signal sender to receiver, as well as making a copy of each
-        signal payload and store in a DataFrame. In order to save the data, the
-        payload must have a PRIMARY_KEY attribute. The PRIMARY_KEY is used to
-        remove duplicate rows from the DataFrame. Additionally, the sender
-        shall invoke the `send` method with exactly one positional
-        argument which is the sender, and exactly one keyword
-        argument which is the payload.
-
-        Args:
-            sender: Sender of the signal
-            receiver: Receiver of the signal
+        Connect all signals and save a copy of each signal payload into a
+        database. The payload may have a PRIMARY_KEY attribute. If the
+        PRIMARY_KEY is set, duplicate rows will be removed from the DataFrame
+        based on values in PRIMARY_KEY column. The sender shall invoke the
+        `send` method with exactly one positional argument which is the sender,
+        and exactly one keyword argument which is the payload.
 
         Returns:
             None
         """
-        if receiver is not None:
-            sender.connect(receiver=receiver)
-            self._receivers.append(receiver)
+        for name, signal in signal_namespace.items():
+            logging.debug(f"Connecting to signal {name} for recording")
+            signal.connect(receiver=self._handle_signal)
 
-        sender.connect(receiver=self._handle_signal)
-        self._signals.append(sender)
-        self._receivers.append(self._handle_signal)
-
-    def close(self):
+    def stop_recording(self):
         """
         Disconnect all signals and dump recorded signal data to sqlite database
 
         Returns:
             None
         """
-        self._clear_signals()
+        for name, signal in signal_namespace.items():
+            logging.debug(f"Disconnecting from signal {name} for recording")
+            signal.disconnect(receiver=self._handle_signal)
         self._save_data()
 
     async def _auto_save_data(self, auto_save_interval):
@@ -126,19 +120,6 @@ class SignalConnector:
         # Clear all saved data
         self._events.clear()
         conn.close()
-
-    def _clear_signals(self):
-        for named_signal in self._signals:
-            if self._receivers:
-                logging.info(
-                    f"Disconnecting signal {named_signal.name} "
-                    f"from its {len(named_signal.receivers.values())} "
-                    f"receivers"
-                )
-            for receiver in self._receivers:
-                named_signal.disconnect(receiver=receiver)
-        self._signals.clear()
-        self._receivers.clear()
 
     def _handle_signal(self, sender: NamedSignal | str, **kwargs):
         assert isinstance(sender, NamedSignal)
