@@ -9,6 +9,7 @@ from unittest.mock import patch, MagicMock
 
 import pandas as pd
 import pytz
+from freezegun import freeze_time
 
 from jolteon.core.event.signal import signal
 from jolteon.core.event.signal_recorder import (
@@ -60,6 +61,7 @@ class TestSignalRecorder(unittest.IsolatedAsyncioTestCase):
         self.signal_b.send(self.signal_b, message={"payload": "Signal B"})
         self.assertIn("signal_b", self.signal_recorder._events)
 
+    @freeze_time("2024-01-01 00:00:30 UTC")
     async def test_handle_payload_has_primary_key(self):
         class SomeEnum(Enum):
             A = "A"
@@ -83,8 +85,12 @@ class TestSignalRecorder(unittest.IsolatedAsyncioTestCase):
         event_a = self.signal_recorder._events["signal_a"]
         event_b = self.signal_recorder._events["signal_b"]
 
-        expected_event_a = [{"payload_id": 1, "some_enum": "A"}]
-        expected_event_b = [{"payload_id": 2, "some_enum": "A"}]
+        expected_event_a = [
+            {"payload_id": 1, "some_enum": "A", "timestamp": 1704067230.0}
+        ]
+        expected_event_b = [
+            {"payload_id": 2, "some_enum": "A", "timestamp": 1704067230.0}
+        ]
 
         self.assertEqual(event_a, expected_event_a)
         self.assertEqual(event_b, expected_event_b)
@@ -153,6 +159,7 @@ class TestSignalRecorder(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(2, len(self.signal_recorder._events["signal_a"]))
         self.assertEqual(2, len(self.signal_recorder._events["signal_b"]))
 
+    @freeze_time("2024-01-01 00:00:30 UTC")
     async def test_handle_payload_has_array(self):
         class Payload:
             def __init__(self, payload_id: int):
@@ -170,12 +177,17 @@ class TestSignalRecorder(unittest.IsolatedAsyncioTestCase):
         event_a = self.signal_recorder._events["signal_a"]
         event_b = self.signal_recorder._events["signal_b"]
 
-        expected_event_a = [{"array.0": 10, "array.1": 11}]
-        expected_event_b = [{"array.0": 20, "array.1": 21}]
+        expected_event_a = [
+            {"array.0": 10, "array.1": 11, "timestamp": 1704067230.0}
+        ]
+        expected_event_b = [
+            {"array.0": 20, "array.1": 21, "timestamp": 1704067230.0}
+        ]
 
         self.assertEqual(event_a, expected_event_a)
         self.assertEqual(event_b, expected_event_b)
 
+    @freeze_time("2024-01-01 00:00:30 UTC")
     async def test_handle_payload_nested_dict(self):
         class Payload:
             def __init__(self, payload_id: int):
@@ -196,12 +208,17 @@ class TestSignalRecorder(unittest.IsolatedAsyncioTestCase):
         event_a = self.signal_recorder._events["signal_a"]
         event_b = self.signal_recorder._events["signal_b"]
 
-        expected_event_a = [{"dict.a": 10, "dict.b": 11}]
-        expected_event_b = [{"dict.a": 20, "dict.b": 21}]
+        expected_event_a = [
+            {"dict.a": 10, "dict.b": 11, "timestamp": 1704067230.0}
+        ]
+        expected_event_b = [
+            {"dict.a": 20, "dict.b": 21, "timestamp": 1704067230.0}
+        ]
 
         self.assertEqual(event_a, expected_event_a)
         self.assertEqual(event_b, expected_event_b)
 
+    @freeze_time("2024-01-01 00:00:30 UTC")
     async def test_handle_payload_nested_tuple(self):
         class Payload:
             def __init__(self, payload_id: int):
@@ -219,8 +236,12 @@ class TestSignalRecorder(unittest.IsolatedAsyncioTestCase):
         event_a = self.signal_recorder._events["signal_a"]
         event_b = self.signal_recorder._events["signal_b"]
 
-        expected_event_a = [{"tup.0": 10, "tup.1": 11}]
-        expected_event_b = [{"tup.0": 20, "tup.1": 21}]
+        expected_event_a = [
+            {"tup.0": 10, "tup.1": 11, "timestamp": 1704067230.0}
+        ]
+        expected_event_b = [
+            {"tup.0": 20, "tup.1": 21, "timestamp": 1704067230.0}
+        ]
 
         self.assertEqual(event_a, expected_event_a)
         self.assertEqual(event_b, expected_event_b)
@@ -249,6 +270,20 @@ class TestSignalRecorder(unittest.IsolatedAsyncioTestCase):
 
         self.signal_recorder._save_data()
         self.assertNotIn("signal_a", self.signal_recorder._events)
+
+    async def test_handle_payload_has_timestamp(self):
+        class Payload:
+            def __init__(self):
+                self.timestamp = "Hello"
+
+        payload_a = Payload()
+
+        self.signal_a.send(self.signal_a, payload=payload_a)
+        self.assertIn("signal_a", self.signal_recorder._events)
+
+        event_a = self.signal_recorder._events["signal_a"]
+        expected_event_a = [{"timestamp": "Hello"}]
+        self.assertEqual(event_a, expected_event_a)
 
     async def test_handle_payload_update_schema(self):
         class Payload:

@@ -11,6 +11,7 @@ import pandas as pd
 from blinker import NamedSignal
 
 from jolteon.core.event.signal import signal_namespace
+from jolteon.core.time.time_manager import time_manager
 
 
 class SignalRecorder:
@@ -150,10 +151,15 @@ class SignalRecorder:
                 return
 
         for data in kwargs.values():
-            # It is much more expensive to invoke _flatten_dict
             row_data = dict(
                 flatdict.FlatDict(self._to_dict(data), delimiter=".")
             )
+
+            # Add timestamp column with record time to assist plotting data
+            # as time series
+            if "timestamp" not in row_data:
+                row_data["timestamp"] = time_manager().now().timestamp()
+
             if name not in self._events:
                 self._events[name] = [row_data]
             else:
