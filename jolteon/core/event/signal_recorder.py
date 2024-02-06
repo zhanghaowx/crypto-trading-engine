@@ -111,11 +111,14 @@ class SignalRecorder:
                     combined_df.to_sql(
                         name=name, con=conn, if_exists="replace", index=False
                     )
-                except Exception as another_e:
-                    raise Exception(
+                except sqlite3.OperationalError as another_e:
+                    logging.error(
                         f"Cannot save DataFrame {name}: "
                         f"'{another_e}', already retried after: '{e}'"
                     )
+
+            except Exception as e:
+                logging.error(f"Cannot save DataFrame {name}: '{e}'")
 
         # Clear all saved data
         self._events.clear()
