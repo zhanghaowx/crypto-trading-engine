@@ -15,6 +15,15 @@ class CandlestickList:
             maxlen=max_length,
         )
 
+    def __len__(self):
+        return len(self.candlesticks)
+
+    def __getitem__(self, index):
+        return self.candlesticks[index]
+
+    def is_full(self):
+        return len(self.candlesticks) == self.candlesticks.maxlen
+
     def add_candlestick(self, candlestick: Candlestick):
         # Merge candlesticks
         assert (

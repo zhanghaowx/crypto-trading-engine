@@ -8,6 +8,7 @@ import pytz
 from jolteon.core.event.signal_manager import SignalManager
 from jolteon.core.event.signal_recorder import SignalRecorder
 from jolteon.core.logging.logger import setup_global_logger
+from jolteon.market_data.core.indicator.rsi import RSICalculator
 from jolteon.market_data.data_source import DatabaseDataSource
 from jolteon.market_data.historical_feed import HistoricalFeed
 from jolteon.position.position_manager import PositionManager
@@ -71,6 +72,9 @@ class ApplicationBase(SignalManager):
             ],
             parameters=strategy_params,
         )
+
+        # Indicators
+        self._rsi_calculator = RSICalculator()
 
         # Per Exchange Setup (Decided Later)
         self._exec_service: object = None
