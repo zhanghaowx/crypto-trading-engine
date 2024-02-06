@@ -228,7 +228,7 @@ class BullTrendRiderStrategy(Heartbeater, SignalSubscriber):
                 creation_time=time_manager().now(),
             )
 
-            latest_market_price = self._market_history.candlesticks[-1].close
+            latest_market_price = self._market_history[-1].close
             if round_trip.should_sell_for_loss(latest_market_price):
                 # crossed stop loss line, we need sell for limiting losses
                 logging.warning(

@@ -157,7 +157,7 @@ class BullTrendRiderStrategyTest(unittest.IsolatedAsyncioTestCase):
     ):
         i = market_history.candlesticks.maxlen // 2
         bull_flag_pattern = BullFlagPattern(
-            bull_flag_candlestick=market_history.candlesticks[i],
+            bull_flag_candlestick=market_history[i],
             consolidation_period_candlesticks=list(
                 market_history.candlesticks
             )[i:],

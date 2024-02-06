@@ -20,7 +20,7 @@ class TestCandlestickList(unittest.TestCase):
         )
         candlestick_list.add_candlestick(candlestick)
         self.assertEqual(len(candlestick_list.candlesticks), 1)
-        self.assertEqual(candlestick_list.candlesticks[0], candlestick)
+        self.assertEqual(candlestick_list[0], candlestick)
 
     def test_add_candlestick_in_order(self):
         candlestick_list = CandlestickList(max_length=5)
@@ -82,8 +82,8 @@ class TestCandlestickList(unittest.TestCase):
         )
         candlestick_list.add_candlestick(candlestick1)
         candlestick_list.add_candlestick(candlestick2)
-        self.assertEqual(len(candlestick_list.candlesticks), 1)
-        self.assertEqual(candlestick_list.candlesticks[0], candlestick2)
+        self.assertEqual(len(candlestick_list), 1)
+        self.assertEqual(candlestick_list[0], candlestick2)
 
     def test_atr(self):
         candlestick_list = CandlestickList(max_length=5)
