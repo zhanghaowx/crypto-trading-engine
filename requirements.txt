@@ -16,6 +16,7 @@ blinker
 
 ## Data Analysis
 pandas
+pyarrow
 
 # MarketAccess
 

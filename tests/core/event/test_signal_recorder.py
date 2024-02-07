@@ -384,9 +384,9 @@ class TestSignalRecorder(unittest.IsolatedAsyncioTestCase):
 
     @patch(
         "pandas.DataFrame.to_sql",
-        side_effect=[Exception("SQL Error"), MagicMock()],
+        side_effect=[Exception("Other Error"), MagicMock()],
     )
-    async def test_auto_save_exception(self, mock_to_sql):
+    async def test_auto_save_exception_other_error(self, mock_to_sql):
         mock_to_sql.return_value = MagicMock()
 
         self.signal_recorder.enable_auto_save(auto_save_interval=0.1)
@@ -408,3 +408,34 @@ class TestSignalRecorder(unittest.IsolatedAsyncioTestCase):
 
         await asyncio.sleep(0.2)
         mock_to_sql.assert_called_once()
+
+    @patch("pandas.read_sql")
+    @patch(
+        "pandas.DataFrame.to_sql",
+        side_effect=[sqlite3.OperationalError("SQL Error"), MagicMock()],
+    )
+    async def test_auto_save_exception_sql_error(
+        self, mock_to_sql, mock_read_sql
+    ):
+        mock_read_sql.return_value = pd.DataFrame()
+        mock_to_sql.return_value = MagicMock()
+
+        self.signal_recorder.enable_auto_save(auto_save_interval=0.1)
+
+        self.signal_a.send(self.signal_a, message={"payload": "Signal A"})
+        mock_to_sql.assert_not_called()
+
+        self.assertIn("signal_a", self.signal_recorder._events)
+        await asyncio.sleep(0.2)
+
+        self.assertNotIn("signal_b", self.signal_recorder._events)
+        mock_to_sql.assert_called()
+
+        # Auto save will perform saving periodically
+        mock_to_sql.reset_mock()
+
+        self.signal_a.send(self.signal_a, message={"payload": "Signal AA"})
+        mock_to_sql.assert_not_called()
+
+        await asyncio.sleep(0.2)
+        mock_to_sql.assert_called()

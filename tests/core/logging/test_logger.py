@@ -6,6 +6,7 @@ import tempfile
 import threading
 import unittest
 import uuid
+import warnings
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
 
@@ -60,7 +61,7 @@ class TestLogging(unittest.IsolatedAsyncioTestCase):
                 "[2022-01-01 00:00:00]"
                 "[root][INFO]"
                 "[MainThread]"
-                "[test_logger.py:54] - "
+                "[test_logger.py:55] - "
                 "Info Message"
             ],
         )
@@ -178,6 +179,7 @@ class TestLogging(unittest.IsolatedAsyncioTestCase):
                 )
 
     async def test_db_logger_thread_safety(self):
+        warnings.filterwarnings("ignore", category=RuntimeWarning)
         with self.assertLogs(level="DEBUG"):
             setup_global_logger(
                 logging.DEBUG, logfile_db=self.database_filepath
