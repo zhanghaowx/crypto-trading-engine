@@ -100,13 +100,13 @@ class TestLogging(unittest.IsolatedAsyncioTestCase):
             with closing(sqlite3.connect(self.database_filepath)) as conn:
                 # Verify tables in DB after certain time has passed
                 logging.info("Info Message")
-                await asyncio.sleep(1.001)
+                await asyncio.sleep(1.01)
 
                 self.assert_number_of_logging(1, conn)
 
                 # Verify tables grows after more logging and wait time
                 logging.warning("Warning Message")
-                await asyncio.sleep(1.001)
+                await asyncio.sleep(1.01)
 
                 self.assert_number_of_logging(2, conn)
 
