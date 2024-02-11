@@ -80,6 +80,7 @@ class ProgressBar:
         length=50,
         fill="█",
     ):
+        percentage = min(1.0, percentage)
         percent = "{0:.1f}".format(100 * percentage)
         filled_length = int(length * percentage)
         bar = fill * filled_length + "-" * (length - filled_length)

@@ -67,6 +67,23 @@ class TestProgressBar(unittest.IsolatedAsyncioTestCase):
         self.assertIn("██| 100.0%", printed_content)
 
     @patch("sys.stdout", new_callable=io.StringIO)
+    async def test_start_stop_progress_bar_exceeds_100_pct(self, mock_stdout):
+        progress_bar = ProgressBar(self.start_time, self.end_time)
+        self.assertEqual(mock_stdout, progress_bar._sys_stdout)
+
+        progress_bar.start()
+        progress_bar.stop(stop_at=1.5)
+
+        printed_content = mock_stdout.getvalue().strip()
+        self.assertIn("Progress:", printed_content)
+        self.assertIn(
+            "Progress: "
+            "|██████████████████████████████████████████████████|",
+            printed_content,
+        )  # Adjust based on the expected progress
+        self.assertIn("██| 100.0%", printed_content)
+
+    @patch("sys.stdout", new_callable=io.StringIO)
     async def test_buffered_stdout_during_process(self, mock_stdout):
         progress_bar = ProgressBar(self.start_time, self.end_time)
         self.assertEqual(mock_stdout, progress_bar._sys_stdout)
