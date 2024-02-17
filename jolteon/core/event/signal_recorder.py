@@ -2,6 +2,8 @@ import asyncio
 import atexit
 import logging
 import sqlite3
+import threading
+from copy import copy
 from datetime import datetime
 from enum import Enum
 from typing import Any
@@ -23,6 +25,7 @@ class SignalRecorder:
     def __init__(self, database_name="/tmp/jolteon.sqlite"):
         self._database_name = database_name
         self._events = dict[str, list]()
+        self._events_lock = threading.Lock()
         self._auto_save_interval = 0
         self._auto_save_task = None
 
@@ -78,7 +81,9 @@ class SignalRecorder:
             None
         """
         conn = sqlite3.connect(self._database_name)
-        for name, payload_list in self._events.items():
+        with self._events_lock:
+            events = copy(self._events)
+        for name, payload_list in events.items():
             df = pd.DataFrame(payload_list)
 
             logging.debug(
@@ -122,7 +127,8 @@ class SignalRecorder:
                 logging.error(f"Cannot save DataFrame {name}: '{e}'")
 
         # Clear all saved data
-        self._events.clear()
+        with self._events_lock:
+            self._events.clear()
         conn.close()
 
     def _handle_signal(self, sender: NamedSignal | str, **kwargs):
@@ -160,25 +166,26 @@ class SignalRecorder:
             if "timestamp" not in row_data:
                 row_data["timestamp"] = time_manager().now().timestamp()
 
-            if name not in self._events:
-                self._events[name] = [row_data]
-            else:
-                payload_list = self._events[name]
-                if (
-                    hasattr(data, "PRIMARY_KEY")
-                    and len(payload_list) > 0
-                    and payload_list[-1][data.PRIMARY_KEY]
-                    == row_data[data.PRIMARY_KEY]
-                ):
-                    # If PRIMARY_KEY is set, remove duplicates based on
-                    # PRIMARY_KEY.
-                    # However, for performance reasons, only the last element
-                    # is checked.
-                    # We don't have any other use case than the Candlestick
-                    # event. Hence, we will treat it as a special case.
-                    payload_list[-1] = row_data
+            with self._events_lock:
+                if name not in self._events:
+                    self._events[name] = [row_data]
                 else:
-                    payload_list.append(row_data)
+                    payload_list = self._events[name]
+                    if (
+                        hasattr(data, "PRIMARY_KEY")
+                        and len(payload_list) > 0
+                        and payload_list[-1][data.PRIMARY_KEY]
+                        == row_data[data.PRIMARY_KEY]
+                    ):
+                        # If PRIMARY_KEY is set, remove duplicates based on
+                        # PRIMARY_KEY.
+                        # However, for performance reasons, only the last
+                        # element is checked.
+                        # We don't have any other use case than the Candlestick
+                        # event. Hence, we will treat it as a special case.
+                        payload_list[-1] = row_data
+                    else:
+                        payload_list.append(row_data)
 
     @staticmethod
     def _to_dict(obj: Any):
