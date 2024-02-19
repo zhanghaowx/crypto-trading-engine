@@ -227,6 +227,43 @@ class BullTrendRiderStrategyTest(unittest.IsolatedAsyncioTestCase):
             datetime(2024, 1, 1, tzinfo=pytz.utc), sell_order.creation_time
         )
 
+    async def test_single_sell_when_multiple_open_positions(
+        self,
+    ):
+        # Arrange
+
+        # 1st round trip doesn't need to be closed yet
+        self.strategy._round_trips.append(
+            self.create_trade_record(stop_loss_price=0.1, profit_price=1.0)
+        )
+        # 2nd round trip needs to be closed
+        self.strategy._round_trips.append(
+            self.create_trade_record(
+                stop_loss_price=0.5 + 1e-10, profit_price=1.0
+            )
+        )
+
+        self.assertEqual(2, len(self.strategy._round_trips))
+        self.assertFalse(self.strategy._round_trips[0].completed())
+        self.assertFalse(self.strategy._round_trips[1].completed())
+
+        # Act
+        self.strategy.on_candlestick("mock_sender", self.next_candlestick(0.5))
+
+        # Assert
+        self.assertEqual(1, len(self.orders))
+
+        sell_order = self.orders[-1]
+        self.assertNotEqual("mock_id", sell_order.client_order_id)
+        self.assertEqual(OrderType.MARKET_ORDER, sell_order.order_type)
+        self.assertEqual("BTC-USD", sell_order.symbol)
+        self.assertEqual(None, sell_order.price)
+        self.assertEqual(1, sell_order.quantity)
+        self.assertEqual(MarketSide.SELL, sell_order.side)
+        self.assertLess(
+            datetime(2024, 1, 1, tzinfo=pytz.utc), sell_order.creation_time
+        )
+
     async def test_sell_for_profit_on_candlestick(self):
         # Arrange
         self.strategy._round_trips.append(
@@ -290,6 +327,32 @@ class BullTrendRiderStrategyTest(unittest.IsolatedAsyncioTestCase):
         self.assertLess(
             datetime(2024, 1, 1, tzinfo=pytz.utc), sell_order.creation_time
         )
+
+    async def test_sell_multiple_times_for_shooting_star(self):
+        # Arrange
+        self.strategy._round_trips.append(
+            self.create_trade_record(stop_loss_price=-1e4, profit_price=1e4)
+        )
+        self.strategy._round_trips.append(
+            self.create_trade_record(stop_loss_price=-1e4, profit_price=1e4)
+        )
+        self.assertEqual(2, len(self.strategy._round_trips))
+        self.assertFalse(self.strategy._round_trips[0].completed())
+        self.assertFalse(self.strategy._round_trips[1].completed())
+
+        # Act
+        self.strategy.on_shooting_star_pattern(
+            "mock_sender",
+            ShootingStarPattern(
+                shooting_star=self.next_candlestick(close=10),
+                body_ratio=0.01,
+                upper_shadow_ratio=10.0,
+                lower_shadow_ratio=0.01,
+            ),
+        )
+
+        # Assert
+        self.assertEqual(2, len(self.orders))
 
     async def test_on_fill(self):
         # Act

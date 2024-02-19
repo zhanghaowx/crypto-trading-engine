@@ -252,14 +252,12 @@ class BullTrendRiderStrategy(Heartbeater, SignalSubscriber):
                 round_trip.sell_order = sell_order
                 self._send_order(sell_order)
             elif force:
-                # crossed profit line, we need sell for profit
                 logging.info(f"Placed {sell_order} for other reasons.")
 
                 round_trip.sell_order = sell_order
                 self._send_order(sell_order)
-                return
             else:
-                return
+                continue
 
     def _send_order(self, order):
         for limit in self._risk_limits:
