@@ -10,9 +10,6 @@ div[data-testid="stSidebarCollapseButton"] {
     position: absolute;
     right: 0;
 }
-a[data-testid="stSidebarNavLink"] {
-    font-size: 1.15rem;
-}
 div[data-testid="stHeaderLogo"] {
     display: none;
 }
