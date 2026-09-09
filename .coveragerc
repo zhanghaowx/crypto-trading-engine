@@ -1,4 +1,0 @@
-# .coveragerc
-[run]
-omit =
-    __main__.py

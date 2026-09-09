@@ -93,7 +93,7 @@ class SignalRecorder:
 
             try:
                 df.to_sql(name=name, con=conn, if_exists="append", index=False)
-            except sqlite3.OperationalError as e:
+            except (sqlite3.OperationalError, pd.errors.DatabaseError) as e:
                 logging.warning(
                     f"Fail to save DataFrame {name} "
                     f"with shape {df.shape}: {e}. "
@@ -117,7 +117,10 @@ class SignalRecorder:
                     combined_df.to_sql(
                         name=name, con=conn, if_exists="replace", index=False
                     )
-                except sqlite3.OperationalError as another_e:
+                except (
+                    sqlite3.OperationalError,
+                    pd.errors.DatabaseError,
+                ) as another_e:
                     logging.error(
                         f"Cannot save DataFrame {name}: "
                         f"'{another_e}', already retried after: '{e}'"

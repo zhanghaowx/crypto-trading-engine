@@ -71,7 +71,10 @@ class SQLiteHandler(logging.Handler):
                         if_exists="append",
                         index=False,
                     )
-                except sqlite3.OperationalError as e:
+                except (
+                    sqlite3.OperationalError,
+                    pd.errors.DatabaseError,
+                ) as e:
                     raise sqlite3.OperationalError(
                         f"Logger fails to save to table {self._table_name} "
                         f"with shape {df.shape}: {e}"
