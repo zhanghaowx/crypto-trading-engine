@@ -45,10 +45,7 @@ def main() -> None:
     init_settings()
     st.logo(str(_LOGO_PATH), size="large")
 
-    title_col, settings_col = st.columns(
-        [8, 1], vertical_alignment="center"
-    )
-    title_col.title("Jolteon live")
+    _, settings_col = st.columns([8, 1], vertical_alignment="center")
     with settings_col.popover(
         "Settings", icon=":material/settings:", use_container_width=True
     ):
