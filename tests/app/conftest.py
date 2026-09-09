@@ -71,22 +71,26 @@ def populated_db_path(tmp_path) -> str:
 
         conn.execute(
             'CREATE TABLE "order" '
-            "(timestamp REAL, side TEXT, price REAL, symbol TEXT, "
-            "client_order_id TEXT)"
+            "(timestamp REAL, creation_time REAL, side TEXT, price REAL, "
+            "quantity REAL, symbol TEXT, client_order_id TEXT, "
+            "order_type TEXT)"
         )
         conn.execute(
             'INSERT INTO "order" VALUES '
-            "(1700000000, 'BUY', 99.5, 'BTC-USD', '1')"
+            "(1700000000, 1700000000, 'BUY', 99.5, 1.0, 'BTC-USD', '1', "
+            "'limit')"
         )
 
         conn.execute(
             "CREATE TABLE order_fill "
-            "(timestamp REAL, side TEXT, price REAL, quantity REAL, "
-            "fee REAL, symbol TEXT)"
+            "(timestamp REAL, transaction_time REAL, side TEXT, price REAL, "
+            "quantity REAL, fee REAL, symbol TEXT, trade_id INTEGER, "
+            "client_order_id TEXT, maker_order_id TEXT, taker_order_id TEXT)"
         )
         conn.execute(
             "INSERT INTO order_fill VALUES "
-            "(1700000000, 'BUY', 99.5, 1.0, 0.1, 'BTC-USD')"
+            "(1700000000, 1700000000, 'BUY', 99.5, 1.0, 0.1, 'BTC-USD', 2, "
+            "'1', 'maker-uuid', 'taker-uuid')"
         )
 
         conn.execute(

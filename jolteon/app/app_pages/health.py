@@ -54,7 +54,7 @@ def render() -> None:
     )
     latest = latest.sort_values("sender")
 
-    tile_keys: list[str] = []
+    tile_keys: list[tuple[str, BadgeColor]] = []
     for row in card_grid(
         list(latest.itertuples()),
         columns=3,

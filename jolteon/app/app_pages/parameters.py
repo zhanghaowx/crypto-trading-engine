@@ -2,6 +2,7 @@ from pathlib import Path
 
 import streamlit as st
 
+
 def render() -> None:
     st.caption(
         "Settings for this dashboard viewer only — they do not "

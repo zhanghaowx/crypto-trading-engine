@@ -25,11 +25,15 @@ dependencies = [
     "pandas",
     # MarketAccess: Coinbase
     "coinbase-advanced-py",
-    # cryptography (pulled in by coinbase-advanced-py) dropped prebuilt
-    # wheels for Intel macOS (x86_64) starting at 49.0.0, which forces a
+    # cryptography (pulled in by coinbase-advanced-py) stopped publishing
+    # prebuilt wheels for Intel macOS (x86_64) after 46.0.3; newer releases
+    # ship macOS wheels for arm64 only, so an Intel Mac falls back to a
     # from-source Rust build that fails without a Rust toolchain + OpenSSL
-    # headers. Pin below that so Intel Macs get a working wheel.
-    "cryptography<51",
+    # headers. Cap it there on that platform only, so Linux and Apple
+    # Silicon keep tracking current releases. coinbase-advanced-py needs
+    # >=42.0.4, which 46.0.3 satisfies.
+    "cryptography",
+    "cryptography<46.0.4; sys_platform == 'darwin' and platform_machine == 'x86_64'",
     # Needed by exchanges who use websockets to disseminate market data
     "websockets",
 ]

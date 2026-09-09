@@ -17,6 +17,13 @@ GAUGE_COLORS: dict[BadgeColor, str] = {
 }
 GAUGE_TRACK_COLOR = "#D3D9C6"
 
+# Gauge axis-label type size, and the breathing room kept between the
+# widest label and the edge of the viewBox.
+LABEL_FONT_SIZE = 12
+LABEL_PADDING = 4
+# Half-width of the viewBox when no label needs extra room.
+DEFAULT_VIEWBOX_HALF_WIDTH = 92
+
 # Utilization thresholds shared by the badge and the gauge's colorbar zones,
 # so the ring around the gauge always reflects the same OK/Elevated/Near
 # Limit bands the badge text uses.
@@ -68,7 +75,6 @@ def _gauge_svg(utilization: float, color: str, maximum: float) -> str:
     r_track, track_stroke = 60, 16
     ring_gap, ring_thickness = 5, 9
     r_ring = r_track + track_stroke / 2 + ring_gap + ring_thickness / 2
-    r_label = r_ring + 12
 
     track_arc = _arc_path(cx, cy, r_track, 0, 1)
     circumference = math.pi * r_track
@@ -85,12 +91,28 @@ def _gauge_svg(utilization: float, color: str, maximum: float) -> str:
         for f0, f1, zone_color in zones
     )
 
-    lo_x, lo_y = _arc_point(cx, cy, r_label, 0)
-    hi_x, hi_y = _arc_point(cx, cy, r_label, 1)
     hi_label = f"±{_fmt_bound(maximum)}"
+    # Centre each bound label under its end of the colorbar ring so the pair
+    # stays balanced however wide the formatted bound turns out to be, and
+    # drop them clear of the track's stroke, which reaches half a
+    # stroke-width below the arc endpoints at y = cy.
+    lo_x, hi_x = cx - r_ring, cx + r_ring
+    label_y = cy + track_stroke / 2 + 10
+
+    # A centred label overhangs its anchor by half its width, so widen the
+    # viewBox — symmetrically, to keep the gauge centred — until the longest
+    # bound fits. Digits advance about 0.6em in Inter, punctuation about half
+    # that; an approximation is fine, it only sets how much air is reserved.
+    label_width = sum(
+        LABEL_FONT_SIZE * (0.3 if char in ".," else 0.6) for char in hi_label
+    )
+    half_width = max(
+        DEFAULT_VIEWBOX_HALF_WIDTH, r_ring + label_width / 2 + LABEL_PADDING
+    )
 
     svg = f"""
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 132">
+    <svg xmlns="http://www.w3.org/2000/svg"
+         viewBox="{cx - half_width:.2f} 14 {2 * half_width:.2f} 112">
       {colorbar}
       <path d="{track_arc}" fill="none" stroke="{GAUGE_TRACK_COLOR}"
             stroke-width="{track_stroke}" stroke-linecap="round" />
@@ -98,11 +120,11 @@ def _gauge_svg(utilization: float, color: str, maximum: float) -> str:
             stroke-width="{track_stroke}" stroke-linecap="round"
             stroke-dasharray="{circumference:.2f}"
             stroke-dashoffset="{offset:.2f}" />
-      <text x="{lo_x:.2f}" y="{lo_y + 4:.2f}" text-anchor="start"
-            font-size="12" fill="#5A5F4E"
+      <text x="{lo_x:.2f}" y="{label_y:.2f}" text-anchor="middle"
+            font-size="{LABEL_FONT_SIZE}" fill="#5A5F4E"
             font-family="'Inter', sans-serif">0</text>
-      <text x="{hi_x:.2f}" y="{hi_y + 4:.2f}" text-anchor="end"
-            font-size="12" fill="#5A5F4E"
+      <text x="{hi_x:.2f}" y="{label_y:.2f}" text-anchor="middle"
+            font-size="{LABEL_FONT_SIZE}" fill="#5A5F4E"
             font-family="'Inter', sans-serif">{hi_label}</text>
       <text x="{cx}" y="{cy - 8}" text-anchor="middle" font-size="30"
             font-weight="700" fill="#15171C"
@@ -142,8 +164,16 @@ def render() -> None:
             st.caption(symbol, width="content")
             st.badge(label, color=color, icon=icon)
         gauge_color = GAUGE_COLORS.get(color, GAUGE_TRACK_COLOR)
-        gauge_col, chart_col = st.columns([1, 1], vertical_alignment="center")
-        with gauge_col:
+        # A horizontal container rather than `st.columns`: the gauge keeps its
+        # natural width and the chart takes whatever is left, so the two sit
+        # side by side without the empty space proportional columns leave
+        # around a fixed-size gauge in a wide card.
+        with st.container(
+            horizontal=True, vertical_alignment="center", gap="small"
+        ):
             st.html(_gauge_svg(utilization, gauge_color, maximum), width=200)
-        with chart_col:
-            st.line_chart(history.set_index("time")[["current"]], height=120)
+            st.line_chart(
+                history.set_index("time")[["current"]],
+                height=120,
+                width="stretch",
+            )
