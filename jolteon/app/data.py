@@ -13,11 +13,13 @@ import pandas as pd
 def read_table(db_path: str, table: str) -> pd.DataFrame:
     if not Path(db_path).exists():
         return pd.DataFrame()
+    conn = sqlite3.connect(db_path)
     try:
-        with sqlite3.connect(db_path) as conn:
-            return pd.read_sql(f'SELECT * FROM "{table}"', conn)
+        return pd.read_sql(f'SELECT * FROM "{table}"', conn)
     except (sqlite3.OperationalError, pd.errors.DatabaseError):
         return pd.DataFrame()
+    finally:
+        conn.close()
 
 
 def as_datetime(column: pd.Series) -> pd.Series:
