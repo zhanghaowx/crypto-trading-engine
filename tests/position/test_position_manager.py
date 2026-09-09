@@ -6,6 +6,7 @@ from random import randint
 import pytz
 
 from jolteon.core.side import MarketSide
+from jolteon.market_data.core.bbo import BBO
 from jolteon.market_data.core.trade import Trade
 from jolteon.position.position_manager import PositionManager
 
@@ -111,3 +112,29 @@ class TestPositionManager(unittest.IsolatedAsyncioTestCase):
             AssertionError,
             "^Trade has an invalid trade side",
         )
+
+    async def test_total_pnl_marks_open_position_to_market(self):
+        position_manager = PositionManager()
+
+        position_manager.on_fill(
+            "_", self.create_trade(MarketSide.BUY, "BTC", 100.0, 1.0)
+        )
+        # Realized PnL reflects only the cash spent so far.
+        self.assertEqual(-101.0, position_manager.pnl)
+        # With no mark price yet, the open position marks to 0.
+        self.assertEqual(-101.0, position_manager.total_pnl)
+
+        position_manager.on_bbo(
+            "_",
+            BBO(
+                symbol="BTC",
+                bid_price=109.0,
+                bid_quantity=1.0,
+                ask_price=111.0,
+                ask_quantity=1.0,
+            ),
+        )
+
+        # Mark-to-market at the new mid (110) reveals the unrealized gain.
+        self.assertEqual(-101.0, position_manager.pnl)
+        self.assertEqual(9.0, position_manager.total_pnl)

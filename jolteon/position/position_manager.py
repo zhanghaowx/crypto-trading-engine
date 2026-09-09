@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from jolteon.core.event.signal import subscribe
 from jolteon.core.event.signal_subscriber import SignalSubscriber
 from jolteon.core.side import MarketSide
+from jolteon.market_data.core.bbo import BBO
 from jolteon.market_data.core.trade import Trade
 
 
@@ -20,6 +21,25 @@ class PositionManager(SignalSubscriber):
         """
         self.positions = dict[str, Position]()
         self.pnl = float(0.0)
+        self._mark_prices = dict[str, float]()
+
+    @property
+    def total_pnl(self) -> float:
+        """
+        Realized PnL plus the mark-to-market value of open positions, using
+        the latest mid-price seen for each symbol. Matters for strategies
+        that hold inventory (e.g. market making), where realized PnL alone
+        hides the risk sitting in open positions.
+        """
+        mark_to_market = sum(
+            position.volume * self._mark_prices.get(symbol, 0.0)
+            for symbol, position in self.positions.items()
+        )
+        return self.pnl + mark_to_market
+
+    @subscribe("ticker_feed")
+    def on_bbo(self, _: str, bbo: BBO):
+        self._mark_prices[bbo.symbol] = (bbo.bid_price + bbo.ask_price) / 2
 
     @subscribe("order_fill")
     def on_fill(self, _: str, trade: Trade):
