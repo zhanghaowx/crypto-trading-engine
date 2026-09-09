@@ -62,9 +62,13 @@ chartSequentialColors = [
     "#2C540B",
 ]
 
-# Dataframe styling
+# Dataframe styling. The header row is a mid sage-grey - about as dark as
+# it can usefully go, since the grid draws its header labels in
+# `fadedText60` (the theme's text color at 60%) with no way to override
+# them, and it renders to a canvas, so CSS can't recolor them either. On a
+# near-black header the labels simply disappear.
 dataframeBorderColor = "#D3D9C6"
-dataframeHeaderBackgroundColor = "#F1F2EA"
+dataframeHeaderBackgroundColor = "#C6CDB5"
 
 # Sidebar - solid black panel, mirroring the dark card in the reference image
 [theme.sidebar]
