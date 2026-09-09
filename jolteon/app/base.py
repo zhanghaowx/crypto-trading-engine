@@ -12,14 +12,6 @@ from jolteon.market_data.core.indicator.rsi import RSICalculator
 from jolteon.market_data.data_source import DatabaseDataSource
 from jolteon.market_data.historical_feed import HistoricalFeed
 from jolteon.position.position_manager import PositionManager
-from jolteon.risk_limit.order_frequency_limit import OrderFrequencyLimit
-from jolteon.strategy.bull_trend_rider.strategy import BullTrendRiderStrategy
-from jolteon.strategy.core.patterns.bull_flag.recognizer import (
-    BullFlagRecognizer,
-)
-from jolteon.strategy.core.patterns.shooting_star.recognizer import (
-    ShootingStarRecognizer,
-)
 
 
 class ApplicationBase(SignalManager):
@@ -32,9 +24,7 @@ class ApplicationBase(SignalManager):
         database_name,
         logfile_name,
         candlestick_interval_in_seconds,
-        bull_flag_params,
-        shooting_star_params,
-        strategy_params,
+        strategy: object = None,
     ):
         """
         Connects different components to build the trading engine. It supports
@@ -58,20 +48,7 @@ class ApplicationBase(SignalManager):
         self._position_manager = PositionManager()
 
         # Strategy Setup
-        self._bull_flag_recognizer = BullFlagRecognizer(
-            params=bull_flag_params
-        )
-        self._shooting_star_recognizer = ShootingStarRecognizer(
-            params=shooting_star_params
-        )
-        self._strategy = BullTrendRiderStrategy(
-            symbol,
-            risk_limits=[
-                OrderFrequencyLimit(number_of_orders=1, in_seconds=60 * 2),
-                OrderFrequencyLimit(number_of_orders=2, in_seconds=60 * 10),
-            ],
-            parameters=strategy_params,
-        )
+        self._strategy = strategy
 
         # Indicators
         self._rsi_calculator = RSICalculator()

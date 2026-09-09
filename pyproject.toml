@@ -21,9 +21,8 @@ dependencies = [
     "types-requests",
     # Event-driven programming library
     "blinker",
-    # Strategy / Data Analysis
+    # Signal recording / persistence
     "pandas",
-    "pyarrow",
     # MarketAccess: Coinbase
     "coinbase-advanced-py",
     # cryptography (pulled in by coinbase-advanced-py) dropped prebuilt
@@ -33,13 +32,6 @@ dependencies = [
     "cryptography<49",
     # Needed by exchanges who use websockets to disseminate market data
     "websockets",
-    # For data analysis only, may or may not be needed for production
-    "jupyter",
-    "plotly",
-    "seaborn",
-    "scikit-learn",
-    "joblib",
-    "kaleido",
 ]
 
 [project.urls]
@@ -80,10 +72,10 @@ omit = ["*/__main__.py"]
 [tool.poe.tasks]
 
 [tool.poe.tasks.fmt-imports]
-cmd = "ruff check --select I --fix jolteon tests integration-tests analysis"
+cmd = "ruff check --select I --fix jolteon tests integration-tests"
 
 [tool.poe.tasks.fmt-format]
-cmd = "ruff format jolteon tests integration-tests analysis"
+cmd = "ruff format jolteon tests integration-tests"
 
 [tool.poe.tasks.fmt]
 help = "Format code with ruff"

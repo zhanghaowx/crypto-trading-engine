@@ -8,9 +8,6 @@ import pytz
 
 from jolteon.market_data.core.trade import Trade
 from jolteon.position.position_manager import Position
-from jolteon.strategy.bull_trend_rider.strategy_parameters import (
-    StrategyParameters,
-)
 
 
 class TestApplication(unittest.IsolatedAsyncioTestCase):
@@ -32,7 +29,6 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
             symbol=self.symbol,
             database_name=f"{tempfile.gettempdir()}/unittest.sqlite",
             logfile_name=f"{tempfile.gettempdir()}/unittest.log",
-            strategy_params=StrategyParameters(),
         )
         self.application._signal_recorder = self.mock_signal_recorder
         self.application._md_live = self.mock_md_live

@@ -16,15 +16,6 @@ from jolteon.market_data.coinbase.data_source import (
 )
 from jolteon.market_data.coinbase.public_feed import PublicFeed
 from jolteon.market_data.historical_feed import HistoricalFeed
-from jolteon.strategy.bull_trend_rider.strategy_parameters import (
-    StrategyParameters,
-)
-from jolteon.strategy.core.patterns.bull_flag.parameters import (
-    BullFlagParameters,
-)
-from jolteon.strategy.core.patterns.shooting_star.parameters import (
-    ShootingStarParameters,
-)
 
 
 class CoinbaseApplication(ApplicationBase):
@@ -35,9 +26,7 @@ class CoinbaseApplication(ApplicationBase):
         database_name="/tmp/jolteon.sqlite",
         logfile_name="/tmp/jolteon.log",
         candlestick_interval_in_seconds=60,
-        bull_flag_params=BullFlagParameters(),
-        shooting_star_params=ShootingStarParameters(),
-        strategy_params=StrategyParameters(),
+        strategy: object = None,
     ):
         print(f"Using {type(self).__name__}")
         super().__init__(
@@ -45,9 +34,7 @@ class CoinbaseApplication(ApplicationBase):
             database_name=database_name,
             logfile_name=logfile_name,
             candlestick_interval_in_seconds=candlestick_interval_in_seconds,
-            bull_flag_params=bull_flag_params,
-            shooting_star_params=shooting_star_params,
-            strategy_params=strategy_params,
+            strategy=strategy,
         )
         if use_mock_execution:
             super().use_execution_service(MockExecutionService())

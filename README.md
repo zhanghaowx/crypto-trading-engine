@@ -134,22 +134,6 @@ uv run poe clean        # remove build/test artifacts
 uv run poe docs      # serves the mkdocs site locally with live reload
 ```
 
-### Hyperparameter Sweeps
-
-`jolteon/train.py` runs the bull-trend-rider strategy over a grid of parameters against a recorded database to
-find good settings:
-
-```bash
-uv run python jolteon/train.py --exchange Kraken --train-db /tmp/jolteon.sqlite
-```
-
-Results are written to `train_result.sqlite` in your temp directory.
-
-## Usage Examples
-
-The `analysis/` directory contains Jupyter notebooks (`trade_analysis.ipynb`, `train.ipynb`) and scripts for
-inspecting recorded runs and training models from historical data.
-
 ## Contributing
 
 We welcome contributions! If you would like to contribute to the development of Jolteon, please refer to the [Contribution Guidelines](link-to-contributing).
