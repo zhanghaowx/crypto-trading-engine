@@ -1,4 +1,5 @@
 import sqlite3
+import time
 from pathlib import Path
 
 import pytest
@@ -32,6 +33,27 @@ def empty_db_path(tmp_path) -> str:
     """A database file that exists but has none of the expected tables."""
     db_path = str(tmp_path / "empty.sqlite")
     sqlite3.connect(db_path).close()
+    return db_path
+
+
+@pytest.fixture
+def live_db_path(tmp_path) -> str:
+    """A database whose only heartbeat was written just now, so the health
+    page sees the sender as alive rather than timed out."""
+    db_path = str(tmp_path / "live.sqlite")
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            "CREATE TABLE heartbeat "
+            "(timestamp REAL, sender TEXT, level INTEGER, message TEXT)"
+        )
+        conn.execute(
+            "INSERT INTO heartbeat VALUES (?, 'MarketMaking', 1, 'All good')",
+            (time.time(),),
+        )
+        conn.commit()
+    finally:
+        conn.close()
     return db_path
 
 

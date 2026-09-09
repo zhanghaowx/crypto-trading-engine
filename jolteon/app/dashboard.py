@@ -62,10 +62,12 @@ def main() -> None:
         parameters.render()
 
     sections: list[tuple[str, str, Callable[[], None]]] = [
+        # Health leads: if a component has gone quiet, everything below it
+        # is stale data and the reader needs to know that first.
+        ("Health", ":material/monitor_heart:", health.render),
         ("Market Data", ":material/candlestick_chart:", market_data.render),
         ("Risk Limits", ":material/earthquake:", risk_limits.render),
         ("Orders & PnL", ":material/currency_bitcoin:", orders_pnl.render),
-        ("Health", ":material/monitor_heart:", health.render),
     ]
     for title, icon, render_fn in sections:
         _section(title, icon, render_fn)

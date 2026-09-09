@@ -3,10 +3,10 @@ def test_dashboard_renders_every_section_on_one_page(dashboard):
 
     assert not at.exception
     assert [s.value for s in at.subheader] == [
+        "Health",
         "Market Data",
         "Risk Limits",
         "Orders & PnL",
-        "Health",
     ]
 
 
@@ -14,8 +14,8 @@ def test_dashboard_warns_in_every_section_when_db_missing(dashboard):
     at = dashboard.run()
 
     assert not at.exception
-    # One warning per section (market data, risk limits, orders & pnl,
-    # health) plus one from the settings popover - there's no navigation
+    # One warning per section (health, market data, risk limits, orders &
+    # pnl) plus one from the settings popover - there's no navigation
     # left to hide the others behind.
     assert len(at.warning) == 5
 
