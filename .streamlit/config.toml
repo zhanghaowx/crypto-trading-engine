@@ -62,13 +62,15 @@ chartSequentialColors = [
     "#2C540B",
 ]
 
-# Dataframe styling. The header row is a mid sage-grey - about as dark as
-# it can usefully go, since the grid draws its header labels in
-# `fadedText60` (the theme's text color at 60%) with no way to override
-# them, and it renders to a canvas, so CSS can't recolor them either. On a
-# near-black header the labels simply disappear.
+# Dataframe styling. The body is painted white through a pandas Styler (see
+# `style_table` in jolteon/app/components.py) because Streamlit only exposes
+# the header and border here, so the header just needs to sit a step deeper
+# than that white body to read as a band. It stays light on purpose:
+# the grid draws its header labels in `fadedText60` (the theme's text color
+# at 60%) with no way to override them, and it renders to a canvas, so CSS
+# can't recolor them either - on a dark header the labels simply disappear.
 dataframeBorderColor = "#D3D9C6"
-dataframeHeaderBackgroundColor = "#C6CDB5"
+dataframeHeaderBackgroundColor = "#DDE3D0"
 
 # Sidebar - solid black panel, mirroring the dark card in the reference image
 [theme.sidebar]

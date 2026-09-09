@@ -15,6 +15,7 @@ reads never block the engine's writes and lag it only by this page's own
 refresh interval.
 """
 
+import re
 import time
 from pathlib import Path
 from typing import Callable
@@ -28,6 +29,7 @@ from jolteon.app.app_pages import (
     parameters,
     risk_limits,
 )
+from jolteon.app.components import CARD_BACKGROUND, CARD_SHADOW
 from jolteon.app.settings import init_settings
 
 _LOGO_PATH = (
@@ -35,8 +37,15 @@ _LOGO_PATH = (
 )
 
 
+# Section cards are keyed so scoped CSS can style them (see `CARD_BACKGROUND`
+# and `CARD_SHADOW`); without it they'd be flat and transparent against the
+# sage canvas, and the page would read as one continuous sheet.
+def _section_key(title: str) -> str:
+    return "card-" + re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
+
+
 def _section(title: str, icon: str, render_fn: Callable[[], None]) -> None:
-    with st.container(border=True):
+    with st.container(border=True, key=_section_key(title)):
         st.subheader(title, icon=icon)
         render_fn()
 
@@ -48,18 +57,26 @@ def main() -> None:
 
     _, settings_col = st.columns([8, 1], vertical_alignment="center")
     with settings_col.popover(
-        "Settings", icon=":material/settings:", use_container_width=True
+        "Settings", icon=":material/settings:", width="stretch"
     ):
         parameters.render()
 
-    _section("Market Data", ":material/candlestick_chart:", market_data.render)
-    _section("Risk Limits", ":material/earthquake:", risk_limits.render)
-    _section(
-        "Orders & PnL",
-        ":material/currency_bitcoin:",
-        orders_pnl.render,
+    sections: list[tuple[str, str, Callable[[], None]]] = [
+        ("Market Data", ":material/candlestick_chart:", market_data.render),
+        ("Risk Limits", ":material/earthquake:", risk_limits.render),
+        ("Orders & PnL", ":material/currency_bitcoin:", orders_pnl.render),
+        ("Health", ":material/monitor_heart:", health.render),
+    ]
+    for title, icon, render_fn in sections:
+        _section(title, icon, render_fn)
+
+    selector = ", ".join(
+        f".st-key-{_section_key(title)}" for title, *_ in sections
     )
-    _section("Health", ":material/monitor_heart:", health.render)
+    st.html(
+        f"<style>{selector} {{ background-color: {CARD_BACKGROUND};"
+        f" box-shadow: {CARD_SHADOW}; }}</style>"
+    )
 
     if st.session_state.auto_refresh:
         time.sleep(st.session_state.refresh_seconds)

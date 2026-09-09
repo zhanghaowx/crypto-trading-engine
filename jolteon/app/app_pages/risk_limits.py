@@ -1,9 +1,15 @@
 import base64
 import math
 
+import altair as alt
 import streamlit as st
 
-from jolteon.app.components import BadgeColor, card_grid, warn_if_no_db
+from jolteon.app.components import (
+    BadgeColor,
+    card_grid,
+    style_chart,
+    warn_if_no_db,
+)
 from jolteon.app.data import as_datetime, read_table
 
 # Solid versions of the theme's semantic colors (config.toml), used for the
@@ -135,6 +141,24 @@ def _gauge_svg(utilization: float, color: str, maximum: float) -> str:
     return f'<img src="data:image/svg+xml;base64,{encoded}" width="100%">'
 
 
+def _history_chart(history) -> alt.Chart:
+    """
+    Sparkline of a limit's measured value over time. Built with Altair
+    rather than `st.line_chart` so it can carry the card's white background
+    and top padding (see `style_chart`), which the built-in chart commands
+    don't expose.
+    """
+    return style_chart(
+        alt.Chart(history)
+        .mark_line()
+        .encode(
+            x=alt.X("time:T", title=None),
+            y=alt.Y("current:Q", title=None),
+        )
+        .properties(height=120)
+    )
+
+
 def render() -> None:
     if not warn_if_no_db():
         return
@@ -172,8 +196,4 @@ def render() -> None:
             horizontal=True, vertical_alignment="center", gap="small"
         ):
             st.html(_gauge_svg(utilization, gauge_color, maximum), width=200)
-            st.line_chart(
-                history.set_index("time")[["current"]],
-                height=120,
-                width="stretch",
-            )
+            st.altair_chart(_history_chart(history), width="stretch")

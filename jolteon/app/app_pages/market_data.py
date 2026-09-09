@@ -1,7 +1,7 @@
 import altair as alt
 import streamlit as st
 
-from jolteon.app.components import warn_if_no_db
+from jolteon.app.components import style_chart, warn_if_no_db
 from jolteon.app.data import as_datetime, latest_quotes, read_table
 
 
@@ -91,7 +91,7 @@ def render() -> None:
             if not quotes.empty
             else price_chart(candles)
         )
-        st.altair_chart(chart, width="stretch")
+        st.altair_chart(style_chart(chart), width="stretch")
         if not quotes.empty:
             st.caption(
                 "Dashed lines mark the last quote sent per side. "

@@ -3,7 +3,7 @@ from datetime import datetime
 import pandas as pd
 import streamlit as st
 
-from jolteon.app.components import warn_if_no_db
+from jolteon.app.components import style_table, warn_if_no_db
 from jolteon.app.data import as_datetime, read_table
 
 # Side badges in the theme's semantic green/red (config.toml), so BUY and
@@ -305,7 +305,7 @@ def render() -> None:
         st.info("No orders placed yet.")
     else:
         st.dataframe(
-            orders_table(orders),
+            style_table(orders_table(orders)),
             column_config=_column_config(
                 time_help="When the order was sent, in your local time.",
                 order_help="The id the strategy gave this order.",
@@ -324,7 +324,7 @@ def render() -> None:
         st.info("No fills yet.")
     else:
         st.dataframe(
-            fills_table(fills),
+            style_table(fills_table(fills)),
             column_config=_column_config(
                 time_help="When the trade was filled, in your local time.",
                 order_help="The id of the order this trade filled.",
