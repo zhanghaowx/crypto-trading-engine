@@ -52,10 +52,10 @@ def main() -> None:
         parameters.render()
 
     _section("Market Data", ":material/candlestick_chart:", market_data.render)
-    _section("Risk Limits", ":material/warning:", risk_limits.render)
+    _section("Risk Limits", ":material/earthquake:", risk_limits.render)
     _section(
         "Orders & PnL",
-        ":material/account_balance_wallet:",
+        ":material/currency_bitcoin:",
         orders_pnl.render,
     )
     _section("Health", ":material/monitor_heart:", health.render)
