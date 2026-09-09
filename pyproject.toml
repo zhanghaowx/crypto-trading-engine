@@ -56,6 +56,9 @@ ui = [
     "streamlit",
 ]
 
+[tool.uv]
+default-groups = ["dev", "ui"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["jolteon"]
 
