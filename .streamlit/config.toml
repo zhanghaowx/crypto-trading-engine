@@ -1,0 +1,76 @@
+# Jolteon dashboard theme — bold, rounded fintech look (sage/mint/lavender on
+# off-white) with a solid black sidebar panel, inspired by a bright,
+# card-driven crypto dashboard reference.
+
+[theme]
+base = "light"
+primaryColor = "#15171C"             # Near-black - pill buttons, active elements
+backgroundColor = "#E4E9DA"          # Soft sage canvas
+secondaryBackgroundColor = "#F8F9F3" # Off-white widget surfaces
+codeBackgroundColor = "#F1F2EA"
+textColor = "#15171C"
+linkColor = "#4C7300"
+borderColor = "#D3D9C6"
+codeTextColor = "#2B2D25"
+showWidgetBorder = true
+showSidebarBorder = false
+baseRadius = "1rem"                  # Big, playful rounding
+buttonRadius = "full"                # Pill-shaped buttons
+
+# Typography - bold geometric display font over a clean body face
+font = "'Inter':https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+headingFont = "'Space Grotesk':https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap"
+codeFont = "'JetBrains Mono':https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap"
+baseFontSize = 15
+baseFontWeight = 400
+codeFontSize = "13px"
+headingFontSizes = ["40px", "26px", "20px", "17px", "15px", "13px"]
+headingFontWeights = [700, 700, 600, 600, 600, 500]
+linkUnderline = false
+
+# Semantic colors - mint green and lavender, echoing the reference palette
+greenColor = "#4E9F1F"  # Positive/gains
+redColor = "#E2574C"    # Negative/losses
+yellowColor = "#E8B93C" # Warnings/caution
+orangeColor = "#E8873C" # Alerts
+blueColor = "#3E8FD0"   # Informational
+violetColor = "#8B7EF0" # Accent/highlights
+grayColor = "#8A8F7C"   # Neutral/secondary text
+
+# Chart colors - mint/lavender first, financial red kept distinguishable
+chartCategoricalColors = [
+    "#7BC94C",
+    "#8B7EF0",
+    "#15171C",
+    "#E8B93C",
+    "#3E8FD0",
+    "#E2574C",
+    "#8A8F7C",
+]
+
+# Sequential colors for heatmaps (mint gradient)
+chartSequentialColors = [
+    "#F1F5E9",
+    "#DCEAC7",
+    "#C4DEA5",
+    "#ABD183",
+    "#92C462",
+    "#78B742",
+    "#61A02D",
+    "#4E871F",
+    "#3D6E14",
+    "#2C540B",
+]
+
+# Dataframe styling
+dataframeBorderColor = "#D3D9C6"
+dataframeHeaderBackgroundColor = "#F1F2EA"
+
+# Sidebar - solid black panel, mirroring the dark card in the reference image
+[theme.sidebar]
+backgroundColor = "#15171C"
+secondaryBackgroundColor = "#20232B"
+codeBackgroundColor = "#20232B"
+textColor = "#F5F6F1"
+borderColor = "#2C2F38"
+primaryColor = "#9BE86B"
