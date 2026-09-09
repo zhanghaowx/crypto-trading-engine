@@ -22,7 +22,18 @@ class TestLogging(unittest.IsolatedAsyncioTestCase):
             f"{tempfile.gettempdir()}/{uuid.uuid4()}.sqlite"
         )
 
+        # unittest.IsolatedAsyncioTestCase always runs with asyncio debug
+        # mode on, which makes asyncio log a WARNING (propagated to the
+        # root logger, and thus captured by the DB logger under test)
+        # whenever a callback takes longer than its slow-callback
+        # threshold. That happens often enough on loaded CI runners to
+        # add unrelated rows to the logs table, so silence it here.
+        self._asyncio_logger_level = logging.getLogger("asyncio").level
+        logging.getLogger("asyncio").setLevel(logging.CRITICAL)
+
     def tearDown(self):
+        logging.getLogger("asyncio").setLevel(self._asyncio_logger_level)
+
         if os.path.exists(self.database_filepath):
             os.remove(self.database_filepath)
 
@@ -61,7 +72,7 @@ class TestLogging(unittest.IsolatedAsyncioTestCase):
                 "[2022-01-01 00:00:00]"
                 "[root][INFO]"
                 "[MainThread]"
-                "[test_logger.py:55] - "
+                "[test_logger.py:66] - "
                 "Info Message"
             ],
         )
