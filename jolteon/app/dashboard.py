@@ -124,7 +124,7 @@ def render_orders_and_fills(db_path: str) -> pd.DataFrame:
         else:
             st.dataframe(
                 orders.sort_values("timestamp", ascending=False).head(20),
-                use_container_width=True,
+                width="stretch",
             )
     with col2:
         st.caption("Recent fills")
@@ -133,7 +133,7 @@ def render_orders_and_fills(db_path: str) -> pd.DataFrame:
         else:
             st.dataframe(
                 fills.sort_values("timestamp", ascending=False).head(20),
-                use_container_width=True,
+                width="stretch",
             )
 
     return fills
@@ -160,7 +160,7 @@ def render_position_and_pnl(fills: pd.DataFrame) -> None:
         .groupby("symbol")
         .sum()
     )
-    st.dataframe(by_symbol, use_container_width=True)
+    st.dataframe(by_symbol, width="stretch")
     st.metric("Total Realized PnL", f"{by_symbol['realized_pnl'].sum():.2f}")
 
 
@@ -182,7 +182,7 @@ def render_health(db_path: str) -> None:
         latest[["sender", "status", "message", "last_seen"]].sort_values(
             "sender"
         ),
-        use_container_width=True,
+        width="stretch",
     )
 
 
