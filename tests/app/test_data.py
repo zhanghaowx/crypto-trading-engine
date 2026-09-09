@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from jolteon.app.dashboard import read_table
+from jolteon.app.data import read_table
 
 
 class TestReadTable(unittest.TestCase):
