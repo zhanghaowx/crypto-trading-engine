@@ -35,4 +35,4 @@ def test_renders_a_badge_per_sender(populated_db_path):
     assert not at.exception
     assert at.markdown[0].value == "**MarketMaking**"
     assert "NORMAL" in at.markdown[1].value
-    assert at.caption[0].value == "All good"
+    assert at.caption[0].value.startswith("All good · Last seen ")
