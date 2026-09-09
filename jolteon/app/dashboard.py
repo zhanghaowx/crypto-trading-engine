@@ -49,7 +49,9 @@ def main() -> None:
         [8, 1], vertical_alignment="center"
     )
     title_col.title("Jolteon live")
-    with settings_col.popover("Settings", icon=":material/settings:"):
+    with settings_col.popover(
+        "Settings", icon=":material/settings:", use_container_width=True
+    ):
         parameters.render()
 
     _section("Market Data", ":material/candlestick_chart:", market_data.render)
