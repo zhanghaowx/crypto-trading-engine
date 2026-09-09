@@ -1,3 +1,5 @@
+import sqlite3
+
 from streamlit.testing.v1 import AppTest
 
 
@@ -38,6 +40,43 @@ def test_renders_metrics_and_chart_from_recorded_data(populated_db_path):
     assert metrics["Bid"] == "100.00"
     assert metrics["Ask"] == "101.00"
     assert metrics["Mid"] == "100.50"
-    assert metrics["Buy Quote"] == "99.50"
+    # Buy/Sell Quote are colored green/red to match the quote lines drawn
+    # on the price chart.
+    assert metrics["Buy Quote"] == ":green[99.50]"
     assert metrics["Sell Quote"] == "—"
     assert len(at.get("vega_lite_chart")) == 1
+
+
+def test_sell_quote_is_colored_red(tmp_path):
+    db_path = str(tmp_path / "both_sides.sqlite")
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "CREATE TABLE ticker_feed "
+        "(timestamp REAL, symbol TEXT, bid_price REAL, ask_price REAL)"
+    )
+    conn.execute(
+        "INSERT INTO ticker_feed VALUES (1700000000, 'BTC-USD', 100.0, 101.0)"
+    )
+    conn.execute(
+        'CREATE TABLE "order" '
+        "(timestamp REAL, side TEXT, price REAL, symbol TEXT, "
+        "client_order_id TEXT)"
+    )
+    conn.executemany(
+        'INSERT INTO "order" VALUES (?, ?, ?, ?, ?)',
+        [
+            (1700000000, "BUY", 99.5, "BTC-USD", "1"),
+            (1700000000, "SELL", 101.5, "BTC-USD", "2"),
+        ],
+    )
+    conn.commit()
+    conn.close()
+
+    at = AppTest.from_function(_script)
+    at.session_state["db_path"] = db_path
+    at.run()
+
+    assert not at.exception
+    metrics = {m.label: m.value for m in at.metric}
+    assert metrics["Buy Quote"] == ":green[99.50]"
+    assert metrics["Sell Quote"] == ":red[101.50]"
