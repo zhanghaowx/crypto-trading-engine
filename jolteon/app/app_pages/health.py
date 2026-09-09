@@ -30,9 +30,9 @@ UNKNOWN_BADGE: tuple[str, BadgeColor, str] = (
 # signal the dashboard has that a background component is gone.
 #
 # Live components heartbeat every 10s (see the `Heartbeater` subclasses under
-# jolteon/market_data and jolteon/execution) and SignalRecorder only flushes
-# to SQLite every 5s (`enable_auto_save` in jolteon/app/kraken.py), so even a
-# perfectly healthy sender routinely looks ~15s stale from here. The timeout
+# jolteon/market_data and jolteon/execution), and SignalRecorder writes each
+# heartbeat out as it arrives, so a healthy sender looks at most one heartbeat
+# cycle stale from here plus this page's own refresh interval. The timeout
 # sits past two of those cycles; anything tighter would flag a running engine
 # as down on nearly every refresh.
 HEARTBEAT_TIMEOUT_SECONDS = 30
