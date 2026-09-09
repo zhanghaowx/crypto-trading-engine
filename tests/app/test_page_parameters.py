@@ -1,18 +1,16 @@
-from pathlib import Path
-
 from streamlit.testing.v1 import AppTest
 
-_PARAMETERS_PAGE_PATH = str(
-    Path(__file__).resolve().parents[2]
-    / "jolteon"
-    / "app"
-    / "app_pages"
-    / "parameters.py"
-)
+
+def _script():
+    from jolteon.app.app_pages import parameters
+
+    parameters.render()
 
 
-def test_shows_warning_when_db_missing(dashboard, missing_db_path):
-    at = dashboard.switch_page("app_pages/parameters.py").run()
+def test_shows_warning_when_db_missing(missing_db_path):
+    at = AppTest.from_function(_script)
+    at.session_state["db_path"] = missing_db_path
+    at.run()
 
     assert not at.exception
     assert at.warning
@@ -20,9 +18,10 @@ def test_shows_warning_when_db_missing(dashboard, missing_db_path):
     assert not at.success
 
 
-def test_shows_success_when_db_present(dashboard, empty_db_path):
-    dashboard.session_state["db_path"] = empty_db_path
-    at = dashboard.switch_page("app_pages/parameters.py").run()
+def test_shows_success_when_db_present(empty_db_path):
+    at = AppTest.from_function(_script)
+    at.session_state["db_path"] = empty_db_path
+    at.run()
 
     assert not at.exception
     assert not at.warning
@@ -32,12 +31,7 @@ def test_shows_success_when_db_present(dashboard, empty_db_path):
 def test_widgets_are_seeded_from_and_write_back_to_session_state(
     empty_db_path,
 ):
-    # Loaded directly rather than through the dashboard entrypoint: this
-    # page toggles auto_refresh to True, and the entrypoint's trailing
-    # logic would take that as a cue to really sleep and st.rerun().
-    # parameters.py has no navigation of its own, so it's safe to run
-    # standalone.
-    at = AppTest.from_file(_PARAMETERS_PAGE_PATH)
+    at = AppTest.from_function(_script)
     at.session_state["db_path"] = empty_db_path
     at.session_state["auto_refresh"] = True
     at.session_state["refresh_seconds"] = 5

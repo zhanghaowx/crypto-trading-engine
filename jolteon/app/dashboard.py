@@ -16,55 +16,50 @@ the engine by roughly that interval.
 
 import time
 from pathlib import Path
+from typing import Callable
 
 import streamlit as st
 
+from jolteon.app.app_pages import (
+    health,
+    market_data,
+    orders_pnl,
+    parameters,
+    risk_limits,
+)
 from jolteon.app.settings import init_settings
-from jolteon.app.styles import SIDEBAR_CSS
 
 _LOGO_PATH = (
     Path(__file__).resolve().parents[2] / "docs" / "images" / "jolteon.png"
 )
 
 
+def _section(title: str, icon: str, render_fn: Callable[[], None]) -> None:
+    with st.container(border=True):
+        st.subheader(title, icon=icon)
+        render_fn()
+
+
 def main() -> None:
     st.set_page_config(page_title="Jolteon Live", layout="wide")
     init_settings()
-
-    st.html(SIDEBAR_CSS)
     st.logo(str(_LOGO_PATH), size="large")
 
-    pages = [
-        st.Page(
-            "app_pages/market_data.py",
-            title="Market Data",
-            icon=":material/candlestick_chart:",
-            default=True,
-        ),
-        st.Page(
-            "app_pages/risk_limits.py",
-            title="Risk Limits",
-            icon=":material/warning:",
-        ),
-        st.Page(
-            "app_pages/orders_pnl.py",
-            title="Orders & PnL",
-            icon=":material/account_balance_wallet:",
-        ),
-        st.Page(
-            "app_pages/health.py",
-            title="Health",
-            icon=":material/monitor_heart:",
-        ),
-        st.Page(
-            "app_pages/parameters.py",
-            title="Parameters",
-            icon=":material/settings:",
-        ),
-    ]
-    pg = st.navigation(pages)
+    title_col, settings_col = st.columns(
+        [8, 1], vertical_alignment="center"
+    )
+    title_col.title("Jolteon live")
+    with settings_col.popover("Settings", icon=":material/settings:"):
+        parameters.render()
 
-    pg.run()
+    _section("Market Data", ":material/candlestick_chart:", market_data.render)
+    _section("Risk Limits", ":material/warning:", risk_limits.render)
+    _section(
+        "Orders & PnL",
+        ":material/account_balance_wallet:",
+        orders_pnl.render,
+    )
+    _section("Health", ":material/monitor_heart:", health.render)
 
     if st.session_state.auto_refresh:
         time.sleep(st.session_state.refresh_seconds)

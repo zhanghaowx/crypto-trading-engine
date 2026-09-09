@@ -1,31 +1,38 @@
 import sqlite3
 
-# risk_limits.py is a Streamlit page script that runs top-level code (it
-# calls warn_if_no_db() at import time), so importing it directly outside
-# a running app would execute the whole page. Exercise risk_limit_badge
-# through the actual page instead, via the rendered badges below.
+from streamlit.testing.v1 import AppTest
 
 
-def test_shows_warning_when_db_missing(dashboard):
-    at = dashboard.switch_page("app_pages/risk_limits.py").run()
+def _script():
+    from jolteon.app.app_pages import risk_limits
+
+    risk_limits.render()
+
+
+def test_shows_warning_when_db_missing(missing_db_path):
+    at = AppTest.from_function(_script)
+    at.session_state["db_path"] = missing_db_path
+    at.run()
 
     assert not at.exception
     assert at.warning
     assert not at.info
 
 
-def test_shows_info_when_no_risk_limit_data_recorded(dashboard, empty_db_path):
-    dashboard.session_state["db_path"] = empty_db_path
-    at = dashboard.switch_page("app_pages/risk_limits.py").run()
+def test_shows_info_when_no_risk_limit_data_recorded(empty_db_path):
+    at = AppTest.from_function(_script)
+    at.session_state["db_path"] = empty_db_path
+    at.run()
 
     assert not at.exception
     assert not at.warning
     assert at.info
 
 
-def test_renders_a_card_per_name_and_symbol(dashboard, populated_db_path):
-    dashboard.session_state["db_path"] = populated_db_path
-    at = dashboard.switch_page("app_pages/risk_limits.py").run()
+def test_renders_a_card_per_name_and_symbol(populated_db_path):
+    at = AppTest.from_function(_script)
+    at.session_state["db_path"] = populated_db_path
+    at.run()
 
     assert not at.exception
     assert at.markdown[0].value == "**Inventory**"
@@ -34,7 +41,7 @@ def test_renders_a_card_per_name_and_symbol(dashboard, populated_db_path):
     assert "OK" in at.markdown[1].value
 
 
-def test_badge_reflects_utilization_thresholds(dashboard, tmp_path):
+def test_badge_reflects_utilization_thresholds(tmp_path):
     db_path = str(tmp_path / "thresholds.sqlite")
     conn = sqlite3.connect(db_path)
     conn.execute(
@@ -53,8 +60,9 @@ def test_badge_reflects_utilization_thresholds(dashboard, tmp_path):
     conn.commit()
     conn.close()
 
-    dashboard.session_state["db_path"] = db_path
-    at = dashboard.switch_page("app_pages/risk_limits.py").run()
+    at = AppTest.from_function(_script)
+    at.session_state["db_path"] = db_path
+    at.run()
 
     assert not at.exception
     badges = " ".join(m.value for m in at.markdown)

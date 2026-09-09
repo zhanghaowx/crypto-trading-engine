@@ -1,27 +1,36 @@
-def test_shows_warning_when_db_missing(dashboard):
-    # Market Data is the dashboard's default page, so a plain run already
-    # lands here.
-    at = dashboard.run()
+from streamlit.testing.v1 import AppTest
+
+
+def _script():
+    from jolteon.app.app_pages import market_data
+
+    market_data.render()
+
+
+def test_shows_warning_when_db_missing(missing_db_path):
+    at = AppTest.from_function(_script)
+    at.session_state["db_path"] = missing_db_path
+    at.run()
 
     assert not at.exception
     assert at.warning
     assert not at.info
 
 
-def test_shows_info_when_no_market_data_recorded(dashboard, empty_db_path):
-    dashboard.session_state["db_path"] = empty_db_path
-    at = dashboard.run()
+def test_shows_info_when_no_market_data_recorded(empty_db_path):
+    at = AppTest.from_function(_script)
+    at.session_state["db_path"] = empty_db_path
+    at.run()
 
     assert not at.exception
     assert not at.warning
     assert at.info[0].value == "No market data recorded yet."
 
 
-def test_renders_metrics_and_chart_from_recorded_data(
-    dashboard, populated_db_path
-):
-    dashboard.session_state["db_path"] = populated_db_path
-    at = dashboard.run()
+def test_renders_metrics_and_chart_from_recorded_data(populated_db_path):
+    at = AppTest.from_function(_script)
+    at.session_state["db_path"] = populated_db_path
+    at.run()
 
     assert not at.exception
     metrics = {m.label: m.value for m in at.metric}

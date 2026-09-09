@@ -1,20 +1,29 @@
-def test_dashboard_defaults_to_market_data_page(dashboard):
+def test_dashboard_renders_every_section_on_one_page(dashboard):
     at = dashboard.run()
 
     assert not at.exception
-    assert at.title[0].value == "Market Data"
+    assert [s.value for s in at.subheader] == [
+        "Market Data",
+        "Risk Limits",
+        "Orders & PnL",
+        "Health",
+    ]
 
 
-def test_dashboard_navigates_to_every_page(dashboard, populated_db_path):
-    dashboard.session_state["db_path"] = populated_db_path
+def test_dashboard_warns_in_every_section_when_db_missing(dashboard):
     at = dashboard.run()
 
-    for page, title in [
-        ("app_pages/risk_limits.py", "Risk Limits"),
-        ("app_pages/orders_pnl.py", "Orders & PnL"),
-        ("app_pages/health.py", "Health"),
-        ("app_pages/parameters.py", "Parameters"),
-    ]:
-        at.switch_page(page).run()
-        assert not at.exception, f"{page} raised: {at.exception}"
-        assert at.title[0].value == title
+    assert not at.exception
+    # One warning per section (market data, risk limits, orders & pnl,
+    # health) plus one from the settings popover - there's no navigation
+    # left to hide the others behind.
+    assert len(at.warning) == 5
+
+
+def test_dashboard_settings_popover_holds_the_viewer_settings(dashboard):
+    at = dashboard.run()
+
+    assert not at.exception
+    assert at.text_input(key="db_path")
+    assert at.checkbox(key="auto_refresh")
+    assert at.slider(key="refresh_seconds")
