@@ -29,7 +29,7 @@ dependencies = [
     # wheels for Intel macOS (x86_64) starting at 49.0.0, which forces a
     # from-source Rust build that fails without a Rust toolchain + OpenSSL
     # headers. Pin below that so Intel Macs get a working wheel.
-    "cryptography<49",
+    "cryptography<51",
     # Needed by exchanges who use websockets to disseminate market data
     "websockets",
 ]
