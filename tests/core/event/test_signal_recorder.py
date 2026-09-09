@@ -1,27 +1,26 @@
-import asyncio
 import os
 import sqlite3
 import tempfile
 import unittest
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from enum import Enum
-from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytz
 from freezegun import freeze_time
 
 from jolteon.core.event.signal import signal
-from jolteon.core.event.signal_recorder import (
-    SignalRecorder,
-)
+from jolteon.core.event.signal_recorder import SignalRecorder
 from jolteon.core.time.time_manager import time_manager
 
 
 class TestSignalRecorder(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        self.database_filepath = f"{tempfile.gettempdir()}/unittest.sqlite"
+        self.database_filepath = (
+            f"{tempfile.gettempdir()}/{uuid.uuid4()}.sqlite"
+        )
         self.signal_a = signal("signal_a")
         self.signal_b = signal("signal_b")
         self.signal_recorder = SignalRecorder(self.database_filepath)
@@ -38,8 +37,24 @@ class TestSignalRecorder(unittest.IsolatedAsyncioTestCase):
 
     async def asyncTearDown(self) -> None:
         if self.signal_recorder:
-            self.signal_recorder.stop_recording()
-        os.remove(self.database_filepath)
+            self.signal_recorder.close()
+        for suffix in ("", "-wal", "-shm"):
+            path = self.database_filepath + suffix
+            if os.path.exists(path):
+                os.remove(path)
+
+    def rows(self, table: str) -> pd.DataFrame:
+        """Everything recorded into `table` so far, as recorded."""
+        self.signal_recorder.flush()
+        with sqlite3.connect(self.database_filepath) as conn:
+            try:
+                return pd.read_sql(f'SELECT * FROM "{table}"', con=conn)
+            except pd.errors.DatabaseError:
+                return pd.DataFrame()
+
+    def assert_recorded(self, table: str, expected: list[dict]):
+        recorded = self.rows(table).to_dict(orient="records")
+        self.assertEqual(expected, recorded)
 
     async def test_connect(self):
         """
@@ -50,17 +65,17 @@ class TestSignalRecorder(unittest.IsolatedAsyncioTestCase):
 
         # Send signals that cannot be converted to dict, should be skipped
         self.signal_a.send(self.signal_a, message="Signal A")
-        self.assertNotIn("signal_a", self.signal_recorder._events)
-
         self.signal_b.send(self.signal_b, message="Signal B")
-        self.assertNotIn("signal_b", self.signal_recorder._events)
 
-        # Send signals that cannot be converted to dict, should be skipped
+        self.assertTrue(self.rows("signal_a").empty)
+        self.assertTrue(self.rows("signal_b").empty)
+
+        # Send signals that can be converted to dict, should be recorded
         self.signal_a.send(self.signal_a, message={"payload": "Signal A"})
-        self.assertIn("signal_a", self.signal_recorder._events)
-
         self.signal_b.send(self.signal_b, message={"payload": "Signal B"})
-        self.assertIn("signal_b", self.signal_recorder._events)
+
+        self.assertEqual(1, len(self.rows("signal_a")))
+        self.assertEqual(1, len(self.rows("signal_b")))
 
     @freeze_time("2024-01-01 00:00:30 UTC")
     async def test_handle_payload_has_primary_key(self):
@@ -80,12 +95,6 @@ class TestSignalRecorder(unittest.IsolatedAsyncioTestCase):
         self.signal_a.send(self.signal_a, payload=payload_a)
         self.signal_b.send(self.signal_b, payload=payload_b)
 
-        self.assertIn("signal_a", self.signal_recorder._events)
-        self.assertIn("signal_b", self.signal_recorder._events)
-
-        event_a = self.signal_recorder._events["signal_a"]
-        event_b = self.signal_recorder._events["signal_b"]
-
         expected_event_a = [
             {"payload_id": 1, "some_enum": "A", "timestamp": 1704067230.0}
         ]
@@ -93,41 +102,58 @@ class TestSignalRecorder(unittest.IsolatedAsyncioTestCase):
             {"payload_id": 2, "some_enum": "A", "timestamp": 1704067230.0}
         ]
 
-        self.assertEqual(event_a, expected_event_a)
-        self.assertEqual(event_b, expected_event_b)
+        self.assert_recorded("signal_a", expected_event_a)
+        self.assert_recorded("signal_b", expected_event_b)
 
-        # Send the same signal again, should not create duplicate events
+        # Send the same signal again, should update rather than duplicate
 
         self.signal_a.send(self.signal_a, payload=payload_a)
         self.signal_b.send(self.signal_b, payload=payload_b)
 
-        event_a1 = self.signal_recorder._events["signal_a"]
-        event_b1 = self.signal_recorder._events["signal_b"]
-
-        self.assertEqual(event_a1, expected_event_a)
-        self.assertEqual(event_b1, expected_event_b)
+        self.assert_recorded("signal_a", expected_event_a)
+        self.assert_recorded("signal_b", expected_event_b)
 
         # Send different signals with extra args, should be skipped
 
         self.signal_a.send(self.signal_a, payload=payload_b, other_args=True)
         self.signal_b.send(self.signal_b, payload=payload_a, other_args=True)
 
-        event_a2 = self.signal_recorder._events["signal_a"]
-        event_b2 = self.signal_recorder._events["signal_b"]
-
-        self.assertEqual(event_a2, expected_event_a)
-        self.assertEqual(event_b2, expected_event_b)
+        self.assert_recorded("signal_a", expected_event_a)
+        self.assert_recorded("signal_b", expected_event_b)
 
         # Send signals that cannot be converted to dict, should be skipped
 
         self.signal_a.send(self.signal_a, payload="payload_a")
         self.signal_b.send(self.signal_b, payload="payload_b")
 
-        event_a3 = self.signal_recorder._events["signal_a"]
-        event_b3 = self.signal_recorder._events["signal_b"]
+        self.assert_recorded("signal_a", expected_event_a)
+        self.assert_recorded("signal_b", expected_event_b)
 
-        self.assertEqual(event_a3, expected_event_a)
-        self.assertEqual(event_b3, expected_event_b)
+    @freeze_time("2024-01-01 00:00:30 UTC")
+    async def test_handle_payload_primary_key_keeps_latest_value(self):
+        """
+        A candlestick is re-sent as it fills in, under the same key. The
+        stored row has to end up holding the newest values, not the first.
+        """
+
+        class Payload:
+            PRIMARY_KEY = "payload_id"
+
+            def __init__(self, payload_id: int, close: float):
+                self.payload_id = payload_id
+                self.close = close
+
+        self.signal_a.send(self.signal_a, payload=Payload(1, 10.0))
+        self.signal_a.send(self.signal_a, payload=Payload(1, 11.0))
+        self.signal_a.send(self.signal_a, payload=Payload(2, 12.0))
+
+        self.assert_recorded(
+            "signal_a",
+            [
+                {"payload_id": 1, "close": 11.0, "timestamp": 1704067230.0},
+                {"payload_id": 2, "close": 12.0, "timestamp": 1704067230.0},
+            ],
+        )
 
     async def test_handle_signal_payload_has_no_primary_key(self):
         class SomeEnum(Enum):
@@ -149,16 +175,14 @@ class TestSignalRecorder(unittest.IsolatedAsyncioTestCase):
         signal_a.send(signal_a, payload=payload_a)
         signal_b.send(signal_b, payload=payload_b)
 
-        self.assertIn("signal_a", self.signal_recorder._events)
-        self.assertIn("signal_b", self.signal_recorder._events)
-        self.assertEqual(1, len(self.signal_recorder._events["signal_a"]))
-        self.assertEqual(1, len(self.signal_recorder._events["signal_b"]))
+        self.assertEqual(1, len(self.rows("signal_a")))
+        self.assertEqual(1, len(self.rows("signal_b")))
 
         signal_a.send(signal_a, payload=payload_a)
         signal_b.send(signal_b, payload=payload_b)
 
-        self.assertEqual(2, len(self.signal_recorder._events["signal_a"]))
-        self.assertEqual(2, len(self.signal_recorder._events["signal_b"]))
+        self.assertEqual(2, len(self.rows("signal_a")))
+        self.assertEqual(2, len(self.rows("signal_b")))
 
     @freeze_time("2024-01-01 00:00:30 UTC")
     async def test_handle_payload_has_array(self):
@@ -166,27 +190,17 @@ class TestSignalRecorder(unittest.IsolatedAsyncioTestCase):
             def __init__(self, payload_id: int):
                 self.array = [payload_id, payload_id + 1]
 
-        payload_a = Payload(10)
-        payload_b = Payload(20)
+        self.signal_a.send(self.signal_a, payload=Payload(10))
+        self.signal_b.send(self.signal_b, payload=Payload(20))
 
-        self.signal_a.send(self.signal_a, payload=payload_a)
-        self.signal_b.send(self.signal_b, payload=payload_b)
-
-        self.assertIn("signal_a", self.signal_recorder._events)
-        self.assertIn("signal_b", self.signal_recorder._events)
-
-        event_a = self.signal_recorder._events["signal_a"]
-        event_b = self.signal_recorder._events["signal_b"]
-
-        expected_event_a = [
-            {"array.0": 10, "array.1": 11, "timestamp": 1704067230.0}
-        ]
-        expected_event_b = [
-            {"array.0": 20, "array.1": 21, "timestamp": 1704067230.0}
-        ]
-
-        self.assertEqual(event_a, expected_event_a)
-        self.assertEqual(event_b, expected_event_b)
+        self.assert_recorded(
+            "signal_a",
+            [{"array.0": 10, "array.1": 11, "timestamp": 1704067230.0}],
+        )
+        self.assert_recorded(
+            "signal_b",
+            [{"array.0": 20, "array.1": 21, "timestamp": 1704067230.0}],
+        )
 
     @freeze_time("2024-01-01 00:00:30 UTC")
     async def test_handle_payload_nested_dict(self):
@@ -197,27 +211,17 @@ class TestSignalRecorder(unittest.IsolatedAsyncioTestCase):
                     "b": payload_id + 1,
                 }
 
-        payload_a = Payload(10)
-        payload_b = Payload(20)
+        self.signal_a.send(self.signal_a, payload=Payload(10))
+        self.signal_b.send(self.signal_b, payload=Payload(20))
 
-        self.signal_a.send(self.signal_a, payload=payload_a)
-        self.signal_b.send(self.signal_b, payload=payload_b)
-
-        self.assertIn("signal_a", self.signal_recorder._events)
-        self.assertIn("signal_b", self.signal_recorder._events)
-
-        event_a = self.signal_recorder._events["signal_a"]
-        event_b = self.signal_recorder._events["signal_b"]
-
-        expected_event_a = [
-            {"dict.a": 10, "dict.b": 11, "timestamp": 1704067230.0}
-        ]
-        expected_event_b = [
-            {"dict.a": 20, "dict.b": 21, "timestamp": 1704067230.0}
-        ]
-
-        self.assertEqual(event_a, expected_event_a)
-        self.assertEqual(event_b, expected_event_b)
+        self.assert_recorded(
+            "signal_a",
+            [{"dict.a": 10, "dict.b": 11, "timestamp": 1704067230.0}],
+        )
+        self.assert_recorded(
+            "signal_b",
+            [{"dict.a": 20, "dict.b": 21, "timestamp": 1704067230.0}],
+        )
 
     @freeze_time("2024-01-01 00:00:30 UTC")
     async def test_handle_payload_nested_tuple(self):
@@ -225,27 +229,17 @@ class TestSignalRecorder(unittest.IsolatedAsyncioTestCase):
             def __init__(self, payload_id: int):
                 self.tup = (payload_id, payload_id + 1)
 
-        payload_a = Payload(10)
-        payload_b = Payload(20)
+        self.signal_a.send(self.signal_a, payload=Payload(10))
+        self.signal_b.send(self.signal_b, payload=Payload(20))
 
-        self.signal_a.send(self.signal_a, payload=payload_a)
-        self.signal_b.send(self.signal_b, payload=payload_b)
-
-        self.assertIn("signal_a", self.signal_recorder._events)
-        self.assertIn("signal_b", self.signal_recorder._events)
-
-        event_a = self.signal_recorder._events["signal_a"]
-        event_b = self.signal_recorder._events["signal_b"]
-
-        expected_event_a = [
-            {"tup.0": 10, "tup.1": 11, "timestamp": 1704067230.0}
-        ]
-        expected_event_b = [
-            {"tup.0": 20, "tup.1": 21, "timestamp": 1704067230.0}
-        ]
-
-        self.assertEqual(event_a, expected_event_a)
-        self.assertEqual(event_b, expected_event_b)
+        self.assert_recorded(
+            "signal_a",
+            [{"tup.0": 10, "tup.1": 11, "timestamp": 1704067230.0}],
+        )
+        self.assert_recorded(
+            "signal_b",
+            [{"tup.0": 20, "tup.1": 21, "timestamp": 1704067230.0}],
+        )
 
     async def test_handle_payload_has_datetime(self):
         class Payload:
@@ -255,38 +249,35 @@ class TestSignalRecorder(unittest.IsolatedAsyncioTestCase):
                     new_key: new_value,
                 }
 
-        payload_a = Payload("C", "3")
+        self.signal_a.send(self.signal_a, payload=Payload("C", "3"))
 
-        self.signal_a.send(self.signal_a, payload=payload_a)
-        self.assertIn("signal_a", self.signal_recorder._events)
+        # Force a schema change so a new column has to be added
+        self.signal_a.send(self.signal_a, payload=Payload("D", "4"))
 
-        self.signal_recorder._save_data()
-        self.assertNotIn("signal_a", self.signal_recorder._events)
-
-        # Force a schema change so to trigger a table merge
-        payload_aa = Payload("D", "4")
-
-        self.signal_a.send(self.signal_a, payload=payload_aa)
-        self.assertIn("signal_a", self.signal_recorder._events)
-
-        self.signal_recorder._save_data()
-        self.assertNotIn("signal_a", self.signal_recorder._events)
+        recorded = self.rows("signal_a")
+        self.assertEqual(2, len(recorded))
+        self.assertIn("dict.C", recorded.columns)
+        self.assertIn("dict.D", recorded.columns)
+        # A datetime is stored as a POSIX timestamp, not an object
+        self.assertTrue(
+            all(isinstance(value, float) for value in recorded["dict.time"])
+        )
 
     async def test_handle_payload_has_timestamp(self):
         class Payload:
             def __init__(self):
                 self.timestamp = "Hello"
 
-        payload_a = Payload()
+        self.signal_a.send(self.signal_a, payload=Payload())
 
-        self.signal_a.send(self.signal_a, payload=payload_a)
-        self.assertIn("signal_a", self.signal_recorder._events)
-
-        event_a = self.signal_recorder._events["signal_a"]
-        expected_event_a = [{"timestamp": "Hello"}]
-        self.assertEqual(event_a, expected_event_a)
+        self.assert_recorded("signal_a", [{"timestamp": "Hello"}])
 
     async def test_handle_payload_update_schema(self):
+        """
+        A payload that grows a field widens the table in place; rows already
+        recorded stay put and simply carry NULL in the new column.
+        """
+
         class Payload:
             def __init__(self, new_key, new_value):
                 self.dict = {
@@ -295,28 +286,17 @@ class TestSignalRecorder(unittest.IsolatedAsyncioTestCase):
                     new_key: new_value,
                 }
 
-        payload_a = Payload("C", "3")
+        self.signal_a.send(self.signal_a, payload=Payload("C", "3"))
+        self.assertEqual(1, len(self.rows("signal_a")))
 
-        self.signal_a.send(self.signal_a, payload=payload_a)
-        self.assertIn("signal_a", self.signal_recorder._events)
+        self.signal_a.send(self.signal_a, payload=Payload("D", "4"))
 
-        self.signal_recorder._save_data()
-        self.assertNotIn("signal_a", self.signal_recorder._events)
-
-        payload_aa = Payload("D", "4")
-
-        self.signal_a.send(self.signal_a, payload=payload_aa)
-        self.assertIn("signal_a", self.signal_recorder._events)
-
-        self.signal_recorder._save_data()
-        self.assertNotIn("signal_a", self.signal_recorder._events)
-
-        # Verify saved table
-        conn = sqlite3.connect(database=self.database_filepath)
-        df = pd.read_sql("SELECT * FROM signal_a", con=conn)
-        conn.close()
-
-        self.assertEqual(2, len(df))
+        recorded = self.rows("signal_a")
+        self.assertEqual(2, len(recorded))
+        self.assertEqual("3", recorded["dict.C"][0])
+        self.assertTrue(pd.isna(recorded["dict.C"][1]))
+        self.assertTrue(pd.isna(recorded["dict.D"][0]))
+        self.assertEqual("4", recorded["dict.D"][1])
 
     async def test_handle_payload_no_change_to_schema(self):
         class Payload:
@@ -329,122 +309,37 @@ class TestSignalRecorder(unittest.IsolatedAsyncioTestCase):
                 }
 
         # Create an empty table
-        conn = sqlite3.connect(database=self.database_filepath)
-        conn.execute(
-            """
-        CREATE TABLE signal_a (
-            A TEXT,
-            B INTEGER,
-            C INTEGER,
-            D INTEGER
-        );"""
-        )
+        with sqlite3.connect(self.database_filepath) as conn:
+            conn.execute(
+                """
+            CREATE TABLE signal_a (
+                A TEXT,
+                B INTEGER,
+                C INTEGER,
+                D INTEGER
+            );"""
+            )
 
-        payload_a = Payload()
+        self.signal_a.send(self.signal_a, payload=Payload())
 
-        self.signal_a.send(self.signal_a, payload=payload_a)
-        self.signal_recorder._save_data()
-
-        # Verify saved table
-        df = pd.read_sql("SELECT * FROM signal_a", con=conn)
-        conn.close()
-
-        self.assertEqual(1, len(df))
+        recorded = self.rows("signal_a")
+        self.assertEqual(1, len(recorded))
+        # The pre-existing columns survive; the payload's own are added
+        for column in ("A", "B", "C", "D", "dict.A", "dict.B"):
+            self.assertIn(column, recorded.columns)
 
     async def test_handle_payload_is_none(self):
         self.signal_a.send(self.signal_a, payload=None)
         self.signal_b.send(self.signal_b, payload=None)
 
-        self.assertNotIn("signal_a", self.signal_recorder._events)
-        self.assertNotIn("signal_b", self.signal_recorder._events)
+        self.assertTrue(self.rows("signal_a").empty)
+        self.assertTrue(self.rows("signal_b").empty)
 
-    @patch("pandas.DataFrame.to_sql")
-    async def test_auto_save(self, mock_to_sql):
-        mock_to_sql.return_value = MagicMock()
-
-        self.signal_recorder.enable_auto_save(auto_save_interval=0.1)
-
-        self.signal_a.send(self.signal_a, message={"payload": "Signal A"})
-        mock_to_sql.assert_not_called()
-
-        self.assertIn("signal_a", self.signal_recorder._events)
-        await asyncio.sleep(0.2)
-
-        self.assertNotIn("signal_b", self.signal_recorder._events)
-        mock_to_sql.assert_called_once()
-
-        # Auto save will perform saving periodically
-
-        mock_to_sql.reset_mock()
-
-        self.signal_a.send(self.signal_a, message={"payload": "Signal AA"})
-        mock_to_sql.assert_not_called()
-
-        await asyncio.sleep(0.2)
-        mock_to_sql.assert_called_once()
-
-    @patch(
-        "pandas.DataFrame.to_sql",
-        side_effect=[Exception("Other Error"), MagicMock()],
-    )
-    async def test_auto_save_exception_other_error(self, mock_to_sql):
-        mock_to_sql.return_value = MagicMock()
-
-        self.signal_recorder.enable_auto_save(auto_save_interval=0.1)
-
-        self.signal_a.send(self.signal_a, message={"payload": "Signal A"})
-        mock_to_sql.assert_not_called()
-
-        self.assertIn("signal_a", self.signal_recorder._events)
-        await asyncio.sleep(0.2)
-
-        self.assertNotIn("signal_b", self.signal_recorder._events)
-        mock_to_sql.assert_called_once()
-
-        # Auto save will perform saving periodically
-        mock_to_sql.reset_mock()
-
-        self.signal_a.send(self.signal_a, message={"payload": "Signal AA"})
-        mock_to_sql.assert_not_called()
-
-        await asyncio.sleep(0.2)
-        mock_to_sql.assert_called_once()
-
-    @patch("pandas.read_sql")
-    @patch(
-        "pandas.DataFrame.to_sql",
-        side_effect=[sqlite3.OperationalError("SQL Error"), MagicMock()],
-    )
-    async def test_auto_save_exception_sql_error(
-        self, mock_to_sql, mock_read_sql
-    ):
-        mock_read_sql.return_value = pd.DataFrame()
-        mock_to_sql.return_value = MagicMock()
-
-        self.signal_recorder.enable_auto_save(auto_save_interval=0.1)
-
-        self.signal_a.send(self.signal_a, message={"payload": "Signal A"})
-        mock_to_sql.assert_not_called()
-
-        self.assertIn("signal_a", self.signal_recorder._events)
-        await asyncio.sleep(0.2)
-
-        self.assertNotIn("signal_b", self.signal_recorder._events)
-        mock_to_sql.assert_called()
-
-        # Auto save will perform saving periodically
-        mock_to_sql.reset_mock()
-
-        self.signal_a.send(self.signal_a, message={"payload": "Signal AA"})
-        mock_to_sql.assert_not_called()
-
-        await asyncio.sleep(0.2)
-        mock_to_sql.assert_called()
-
-    @patch("pandas.DataFrame.to_sql")
-    async def test_record_and_auto_save_different_threads(self, mock_to_sql):
-        mock_to_sql.return_value = MagicMock()
-
+    async def test_record_from_different_threads(self):
+        """
+        Signals are sent from the market data thread as well as the engine's
+        event loop, so nothing may be dropped when senders overlap.
+        """
         num_threads = 50
         payloads = [{"payload": f"Signal {i}"} for i in range(num_threads)]
 
@@ -454,11 +349,9 @@ class TestSignalRecorder(unittest.IsolatedAsyncioTestCase):
         with ThreadPoolExecutor(max_workers=num_threads) as executor:
             list(executor.map(worker, payloads))
 
+        recorded = self.rows("signal_a")
+        self.assertEqual(num_threads, len(recorded))
         self.assertEqual(
-            num_threads, len(self.signal_recorder._events["signal_a"])
+            {p["payload"] for p in payloads},
+            set(recorded["payload"]),
         )
-
-        self.signal_recorder._save_data()
-
-        mock_to_sql.assert_called_once()
-        self.assertEqual({}, self.signal_recorder._events)

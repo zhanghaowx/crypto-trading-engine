@@ -9,9 +9,10 @@ into, so it can run as a completely separate process from the engine itself.
 Usage:
     streamlit run jolteon/app/dashboard.py -- --db /tmp/jolteon.sqlite
 
-Note: live runs only flush to the database periodically (see
-`enable_auto_save` in jolteon/app/kraken.py), so the dashboard lags behind
-the engine by roughly that interval.
+The engine records every signal as it happens (see
+jolteon/core/sqlite_writer.py), and the database is in WAL mode, so these
+reads never block the engine's writes and lag it only by this page's own
+refresh interval.
 """
 
 import time

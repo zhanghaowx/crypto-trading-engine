@@ -78,30 +78,28 @@ class TestLogging(unittest.IsolatedAsyncioTestCase):
         )
 
     @freeze_time("2022-01-01 00:00:00 UTC")
-    async def test_db_logger_exceed_batch_size(self):
-        log_table_exists_query = (
-            f"SELECT name FROM sqlite_master "
-            f"WHERE type='table' AND name='logs';"
-        )
+    async def test_db_logger_writes_without_batching(self):
+        """
+        Log lines used to sit in a buffer until 100 had piled up. They now
+        go to the writer thread as they are emitted, so a flush is all it
+        takes to see them.
+        """
         with self.assertLogs(level="DEBUG"):
             setup_global_logger(
                 logging.DEBUG, logfile_db=self.database_filepath
             )
             with closing(sqlite3.connect(self.database_filepath)) as conn:
-                # Verify tables NOT in DB before buffer is full
-                for i in range(0, 100):
-                    logging.info("Info Message")
-                    self.assert_number_of_logging(0, conn)
-
-                # Verify tables in DB after logging when buffer is full
                 logging.info("Info Message")
-                self.assert_number_of_logging(101, conn)
+                self.assert_number_of_logging(
+                    1, conn, should_flush_logger=True
+                )
 
-                # Verify tables in DB after more logging
-                for i in range(0, 101):
-                    logging.error("Error Message")
+                for _ in range(0, 200):
+                    logging.info("Info Message")
 
-                self.assert_number_of_logging(202, conn)
+                self.assert_number_of_logging(
+                    201, conn, should_flush_logger=True
+                )
 
     async def test_db_logger_exceed_wait_time(self):
         with self.assertLogs(level="DEBUG"):
@@ -146,7 +144,12 @@ class TestLogging(unittest.IsolatedAsyncioTestCase):
                     1, conn, should_flush_logger=True
                 )
 
-    async def test_db_logger_exception(self):
+    async def test_db_logger_widens_an_existing_table(self):
+        """
+        A logs table recorded by an older build has fewer columns than a log
+        record carries. The missing ones are added rather than treated as a
+        failure.
+        """
         with closing(sqlite3.connect(self.database_filepath)) as conn:
             conn.execute("CREATE TABLE logs (id INTEGER PRIMARY KEY)")
 
@@ -154,11 +157,33 @@ class TestLogging(unittest.IsolatedAsyncioTestCase):
             setup_global_logger(
                 logging.DEBUG, logfile_db=self.database_filepath
             )
+            logging.info("Info Message")
+            for handler in logging.getLogger().handlers:
+                handler.flush()
 
-            # Flush after logging will write to database
+        with closing(sqlite3.connect(self.database_filepath)) as conn:
+            df = pd.read_sql_query("SELECT * FROM logs", con=conn)
+
+        self.assertEqual(1, len(df))
+        self.assertIn("id", df.columns)
+        self.assertIn("msg", df.columns)
+        self.assertIn("Info Message", df["msg"][0])
+
+    async def test_db_logger_reports_write_failure(self):
+        """
+        The write happens on the writer's own thread, so a failure has to
+        surface when the handler is flushed.
+        """
+        with closing(sqlite3.connect(self.database_filepath)) as conn:
+            conn.execute("CREATE TABLE logs (required NOT NULL)")
+
+        with self.assertLogs(level="INFO"):
+            setup_global_logger(
+                logging.DEBUG, logfile_db=self.database_filepath
+            )
             logging.info("Info Message")
 
-            with self.assertRaises(sqlite3.OperationalError):
+            with self.assertRaises(sqlite3.IntegrityError):
                 for handler in logging.getLogger().handlers:
                     handler.flush()
 
