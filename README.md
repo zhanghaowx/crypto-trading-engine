@@ -128,6 +128,20 @@ uv run poe integration  # lint, then integration tests against live exchanges (i
 uv run poe clean        # remove build/test artifacts
 ```
 
+`poe` sequences stop at the first failing subtask, so a failing `poe lint` may be hiding
+later checks. After fixing one, re-run it to see what was behind it.
+
+#### Pre-push hook
+
+`.githooks/pre-push` runs `uv run poe test` and blocks the push if it fails, which covers
+everything CI checks. Hooks are not installed by `git clone`, so enable it once per clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+Use `git push --no-verify` to bypass it in an emergency.
+
 ### Building Documentation
 
 ```bash
