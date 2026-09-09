@@ -23,13 +23,13 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
+      - uses: astral-sh/setup-uv@v7
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install Project
-        run: make install
+        run: uv sync
       - name: Run Linter
-        run: make lint
+        run: uv run poe lint
 
   tests_linux:
     needs: linter
@@ -41,13 +41,13 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
+      - uses: astral-sh/setup-uv@v7
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install Project
-        run: make install
+        run: uv sync
       - name: Run Tests
-        run: make test
+        run: uv run poe test-only
       - name: Upload Coverage to Codecov
         uses: codecov/codecov-action@v4
         env:
@@ -66,13 +66,13 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
+      - uses: astral-sh/setup-uv@v7
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install Project
-        run: make install
+        run: uv sync
       - name: Run Tests
-        run: make test
+        run: uv run poe test-only
 
   tests_win:
     needs: linter
@@ -84,10 +84,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
+      - uses: astral-sh/setup-uv@v7
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install Project
-        run: pip install -e .[test]
+        run: uv sync
       - name: Run Tests
-        run: pytest -s -vvvv -l --tb=long tests
+        run: uv run poe test-only

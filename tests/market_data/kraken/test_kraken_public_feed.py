@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import Mock, AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import websockets
 

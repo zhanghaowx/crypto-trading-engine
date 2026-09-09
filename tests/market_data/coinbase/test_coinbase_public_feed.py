@@ -1,11 +1,11 @@
 import unittest
-from unittest.mock import patch, AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import websockets
 
 from jolteon.market_data.coinbase.public_feed import (
-    PublicFeed,
     CoinbaseEnvironment,
+    PublicFeed,
 )
 
 

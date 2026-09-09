@@ -77,9 +77,9 @@ class TimeManager:
                 raise RuntimeError("Admin already claimed by another user!")
             self._fake_time_admin = user
 
-        assert (
-            self._fake_time_admin
-        ), "Attempting to claim admin without success"
+        assert self._fake_time_admin, (
+            "Attempting to claim admin without success"
+        )
 
     def use_real_time(self, admin: object) -> None:
         """

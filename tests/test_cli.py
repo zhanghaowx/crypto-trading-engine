@@ -4,7 +4,7 @@ import sys
 import unittest
 from datetime import datetime
 from io import StringIO
-from unittest.mock import patch, AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytz
 

@@ -1,6 +1,7 @@
 """
 Application interface for Jolteon
 """
+
 import logging
 from datetime import datetime
 

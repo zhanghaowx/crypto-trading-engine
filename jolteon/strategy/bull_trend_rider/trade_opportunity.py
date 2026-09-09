@@ -101,18 +101,18 @@ class TradeOpportunity(TradeOpportunityCore):
         if len(change_percentages) == 0:
             self.score_details["is_bull_flag_new_high"] = False
         else:
-            self.score_details[
-                "is_bull_flag_new_high"
-            ] = self.bull_flag_pattern.bull_flag.close > max(
-                [x.high for x in previous_candlesticks]
+            self.score_details["is_bull_flag_new_high"] = (
+                self.bull_flag_pattern.bull_flag.close
+                > max([x.high for x in previous_candlesticks])
             )
 
         # Volume
-        self.score_details[
-            "volume_change_pct"
-        ] = self.bull_flag_pattern.bull_flag.volume / max(
-            1e-10,
-            previous_candlesticks[-1].volume,
+        self.score_details["volume_change_pct"] = (
+            self.bull_flag_pattern.bull_flag.volume
+            / max(
+                1e-10,
+                previous_candlesticks[-1].volume,
+            )
         )
 
         ###############

@@ -45,11 +45,110 @@ Jolteon includes a heartbeat monitor service to ensure the seamless operation of
 
 ## Getting Started
 
-To start using Jolteon, follow the steps outlined in the [Installation Guide](link-to-installation-guide).
+### Prerequisites
+
+- **[uv](https://docs.astral.sh/uv/)** — manages both the Python interpreter and dependencies. Install it with
+  `curl -LsSf https://astral.sh/uv/install.sh | sh` (macOS/Linux) or see the
+  [uv installation docs](https://docs.astral.sh/uv/getting-started/installation/) for other platforms.
+
+The codebase requires **Python 3.11** (it uses `enum.StrEnum`, added in 3.11), pinned in `.python-version`.
+You don't need to install Python yourself — `uv` downloads and manages the exact version for you.
+
+### Installation
+
+```bash
+git clone https://github.com/zhanghaowx/crypto-trading-engine.git
+cd crypto-trading-engine
+uv sync    # downloads Python 3.11 if needed, creates .venv, installs the package + dev dependencies
+```
+
+This reads `pyproject.toml`/`uv.lock` and produces a `.venv/` — no manual `python3`/virtualenv juggling needed.
+Prefix commands with `uv run` (e.g. `uv run jolteon ...`) or `source .venv/bin/activate` once, as you prefer.
+
+> [!NOTE]
+> `cryptography` (pulled in by `coinbase-advanced-py`) dropped prebuilt wheels for Intel macOS (x86_64) as of
+> version 49; `pyproject.toml` pins it below that so `uv sync` doesn't try to compile it from Rust source.
+
+### Running Jolteon
+
+Jolteon is a single-symbol (`BTC-USD`), single-strategy trading engine, run via the `jolteon` console script
+(equivalent to `python -m jolteon`) installed by the steps above.
+
+**Live trading / simulation** against an exchange's live public market data feed:
+
+```bash
+uv run jolteon --exchange Kraken     # or --exchange Coinbase
+```
+
+Live order execution requires exchange API credentials as environment variables:
+
+| Exchange | Environment variables |
+|----------|------------------------|
+| Kraken   | `KRAKEN_API_KEY`, `KRAKEN_API_SECRET` |
+| Coinbase | `COINBASE_API_KEY`, `COINBASE_API_SECRET` |
+
+> [!NOTE]
+> Coinbase support is currently limited to backtesting/replay — live order execution for Coinbase always falls
+> back to a mock execution service (see [docs/markdowns/markets/coinbase.md](docs/markdowns/markets/coinbase.md)).
+
+Logs and a SQLite recording of the run are written to `/tmp/jolteon.log` and `/tmp/jolteon.sqlite`.
+
+**Backtesting** against a historical time range:
+
+```bash
+uv run jolteon --exchange Kraken --replay-start 2024-01-01T00:00:00 --replay-end 2024-01-02T00:00:00
+```
+
+**Replaying a previously recorded SQLite database** (e.g. one produced by an earlier live/replay run):
+
+```bash
+uv run jolteon --exchange Kraken --replay-db /tmp/jolteon.sqlite
+```
+
+Replay output (log, database, and a cProfile trace) is written under your temp directory (e.g.
+`/tmp/replay.log`, `/tmp/replay.sqlite`, `/tmp/jolteon.stat`).
+
+### Running with Docker/Podman
+
+```bash
+docker build -t jolteon -f Containerfile .
+docker run --rm -e KRAKEN_API_KEY -e KRAKEN_API_SECRET jolteon --exchange Kraken
+```
+
+### Running Tests
+
+Task running is handled by [poethepoet](https://poethepoet.natn.io/) (`poe`), with tasks defined in
+`pyproject.toml`'s `[tool.poe.tasks]`:
+
+```bash
+uv run poe lint         # ruff (lint + format check) + mypy
+uv run poe fmt          # auto-fix formatting and import order with ruff
+uv run poe test         # lint, then unit tests with coverage (tests/)
+uv run poe integration  # lint, then integration tests against live exchanges (integration-tests/)
+uv run poe clean        # remove build/test artifacts
+```
+
+### Building Documentation
+
+```bash
+uv run poe docs      # serves the mkdocs site locally with live reload
+```
+
+### Hyperparameter Sweeps
+
+`jolteon/train.py` runs the bull-trend-rider strategy over a grid of parameters against a recorded database to
+find good settings:
+
+```bash
+uv run python jolteon/train.py --exchange Kraken --train-db /tmp/jolteon.sqlite
+```
+
+Results are written to `train_result.sqlite` in your temp directory.
 
 ## Usage Examples
 
-Explore the [Examples](link-to-examples) directory for detailed examples and use cases to help you get started with coding and deploying your trading strategies.
+The `analysis/` directory contains Jupyter notebooks (`trade_analysis.ipynb`, `train.ipynb`) and scripts for
+inspecting recorded runs and training models from historical data.
 
 ## Contributing
 

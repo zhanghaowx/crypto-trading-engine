@@ -31,9 +31,11 @@ class VisualizationTool:
         colors = (
             df["bullish"]
             .apply(
-                lambda x: "rgba(0, 200, 0, 0.5)"
-                if x == 1
-                else "rgba(200, 0, 0, 0.5)"
+                lambda x: (
+                    "rgba(0, 200, 0, 0.5)"
+                    if x == 1
+                    else "rgba(200, 0, 0, 0.5)"
+                )
             )
             .to_list()
         )

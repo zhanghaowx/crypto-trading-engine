@@ -14,12 +14,12 @@ class KrakenRESTClient:
     API_URL = "https://api.kraken.com"
 
     def __init__(self):
-        assert os.environ.get(
-            "KRAKEN_API_KEY"
-        ), "Please set the KRAKEN_API_KEY environment variable"
-        assert os.environ.get(
-            "KRAKEN_API_SECRET"
-        ), "Please set the KRAKEN_API_SECRET environment variable"
+        assert os.environ.get("KRAKEN_API_KEY"), (
+            "Please set the KRAKEN_API_KEY environment variable"
+        )
+        assert os.environ.get("KRAKEN_API_SECRET"), (
+            "Please set the KRAKEN_API_SECRET environment variable"
+        )
         self._api_key = os.environ.get("KRAKEN_API_KEY")
         self._api_secret = os.environ.get("KRAKEN_API_SECRET")
 

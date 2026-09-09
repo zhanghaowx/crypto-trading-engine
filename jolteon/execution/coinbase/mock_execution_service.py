@@ -104,7 +104,7 @@ class MockExecutionService(Heartbeater, SignalSubscriber):
             product_id=symbol, limit=100
         )
         assert json_response["pricebook"]["product_id"] == symbol, (
-            f"Symbol {json_response['pricebook']['product_id'] } "
+            f"Symbol {json_response['pricebook']['product_id']} "
             f"contained in JSON response doesn't match "
             f"the expected symbol {symbol}"
         )
@@ -145,9 +145,9 @@ class MockExecutionService(Heartbeater, SignalSubscriber):
                     assert buy_order.quantity >= 0
 
         else:
-            assert (
-                order.side == MarketSide.SELL
-            ), f"'{order.side}' is not a valid MarketSide"
+            assert order.side == MarketSide.SELL, (
+                f"'{order.side}' is not a valid MarketSide"
+            )
 
             sell_order = copy(order)
             for buy_price, buy_quantity in sorted(

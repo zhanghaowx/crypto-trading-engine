@@ -230,8 +230,7 @@ class MLTool(object):
             for correlated_col in correlated_cols:
                 correlation_value = correlation_matrix.loc[correlated_col, col]
                 print(
-                    f"  * {col} and {correlated_col}: "
-                    f"{correlation_value:.2f}"
+                    f"  * {col} and {correlated_col}: {correlation_value:.2f}"
                 )
 
     @staticmethod

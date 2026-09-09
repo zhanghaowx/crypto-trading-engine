@@ -42,12 +42,12 @@ class ExecutionService(Heartbeater, SignalSubscriber):
 
         self.order_history = dict[str, Order]()
         self.order_fill_event = signal("order_fill")
-        assert os.environ.get(
-            "KRAKEN_API_KEY"
-        ), "Please set the KRAKEN_API_KEY environment variable"
-        assert os.environ.get(
-            "KRAKEN_API_SECRET"
-        ), "Please set the KRAKEN_API_SECRET environment variable"
+        assert os.environ.get("KRAKEN_API_KEY"), (
+            "Please set the KRAKEN_API_KEY environment variable"
+        )
+        assert os.environ.get("KRAKEN_API_SECRET"), (
+            "Please set the KRAKEN_API_SECRET environment variable"
+        )
 
     @subscribe("order")
     def on_order(self, sender: object, order: Order):
@@ -169,7 +169,7 @@ class ExecutionService(Heartbeater, SignalSubscriber):
 
         self.remove_issue(self.ErrorCode.GET_TRADE_FAILURE)
         logging.debug(
-            f"QueryOrders received response from exchange " f"{response}"
+            f"QueryOrders received response from exchange {response}"
         )
 
         trades = list[Trade]()

@@ -1,5 +1,6 @@
 import unittest
 from datetime import datetime, timedelta
+
 from jolteon.market_data.core.candlestick import Candlestick
 from jolteon.strategy.core.patterns.bull_flag.pattern import (
     BullFlagPattern,

@@ -2,7 +2,7 @@ import asyncio
 import os
 from datetime import datetime
 from unittest import IsolatedAsyncioTestCase
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytz
 

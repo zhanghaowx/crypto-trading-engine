@@ -194,7 +194,7 @@ class PublicFeed(Heartbeater):
             }
             """
             assert len(response["data"]) == 1, (
-                "Should only receive " "ticker feed for one symbol"
+                "Should only receive ticker feed for one symbol"
             )
             ticker_json = response["data"][0]
             self.events.ticker.send(

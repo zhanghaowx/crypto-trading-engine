@@ -166,9 +166,10 @@ class Heartbeater:
         logging.debug(f"Sent {last_heartbeat}")
 
     async def _start_heartbeating(self):
-        assert (
-            self._interval_in_seconds > 0
-        ), "Please set interval_in_seconds to be a positive number in seconds!"
+        assert self._interval_in_seconds > 0, (
+            "Please set interval_in_seconds to be a positive number "
+            "in seconds!"
+        )
         while True:
             self.send_heartbeat()
             await asyncio.sleep(self._interval_in_seconds)

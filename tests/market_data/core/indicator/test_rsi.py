@@ -3,7 +3,7 @@ from datetime import datetime
 
 from jolteon.core.event.signal import subscribe
 from jolteon.market_data.core.candlestick import Candlestick
-from jolteon.market_data.core.indicator.rsi import RSICalculator, RSI
+from jolteon.market_data.core.indicator.rsi import RSI, RSICalculator
 
 
 class TestRSICalculator(unittest.TestCase):

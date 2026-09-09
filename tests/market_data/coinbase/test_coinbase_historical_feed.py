@@ -1,7 +1,7 @@
 import os
 import unittest
 from datetime import timedelta
-from unittest.mock import patch, MagicMock, Mock
+from unittest.mock import MagicMock, Mock, patch
 
 from jolteon.core.time.time_manager import time_manager
 from jolteon.market_data.coinbase.data_source import (

@@ -70,8 +70,8 @@ class PositionManager(SignalSubscriber):
         self.positions[symbol].cash_value -= price * quantity
         self.pnl = self.pnl + price * quantity - fee
 
-        assert (
-            self.positions[symbol].volume >= -1e-10
-        ), f"Unexpected negative volume for {self.positions}"
+        assert self.positions[symbol].volume >= -1e-10, (
+            f"Unexpected negative volume for {self.positions}"
+        )
 
         return self.positions[symbol]

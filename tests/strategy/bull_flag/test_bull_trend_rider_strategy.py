@@ -1,7 +1,7 @@
 import unittest
 from copy import copy
 from datetime import datetime, timedelta
-from unittest.mock import MagicMock, call, patch, Mock
+from unittest.mock import MagicMock, Mock, call, patch
 
 import pytz
 from blinker import ANY

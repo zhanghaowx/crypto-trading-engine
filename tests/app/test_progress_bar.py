@@ -1,7 +1,7 @@
 import asyncio
 import io
 import unittest
-from datetime import timedelta, datetime
+from datetime import datetime, timedelta
 from unittest.mock import patch
 
 import pytz
@@ -60,8 +60,7 @@ class TestProgressBar(unittest.IsolatedAsyncioTestCase):
         printed_content = mock_stdout.getvalue().strip()
         self.assertIn("Progress:", printed_content)
         self.assertIn(
-            "Progress: "
-            "|██████████████████████████████████████████████████|",
+            "Progress: |██████████████████████████████████████████████████|",
             printed_content,
         )  # Adjust based on the expected progress
         self.assertIn("██| 100.0%", printed_content)
@@ -77,8 +76,7 @@ class TestProgressBar(unittest.IsolatedAsyncioTestCase):
         printed_content = mock_stdout.getvalue().strip()
         self.assertIn("Progress:", printed_content)
         self.assertIn(
-            "Progress: "
-            "|██████████████████████████████████████████████████|",
+            "Progress: |██████████████████████████████████████████████████|",
             printed_content,
         )  # Adjust based on the expected progress
         self.assertIn("██| 100.0%", printed_content)

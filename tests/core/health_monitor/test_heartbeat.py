@@ -4,9 +4,9 @@ import unittest
 from blinker import ANY
 
 from jolteon.core.health_monitor.heartbeat import (
+    Heartbeat,
     Heartbeater,
     HeartbeatLevel,
-    Heartbeat,
 )
 from jolteon.core.time.time_manager import time_manager
 

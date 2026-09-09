@@ -2,7 +2,7 @@ import argparse
 import sys
 import unittest
 from io import StringIO
-from unittest.mock import patch, AsyncMock
+from unittest.mock import AsyncMock, patch
 
 
 class TestCryptoTradingEngineTraining(unittest.IsolatedAsyncioTestCase):

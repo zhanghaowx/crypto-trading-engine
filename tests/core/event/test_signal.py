@@ -1,6 +1,6 @@
 import unittest
 
-from jolteon.core.event.signal import subscribe, signal_namespace, signal
+from jolteon.core.event.signal import signal, signal_namespace, subscribe
 
 
 class TestSubscribeFunction(unittest.TestCase):

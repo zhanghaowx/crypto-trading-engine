@@ -61,9 +61,9 @@ class TradeRecord:
             True if we should close the position immediately
 
         """
-        assert (
-            not self.sell_order
-        ), "No need to check after placing a sell order"
+        assert not self.sell_order, (
+            "No need to check after placing a sell order"
+        )
         assert self.buy_order and self.buy_order.side == MarketSide.BUY
         if market_price < self.opportunity.stop_loss_price:
             return True
@@ -81,9 +81,9 @@ class TradeRecord:
 
         """
 
-        assert (
-            not self.sell_order
-        ), "No need to check after placing a sell order"
+        assert not self.sell_order, (
+            "No need to check after placing a sell order"
+        )
         assert self.buy_order and self.buy_order.side == MarketSide.BUY
         if market_price > self.opportunity.profit_price:
             return True

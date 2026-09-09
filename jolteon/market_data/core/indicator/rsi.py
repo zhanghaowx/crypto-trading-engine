@@ -116,7 +116,7 @@ class RSICalculator(SignalSubscriber):
         rsi = 100 - (100 / (1 + relative_strength))
 
         assert 0 <= rsi <= 100, (
-            f"Unexpected RIS <{rsi}>, " f"previous RIS: {previous_rsi}"
+            f"Unexpected RIS <{rsi}>, previous RIS: {previous_rsi}"
         )
         return RSI(
             timestamp=time_manager().now(),

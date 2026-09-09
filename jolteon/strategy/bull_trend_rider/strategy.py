@@ -126,9 +126,9 @@ class BullTrendRiderStrategy(Heartbeater, SignalSubscriber):
         if trade.side == MarketSide.BUY:
             found_round_trip = _matching_trip_in("buy_order")
             logging.info(f"Received {trade} for {vars(found_round_trip)}")
-            assert (
-                found_round_trip is not None
-            ), f"No buy order located for a buy trade: {trade}"
+            assert found_round_trip is not None, (
+                f"No buy order located for a buy trade: {trade}"
+            )
 
             found_round_trip.buy_trades.append(trade)
             if found_round_trip.completed():
@@ -141,9 +141,9 @@ class BullTrendRiderStrategy(Heartbeater, SignalSubscriber):
             found_round_trip = _matching_trip_in("sell_order")
             logging.info(f"Received {trade} for {vars(found_round_trip)}")
 
-            assert (
-                found_round_trip is not None
-            ), f"No sell order located for a sell trade: {trade}"
+            assert found_round_trip is not None, (
+                f"No sell order located for a sell trade: {trade}"
+            )
 
             found_round_trip.sell_trades.append(trade)
             if found_round_trip.completed():
@@ -169,9 +169,9 @@ class BullTrendRiderStrategy(Heartbeater, SignalSubscriber):
             ):
                 return False
 
-        assert (
-            opportunity.stop_loss_price > 0.0
-        ), "Stop loss price must be positive!"
+        assert opportunity.stop_loss_price > 0.0, (
+            "Stop loss price must be positive!"
+        )
 
         for limit in self._risk_limits:
             if not limit.can_send():
@@ -194,8 +194,7 @@ class BullTrendRiderStrategy(Heartbeater, SignalSubscriber):
         )
 
         logging.info(
-            f"Placed {buy_order} with candlesticks at "
-            f"{time_manager().now()}."
+            f"Placed {buy_order} with candlesticks at {time_manager().now()}."
         )
         self._send_order(buy_order)
 
@@ -214,9 +213,9 @@ class BullTrendRiderStrategy(Heartbeater, SignalSubscriber):
             if not round_trip.buy_trades:
                 continue
 
-            assert (
-                round_trip.buy_order
-            ), "Buy order has to be placed before sending a sell order!"
+            assert round_trip.buy_order, (
+                "Buy order has to be placed before sending a sell order!"
+            )
 
             sell_order = Order(
                 client_order_id=str(id_generator().next()),

@@ -1,0 +1,154 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "jolteon"
+version = "0.1.0"
+description = "Awesome jolteon created by zhanghaowx"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [{ name = "zhanghaowx" }]
+requires-python = ">=3.11"
+dependencies = [
+    # Core
+    "flatdict",
+    # Timezone
+    "pytz",
+    "types-pytz", # Linter Fix
+    # Network
+    "requests",
+    "types-requests",
+    # Event-driven programming library
+    "blinker",
+    # Strategy / Data Analysis
+    "pandas",
+    "pyarrow",
+    # MarketAccess: Coinbase
+    "coinbase-advanced-py",
+    # cryptography (pulled in by coinbase-advanced-py) dropped prebuilt
+    # wheels for Intel macOS (x86_64) starting at 49.0.0, which forces a
+    # from-source Rust build that fails without a Rust toolchain + OpenSSL
+    # headers. Pin below that so Intel Macs get a working wheel.
+    "cryptography<49",
+    # Needed by exchanges who use websockets to disseminate market data
+    "websockets",
+    # For data analysis only, may or may not be needed for production
+    "jupyter",
+    "plotly",
+    "seaborn",
+    "scikit-learn",
+    "joblib",
+    "kaleido",
+]
+
+[project.urls]
+Homepage = "https://github.com/zhanghaowx/crypto-trading-engine/"
+
+[project.scripts]
+jolteon = "jolteon.__main__:run"
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "coverage",
+    "pytest-cov",
+    "mypy",
+    "gitchangelog",
+    "mkdocs",
+    "freezegun",
+    "ruff",
+    "poethepoet",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["jolteon"]
+
+[tool.ruff]
+line-length = 79
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+
+[tool.mypy]
+ignore_missing_imports = true
+
+[tool.coverage.run]
+omit = ["*/__main__.py"]
+
+[tool.poe.tasks]
+
+[tool.poe.tasks.fmt-imports]
+cmd = "ruff check --select I --fix jolteon tests integration-tests analysis"
+
+[tool.poe.tasks.fmt-format]
+cmd = "ruff format jolteon tests integration-tests analysis"
+
+[tool.poe.tasks.fmt]
+help = "Format code with ruff"
+sequence = ["fmt-imports", "fmt-format"]
+
+[tool.poe.tasks.lint-check]
+cmd = "ruff check jolteon"
+
+[tool.poe.tasks.lint-format]
+cmd = "ruff format --check jolteon"
+
+[tool.poe.tasks.lint-types]
+cmd = "mypy jolteon"
+
+[tool.poe.tasks.lint]
+help = "Run ruff and mypy"
+sequence = ["lint-check", "lint-format", "lint-types"]
+
+[tool.poe.tasks.test-only]
+cmd = """
+pytest -v -l --tb=short --maxfail=1
+    --cov=jolteon --cov-report=xml --cov-report=html tests
+"""
+
+[tool.poe.tasks.test]
+help = "Run linters, then unit tests with coverage"
+sequence = ["lint", "test-only"]
+
+[tool.poe.tasks.integration-only]
+cmd = """
+pytest -v -l --tb=short --maxfail=1
+    --cov=jolteon --cov-report=xml --cov-report=html integration-tests
+"""
+
+[tool.poe.tasks.integration]
+help = "Run linters, then integration tests with coverage"
+sequence = ["lint", "integration-only"]
+
+[tool.poe.tasks.watch]
+help = "Run unit tests on every file change (requires entr)"
+shell = "ls **/**.py | entr pytest -s -vvv -l --tb=long --maxfail=1 tests/"
+
+[tool.poe.tasks.docs]
+help = "Serve documentation locally with live reload"
+cmd = "mkdocs serve"
+
+[tool.poe.tasks.clean]
+help = "Remove build/test artifacts"
+shell = """
+find . -name '*.pyc' -exec rm -f {} + ; \
+find . -name '__pycache__' -exec rm -rf {} + ; \
+rm -rf .cache .pytest_cache .mypy_cache .ruff_cache build dist *.egg-info htmlcov docs/_build
+"""
+
+[tool.poe.tasks.release]
+help = "Bump the version in pyproject.toml, tag, and push a release"
+shell = """
+set -e
+read -p "Version? (provide the next x.y.z semver) : " TAG
+sed -i.bak "s/^version = \\".*\\"/version = \\"$TAG\\"/" pyproject.toml
+rm -f pyproject.toml.bak
+gitchangelog > HISTORY.md
+git add pyproject.toml HISTORY.md
+git commit -m "release: version $TAG"
+echo "creating git tag : $TAG"
+git tag "$TAG"
+git push -u origin HEAD --tags
+"""

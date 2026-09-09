@@ -1,6 +1,6 @@
 import unittest
-from datetime import datetime, timezone, timedelta
-from unittest.mock import patch, MagicMock
+from datetime import datetime, timedelta, timezone
+from unittest.mock import MagicMock, patch
 
 from jolteon.core.time.time_manager import time_manager
 from jolteon.market_data.core.candlestick import Candlestick

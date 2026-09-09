@@ -55,10 +55,10 @@ class HeartbeatMonitor:
         Returns:
             None
         """
-        self.all_heartbeats[
-            heartbeat.sender
-        ] = HeartbeatMonitor.DecoratedHeartbeat(
-            heartbeat=heartbeat, zombie=False
+        self.all_heartbeats[heartbeat.sender] = (
+            HeartbeatMonitor.DecoratedHeartbeat(
+                heartbeat=heartbeat, zombie=False
+            )
         )
         self._detect_zombies()
 

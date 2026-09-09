@@ -75,9 +75,9 @@ class CandlestickGenerator:
         trade_added = self.current_candlestick.add_trade(
             trade.price, trade.quantity, trade.transaction_time
         )
-        assert (
-            trade_added
-        ), "Trade should be added to a newly created candlestick successfully"
+        assert trade_added, (
+            "Trade should be added to a newly created candlestick successfully"
+        )
 
     def _complete_candlestick(self, candlesticks: list[Candlestick]) -> None:
         """
@@ -87,7 +87,7 @@ class CandlestickGenerator:
             None
         """
         logging.debug(
-            f"Generated Completed Candlestick: " f"{self.current_candlestick}"
+            f"Generated Completed Candlestick: {self.current_candlestick}"
         )
         # In some case, we may get trades far away from each other. And there
         # will be multiple empty candlesticks between them. For those
