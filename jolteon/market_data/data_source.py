@@ -1,5 +1,6 @@
 import sqlite3
 from abc import ABC, abstractmethod
+from contextlib import closing
 from datetime import datetime
 
 import pandas as pd
@@ -19,6 +20,18 @@ class IDataSource(ABC):
     ):
         raise NotImplementedError
 
+    def cache_key(
+        self, symbol: str, start_time: datetime, end_time: datetime
+    ) -> tuple:
+        """
+        Key under which a download is cached.
+
+        Every data source shares one cache, so the source is part of the
+        key: replaying a recording and downloading from the exchange can
+        both be asked for the same symbol over the same time range.
+        """
+        return (type(self).__name__, symbol, start_time, end_time)
+
 
 class DatabaseDataSource(IDataSource):
     """
@@ -28,38 +41,76 @@ class DatabaseDataSource(IDataSource):
     def __init__(self, database_name: str):
         self._database_name = database_name
         self._table_name = Events().market_trade.name
+        self._index_name = f"ix_{self._table_name}_transaction_time"
+        self._index_checked = False
 
-    def start_time(self):
+    def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self._database_name)
-        df = pd.read_sql(
-            f"select * from {self._table_name} "
-            f"order by transaction_time asc limit 1",
-            con=conn,
-        )
-        trades = self.to_trades(df)
-        return trades[0].transaction_time
+        conn.execute("PRAGMA busy_timeout=30000")
+        if not self._index_checked:
+            self._index_checked = True
+            try:
+                # Every query here is bounded by transaction_time. Without
+                # an index each one scans and sorts the whole recording,
+                # which grows for as long as the engine runs.
+                conn.execute(
+                    f'CREATE INDEX IF NOT EXISTS "{self._index_name}" '
+                    f'ON "{self._table_name}" (transaction_time)'
+                )
+            except sqlite3.OperationalError:
+                # Nothing recorded yet, or the file cannot be written to.
+                # The queries still work, just without the index.
+                pass
+        return conn
 
-    def end_time(self):
-        conn = sqlite3.connect(self._database_name)
-        df = pd.read_sql(
-            f"select * from {self._table_name} "
-            f"order by transaction_time desc limit 1",
-            con=conn,
-        )
-        trades = self.to_trades(df)
-        return trades[0].transaction_time
+    def _bound(self, aggregate: str) -> datetime:
+        """The earliest or latest transaction time in the recording."""
+        try:
+            with closing(self._connect()) as conn:
+                row = conn.execute(
+                    f"SELECT {aggregate}(transaction_time) "
+                    f'FROM "{self._table_name}"'
+                ).fetchone()
+        except sqlite3.OperationalError as e:
+            # The replay database is chosen by the caller, so report a
+            # recording without market trades rather than a bare SQL error.
+            raise ValueError(
+                f"No market trades recorded in {self._database_name}: {e}"
+            ) from e
+
+        if row is None or row[0] is None:
+            raise ValueError(
+                f"No market trades recorded in {self._database_name}"
+            )
+        return datetime.fromtimestamp(float(row[0]), tz=pytz.utc)
+
+    def start_time(self) -> datetime:
+        return self._bound("MIN")
+
+    def end_time(self) -> datetime:
+        return self._bound("MAX")
 
     async def download_market_trades(
         self, symbol: str, start_time: datetime, end_time: datetime
     ):
-        conn = sqlite3.connect(self._database_name)
-        df = pd.read_sql(
-            f"select * from {Events().market_trade.name}", con=conn
-        )
+        key = self.cache_key(symbol, start_time, end_time)
+        cached = self.TRADE_CACHE.get(key)
+        if cached is not None:
+            return cached
+
+        # Filter in SQL rather than after loading: a recording holds a whole
+        # session, and a replay usually wants a slice of it. Reading it all
+        # back would build a Trade for every row only to discard most.
+        with closing(self._connect()) as conn:
+            df = pd.read_sql(
+                f'SELECT * FROM "{self._table_name}" '
+                f"WHERE transaction_time BETWEEN ? AND ? "
+                f"ORDER BY transaction_time ASC",
+                con=conn,
+                params=(start_time.timestamp(), end_time.timestamp()),
+            )
         market_trades = self.to_trades(df)
 
-        # Save in the cache to reduce calls to Kraken's API
-        key = (symbol, start_time, end_time)
         self.TRADE_CACHE[key] = market_trades
 
         return market_trades

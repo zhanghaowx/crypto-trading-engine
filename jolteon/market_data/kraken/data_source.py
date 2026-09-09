@@ -14,7 +14,7 @@ class KrakenHistoricalDataSource(IDataSource):
     async def download_market_trades(
         self, symbol: str, start_time: datetime, end_time: datetime
     ) -> list[Trade]:
-        key = (symbol, start_time, end_time)
+        key = self.cache_key(symbol, start_time, end_time)
         if self.TRADE_CACHE.get(key) is not None:
             return self.TRADE_CACHE[key]
 
