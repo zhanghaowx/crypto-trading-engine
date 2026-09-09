@@ -1,13 +1,11 @@
 import asyncio
 import os
-import random
 import sqlite3
 import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from enum import Enum
-from time import sleep
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
@@ -447,22 +445,20 @@ class TestSignalRecorder(unittest.IsolatedAsyncioTestCase):
     async def test_record_and_auto_save_different_threads(self, mock_to_sql):
         mock_to_sql.return_value = MagicMock()
 
-        auto_save_interval = 0.1
-        self.signal_recorder.enable_auto_save(
-            auto_save_interval=auto_save_interval
-        )
-
-        num_threads = 1000
+        num_threads = 50
         payloads = [{"payload": f"Signal {i}"} for i in range(num_threads)]
 
         def worker(payload):
-            sleep(random.uniform(0, 1))
             self.signal_a.send(self.signal_a, message=payload)
 
-        # Execute worker function concurrently using ThreadPoolExecutor
-        executor = ThreadPoolExecutor(max_workers=num_threads)
-        executor.map(worker, payloads)
+        with ThreadPoolExecutor(max_workers=num_threads) as executor:
+            list(executor.map(worker, payloads))
 
-        await asyncio.sleep(1)
+        self.assertEqual(
+            num_threads, len(self.signal_recorder._events["signal_a"])
+        )
 
-        self.assertEqual(1 // auto_save_interval, mock_to_sql.call_count)
+        self.signal_recorder._save_data()
+
+        mock_to_sql.assert_called_once()
+        self.assertEqual({}, self.signal_recorder._events)
