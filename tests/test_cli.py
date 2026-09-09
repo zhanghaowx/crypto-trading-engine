@@ -9,6 +9,9 @@ from unittest.mock import AsyncMock, patch
 import pytz
 
 from jolteon.cli import main
+from jolteon.strategy.market_making.market_making_strategy import (
+    MarketMakingStrategy,
+)
 
 
 class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
@@ -168,6 +171,7 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
             replay_end="",
             replay_db="",
             exchange="Coinbase",
+            paper=False,
         ),
     )
     async def test_main_run_coinbase_live(self, mock_args, MockApplication):
@@ -185,6 +189,10 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
         sys.stdout = sys.__stdout__
 
         self.assertEqual(1, mock_app.start.call_count)
+        self.assertIsNone(MockApplication.call_args.kwargs["strategy"])
+        self.assertFalse(
+            MockApplication.call_args.kwargs["use_mock_execution"]
+        )
         self.assertEqual("", captured_output.getvalue().split("\n")[-1])
 
     @patch("jolteon.app.kraken.KrakenApplication")
@@ -195,6 +203,7 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
             replay_end="",
             replay_db="",
             exchange="Kraken",
+            paper=False,
         ),
     )
     async def test_main_run_kraken_live(self, mock_args, MockApplication):
@@ -212,6 +221,42 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
         sys.stdout = sys.__stdout__
 
         self.assertEqual(1, mock_app.start.call_count)
+        self.assertIsNone(MockApplication.call_args.kwargs["strategy"])
+        self.assertFalse(
+            MockApplication.call_args.kwargs["use_mock_execution"]
+        )
+        self.assertEqual("", captured_output.getvalue().split("\n")[-1])
+
+    @patch("jolteon.app.kraken.KrakenApplication")
+    @patch(
+        "argparse.ArgumentParser.parse_args",
+        return_value=argparse.Namespace(
+            replay_start="",
+            replay_end="",
+            replay_db="",
+            exchange="Kraken",
+            paper=True,
+        ),
+    )
+    async def test_main_run_kraken_paper(self, mock_args, MockApplication):
+        mock_app = MockApplication.return_value
+        mock_app.start = AsyncMock()
+        mock_app.start.return_value = 1.0
+
+        # Redirect stdout to capture output
+        captured_output = StringIO()
+        sys.stdout = captured_output
+
+        await main()
+
+        # Reset stdout
+        sys.stdout = sys.__stdout__
+
+        self.assertEqual(1, mock_app.start.call_count)
+        self.assertTrue(MockApplication.call_args.kwargs["use_mock_execution"])
+        strategy = MockApplication.call_args.kwargs["strategy"]
+        self.assertIsInstance(strategy, MarketMakingStrategy)
+        self.assertEqual("BTC/USD", strategy._symbol)
         self.assertEqual("", captured_output.getvalue().split("\n")[-1])
 
     async def test_graceful_exit(self):

@@ -10,12 +10,17 @@ from jolteon.market_data.core.bbo import BBO
 from jolteon.market_data.core.order import Order, OrderType
 from jolteon.market_data.core.trade import Trade
 from jolteon.risk_limit.inventory_limit import InventoryLimit
+from jolteon.risk_limit.risk_limit import RiskLimitLevel
 from jolteon.strategy.market_making.fair_value.fair_price_model import (
     FairPriceContext,
     IFairPriceModel,
 )
 from jolteon.strategy.market_making.fair_value.mid_price_model import (
     MidPriceFairPriceModel,
+)
+from jolteon.strategy.market_making.parameters import (
+    IParameterService,
+    StaticParameterService,
 )
 
 
@@ -29,36 +34,54 @@ class MarketMakingStrategy(Heartbeater, SignalSubscriber):
     - Inventory is capped by a hard limit: once the cap is hit on one side,
       that side stops quoting until fills bring the position back within
       bounds. No inventory-based price skewing yet.
+    - Quote size, half-spread and the inventory cap come from a pluggable
+      IParameterService (fixed, conservative defaults if none is given),
+      so callers such as the CLI don't need to know or pass tuning values.
     """
 
     def __init__(
         self,
         symbol: str,
-        quote_size: float,
-        half_spread: float,
-        max_inventory: float,
         requote_tolerance: float = 0.0,
         fair_price_model: Union[IFairPriceModel, None] = None,
+        parameter_service: Union[IParameterService, None] = None,
     ):
         super().__init__(type(self).__name__, interval_in_seconds=10)
-        assert quote_size > 0, "quote_size must be positive"
-        assert half_spread > 0, "half_spread must be positive"
+        params = (parameter_service or StaticParameterService()).get(symbol)
+        assert params.quote_size > 0, "quote_size must be positive"
+        assert params.half_spread > 0, "half_spread must be positive"
 
         self._symbol = symbol
-        self._quote_size = quote_size
-        self._half_spread = half_spread
+        self._quote_size = params.quote_size
+        self._half_spread = params.half_spread
         self._requote_tolerance = requote_tolerance
         self._fair_price_model = fair_price_model or MidPriceFairPriceModel()
-        self._inventory_limit = InventoryLimit(max_inventory)
+        self._inventory_limit = InventoryLimit(params.max_inventory)
 
         self._live_orders: dict[MarketSide, Order] = {}
 
         self.order_event = signal("order")
         self.cancel_order_event = signal("cancel_order")
+        self.risk_limit_event = signal("risk_limit_snapshot")
 
     @property
     def inventory(self) -> float:
         return self._inventory_limit.position
+
+    def send_heartbeat(self):
+        super().send_heartbeat()
+        self._emit_risk_limit_snapshot()
+
+    def _emit_risk_limit_snapshot(self):
+        self.risk_limit_event.send(
+            self.risk_limit_event,
+            risk_limit=RiskLimitLevel(
+                name="inventory",
+                symbol=self._symbol,
+                current=self.inventory,
+                maximum=self._inventory_limit.max_inventory,
+            ),
+        )
 
     @subscribe("ticker_feed")
     def on_bbo(self, _: str, bbo: BBO):
@@ -71,6 +94,7 @@ class MarketMakingStrategy(Heartbeater, SignalSubscriber):
     @subscribe("order_fill")
     def on_fill(self, _: str, trade: Trade):
         self._inventory_limit.record_fill(trade)
+        self._emit_risk_limit_snapshot()
 
         live_order = self._live_orders.get(trade.side)
         if live_order and live_order.client_order_id == trade.client_order_id:

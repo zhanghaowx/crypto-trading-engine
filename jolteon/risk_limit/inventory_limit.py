@@ -22,6 +22,10 @@ class InventoryLimit:
     def position(self) -> float:
         return self._position
 
+    @property
+    def max_inventory(self) -> float:
+        return self._max_inventory
+
     def record_fill(self, trade: Trade) -> None:
         if trade.side == MarketSide.BUY:
             self._position += trade.quantity

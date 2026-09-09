@@ -52,6 +52,9 @@ dev = [
     "ruff",
     "poethepoet",
 ]
+ui = [
+    "streamlit",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["jolteon"]
@@ -121,6 +124,10 @@ shell = "ls **/**.py | entr pytest -s -vvv -l --tb=long --maxfail=1 tests/"
 [tool.poe.tasks.docs]
 help = "Serve documentation locally with live reload"
 cmd = "mkdocs serve"
+
+[tool.poe.tasks.dashboard]
+help = "Run the live Streamlit dashboard (reads /tmp/jolteon.sqlite by default)"
+cmd = "streamlit run jolteon/app/dashboard.py"
 
 [tool.poe.tasks.clean]
 help = "Remove build/test artifacts"

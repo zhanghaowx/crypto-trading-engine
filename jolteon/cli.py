@@ -15,6 +15,9 @@ import pytz
 from jolteon.app.progress_bar import ProgressBar
 from jolteon.core.market import Market
 from jolteon.market_data.data_source import DatabaseDataSource
+from jolteon.strategy.market_making.market_making_strategy import (
+    MarketMakingStrategy,
+)
 
 
 def graceful_exit(signum, frame):
@@ -35,6 +38,17 @@ async def main():
     parser.add_argument("--replay-start", help="Start time in ISO format")
     parser.add_argument("--replay-end", help="End time in ISO format")
     parser.add_argument("--exchange", help="Name of the exchange")
+    parser.add_argument(
+        "--paper",
+        action="store_true",
+        help=(
+            "Live mode only: consume the exchange's real market data feed "
+            "but send orders to a mock execution service instead of the "
+            "real exchange (paper trading). Runs a market making strategy, "
+            "tuned by IParameterService's defaults, so there is order/"
+            "fill/risk-limit activity to watch on the dashboard."
+        ),
+    )
 
     # Access the arguments
     args = parser.parse_args()
@@ -98,12 +112,21 @@ async def main():
         profiler.dump_stats(f"{tempfile.gettempdir()}/jolteon.stat")
 
     else:
+        strategy = None
+        if args.paper:
+            # Kraken trades on "BTC/USD"; other exchanges keep "BTC-USD".
+            strategy_symbol = (
+                symbol.replace("-", "/") if market == Market.KRAKEN else symbol
+            )
+            strategy = MarketMakingStrategy(symbol=strategy_symbol)
+
         app = Application(
             symbol,
-            use_mock_execution=False,
+            use_mock_execution=args.paper,
             candlestick_interval_in_seconds=60,
             database_name="/tmp/jolteon.sqlite",
             logfile_name="/tmp/jolteon.log",
+            strategy=strategy,
         )
         pnl = await app.start()
 
