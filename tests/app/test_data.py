@@ -1,6 +1,7 @@
 import sqlite3
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 
 from jolteon.app.data import read_table, reset_table_cache
@@ -11,11 +12,10 @@ class TestReadTable(unittest.TestCase):
         self._tmpdir = tempfile.TemporaryDirectory()
         self.db_path = str(Path(self._tmpdir.name) / "test.sqlite")
 
-        conn = sqlite3.connect(self.db_path)
-        conn.execute('CREATE TABLE "order" (client_order_id TEXT, price REAL)')
-        conn.execute("INSERT INTO \"order\" VALUES ('1', 100.0)")
-        conn.commit()
-        conn.close()
+        self.write(
+            'CREATE TABLE "order" (client_order_id TEXT, price REAL)',
+            "INSERT INTO \"order\" VALUES ('1', 100.0)",
+        )
 
         # Rows already read are held in the session, which outlives a test
         reset_table_cache()
@@ -24,11 +24,25 @@ class TestReadTable(unittest.TestCase):
         reset_table_cache()
         self._tmpdir.cleanup()
 
+    def write(self, *statements: str, db_path: str | None = None) -> None:
+        """
+        Run each statement against the database and close the connection.
+
+        Windows refuses to remove a file that is still open, so a
+        connection left for the garbage collector to close fails the
+        temporary directory's cleanup in tearDown.
+        """
+        with closing(sqlite3.connect(db_path or self.db_path)) as conn:
+            for statement in statements:
+                conn.execute(statement)
+            conn.commit()
+
     def insert(self, client_order_id: str, price: float) -> None:
-        with sqlite3.connect(self.db_path) as conn:
+        with closing(sqlite3.connect(self.db_path)) as conn:
             conn.execute(
                 'INSERT INTO "order" VALUES (?, ?)', (client_order_id, price)
             )
+            conn.commit()
 
     def test_reads_table_named_after_a_reserved_sql_keyword(self):
         # "order" is a reserved SQL keyword; an unquoted "SELECT * FROM
@@ -67,8 +81,7 @@ class TestReadTable(unittest.TestCase):
         """
         read_table(self.db_path, "order")
 
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute('UPDATE "order" SET price = 999.0')
+        self.write('UPDATE "order" SET price = 999.0')
         self.insert("2", 200.0)
 
         df = read_table(self.db_path, "order")
@@ -80,20 +93,16 @@ class TestReadTable(unittest.TestCase):
         A row under a primary key is rewritten in place, and an update
         leaves the row id alone, so such a table cannot be read forward.
         """
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute(
-                "CREATE TABLE candle (start_time REAL PRIMARY KEY, close REAL)"
-            )
-            conn.execute("INSERT INTO candle VALUES (1.0, 100.0)")
+        self.write(
+            "CREATE TABLE candle (start_time REAL PRIMARY KEY, close REAL)",
+            "INSERT INTO candle VALUES (1.0, 100.0)",
+        )
 
         self.assertEqual(
             [100.0], list(read_table(self.db_path, "candle")["close"])
         )
 
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute(
-                "UPDATE candle SET close = 150.0 WHERE start_time = 1"
-            )
+        self.write("UPDATE candle SET close = 150.0 WHERE start_time = 1")
 
         # The update to the open candle is picked up, not missed
         self.assertEqual(
@@ -108,8 +117,7 @@ class TestReadTable(unittest.TestCase):
         self.insert("2", 200.0)
         self.assertEqual(2, len(read_table(self.db_path, "order")))
 
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute('DELETE FROM "order"')
+        self.write('DELETE FROM "order"')
         self.insert("fresh", 1.0)
 
         df = read_table(self.db_path, "order")
@@ -117,11 +125,11 @@ class TestReadTable(unittest.TestCase):
 
     def test_each_database_is_tracked_separately(self):
         other_path = str(Path(self._tmpdir.name) / "other.sqlite")
-        with sqlite3.connect(other_path) as conn:
-            conn.execute(
-                'CREATE TABLE "order" (client_order_id TEXT, price REAL)'
-            )
-            conn.execute("INSERT INTO \"order\" VALUES ('other', 1.0)")
+        self.write(
+            'CREATE TABLE "order" (client_order_id TEXT, price REAL)',
+            "INSERT INTO \"order\" VALUES ('other', 1.0)",
+            db_path=other_path,
+        )
 
         self.assertEqual(
             ["1"], list(read_table(self.db_path, "order")["client_order_id"])
