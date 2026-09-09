@@ -13,5 +13,8 @@ div[data-testid="stSidebarCollapseButton"] {
 a[data-testid="stSidebarNavLink"] {
     font-size: 1.15rem;
 }
+div[data-testid="stHeaderLogo"] {
+    display: none;
+}
 </style>
 """
