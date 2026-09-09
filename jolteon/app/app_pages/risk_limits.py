@@ -90,7 +90,7 @@ def _gauge_svg(utilization: float, color: str, maximum: float) -> str:
     hi_label = f"±{_fmt_bound(maximum)}"
 
     svg = f"""
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 132">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="18 14 184 96">
       {colorbar}
       <path d="{track_arc}" fill="none" stroke="{GAUGE_TRACK_COLOR}"
             stroke-width="{track_stroke}" stroke-linecap="round" />
@@ -142,8 +142,16 @@ def render() -> None:
             st.caption(symbol, width="content")
             st.badge(label, color=color, icon=icon)
         gauge_color = GAUGE_COLORS.get(color, GAUGE_TRACK_COLOR)
-        gauge_col, chart_col = st.columns([1, 1], vertical_alignment="center")
-        with gauge_col:
+        # A horizontal container rather than `st.columns`: the gauge keeps its
+        # natural width and the chart takes whatever is left, so the two sit
+        # side by side without the empty space proportional columns leave
+        # around a fixed-size gauge in a wide card.
+        with st.container(
+            horizontal=True, vertical_alignment="center", gap="small"
+        ):
             st.html(_gauge_svg(utilization, gauge_color, maximum), width=200)
-        with chart_col:
-            st.line_chart(history.set_index("time")[["current"]], height=120)
+            st.line_chart(
+                history.set_index("time")[["current"]],
+                height=120,
+                width="stretch",
+            )
