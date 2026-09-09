@@ -4,6 +4,7 @@ import tempfile
 import unittest
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
 from datetime import datetime
 from enum import Enum
 
@@ -46,7 +47,7 @@ class TestSignalRecorder(unittest.IsolatedAsyncioTestCase):
     def rows(self, table: str) -> pd.DataFrame:
         """Everything recorded into `table` so far, as recorded."""
         self.signal_recorder.flush()
-        with sqlite3.connect(self.database_filepath) as conn:
+        with closing(sqlite3.connect(self.database_filepath)) as conn:
             try:
                 return pd.read_sql(f'SELECT * FROM "{table}"', con=conn)
             except pd.errors.DatabaseError:
@@ -309,7 +310,7 @@ class TestSignalRecorder(unittest.IsolatedAsyncioTestCase):
                 }
 
         # Create an empty table
-        with sqlite3.connect(self.database_filepath) as conn:
+        with closing(sqlite3.connect(self.database_filepath)) as conn:
             conn.execute(
                 """
             CREATE TABLE signal_a (
@@ -319,6 +320,7 @@ class TestSignalRecorder(unittest.IsolatedAsyncioTestCase):
                 D INTEGER
             );"""
             )
+            conn.commit()
 
         self.signal_a.send(self.signal_a, payload=Payload())
 

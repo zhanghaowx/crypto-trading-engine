@@ -3,6 +3,7 @@ import sqlite3
 import tempfile
 import unittest
 import uuid
+from contextlib import closing
 from datetime import datetime, timedelta
 
 import pytz
@@ -50,7 +51,7 @@ class TestDatabaseDataSource(unittest.IsolatedAsyncioTestCase):
             )
             for i in range(count)
         ]
-        with sqlite3.connect(self.database_filepath) as conn:
+        with closing(sqlite3.connect(self.database_filepath)) as conn:
             conn.execute(
                 f'CREATE TABLE IF NOT EXISTS "{self.TABLE}" ('
                 "trade_id, client_order_id, symbol, maker_order_id, "
@@ -61,6 +62,7 @@ class TestDatabaseDataSource(unittest.IsolatedAsyncioTestCase):
                 f'INSERT INTO "{self.TABLE}" VALUES (?,?,?,?,?,?,?,?,?,?)',
                 rows,
             )
+            conn.commit()
 
     async def test_download_market_trades(self):
         self.record(3)
@@ -97,12 +99,13 @@ class TestDatabaseDataSource(unittest.IsolatedAsyncioTestCase):
 
     async def test_download_market_trades_returns_them_in_order(self):
         self.record(50)
-        with sqlite3.connect(self.database_filepath) as conn:
+        with closing(sqlite3.connect(self.database_filepath)) as conn:
             conn.execute(
                 f'INSERT INTO "{self.TABLE}" VALUES '
                 "(999,'c','BTC/USD','m','t','buy',1.0,0.0,1.0,?)",
                 ((self.start + timedelta(seconds=90)).timestamp(),),
             )
+            conn.commit()
 
         trades = await self.data_source.download_market_trades(
             symbol="BTC/USD",
@@ -122,8 +125,9 @@ class TestDatabaseDataSource(unittest.IsolatedAsyncioTestCase):
         )
 
         # Nothing is read a second time, so the table is not needed again
-        with sqlite3.connect(self.database_filepath) as conn:
+        with closing(sqlite3.connect(self.database_filepath)) as conn:
             conn.execute(f'DROP TABLE "{self.TABLE}"')
+            conn.commit()
 
         second = await self.data_source.download_market_trades(
             symbol="BTC/USD",
@@ -169,7 +173,7 @@ class TestDatabaseDataSource(unittest.IsolatedAsyncioTestCase):
         self.record(3)
         self.data_source.start_time()
 
-        with sqlite3.connect(self.database_filepath) as conn:
+        with closing(sqlite3.connect(self.database_filepath)) as conn:
             indexes = [
                 row[0]
                 for row in conn.execute(
