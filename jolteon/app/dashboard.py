@@ -18,17 +18,35 @@ import argparse
 import sqlite3
 import time
 from pathlib import Path
+from typing import Literal
 
+import altair as alt
 import pandas as pd
 import streamlit as st
 
 from jolteon.core.health_monitor.heartbeat import HeartbeatLevel
 
-HEARTBEAT_LABELS = {
-    HeartbeatLevel.NORMAL.value: "\U0001f7e2 NORMAL",
-    HeartbeatLevel.WARN.value: "\U0001f7e1 WARN",
-    HeartbeatLevel.ERROR.value: "\U0001f7e0 ERROR",
-    HeartbeatLevel.CRITICAL.value: "\U0001f534 CRITICAL",
+BadgeColor = Literal[
+    "red",
+    "orange",
+    "yellow",
+    "blue",
+    "green",
+    "violet",
+    "gray",
+    "grey",
+    "primary",
+]
+
+HEARTBEAT_BADGES: dict[int, tuple[str, BadgeColor, str]] = {
+    HeartbeatLevel.NORMAL.value: (
+        "NORMAL",
+        "green",
+        ":material/check_circle:",
+    ),
+    HeartbeatLevel.WARN.value: ("WARN", "yellow", ":material/warning:"),
+    HeartbeatLevel.ERROR.value: ("ERROR", "orange", ":material/error:"),
+    HeartbeatLevel.CRITICAL.value: ("CRITICAL", "red", ":material/dangerous:"),
 }
 
 
@@ -40,10 +58,19 @@ def parse_args() -> argparse.Namespace:
     return args
 
 
+def init_settings() -> None:
+    args = parse_args()
+    st.session_state.setdefault("db_path", args.db)
+    st.session_state.setdefault("auto_refresh", True)
+    st.session_state.setdefault("refresh_seconds", 5)
+
+
 def read_table(db_path: str, table: str) -> pd.DataFrame:
+    if not Path(db_path).exists():
+        return pd.DataFrame()
     try:
         with sqlite3.connect(db_path) as conn:
-            return pd.read_sql(f"SELECT * FROM {table}", conn)
+            return pd.read_sql(f'SELECT * FROM "{table}"', conn)
     except (sqlite3.OperationalError, pd.errors.DatabaseError):
         return pd.DataFrame()
 
@@ -52,10 +79,99 @@ def as_datetime(column: pd.Series) -> pd.Series:
     return pd.to_datetime(column, unit="s", utc=True)
 
 
-def render_market_data(db_path: str) -> None:
-    st.subheader("Market Data")
+def price_chart(candles: pd.DataFrame) -> alt.Chart:
+    """
+    Line chart of close price, scaled to the data's own range instead of
+    always including zero - otherwise price moves that are tiny relative
+    to the price level (e.g. BTC ticking by a few dollars) are invisible.
+    """
+    return (
+        alt.Chart(candles)
+        .mark_line()
+        .encode(
+            x=alt.X("time:T", title=None),
+            y=alt.Y("close:Q", title="Close", scale=alt.Scale(zero=False)),
+        )
+    )
+
+
+def latest_quotes(orders: pd.DataFrame) -> pd.DataFrame:
+    """The most recent order the strategy sent for each side, if any."""
+    if orders.empty:
+        return orders
+    return orders.sort_values("timestamp").groupby("side").tail(1)
+
+
+def quote_lines(quotes: pd.DataFrame) -> alt.Chart:
+    """
+    Dashed reference lines marking the last known quote per side, layered
+    on top of the price chart.
+    """
+    return (
+        alt.Chart(quotes)
+        .mark_rule(strokeDash=[6, 4], size=2)
+        .encode(
+            y="price:Q",
+            color=alt.Color(
+                "side:N",
+                scale=alt.Scale(
+                    domain=["BUY", "SELL"], range=["#2ca02c", "#d62728"]
+                ),
+                legend=alt.Legend(title="Quote"),
+            ),
+        )
+    )
+
+
+def card_grid(items, columns: int = 3):
+    """
+    Lay `items` out as a responsive grid of bordered cards, up to `columns`
+    per row. Yields each item with its own bordered container already
+    open, so the caller just renders content into it - handy for pages
+    (risk limits, health) where the number of cards grows over time.
+    """
+    items = list(items)
+    if not items:
+        return
+    cols_per_row = min(columns, len(items))
+    for start in range(0, len(items), cols_per_row):
+        row_items = items[start : start + cols_per_row]
+        row_cols = st.columns(cols_per_row)
+        for col, item in zip(row_cols, row_items):
+            with col, st.container(border=True):
+                yield item
+
+
+def risk_limit_badge(utilization: float) -> tuple[str, BadgeColor, str]:
+    if utilization >= 0.9:
+        return "Near Limit", "red", ":material/error:"
+    if utilization >= 0.7:
+        return "Elevated", "orange", ":material/warning:"
+    return "OK", "green", ":material/check_circle:"
+
+
+def warn_if_no_db() -> bool:
+    """Returns whether the configured database exists yet."""
+    db_path = st.session_state.db_path
+    if Path(db_path).exists():
+        return True
+    st.warning(
+        f"No database found at `{db_path}` yet. "
+        f"Waiting for the engine to start recording... "
+        f"(check the Parameters tab if this looks wrong)"
+    )
+    return False
+
+
+def page_market_data() -> None:
+    st.title("Market Data")
+    if not warn_if_no_db():
+        return
+
+    db_path = st.session_state.db_path
     bbo = read_table(db_path, "ticker_feed")
     candles = read_table(db_path, "calculated_candlestick_feed")
+    quotes = latest_quotes(read_table(db_path, "order"))
 
     if bbo.empty:
         st.info("No market data recorded yet.")
@@ -68,20 +184,44 @@ def render_market_data(db_path: str) -> None:
         cols[2].metric("Ask", f"{latest['ask_price']:.2f}")
         cols[3].metric("Mid", f"{mid:.2f}")
 
+    if not quotes.empty:
+        quote_cols = st.columns(2)
+        for col, side, label in (
+            (quote_cols[0], "BUY", "Buy Quote"),
+            (quote_cols[1], "SELL", "Sell Quote"),
+        ):
+            match = quotes[quotes["side"] == side]
+            col.metric(
+                label,
+                f"{match.iloc[0]['price']:.2f}" if not match.empty else "—",
+            )
+
     if not candles.empty:
         candles = candles.drop_duplicates(
             subset="start_time", keep="last"
         ).sort_values("start_time")
-        chart = candles.set_index(as_datetime(candles["start_time"]))[
-            ["close"]
-        ]
-        st.line_chart(chart)
+        candles["time"] = as_datetime(candles["start_time"])
+        chart = (
+            alt.layer(price_chart(candles), quote_lines(quotes))
+            if not quotes.empty
+            else price_chart(candles)
+        )
+        st.altair_chart(chart, width="stretch")
+        if not quotes.empty:
+            st.caption(
+                "Dashed lines mark the last quote sent per side. "
+                "Cancellations aren't recorded, so a side that has since "
+                "stopped quoting (e.g. inventory cap hit) may still show "
+                "a stale line here."
+            )
 
 
-def render_risk_limits(db_path: str) -> None:
-    st.subheader("Risk Limits")
-    risk = read_table(db_path, "risk_limit_snapshot")
+def page_risk_limits() -> None:
+    st.title("Risk Limits")
+    if not warn_if_no_db():
+        return
 
+    risk = read_table(st.session_state.db_path, "risk_limit_snapshot")
     if risk.empty:
         st.info(
             "No risk limit data recorded yet "
@@ -90,31 +230,102 @@ def render_risk_limits(db_path: str) -> None:
         return
 
     risk = risk.sort_values("timestamp")
-    latest = risk.groupby(["name", "symbol"]).tail(1)
+    risk["time"] = as_datetime(risk["timestamp"])
+    groups = list(risk.groupby(["name", "symbol"]))
 
-    for _, row in latest.iterrows():
-        maximum = row["maximum"]
+    for (name, symbol), history in card_grid(groups, columns=3):
+        latest = history.iloc[-1]
+        maximum = latest["maximum"]
         utilization = (
-            min(abs(row["current"]) / maximum, 1.0) if maximum else 0.0
+            min(abs(latest["current"]) / maximum, 1.0) if maximum else 0.0
         )
-        st.write(
-            f"**{row['name']}** ({row['symbol']}): "
-            f"{row['current']:.4f} / ±{maximum:.4f} "
-            f"({utilization:.0%})"
-        )
+        label, color, icon = risk_limit_badge(utilization)
+
+        st.markdown(f"**{name.title()}**")
+        st.caption(symbol)
+        st.badge(label, color=color, icon=icon)
         st.progress(utilization)
-
-    with st.expander("History"):
-        risk["time"] = as_datetime(risk["timestamp"])
-        for (name, symbol), group in risk.groupby(["name", "symbol"]):
-            st.caption(f"{name} — {symbol}")
-            st.line_chart(group.set_index("time")[["current"]])
+        st.caption(
+            f"{latest['current']:.4f} / ±{maximum:.4f} ({utilization:.0%})"
+        )
+        st.line_chart(history.set_index("time")[["current"]], height=120)
 
 
-def render_orders_and_fills(db_path: str) -> pd.DataFrame:
-    st.subheader("Orders & Fills")
+def page_orders_and_pnl() -> None:
+    st.title("Orders & PnL")
+    if not warn_if_no_db():
+        return
+
+    db_path = st.session_state.db_path
     orders = read_table(db_path, "order")
     fills = read_table(db_path, "order_fill")
+
+    if fills.empty:
+        st.info("No fills yet.")
+    else:
+        signed_qty = fills["quantity"].where(
+            fills["side"] == "BUY", -fills["quantity"]
+        )
+        cash_flow = (-fills["price"] * signed_qty) - fills["fee"]
+        by_symbol = (
+            pd.DataFrame(
+                {
+                    "symbol": fills["symbol"],
+                    "position": signed_qty,
+                    "cash_pnl": cash_flow,
+                }
+            )
+            .groupby("symbol")
+            .sum()
+        )
+
+        # Cash PnL alone looks worse than reality while inventory is still
+        # held: the cash spent buying it shows up as an outflow with
+        # nothing offsetting it. Mark held inventory at the latest mid
+        # price too, to match PositionManager.total_pnl in the engine.
+        bbo = read_table(db_path, "ticker_feed")
+        if not bbo.empty:
+            latest_mid = bbo.sort_values("timestamp").groupby("symbol").last()
+            mark_price = (
+                latest_mid["bid_price"] + latest_mid["ask_price"]
+            ) / 2
+        else:
+            mark_price = pd.Series(dtype=float)
+        by_symbol["mark_price"] = by_symbol.index.map(mark_price)
+        by_symbol["inventory_value"] = by_symbol["position"] * by_symbol[
+            "mark_price"
+        ].fillna(0)
+        by_symbol["total_pnl"] = (
+            by_symbol["cash_pnl"] + by_symbol["inventory_value"]
+        )
+
+        st.dataframe(
+            by_symbol.rename(
+                columns={
+                    "position": "Position",
+                    "cash_pnl": "Cash PnL",
+                    "mark_price": "Mark Price",
+                    "inventory_value": "Inventory Value",
+                    "total_pnl": "Total PnL",
+                }
+            ),
+            width="stretch",
+        )
+
+        cols = st.columns(2)
+        cols[0].metric("Cash PnL", f"{by_symbol['cash_pnl'].sum():.2f}")
+        cols[1].metric(
+            "Total PnL (mark-to-market)",
+            f"{by_symbol['total_pnl'].sum():.2f}",
+        )
+        st.caption(
+            "Cash PnL is money in minus money out across all fills - it "
+            "looks worse than reality while inventory is still held, "
+            "since nothing offsets the cash spent buying it. Total PnL "
+            "adds that inventory back at the latest mid price."
+        )
+
+    st.divider()
 
     col1, col2 = st.columns(2)
     with col1:
@@ -136,37 +347,13 @@ def render_orders_and_fills(db_path: str) -> pd.DataFrame:
                 width="stretch",
             )
 
-    return fills
 
-
-def render_position_and_pnl(fills: pd.DataFrame) -> None:
-    st.subheader("Position & PnL")
-    if fills.empty:
-        st.info("No fills yet.")
+def page_health() -> None:
+    st.title("Health")
+    if not warn_if_no_db():
         return
 
-    signed_qty = fills["quantity"].where(
-        fills["side"] == "BUY", -fills["quantity"]
-    )
-    cash_flow = (-fills["price"] * signed_qty) - fills["fee"]
-    by_symbol = (
-        pd.DataFrame(
-            {
-                "symbol": fills["symbol"],
-                "position": signed_qty,
-                "realized_pnl": cash_flow,
-            }
-        )
-        .groupby("symbol")
-        .sum()
-    )
-    st.dataframe(by_symbol, width="stretch")
-    st.metric("Total Realized PnL", f"{by_symbol['realized_pnl'].sum():.2f}")
-
-
-def render_health(db_path: str) -> None:
-    st.subheader("Health")
-    heartbeats = read_table(db_path, "heartbeat")
+    heartbeats = read_table(st.session_state.db_path, "heartbeat")
     if heartbeats.empty:
         st.info("No heartbeats recorded yet.")
         return
@@ -174,44 +361,77 @@ def render_health(db_path: str) -> None:
     latest = (
         heartbeats.sort_values("timestamp").groupby("sender").tail(1).copy()
     )
-    latest["status"] = (
-        latest["level"].map(HEARTBEAT_LABELS).fillna(latest["level"])
-    )
     latest["last_seen"] = as_datetime(latest["timestamp"])
-    st.dataframe(
-        latest[["sender", "status", "message", "last_seen"]].sort_values(
-            "sender"
-        ),
-        width="stretch",
+    latest = latest.sort_values("sender")
+
+    for row in card_grid(list(latest.itertuples()), columns=3):
+        label, color, icon = HEARTBEAT_BADGES.get(
+            row.level, ("UNKNOWN", "gray", ":material/help:")
+        )
+        st.markdown(f"**{row.sender}**")
+        st.badge(label, color=color, icon=icon)
+        if row.message:
+            st.caption(row.message)
+        st.caption(f"Last seen {row.last_seen:%H:%M:%S} UTC")
+
+
+def page_parameters() -> None:
+    st.title("Parameters")
+    st.caption(
+        "Settings for this dashboard viewer only — they do not "
+        "affect the trading engine itself."
     )
+
+    st.text_input("Database path", key="db_path")
+    st.checkbox("Auto-refresh", key="auto_refresh")
+    st.slider("Refresh every (s)", 1, 30, key="refresh_seconds")
+
+    if not Path(st.session_state.db_path).exists():
+        st.warning(f"No database found at `{st.session_state.db_path}` yet.")
+    else:
+        st.success(f"Reading from `{st.session_state.db_path}`.")
 
 
 def main() -> None:
     st.set_page_config(page_title="Jolteon Live", layout="wide")
-    args = parse_args()
+    init_settings()
 
     st.sidebar.title("Jolteon")
-    db_path = st.sidebar.text_input("Database path", value=args.db)
-    auto_refresh = st.sidebar.checkbox("Auto-refresh", value=True)
-    refresh_seconds = st.sidebar.slider("Refresh every (s)", 1, 30, 5)
+    pages = [
+        st.Page(
+            page_market_data,
+            title="Market Data",
+            icon=":material/candlestick_chart:",
+            default=True,
+        ),
+        st.Page(
+            page_risk_limits,
+            title="Risk Limits",
+            icon=":material/warning:",
+        ),
+        st.Page(
+            page_orders_and_pnl,
+            title="Orders & PnL",
+            icon=":material/account_balance_wallet:",
+        ),
+        st.Page(
+            page_health,
+            title="Health",
+            icon=":material/monitor_heart:",
+        ),
+        st.Page(
+            page_parameters,
+            title="Parameters",
+            icon=":material/settings:",
+        ),
+    ]
+    pg = st.navigation(pages)
     st.sidebar.caption(f"Checked at {pd.Timestamp.now(tz='UTC'):%H:%M:%S} UTC")
 
-    st.title("Jolteon — Live Trading Engine")
+    pg.run()
 
-    if not Path(db_path).exists():
-        st.warning(
-            f"No database found at `{db_path}` yet. "
-            f"Waiting for the engine to start recording..."
-        )
-    else:
-        render_market_data(db_path)
-        render_risk_limits(db_path)
-        fills = render_orders_and_fills(db_path)
-        render_position_and_pnl(fills)
-        render_health(db_path)
-
-    if auto_refresh:
-        time.sleep(refresh_seconds)
+    if st.session_state.auto_refresh:
+        time.sleep(st.session_state.refresh_seconds)
         st.rerun()
 
 
