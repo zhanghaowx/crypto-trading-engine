@@ -14,7 +14,7 @@ from jolteon.core.id_generator import id_generator
 from jolteon.core.side import MarketSide
 from jolteon.core.time.time_manager import time_manager
 from jolteon.market_data.core.bbo import BBO
-from jolteon.market_data.core.order import Order, OrderType
+from jolteon.market_data.core.order import CancelOrder, Order, OrderType
 from jolteon.market_data.core.trade import Trade
 from jolteon.market_data.data_source import IDataSource
 
@@ -85,8 +85,8 @@ class MockExecutionService(Heartbeater, SignalSubscriber):
         )
 
     @subscribe("cancel_order")
-    def on_cancel_order(self, sender: object, client_order_id: str):
-        self._resting_orders.pop(client_order_id, None)
+    def on_cancel_order(self, sender: object, cancel_order: CancelOrder):
+        self._resting_orders.pop(cancel_order.client_order_id, None)
 
     @subscribe("ticker_feed")
     def on_bbo(self, sender: object, bbo: BBO):

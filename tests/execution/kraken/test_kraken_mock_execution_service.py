@@ -10,7 +10,7 @@ from jolteon.execution.kraken.mock_execution_service import (
     MockExecutionService,
 )
 from jolteon.market_data.core.bbo import BBO
-from jolteon.market_data.core.order import Order, OrderType
+from jolteon.market_data.core.order import CancelOrder, Order, OrderType
 from jolteon.market_data.core.trade import Trade
 from jolteon.market_data.data_source import IDataSource
 
@@ -179,7 +179,7 @@ class TestMockExecutionService(IsolatedAsyncioTestCase):
         self.execution_service.on_order(self, order)
 
         self.execution_service.on_cancel_order(
-            self, client_order_id=order.client_order_id
+            self, CancelOrder(client_order_id=order.client_order_id)
         )
         self.execution_service.on_market_trade(
             self, self.create_market_trade(MarketSide.SELL, 100.0, 1.0)
