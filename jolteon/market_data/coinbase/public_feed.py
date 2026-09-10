@@ -5,7 +5,11 @@ from enum import Enum
 
 import websockets
 
-from jolteon.core.health_monitor.heartbeat import Heartbeater, HeartbeatLevel
+from jolteon.core.health_monitor.heartbeat import (
+    Heartbeater,
+    HeartbeatLevel,
+    starts_heartbeating,
+)
 from jolteon.core.side import MarketSide
 from jolteon.market_data.core.candlestick_generator import CandlestickGenerator
 from jolteon.market_data.core.events import Events
@@ -49,6 +53,7 @@ class PublicFeed(Heartbeater):
             interval_in_seconds=candlestick_interval_in_seconds
         )
 
+    @starts_heartbeating
     async def connect(self, product_id: str):
         """
         Establish a connection to the remote service and subscribe to the

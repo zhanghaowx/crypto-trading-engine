@@ -8,7 +8,11 @@ from enum import Enum
 
 import websockets
 
-from jolteon.core.health_monitor.heartbeat import Heartbeater, HeartbeatLevel
+from jolteon.core.health_monitor.heartbeat import (
+    Heartbeater,
+    HeartbeatLevel,
+    starts_heartbeating,
+)
 from jolteon.core.id_generator import id_generator
 from jolteon.core.side import MarketSide
 from jolteon.market_data.core.bbo import BBO
@@ -41,6 +45,7 @@ class PublicFeed(Heartbeater):
         )
         self._clock = time.monotonic
 
+    @starts_heartbeating
     async def connect(
         self,
         symbol: str,

@@ -3,7 +3,11 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum, auto
 
-from jolteon.core.health_monitor.heartbeat import Heartbeater, HeartbeatLevel
+from jolteon.core.health_monitor.heartbeat import (
+    Heartbeater,
+    HeartbeatLevel,
+    starts_heartbeating,
+)
 from jolteon.core.time.time_manager import time_manager
 from jolteon.market_data.core.candlestick_generator import CandlestickGenerator
 from jolteon.market_data.core.events import Events
@@ -38,6 +42,7 @@ class HistoricalFeed(Heartbeater):
             interval_in_seconds=candlestick_interval_in_seconds
         )
 
+    @starts_heartbeating
     async def connect(
         self,
         symbol: str,

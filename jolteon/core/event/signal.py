@@ -1,3 +1,5 @@
+import functools
+
 from blinker import Namespace
 
 # Global variable for managing signals in the app
@@ -27,7 +29,16 @@ def subscribe(signal_name: str, strict: bool = False):
         )
 
     def decorator(func):
-        func.__signal__ = signal(signal_name)
-        return func
+        @functools.wraps(func)
+        def wrapper(self, *args, **kwargs):
+            # Duck-typed to avoid importing Heartbeater into this generic
+            # event module.
+            start_heartbeating = getattr(self, "start_heartbeating", None)
+            if start_heartbeating:
+                start_heartbeating()
+            return func(self, *args, **kwargs)
+
+        wrapper.__signal__ = signal(signal_name)
+        return wrapper
 
     return decorator
