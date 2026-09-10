@@ -53,6 +53,11 @@ class ApplicationBase(SignalManager):
         self._exec_service: object = None
         self._md: object = None
 
+        # Set once the MD thread starts, so a shutdown request can reach
+        # into its event loop and cancel its task.
+        self._md_loop: asyncio.AbstractEventLoop | None = None
+        self._md_task: asyncio.Task | None = None
+
     def use_execution_service(self, service: object):
         print(f"Using {type(service).__name__}")
         self._exec_service = service
@@ -85,6 +90,21 @@ class ApplicationBase(SignalManager):
         self.stop()
         return self._position_manager.pnl
 
+    def request_shutdown(self):
+        """
+        Cancel the MD thread's connection task from outside its thread.
+
+        A live feed's `connect()` runs until cancelled, so `run_start`
+        would otherwise block on `md_thread.join()` forever once asked to
+        stop - `sys.exit()` from a signal handler only unwinds the main
+        thread and never reaches this separate thread's event loop.
+
+        Returns:
+            None
+        """
+        if self._md_loop is not None and self._md_task is not None:
+            self._md_loop.call_soon_threadsafe(self._md_task.cancel)
+
     async def run_local_replay(self, db: str):
         data_source = DatabaseDataSource(db)
         start = data_source.start_time()
@@ -109,16 +129,22 @@ class ApplicationBase(SignalManager):
         self.disconnect_all()
         self._signal_recorder.stop_recording()
 
-    @staticmethod
-    def _start_thread(name: str, task):
+    def _start_thread(self, name: str, task):
+        ready = threading.Event()
+
         def run_task():
             # Create a new event loop for the thread
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
 
-            # Run the first async task with arguments in the event loop
+            # Publish the loop and task before running them, so
+            # request_shutdown() can cancel this task from another thread.
+            self._md_loop = loop
+            self._md_task = loop.create_task(task)
+            ready.set()
+
             try:
-                loop.run_until_complete(task)
+                loop.run_until_complete(self._md_task)
             except asyncio.CancelledError:
                 pass  # Ignore CancelledError on cleanup
             except Exception as e:
@@ -132,5 +158,6 @@ class ApplicationBase(SignalManager):
             target=run_task,
         )
         thread.start()
+        ready.wait()
 
         return thread

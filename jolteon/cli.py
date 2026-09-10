@@ -19,11 +19,19 @@ from jolteon.strategy.market_making.market_making_strategy import (
     MarketMakingStrategy,
 )
 
+_active_app = None
+
 
 def graceful_exit(signum, frame):
     print("Ctrl+C detected. Performing graceful exit...")
-    # Add your cleanup or shutdown code here
-    sys.exit(0)
+    if _active_app is not None:
+        # Cancels the MD thread's connection task so run_start() unblocks
+        # and main() exits on its own; sys.exit() here would only unwind
+        # the main thread and leave that thread's live feed running,
+        # which is what used to hang shutdown.
+        _active_app.request_shutdown()
+    else:
+        sys.exit(0)
 
 
 # Register the signal handler for Ctrl+C
@@ -31,6 +39,7 @@ signal.signal(signal.SIGINT, graceful_exit)
 
 
 async def main():
+    global _active_app
     app_start_time = datetime.now(tz=pytz.utc)
 
     parser = argparse.ArgumentParser(description="Jolteon Trading Engine")
@@ -96,6 +105,7 @@ async def main():
             database_name="/tmp/replay.sqlite",
             logfile_name="/tmp/replay.log",
         )
+        _active_app = app
         profiler = cProfile.Profile()
         profiler.enable()
 
@@ -126,8 +136,10 @@ async def main():
             logfile_name="/tmp/jolteon.log",
             strategy=strategy,
         )
+        _active_app = app
         pnl = await app.start()
 
+    _active_app = None
     print(f"PnL: {pnl}")
 
     app_end_time = datetime.now(tz=pytz.utc)
