@@ -7,6 +7,7 @@ def test_dashboard_renders_every_section_on_one_page(dashboard):
         "Market Data",
         "Risk Limits",
         "Orders & PnL",
+        "Trade Quality",
         "Errors",
     ]
 
@@ -16,9 +17,10 @@ def test_dashboard_warns_in_every_section_when_db_missing(dashboard):
 
     assert not at.exception
     # One warning per section (health, market data, risk limits, orders &
-    # pnl, errors) plus two from the settings popover (db path, log db
-    # path) - there's no navigation left to hide the others behind.
-    assert len(at.warning) == 7
+    # pnl, trade quality, errors) plus two from the settings popover (db
+    # path, log db path) - there's no navigation left to hide the others
+    # behind.
+    assert len(at.warning) == 8
 
 
 def test_dashboard_settings_popover_holds_the_viewer_settings(dashboard):
