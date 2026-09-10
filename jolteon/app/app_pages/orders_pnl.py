@@ -78,9 +78,7 @@ def fills_table(fills: pd.DataFrame) -> pd.DataFrame:
     return _readable(
         {
             "Time": _local_time(
-                ordered.get(
-                    "transaction_timestamp", ordered.get("timestamp")
-                )
+                ordered.get("transaction_timestamp", ordered.get("timestamp"))
             ),
             # As text, so the id reads as a label rather than a quantity.
             "Trade": None if trade_id is None else trade_id.astype(str),
@@ -88,9 +86,16 @@ def fills_table(fills: pd.DataFrame) -> pd.DataFrame:
             "Side": _optional(ordered, "side"),
             "Symbol": _optional(ordered, "symbol"),
             "Price": price,
+            "Fair Price": _optional(ordered, "fair_price_at_fill"),
             "Quantity": quantity,
             "Value": _notional(price, quantity),
             "Fee": _optional(ordered, "fee"),
+            "Inventory Before": _optional(ordered, "inventory_before"),
+            "Inventory After": _optional(ordered, "inventory_after"),
+            "Fair Price +100ms": _optional(ordered, "fair_price_100ms"),
+            "Fair Price +1s": _optional(ordered, "fair_price_1s"),
+            "Fair Price +5s": _optional(ordered, "fair_price_5s"),
+            "Fair Price +30s": _optional(ordered, "fair_price_30s"),
         }
     )
 
@@ -104,9 +109,16 @@ _FILL_COLUMNS: list[tuple[str, float]] = [
     ("Side", 0.8),
     ("Symbol", 1.0),
     ("Price", 1.0),
+    ("Fair Price", 1.0),
     ("Quantity", 1.1),
     ("Value", 1.0),
     ("Fee", 0.9),
+    ("Inventory Before", 1.2),
+    ("Inventory After", 1.2),
+    ("Fair Price +100ms", 1.3),
+    ("Fair Price +1s", 1.2),
+    ("Fair Price +5s", 1.2),
+    ("Fair Price +30s", 1.3),
 ]
 
 # Side badges in the theme's semantic green/red (config.toml), so BUY and
@@ -134,15 +146,27 @@ def _fill_identity(row: pd.Series) -> str:
     )
 
 
+_FAIR_PRICE_LABELS = {
+    "Fair Price",
+    "Fair Price +100ms",
+    "Fair Price +1s",
+    "Fair Price +5s",
+    "Fair Price +30s",
+}
+
+
 def _render_fill_cell(col, label: str, value) -> None:
     with col:
         if label == "Side":
             st.badge(value, color=_SIDE_BADGE_COLORS.get(value, "gray"))
         elif label == "Time":
             st.write(value.strftime("%H:%M:%S.%f")[:-3])
+        elif label in _FAIR_PRICE_LABELS:
+            # Horizons not yet reached still carry NULL in the DB.
+            st.write("-" if pd.isna(value) else f"{value:,.2f}")
         elif label in ("Price", "Value"):
             st.write(f"{value:,.2f}")
-        elif label == "Quantity":
+        elif label in ("Quantity", "Inventory Before", "Inventory After"):
             st.write(f"{value:.6f}")
         elif label == "Fee":
             st.write(f"{value:,.4f}")
