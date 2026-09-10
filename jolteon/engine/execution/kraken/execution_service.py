@@ -10,7 +10,10 @@ from requests import Response
 
 from jolteon.engine.core.event.signal import signal, subscribe
 from jolteon.engine.core.event.signal_subscriber import SignalSubscriber
-from jolteon.engine.core.health_monitor.heartbeat import Heartbeater, HeartbeatLevel
+from jolteon.engine.core.health_monitor.heartbeat import (
+    Heartbeater,
+    HeartbeatLevel,
+)
 from jolteon.engine.core.retry import Retry
 from jolteon.engine.execution.kraken.rest_client import KrakenRESTClient
 from jolteon.engine.market_data.core.order import CancelOrder, Order

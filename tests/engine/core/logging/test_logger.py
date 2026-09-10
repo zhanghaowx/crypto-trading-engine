@@ -14,7 +14,10 @@ from unittest.mock import patch
 import pandas as pd
 from freezegun import freeze_time
 
-from jolteon.engine.core.logging.logger import SQLiteHandler, setup_global_logger
+from jolteon.engine.core.logging.logger import (
+    SQLiteHandler,
+    setup_global_logger,
+)
 
 
 class TestLogging(unittest.IsolatedAsyncioTestCase):
@@ -93,7 +96,7 @@ class TestLogging(unittest.IsolatedAsyncioTestCase):
                 "[2022-01-01 00:00:00]"
                 "[root][INFO]"
                 "[MainThread]"
-                "[test_logger.py:87] - "
+                "[test_logger.py:90] - "
                 "Info Message"
             ],
         )
@@ -106,9 +109,7 @@ class TestLogging(unittest.IsolatedAsyncioTestCase):
         takes to see them.
         """
         with self.assertLogs(level="DEBUG"):
-            self.setup_logger(
-                logging.DEBUG, logfile_db=self.database_filepath
-            )
+            self.setup_logger(logging.DEBUG, logfile_db=self.database_filepath)
             with closing(sqlite3.connect(self.database_filepath)) as conn:
                 logging.info("Info Message")
                 self.assert_number_of_logging(
@@ -124,9 +125,7 @@ class TestLogging(unittest.IsolatedAsyncioTestCase):
 
     async def test_db_logger_exceed_wait_time(self):
         with self.assertLogs(level="DEBUG"):
-            self.setup_logger(
-                logging.DEBUG, logfile_db=self.database_filepath
-            )
+            self.setup_logger(logging.DEBUG, logfile_db=self.database_filepath)
             with closing(sqlite3.connect(self.database_filepath)) as conn:
                 # Verify tables in DB after certain time has passed
                 logging.info("Info Message")
@@ -150,9 +149,7 @@ class TestLogging(unittest.IsolatedAsyncioTestCase):
             f"WHERE type='table' AND name='logs';"
         )
         with self.assertLogs(level="INFO"):
-            self.setup_logger(
-                logging.DEBUG, logfile_db=self.database_filepath
-            )
+            self.setup_logger(logging.DEBUG, logfile_db=self.database_filepath)
             with closing(sqlite3.connect(self.database_filepath)) as conn:
                 self.assert_number_of_logging(
                     0, conn, should_flush_logger=True
@@ -175,9 +172,7 @@ class TestLogging(unittest.IsolatedAsyncioTestCase):
             conn.execute("CREATE TABLE logs (id INTEGER PRIMARY KEY)")
 
         with self.assertLogs(level="INFO"):
-            self.setup_logger(
-                logging.DEBUG, logfile_db=self.database_filepath
-            )
+            self.setup_logger(logging.DEBUG, logfile_db=self.database_filepath)
             logging.info("Info Message")
             for handler in logging.getLogger().handlers:
                 handler.flush()
@@ -199,9 +194,7 @@ class TestLogging(unittest.IsolatedAsyncioTestCase):
             conn.execute("CREATE TABLE logs (required NOT NULL)")
 
         with self.assertLogs(level="INFO"):
-            self.setup_logger(
-                logging.DEBUG, logfile_db=self.database_filepath
-            )
+            self.setup_logger(logging.DEBUG, logfile_db=self.database_filepath)
             logging.info("Info Message")
 
             with self.assertRaises(sqlite3.IntegrityError):
@@ -210,9 +203,7 @@ class TestLogging(unittest.IsolatedAsyncioTestCase):
 
     async def test_db_logger_ignore_debug_logging(self):
         with self.assertLogs(level="DEBUG"):
-            self.setup_logger(
-                logging.DEBUG, logfile_db=self.database_filepath
-            )
+            self.setup_logger(logging.DEBUG, logfile_db=self.database_filepath)
             with closing(sqlite3.connect(self.database_filepath)) as conn:
                 # Debugging logging will be ignored
                 logging.debug("Debug Message")
@@ -244,7 +235,9 @@ class TestLogging(unittest.IsolatedAsyncioTestCase):
         with self.assertLogs(level="DEBUG"):
             with (
                 patch("jolteon.engine.core.logging.logger._MAX_LOG_ROWS", 5),
-                patch("jolteon.engine.core.logging.logger._PRUNE_INTERVAL", 10),
+                patch(
+                    "jolteon.engine.core.logging.logger._PRUNE_INTERVAL", 10
+                ),
             ):
                 self.setup_logger(
                     logging.DEBUG, logfile_db=self.database_filepath
@@ -252,9 +245,7 @@ class TestLogging(unittest.IsolatedAsyncioTestCase):
                 for _ in range(10):
                     logging.info("Info Message")
 
-                with closing(
-                    sqlite3.connect(self.database_filepath)
-                ) as conn:
+                with closing(sqlite3.connect(self.database_filepath)) as conn:
                     self.assert_number_of_logging(
                         5, conn, should_flush_logger=True
                     )
@@ -262,9 +253,7 @@ class TestLogging(unittest.IsolatedAsyncioTestCase):
     async def test_db_logger_thread_safety(self):
         warnings.filterwarnings("ignore", category=RuntimeWarning)
         with self.assertLogs(level="DEBUG"):
-            self.setup_logger(
-                logging.DEBUG, logfile_db=self.database_filepath
-            )
+            self.setup_logger(logging.DEBUG, logfile_db=self.database_filepath)
             # Number of threads
             num_threads = 100
 

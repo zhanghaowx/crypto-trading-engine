@@ -10,7 +10,10 @@ import pytz
 
 from jolteon.engine.core.side import MarketSide
 from jolteon.engine.market_data.core.events import Events
-from jolteon.engine.market_data.data_source import DatabaseDataSource, IDataSource
+from jolteon.engine.market_data.data_source import (
+    DatabaseDataSource,
+    IDataSource,
+)
 
 
 class TestDatabaseDataSource(unittest.IsolatedAsyncioTestCase):
