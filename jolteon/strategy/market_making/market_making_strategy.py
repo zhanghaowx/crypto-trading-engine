@@ -7,7 +7,7 @@ from jolteon.core.id_generator import id_generator
 from jolteon.core.side import MarketSide
 from jolteon.core.time.time_manager import time_manager
 from jolteon.market_data.core.bbo import BBO
-from jolteon.market_data.core.order import Order, OrderType
+from jolteon.market_data.core.order import CancelOrder, Order, OrderType
 from jolteon.market_data.core.trade import Trade
 from jolteon.risk_limit.inventory_limit import InventoryLimit
 from jolteon.risk_limit.risk_limit import RiskLimitLevel
@@ -138,5 +138,7 @@ class MarketMakingStrategy(Heartbeater, SignalSubscriber):
         if live_order:
             self.cancel_order_event.send(
                 self.cancel_order_event,
-                client_order_id=live_order.client_order_id,
+                cancel_order=CancelOrder(
+                    client_order_id=live_order.client_order_id
+                ),
             )

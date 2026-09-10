@@ -13,7 +13,7 @@ from jolteon.core.event.signal_subscriber import SignalSubscriber
 from jolteon.core.health_monitor.heartbeat import Heartbeater, HeartbeatLevel
 from jolteon.core.retry import Retry
 from jolteon.execution.kraken.rest_client import KrakenRESTClient
-from jolteon.market_data.core.order import Order
+from jolteon.market_data.core.order import CancelOrder, Order
 from jolteon.market_data.core.trade import Trade
 
 
@@ -22,6 +22,7 @@ class ExecutionService(Heartbeater, SignalSubscriber):
     class ErrorCode(StrEnum):
         CREATE_ORDER_FAILURE = "CREATE_ORDER_FAILURE"
         GET_TRADE_FAILURE = "GET_TRADE_FAILURE"
+        CANCEL_ORDER_FAILURE = "CANCEL_ORDER_FAILURE"
 
     def __init__(self, dry_run=False, poll_interval=1):
         """
@@ -84,6 +85,62 @@ class ExecutionService(Heartbeater, SignalSubscriber):
 
         # Record every order in history
         self.order_history[order.client_order_id] = order
+
+    @subscribe("cancel_order")
+    def on_cancel_order(self, sender: object, cancel_order: CancelOrder):
+        """
+        Cancel a previously placed order.
+
+        Args:
+            sender: Name of the sender of the cancel request
+            cancel_order: Identifies the order to cancel
+
+        Returns:
+            None
+
+        """
+        try:
+            self.send_cancel_order(cancel_order)
+        except Exception as e:
+            logging.error(f"Fail to cancel order: {e}", exc_info=True)
+
+            self.add_issue(
+                HeartbeatLevel.ERROR, self.ErrorCode.CANCEL_ORDER_FAILURE.name
+            )
+            return
+
+    def send_cancel_order(self, cancel_order: CancelOrder):
+        """
+        Using the following API to cancel an order at the exchange.
+        https://docs.kraken.com/api/docs/rest-api/cancel-order
+
+        The `txid` field accepts either the exchange's own order
+        identifier or the `userref` the order was placed with; we placed
+        every order under `userref` (see `send_order`), so cancelling by
+        that same value is what identifies the order here.
+
+        Args:
+            cancel_order: Identifies the order to cancel
+
+        Returns:
+            None
+
+        """
+        post_data = {"txid": int(cancel_order.client_order_id)}
+        response = self._client.send_request(
+            "/0/private/CancelOrder", post_data
+        )
+
+        if self._handle_possible_error(
+            response, self.ErrorCode.CANCEL_ORDER_FAILURE
+        ):
+            return
+
+        self.remove_issue(self.ErrorCode.CANCEL_ORDER_FAILURE)
+        logging.debug(
+            f"CancelOrder request received response from exchange: "
+            f"{response.json()}"
+        )
 
     def send_order(self, order):
         """

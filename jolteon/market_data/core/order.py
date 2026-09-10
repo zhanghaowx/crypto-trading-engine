@@ -32,3 +32,10 @@ class Order:
     quantity: float
     side: MarketSide
     creation_time: datetime
+
+
+@dataclass
+class CancelOrder:
+    """Requests that a previously placed order be cancelled."""
+
+    client_order_id: str

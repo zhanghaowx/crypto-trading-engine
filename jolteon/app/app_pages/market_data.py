@@ -11,8 +11,9 @@ from jolteon.app.data import (
 
 _QUOTE_HELP = (
     "Dashed lines on the chart mark the last quote sent per side. "
-    "Cancellations aren't recorded, so a side that has since stopped "
-    "quoting (e.g. inventory cap hit) may still show a stale line here."
+    "Cancellations aren't reflected here, so a side that has since "
+    "stopped quoting (e.g. inventory cap hit) may still show a stale "
+    "line here."
 )
 
 

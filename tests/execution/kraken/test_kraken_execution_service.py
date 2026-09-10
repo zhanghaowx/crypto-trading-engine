@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytz
 
 from jolteon.core.side import MarketSide
-from jolteon.market_data.core.order import Order, OrderType
+from jolteon.market_data.core.order import CancelOrder, Order, OrderType
 from jolteon.market_data.core.trade import Trade
 
 
@@ -171,6 +171,59 @@ class TestExecutionService(IsolatedAsyncioTestCase):
             self.assertEqual(
                 self.fills[1].transaction_time,
                 datetime.fromtimestamp(1688082549.3138, tz=pytz.utc),
+            )
+
+    async def test_on_cancel_order(self):
+        with patch("requests.post", new_callable=MagicMock) as mock_post:
+            mock_post.return_value = MagicMock()
+            mock_post.return_value.status_code = 200
+            mock_post.return_value.json.return_value = {
+                "error": [],
+                "result": {"count": 1},
+            }
+
+            self.execution_service.on_cancel_order(
+                self, CancelOrder(client_order_id="123")
+            )
+
+            mock_post.assert_called_once()
+            sent_data = mock_post.call_args.kwargs["data"]
+            self.assertEqual(123, sent_data["txid"])
+            self.assertNotIn(
+                self.execution_service.ErrorCode.CANCEL_ORDER_FAILURE.name,
+                [issue.message for issue in self.execution_service._issues],
+            )
+
+    async def test_on_cancel_order_fail(self):
+        with patch("requests.post", new_callable=MagicMock) as mock_post:
+            mock_post.return_value = MagicMock()
+            mock_post.return_value.status_code = 200
+            mock_post.return_value.json.return_value = {
+                "error": ["EOrder:Unknown order"],
+            }
+
+            self.execution_service.on_cancel_order(
+                self, CancelOrder(client_order_id="123")
+            )
+
+            self.assertIn(
+                self.execution_service.ErrorCode.CANCEL_ORDER_FAILURE.name,
+                [issue.message for issue in self.execution_service._issues],
+            )
+
+    async def test_on_cancel_order_raises_exception(self):
+        with patch("requests.post", new_callable=MagicMock) as mock_post:
+            # A non-numeric client_order_id can't be encoded as the
+            # numeric `userref`/`txid` Kraken expects, so send_cancel_order
+            # raises before any request is made.
+            self.execution_service.on_cancel_order(
+                self, CancelOrder(client_order_id="not-a-number")
+            )
+
+            mock_post.assert_not_called()
+            self.assertIn(
+                self.execution_service.ErrorCode.CANCEL_ORDER_FAILURE.name,
+                [issue.message for issue in self.execution_service._issues],
             )
 
     async def test_poll_trades_fail(self):

@@ -6,7 +6,7 @@ import pytz
 
 from jolteon.core.side import MarketSide
 from jolteon.market_data.core.bbo import BBO
-from jolteon.market_data.core.order import Order, OrderType
+from jolteon.market_data.core.order import CancelOrder, Order, OrderType
 from jolteon.market_data.core.trade import Trade
 from jolteon.strategy.market_making.market_making_strategy import (
     MarketMakingStrategy,
@@ -34,8 +34,8 @@ class TestMarketMakingStrategy(unittest.IsolatedAsyncioTestCase):
     def _on_order(self, _, order: Order):
         self.orders.append(order)
 
-    def _on_cancel_order(self, _, client_order_id: str):
-        self.cancelled_ids.append(client_order_id)
+    def _on_cancel_order(self, _, cancel_order: CancelOrder):
+        self.cancelled_ids.append(cancel_order.client_order_id)
 
     @staticmethod
     def create_bbo(bid_price: float, ask_price: float):
