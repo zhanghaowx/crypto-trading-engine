@@ -3,6 +3,7 @@ from datetime import datetime
 import pandas as pd
 import streamlit as st
 
+from jolteon.app.analytics import HORIZONS, compute_edge, compute_markout
 from jolteon.app.components import (
     BadgeColor,
     animated_metric,
@@ -67,6 +68,25 @@ def _notional(price: pd.Series | None, qty: pd.Series | None):
     return None if price is None or qty is None else price * qty
 
 
+def _edge_column(fills: pd.DataFrame) -> pd.Series | None:
+    needed = {"side", "fill_price", "fair_price_at_fill"}
+    return compute_edge(fills) if needed.issubset(fills.columns) else None
+
+
+def _markout_columns(fills: pd.DataFrame) -> dict[str, pd.Series | None]:
+    """Markout at each horizon, keyed by its display label - None wherever
+    the raw fair-price column that horizon needs isn't in the table."""
+    columns: dict[str, pd.Series | None] = {}
+    for horizon in HORIZONS:
+        needed = {"side", "fill_price", f"fair_price_{horizon}"}
+        columns[f"Markout +{horizon}"] = (
+            compute_markout(fills, horizon)
+            if needed.issubset(fills.columns)
+            else None
+        )
+    return columns
+
+
 def fills_table(fills: pd.DataFrame) -> pd.DataFrame:
     """Every fill, newest first. The venue's maker/taker order ids are
     opaque UUIDs, so they're dropped in favour of the short trade and
@@ -86,16 +106,13 @@ def fills_table(fills: pd.DataFrame) -> pd.DataFrame:
             "Side": _optional(ordered, "side"),
             "Symbol": _optional(ordered, "symbol"),
             "Price": price,
-            "Fair Price": _optional(ordered, "fair_price_at_fill"),
+            "Edge": _edge_column(ordered),
             "Quantity": quantity,
             "Value": _notional(price, quantity),
             "Fee": _optional(ordered, "fee"),
             "Inventory Before": _optional(ordered, "inventory_before"),
             "Inventory After": _optional(ordered, "inventory_after"),
-            "Fair Price +100ms": _optional(ordered, "fair_price_100ms"),
-            "Fair Price +1s": _optional(ordered, "fair_price_1s"),
-            "Fair Price +5s": _optional(ordered, "fair_price_5s"),
-            "Fair Price +30s": _optional(ordered, "fair_price_30s"),
+            **_markout_columns(ordered),
         }
     )
 
@@ -109,16 +126,16 @@ _FILL_COLUMNS: list[tuple[str, float]] = [
     ("Side", 0.8),
     ("Symbol", 1.0),
     ("Price", 1.0),
-    ("Fair Price", 1.0),
+    ("Edge", 1.0),
     ("Quantity", 1.1),
     ("Value", 1.0),
     ("Fee", 0.9),
     ("Inventory Before", 1.2),
     ("Inventory After", 1.2),
-    ("Fair Price +100ms", 1.3),
-    ("Fair Price +1s", 1.2),
-    ("Fair Price +5s", 1.2),
-    ("Fair Price +30s", 1.3),
+    ("Markout +100ms", 1.3),
+    ("Markout +1s", 1.2),
+    ("Markout +5s", 1.2),
+    ("Markout +30s", 1.3),
 ]
 
 # Side badges in the theme's semantic green/red (config.toml), so BUY and
@@ -146,13 +163,25 @@ def _fill_identity(row: pd.Series) -> str:
     )
 
 
-_FAIR_PRICE_LABELS = {
-    "Fair Price",
-    "Fair Price +100ms",
-    "Fair Price +1s",
-    "Fair Price +5s",
-    "Fair Price +30s",
+_SIGNED_USD_LABELS = {
+    "Edge",
+    "Markout +100ms",
+    "Markout +1s",
+    "Markout +5s",
+    "Markout +30s",
 }
+
+
+def _render_signed_usd(value) -> None:
+    """A markout/edge amount, colored the way Side badges are: green
+    when it favors the market maker, red when it's adverse selection."""
+    if pd.isna(value):
+        # Horizons not yet reached still carry NULL in the DB.
+        st.write("-")
+        return
+    color = "green" if value >= 0 else "red"
+    sign = "+" if value >= 0 else "-"
+    st.markdown(f":{color}[{sign}${abs(value):,.2f}]")
 
 
 def _render_fill_cell(col, label: str, value) -> None:
@@ -161,9 +190,8 @@ def _render_fill_cell(col, label: str, value) -> None:
             st.badge(value, color=_SIDE_BADGE_COLORS.get(value, "gray"))
         elif label == "Time":
             st.write(value.strftime("%H:%M:%S.%f")[:-3])
-        elif label in _FAIR_PRICE_LABELS:
-            # Horizons not yet reached still carry NULL in the DB.
-            st.write("-" if pd.isna(value) else f"{value:,.2f}")
+        elif label in _SIGNED_USD_LABELS:
+            _render_signed_usd(value)
         elif label in ("Price", "Value"):
             st.write(f"{value:,.2f}")
         elif label in ("Quantity", "Inventory Before", "Inventory After"):
