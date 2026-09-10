@@ -6,6 +6,7 @@ import unittest
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
+from unittest.mock import patch
 
 from jolteon.core.sqlite_writer import SQLiteWriter
 
@@ -27,8 +28,10 @@ class TestSQLiteWriter(unittest.TestCase):
             if os.path.exists(path):
                 os.remove(path)
 
-    def query(self, sql: str) -> list[tuple]:
-        with closing(sqlite3.connect(self.database_filepath)) as conn:
+    def query(self, sql: str, db_path: str | None = None) -> list[tuple]:
+        with closing(
+            sqlite3.connect(db_path or self.database_filepath)
+        ) as conn:
             return conn.execute(sql).fetchall()
 
     def columns(self, table: str) -> list[str]:
@@ -59,6 +62,44 @@ class TestSQLiteWriter(unittest.TestCase):
         self.writer.flush()
 
         self.assertEqual([("wal",)], self.query("PRAGMA journal_mode"))
+
+    def test_connect_falls_back_when_the_wal_switch_fails(self):
+        """
+        Another connection already holding the database can make the
+        journal_mode=WAL switch itself raise OperationalError. The writer
+        must keep the connection and carry on under whatever mode is
+        already in effect, not fail to start.
+        """
+
+        class _RaiseOnWalSwitch(sqlite3.Connection):
+            def execute(self, sql, *args, **kwargs):
+                if sql == "PRAGMA journal_mode=WAL":
+                    raise sqlite3.OperationalError("database is locked")
+                return super().execute(sql, *args, **kwargs)
+
+        real_connect = sqlite3.connect
+
+        def connect_with_flaky_wal(database, *args, **kwargs):
+            return real_connect(
+                database, *args, factory=_RaiseOnWalSwitch, **kwargs
+            )
+
+        fresh_path = f"{tempfile.gettempdir()}/{uuid.uuid4()}.sqlite"
+        try:
+            with patch(
+                "jolteon.core.sqlite_writer.sqlite3.connect",
+                side_effect=connect_with_flaky_wal,
+            ):
+                writer = SQLiteWriter(fresh_path)
+                writer.put("t", {"a": 1})
+                writer.flush()
+            self.assertEqual([(1,)], self.query("SELECT a FROM t", fresh_path))
+            writer.close()
+        finally:
+            for suffix in ("", "-wal", "-shm", "-journal"):
+                path = fresh_path + suffix
+                if os.path.exists(path):
+                    os.remove(path)
 
     def test_adds_column_for_new_field(self):
         """
