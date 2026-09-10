@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytz
 
-from jolteon.market_data.core.trade import Trade
+from jolteon.engine.market_data.core.trade import Trade
 
 
 class TestApplication(unittest.IsolatedAsyncioTestCase):

@@ -1,0 +1,57 @@
+import unittest
+from datetime import datetime
+
+from blinker import ANY
+
+from jolteon.engine.core.event.signal import signal
+from jolteon.engine.core.side import MarketSide
+from jolteon.engine.market_data.core.trade import Trade
+from jolteon.engine.strategy.bootstrap.bootstrap_strategy import (
+    BootstrapStrategy,
+)
+
+
+class BootstrapStrategyTest(unittest.IsolatedAsyncioTestCase):
+    @staticmethod
+    def create_mock_timestamp():
+        return datetime(
+            year=2024,
+            month=1,
+            day=1,
+            hour=0,
+            minute=0,
+            second=0,
+            microsecond=0,
+        )
+
+    @staticmethod
+    def create_mock_trade():
+        return Trade(
+            trade_id=0,
+            client_order_id="",
+            symbol="ES",
+            maker_order_id="1",
+            taker_order_id="2",
+            side=MarketSide.BUY,
+            price=1.0,
+            fee=0.0,
+            quantity=2.0,
+            transaction_time=BootstrapStrategyTest.create_mock_timestamp(),
+        )
+
+    async def test_on_fill(self):
+        # Arrange
+        trade = BootstrapStrategyTest.create_mock_trade()
+
+        # Act
+        boostrap_strategy = BootstrapStrategy()
+        boostrap_strategy.connect()
+
+        # Assert
+        self.assertTrue(
+            boostrap_strategy.on_fill
+            in signal("order_fill").receivers_for(ANY)
+        )
+
+        # Test sending a signal won't cause crash
+        signal("order_fill").send("mock_sender", trade=trade)

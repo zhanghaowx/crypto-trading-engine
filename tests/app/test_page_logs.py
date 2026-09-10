@@ -65,7 +65,7 @@ def test_renders_only_error_rows_as_expandable_entries(tmp_path):
         ("1700000000.0", "jolteon", "INFO", "app.py", "10", "started"),
         (
             "1700000001.0",
-            "jolteon.market_data",
+            "jolteon.engine.market_data",
             "ERROR",
             "feed.py",
             "42",
@@ -83,7 +83,7 @@ def test_renders_only_error_rows_as_expandable_entries(tmp_path):
     assert len(at.status) == 1
     entry = at.status[0]
     assert "connection dropped" in entry.label
-    assert entry.caption[0].value == "jolteon.market_data · feed.py:42"
+    assert entry.caption[0].value == "jolteon.engine.market_data · feed.py:42"
 
 
 def test_includes_critical_rows_alongside_error(tmp_path):
