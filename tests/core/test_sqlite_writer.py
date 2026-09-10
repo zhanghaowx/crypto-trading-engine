@@ -128,7 +128,8 @@ class TestSQLiteWriter(unittest.TestCase):
     def test_primary_key_coalesces_within_one_batch(self):
         """
         Repeated updates of one key queued together collapse to a single
-        row, so a candlestick re-sent on every trade costs one write.
+        row, so a payload re-sent many times under the same key costs one
+        write.
         """
         for i in range(100):
             self.writer.put("t", {"k": 1, "v": i}, primary_key="k")

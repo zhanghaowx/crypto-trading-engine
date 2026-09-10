@@ -9,7 +9,6 @@ from jolteon.core.health_monitor.heartbeat import (
     starts_heartbeating,
 )
 from jolteon.core.time.time_manager import time_manager
-from jolteon.market_data.core.candlestick_generator import CandlestickGenerator
 from jolteon.market_data.core.events import Events
 from jolteon.market_data.data_source import IDataSource
 
@@ -23,24 +22,10 @@ class HistoricalFeed(Heartbeater):
     Download and replay the historical market data feed.
     """
 
-    def __init__(
-        self,
-        data_source: IDataSource,
-        candlestick_interval_in_seconds: int = 60,
-    ):
-        """
-        Creates a historical market data feed client for the given time frame.
-
-        Args:
-            candlestick_interval_in_seconds: Granularity of the candlesticks in
-                                             seconds.
-        """
+    def __init__(self, data_source: IDataSource):
         super().__init__(type(self).__name__, interval_in_seconds=10)
         self.events = Events()
         self._data_source = data_source
-        self._candlestick_generator = CandlestickGenerator(
-            interval_in_seconds=candlestick_interval_in_seconds
-        )
 
     @starts_heartbeating
     async def connect(
@@ -51,7 +36,7 @@ class HistoricalFeed(Heartbeater):
     ):
         """
         Download the historical market data feed for the given symbol and
-        time frame. Replay the candlesticks at the specified replay speed.
+        time frame, and replay its trades.
         Args:
             symbol: Symbol of the product to download historical market data
             start_time: Start time of the historical market data feed.
@@ -107,14 +92,4 @@ class HistoricalFeed(Heartbeater):
                 self.events.market_trade, market_trade=market_trade
             )
             logging.debug("Received Market Trade: %s", market_trade)
-
-            # Calculate our own candlesticks using market trades
-            candlesticks = self._candlestick_generator.on_market_trade(
-                market_trade
-            )
-            for candlestick in candlesticks:
-                self.events.candlestick.send(
-                    self.events.candlestick,
-                    candlestick=candlestick,
-                )
         time_manager().reset(admin=self)

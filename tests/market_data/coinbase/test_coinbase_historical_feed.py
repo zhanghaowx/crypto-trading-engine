@@ -7,7 +7,7 @@ from jolteon.core.time.time_manager import time_manager
 from jolteon.market_data.coinbase.data_source import (
     CoinbaseHistoricalDataSource,
 )
-from jolteon.market_data.core.candlestick import Candlestick
+from jolteon.market_data.core.trade import Trade
 from jolteon.market_data.data_source import IDataSource
 from jolteon.market_data.historical_feed import (
     HistoricalFeed,
@@ -37,11 +37,11 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
             "best_ask": "292.40",
         }
         self.historical_feed = HistoricalFeed(data_source=self.data_source)
-        self.historical_feed.events.candlestick.connect(self.on_candlestick)
-        self.candlesticks = list[Candlestick]()
+        self.historical_feed.events.market_trade.connect(self.on_market_trade)
+        self.market_trades = list[Trade]()
 
-    def on_candlestick(self, _, candlestick):
-        self.candlesticks.append(candlestick)
+    def on_market_trade(self, _, market_trade):
+        self.market_trades.append(market_trade)
 
     async def test_connect_with_valid_symbol(self):
         symbol = "BTC-USD"
@@ -51,13 +51,10 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
             time_manager().now() + timedelta(seconds=1),
         )
 
-        # Validate raised candlestick event
-        self.assertEqual(1, len(self.candlesticks))
-        self.assertEqual(140.91, self.candlesticks[0].open)
-        self.assertEqual(140.91, self.candlesticks[0].high)
-        self.assertEqual(140.91, self.candlesticks[0].low)
-        self.assertEqual(140.91, self.candlesticks[0].close)
-        self.assertEqual(4.0, self.candlesticks[0].volume)
+        # Validate raised market trade event
+        self.assertEqual(1, len(self.market_trades))
+        self.assertEqual(140.91, self.market_trades[0].price)
+        self.assertEqual(4.0, self.market_trades[0].quantity)
 
     async def test_connect_with_valid_symbol_and_cache(self):
         IDataSource.TRADE_CACHE.clear()
@@ -72,8 +69,8 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertEqual(1, len(IDataSource.TRADE_CACHE))
-        self.assertEqual(2, len(self.candlesticks))
-        self.assertEqual(self.candlesticks[0], self.candlesticks[1])
+        self.assertEqual(2, len(self.market_trades))
+        self.assertEqual(self.market_trades[0], self.market_trades[1])
 
         self.data_source._client.get_market_trades.assert_called_once()
 
@@ -93,7 +90,7 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertEqual(1, len(IDataSource.TRADE_CACHE))
-        self.assertEqual(0, len(self.candlesticks))
+        self.assertEqual(0, len(self.market_trades))
 
         self.data_source._client.get_market_trades.assert_called_once()
 

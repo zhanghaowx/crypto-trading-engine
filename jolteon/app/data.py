@@ -57,10 +57,10 @@ def read_table(db_path: str, table: str) -> pd.DataFrame:
     conn = sqlite3.connect(db_path)
     try:
         if _has_primary_key(conn, table):
-            # A row under a primary key can be rewritten in place - the
-            # open candlestick is, on every trade - and an update leaves
-            # the row id untouched, so there is no cursor to carry. These
-            # tables are bounded by elapsed time rather than tick rate.
+            # A row under a primary key can be rewritten in place, and an
+            # update leaves the row id untouched, so there is no cursor to
+            # carry. These tables are bounded by their key's cardinality
+            # rather than tick rate.
             frame = pd.read_sql(f'SELECT * FROM "{table}"', conn)
             cursor = 0
         else:

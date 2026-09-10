@@ -16,7 +16,6 @@ from jolteon.core.health_monitor.heartbeat import (
 from jolteon.core.id_generator import id_generator
 from jolteon.core.side import MarketSide
 from jolteon.market_data.core.bbo import BBO
-from jolteon.market_data.core.candlestick_generator import CandlestickGenerator
 from jolteon.market_data.core.events import Events
 from jolteon.market_data.core.trade import Trade
 
@@ -36,13 +35,10 @@ class PublicFeed(Heartbeater):
         CONNECTION_LOST = "Connection Lost"
         MALFORMAT_RESPONSE = "Malformatted Response from Kraken"
 
-    def __init__(self, candlestick_interval_in_seconds: int = 60):
+    def __init__(self):
         super().__init__(type(self).__name__, interval_in_seconds=10)
         self.events = Events()
         self._last_received_trade_id = -math.inf
-        self._candlestick_generator = CandlestickGenerator(
-            interval_in_seconds=candlestick_interval_in_seconds
-        )
         self._clock = time.monotonic
 
     @starts_heartbeating
@@ -303,12 +299,3 @@ class PublicFeed(Heartbeater):
                 )
                 self._last_received_trade_id = int(market_trade.trade_id)
                 logging.debug("Received Market Trade: %s", market_trade)
-
-                # Calculate our own candlesticks using market trades
-                candlesticks = self._candlestick_generator.on_market_trade(
-                    market_trade
-                )
-                for candlestick in candlesticks:
-                    self._dispatch_isolating_receiver_errors(
-                        self.events.candlestick, candlestick=candlestick
-                    )

@@ -133,8 +133,9 @@ class TestSignalRecorder(unittest.IsolatedAsyncioTestCase):
     @freeze_time("2024-01-01 00:00:30 UTC")
     async def test_handle_payload_primary_key_keeps_latest_value(self):
         """
-        A candlestick is re-sent as it fills in, under the same key. The
-        stored row has to end up holding the newest values, not the first.
+        A payload is re-sent multiple times under the same PRIMARY_KEY as
+        it fills in. The stored row has to end up holding the newest
+        values, not the first.
         """
 
         class Payload:

@@ -3,7 +3,6 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 from jolteon.core.time.time_manager import time_manager
-from jolteon.market_data.core.candlestick import Candlestick
 from jolteon.market_data.core.trade import Trade
 from jolteon.market_data.data_source import IDataSource
 from jolteon.market_data.historical_feed import HistoricalFeed
@@ -14,21 +13,15 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
     def on_market_trade(self, _: str, market_trade: Trade):
         self.market_trades.append(market_trade)
 
-    def on_candlestick(self, _: str, candlestick: Candlestick):
-        self.candlesticks.append(candlestick)
-
     async def asyncSetUp(self):
         self.market_trades = []
-        self.candlesticks = []
         self.historical_feed = HistoricalFeed(
             data_source=KrakenHistoricalDataSource()
         )
         self.historical_feed.events.market_trade.connect(self.on_market_trade)
-        self.historical_feed.events.candlestick.connect(self.on_candlestick)
 
-    async def test_connect_replays_trades_and_generates_candlesticks(self):
+    async def test_connect_replays_trades(self):
         self.assertEqual(len(self.market_trades), 0)
-        self.assertEqual(len(self.candlesticks), 0)
 
         # Set up test parameters
         symbol = "BTC/USD"
@@ -58,7 +51,6 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
             await self.historical_feed.connect(symbol, start_time, end_time)
 
         self.assertEqual(len(self.market_trades), 2)
-        self.assertEqual(len(self.candlesticks), 2)
 
     async def test_connect_with_empty_trades(self):
         time_manager().use_fake_time = MagicMock()
@@ -118,4 +110,3 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
             )
 
         self.assertEqual(len(self.market_trades), 1)
-        self.assertEqual(len(self.candlesticks), 1)

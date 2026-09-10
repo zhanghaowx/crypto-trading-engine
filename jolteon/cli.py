@@ -93,7 +93,6 @@ async def main():
         app = Application(
             symbol,
             use_mock_execution=True,
-            candlestick_interval_in_seconds=60,
             database_name="/tmp/replay.sqlite",
             logfile_name="/tmp/replay.log",
         )
@@ -123,7 +122,6 @@ async def main():
         app = Application(
             symbol,
             use_mock_execution=args.paper,
-            candlestick_interval_in_seconds=60,
             database_name="/tmp/jolteon.sqlite",
             logfile_name="/tmp/jolteon.log",
             strategy=strategy,

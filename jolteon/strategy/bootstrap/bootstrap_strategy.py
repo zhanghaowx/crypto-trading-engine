@@ -1,7 +1,6 @@
 from jolteon.core.event.signal import signal, subscribe
 from jolteon.core.event.signal_subscriber import SignalSubscriber
 from jolteon.core.health_monitor.heartbeat import Heartbeater
-from jolteon.market_data.core.candlestick import Candlestick
 from jolteon.market_data.core.trade import Trade
 
 
@@ -24,21 +23,6 @@ class BootstrapStrategy(Heartbeater, SignalSubscriber):
     #   to receive messages.
     # - Remove any event handling method if not related.
     ##########################################################################
-
-    @subscribe("calculated_candlestick_feed")
-    def on_candlestick(self, _: str, candlestick: Candlestick):
-        """
-        This method checks the candlestick pattern currently in the market
-        and make a buy or sell decision.
-
-        Args:
-            _: Unique identifier for the sender
-            candlestick: Most recent candlestick for the market
-
-        Returns:
-
-        """
-        pass
 
     @subscribe("order_fill")
     def on_fill(self, _: str, trade: Trade):

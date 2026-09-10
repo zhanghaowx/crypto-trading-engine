@@ -17,18 +17,18 @@ _QUOTE_HELP = (
 )
 
 
-def price_chart(candles) -> alt.Chart:
+def price_chart(ticks) -> alt.Chart:
     """
-    Line chart of close price, scaled to the data's own range instead of
+    Line chart of mid price, scaled to the data's own range instead of
     always including zero - otherwise price moves that are tiny relative
     to the price level (e.g. BTC ticking by a few dollars) are invisible.
     """
     return (
-        alt.Chart(candles)
+        alt.Chart(ticks)
         .mark_line()
         .encode(
             x=alt.X("time:T", title=None),
-            y=alt.Y("close:Q", title="Close", scale=alt.Scale(zero=False)),
+            y=alt.Y("mid:Q", title="Mid Price", scale=alt.Scale(zero=False)),
         )
     )
 
@@ -79,7 +79,7 @@ def render() -> None:
 
     db_path = st.session_state.db_path
     bbo = read_latest_row(db_path, "ticker_feed")
-    candles = read_table(db_path, "calculated_candlestick_feed")
+    ticks = read_table(db_path, "ticker_feed")
     quotes = read_latest_per_group(db_path, "order", "side")
 
     if bbo is None:
@@ -103,17 +103,16 @@ def render() -> None:
             _quote_metric(cols[1], quotes, "BUY", "Buy Quote")
             _quote_metric(cols[2], quotes, "SELL", "Sell Quote")
 
-    if not candles.empty:
-        candles = candles.drop_duplicates(
-            subset="start_time", keep="last"
-        ).sort_values("start_time")
+    if not ticks.empty:
+        ticks = ticks.sort_values("timestamp")
         window_seconds = st.session_state.chart_window_minutes * 60
-        cutoff = candles["start_time"].max() - window_seconds
-        candles = candles[candles["start_time"] >= cutoff]
-        candles["time"] = as_datetime(candles["start_time"])
+        cutoff = ticks["timestamp"].max() - window_seconds
+        ticks = ticks[ticks["timestamp"] >= cutoff]
+        ticks["time"] = as_datetime(ticks["timestamp"])
+        ticks["mid"] = (ticks["bid_price"] + ticks["ask_price"]) / 2
         chart = (
-            alt.layer(price_chart(candles), quote_lines(quotes))
+            alt.layer(price_chart(ticks), quote_lines(quotes))
             if not quotes.empty
-            else price_chart(candles)
+            else price_chart(ticks)
         )
         st.altair_chart(style_chart(chart), width="stretch")

@@ -288,8 +288,9 @@ class SQLiteWriter:
 
         effective_key = self._ensure_table(conn, table, columns, primary_key)
         if effective_key is not None:
-            # Collapse repeated updates of the same key - a candlestick is
-            # re-sent on every trade - into the one row that survives.
+            # Collapse repeated updates of the same key - a payload
+            # carrying a PRIMARY_KEY may be re-sent many times - into the
+            # one row that survives.
             latest = dict[Any, dict[str, Any]]()
             for row in rows:
                 latest[row.get(effective_key)] = row
