@@ -74,15 +74,17 @@ def test_renders_pnl_and_recent_fills(populated_db_path):
     assert "**Side**" in markdown_values
     assert ":green-badge[BUY]" in markdown_values
     assert "99.50" in markdown_values
-    # PostTradeService's fields: fair price at fill, inventory before/after,
-    # and the horizon fair prices, which are still NULL this soon after.
-    assert "**Fair Price**" in markdown_values
-    assert "100.00" in markdown_values
+    # PostTradeService's fields drive derived edge/markout, not the raw
+    # fair prices: fair_price_at_fill=100.0 vs fill_price=99.5 on a BUY is
+    # a $0.50 favorable edge; the horizon fair prices are still NULL this
+    # soon after, so their markout renders as "-".
+    assert "**Edge**" in markdown_values
+    assert ":green[+$0.50]" in markdown_values
     assert "**Inventory Before**" in markdown_values
     assert "0.000000" in markdown_values
     assert "**Inventory After**" in markdown_values
     assert "1.000000" in markdown_values
-    assert "**Fair Price +100ms**" in markdown_values
+    assert "**Markout +100ms**" in markdown_values
     assert "-" in markdown_values
 
 
@@ -101,16 +103,16 @@ def test_fills_table_uses_readable_headers_and_drops_opaque_ids(
         "Side",
         "Symbol",
         "Price",
-        "Fair Price",
+        "Edge",
         "Quantity",
         "Value",
         "Fee",
         "Inventory Before",
         "Inventory After",
-        "Fair Price +100ms",
-        "Fair Price +1s",
-        "Fair Price +5s",
-        "Fair Price +30s",
+        "Markout +100ms",
+        "Markout +1s",
+        "Markout +5s",
+        "Markout +30s",
     ]
     # The venue's opaque UUIDs are gone.
     assert "maker_order_id" not in display
