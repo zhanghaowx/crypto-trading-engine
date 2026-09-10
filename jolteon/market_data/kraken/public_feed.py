@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import math
+import time
 from datetime import datetime
 from enum import Enum
 
@@ -25,6 +26,7 @@ class PublicFeed(Heartbeater):
     """
 
     PRODUCTION_URI = "wss://ws.kraken.com/v2"
+    MIN_HEALTHY_CONNECTION_SECONDS = 60
 
     class ErrorCode(Enum):
         CONNECTION_LOST = "Connection Lost"
@@ -37,6 +39,7 @@ class PublicFeed(Heartbeater):
         self._candlestick_generator = CandlestickGenerator(
             interval_in_seconds=candlestick_interval_in_seconds
         )
+        self._clock = time.monotonic
 
     async def connect(
         self,
@@ -46,6 +49,7 @@ class PublicFeed(Heartbeater):
     ):
         n_retries = 0
         while n_retries <= max_retries:
+            connected_at = self._clock()
             try:
                 await self.connect_once(symbol)
             except Exception as e:
@@ -54,7 +58,17 @@ class PublicFeed(Heartbeater):
                     f"while connecting to Kraken's websocket: {e}"
                 )
                 await asyncio.sleep(retry_interval_in_seconds)
-            n_retries += 1
+
+            if self._was_connection_healthy(connected_at):
+                n_retries = 0
+            else:
+                n_retries += 1
+
+    def _was_connection_healthy(self, connected_at: float) -> bool:
+        return (
+            self._clock() - connected_at
+            >= PublicFeed.MIN_HEALTHY_CONNECTION_SECONDS
+        )
 
     async def connect_once(self, symbol: str):
         """Establish a connection to the remote service and subscribe to the
@@ -106,6 +120,10 @@ class PublicFeed(Heartbeater):
                             PublicFeed.ErrorCode.MALFORMAT_RESPONSE.value,
                         )
                         break
+                    else:
+                        self.remove_issue(
+                            PublicFeed.ErrorCode.MALFORMAT_RESPONSE.value
+                        )
                 except websockets.exceptions.ConnectionClosedError as e:
                     self.add_issue(
                         HeartbeatLevel.ERROR,
@@ -117,6 +135,16 @@ class PublicFeed(Heartbeater):
                     break
 
         return False
+
+    def _dispatch_isolating_receiver_errors(self, signal, **kwargs):
+        try:
+            signal.send(signal, **kwargs)
+        except Exception as e:
+            logging.error(
+                f"A receiver of signal '{signal.name}' raised an "
+                f"exception: {e}",
+                exc_info=True,
+            )
 
     def _decode_message(self, response):
         possible_error = response.get("error")
@@ -146,7 +174,7 @@ class PublicFeed(Heartbeater):
             # Once subscribed to at least one channel, heartbeat messages are
             # sent approximately once every second in the absence of
             # subscription data.
-            self.events.channel_heartbeat.send(
+            self._dispatch_isolating_receiver_errors(
                 self.events.channel_heartbeat, payload=response
             )
         elif message_type == "ticker":
@@ -197,15 +225,15 @@ class PublicFeed(Heartbeater):
                 "Should only receive ticker feed for one symbol"
             )
             ticker_json = response["data"][0]
-            self.events.ticker.send(
-                self.events.ticker,
-                bbo=BBO(
-                    symbol=ticker_json["symbol"],
-                    bid_price=ticker_json["bid"],
-                    bid_quantity=ticker_json["bid_qty"],
-                    ask_price=ticker_json["ask"],
-                    ask_quantity=ticker_json["ask_qty"],
-                ),
+            bbo = BBO(
+                symbol=ticker_json["symbol"],
+                bid_price=ticker_json["bid"],
+                bid_quantity=ticker_json["bid_qty"],
+                ask_price=ticker_json["ask"],
+                ask_quantity=ticker_json["ask_qty"],
+            )
+            self._dispatch_isolating_receiver_errors(
+                self.events.ticker, bbo=bbo
             )
         elif message_type == "trade":
             """
@@ -265,7 +293,7 @@ class PublicFeed(Heartbeater):
                         trade_json["timestamp"]
                     ),
                 )
-                self.events.market_trade.send(
+                self._dispatch_isolating_receiver_errors(
                     self.events.market_trade, market_trade=market_trade
                 )
                 self._last_received_trade_id = int(market_trade.trade_id)
@@ -276,7 +304,6 @@ class PublicFeed(Heartbeater):
                     market_trade
                 )
                 for candlestick in candlesticks:
-                    self.events.candlestick.send(
-                        self.events.candlestick,
-                        candlestick=candlestick,
+                    self._dispatch_isolating_receiver_errors(
+                        self.events.candlestick, candlestick=candlestick
                     )

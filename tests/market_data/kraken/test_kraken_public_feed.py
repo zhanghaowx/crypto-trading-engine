@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import websockets
 
+from jolteon.core.health_monitor.heartbeat import HeartbeatLevel
 from jolteon.market_data.kraken.public_feed import PublicFeed
 
 
@@ -331,3 +332,78 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             3, mock_websocket.__aenter__.return_value.recv.call_count
         )
+
+    @patch("websockets.connect")
+    async def test_receiver_bug_does_not_mislabel_or_break_connection(
+        self, mock_connect
+    ):
+        self.feed.events.channel_heartbeat.send.side_effect = RuntimeError(
+            "receiver bug"
+        )
+        await self.create_mock_websocket(
+            mock_connect,
+            [TestPublicFeed.heartbeat_feed, TestPublicFeed.heartbeat_feed],
+        )
+
+        with patch.object(self.feed, "add_issue") as mock_add_issue:
+            await self.feed.connect("ETH-USD", max_retries=0)
+
+        self.assertEqual(
+            2, self.feed.events.channel_heartbeat.send.call_count
+        )
+        mock_add_issue.assert_not_called()
+
+    @patch("websockets.connect")
+    async def test_malformed_response_issue_clears_on_recovery(
+        self, mock_connect
+    ):
+        malformed_ticker_feed = """
+        {
+          "channel": "ticker",
+          "data": [],
+          "type": "update"
+        }
+        """
+        await self.create_mock_websocket(
+            mock_connect,
+            [malformed_ticker_feed, TestPublicFeed.heartbeat_feed],
+        )
+
+        with (
+            patch.object(self.feed, "add_issue") as mock_add_issue,
+            patch.object(self.feed, "remove_issue") as mock_remove_issue,
+        ):
+            await self.feed.connect(
+                "ETH-USD", max_retries=1, retry_interval_in_seconds=0
+            )
+
+        mock_add_issue.assert_any_call(
+            HeartbeatLevel.ERROR,
+            PublicFeed.ErrorCode.MALFORMAT_RESPONSE.value,
+        )
+        mock_remove_issue.assert_any_call(
+            PublicFeed.ErrorCode.MALFORMAT_RESPONSE.value
+        )
+
+    @patch("websockets.connect")
+    async def test_retry_budget_resets_after_a_healthy_connection(
+        self, mock_connect
+    ):
+        self.feed._clock = Mock(side_effect=[0, 100, 100, 100])
+        await self.create_mock_websocket(
+            mock_connect,
+            [
+                websockets.exceptions.ConnectionClosedError(
+                    rcvd=None, sent=None
+                ),
+                websockets.exceptions.ConnectionClosedError(
+                    rcvd=None, sent=None
+                ),
+            ],
+        )
+
+        await self.feed.connect(
+            "ETH-USD", max_retries=0, retry_interval_in_seconds=0
+        )
+
+        self.assertEqual(2, mock_connect.call_count)
