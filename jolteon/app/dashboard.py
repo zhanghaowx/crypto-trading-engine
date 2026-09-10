@@ -16,7 +16,6 @@ refresh interval.
 """
 
 import re
-import time
 from pathlib import Path
 from typing import Callable
 
@@ -49,6 +48,13 @@ def _section(title: str, icon: str, render_fn: Callable[[], None]) -> None:
     with st.container(border=True, key=_section_key(title)):
         st.subheader(title, icon=icon)
         render_fn()
+
+
+def _render_sections(
+    sections: list[tuple[str, str, Callable[[], None]]],
+) -> None:
+    for title, icon, render_fn in sections:
+        _section(title, icon, render_fn)
 
 
 def main() -> None:
@@ -94,12 +100,18 @@ def main() -> None:
         f"</style>"
     )
 
-    for title, icon, render_fn in sections:
-        _section(title, icon, render_fn)
-
-    if st.session_state.auto_refresh:
-        time.sleep(st.session_state.refresh_seconds)
-        st.rerun()
+    # `run_every` reruns just this fragment on a timer without blocking the
+    # session - the previous `time.sleep` + `st.rerun()` loop did block it,
+    # which let a periodic refresh race with a widget interaction inside it
+    # (e.g. paging through Recent fills): the two reruns' element streams
+    # could interleave and leave stale rows behind. Re-applying the
+    # decorator every run picks up live changes to the auto-refresh setting.
+    refresh_seconds = (
+        st.session_state.refresh_seconds
+        if st.session_state.auto_refresh
+        else None
+    )
+    st.fragment(_render_sections, run_every=refresh_seconds)(sections)
 
 
 main()
