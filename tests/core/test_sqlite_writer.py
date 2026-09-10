@@ -144,17 +144,18 @@ class TestSQLiteWriter(unittest.TestCase):
         a database that is busy must slow the writer thread down and never
         the callers of `put`.
         """
-        blocker = sqlite3.connect(self.database_filepath, isolation_level=None)
-        blocker.execute("PRAGMA journal_mode=WAL")
-        blocker.execute("BEGIN EXCLUSIVE")
-        try:
-            started = time.monotonic()
-            for i in range(1000):
-                self.writer.put("t", {"a": i})
-            elapsed = time.monotonic() - started
-        finally:
-            blocker.execute("ROLLBACK")
-            blocker.close()
+        with closing(
+            sqlite3.connect(self.database_filepath, isolation_level=None)
+        ) as blocker:
+            blocker.execute("PRAGMA journal_mode=WAL")
+            blocker.execute("BEGIN EXCLUSIVE")
+            try:
+                started = time.monotonic()
+                for i in range(1000):
+                    self.writer.put("t", {"a": i})
+                elapsed = time.monotonic() - started
+            finally:
+                blocker.execute("ROLLBACK")
 
         self.assertLess(elapsed, 1.0)
 
