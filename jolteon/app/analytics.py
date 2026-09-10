@@ -46,3 +46,48 @@ def compute_edge(fills: pd.DataFrame) -> pd.Series:
 def usd_to_bps(usd: pd.Series, execution_price: pd.Series) -> pd.Series:
     """A USD amount as basis points of the execution price."""
     return usd / execution_price * 10_000
+
+
+def fair_price_movement(fills: pd.DataFrame, horizon: str) -> pd.Series:
+    """Signed USD change in the fair price itself at `horizon` after each
+    fill, independent of trade side.
+
+    Unlike markout, this says nothing about execution quality - it
+    measures whether the fair-price model tends to keep drifting after a
+    fill, i.e. whether it has short-term predictive power.
+    """
+    return fills[f"fair_price_{horizon}"] - fills["fair_price_at_fill"]
+
+
+def avg_fair_price_movement(fills: pd.DataFrame) -> pd.Series:
+    """Average signed fair-price movement at each horizon, across every
+    fill, indexed by horizon label."""
+    return pd.Series(
+        {
+            horizon: fair_price_movement(fills, horizon).mean()
+            for horizon in HORIZONS
+        }
+    )
+
+
+def fill_quality_by_side(fills: pd.DataFrame) -> pd.DataFrame:
+    """Fill count, average edge, and average gross/fee-adjusted markout at
+    each horizon, broken out by BUY vs SELL - whether one side of the
+    market is systematically worse than the other, indexed by side."""
+    edge = compute_edge(fills)
+    rows = {}
+    for side, group in fills.groupby("side"):
+        group_edge = edge.loc[group.index]
+        row = {
+            "fill_count": len(group),
+            "avg_edge": group_edge.mean(),
+            "avg_fee": group["fee"].mean(),
+        }
+        for horizon in HORIZONS:
+            markout = compute_markout(group, horizon)
+            row[f"avg_markout_{horizon}"] = markout.mean()
+            row[f"avg_net_markout_{horizon}"] = compute_net_markout(
+                markout, group["fee"]
+            ).mean()
+        rows[side] = row
+    return pd.DataFrame.from_dict(rows, orient="index")
