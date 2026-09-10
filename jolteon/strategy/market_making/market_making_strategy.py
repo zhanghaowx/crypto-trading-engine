@@ -88,8 +88,8 @@ class MarketMakingStrategy(Heartbeater, SignalSubscriber):
         fair_price = self._fair_price_model.calculate(
             FairPriceContext(bbo=bbo)
         )
-        self._requote(MarketSide.BUY, fair_price - self._half_spread)
-        self._requote(MarketSide.SELL, fair_price + self._half_spread)
+        self._requote(MarketSide.BUY, fair_price.bid - self._half_spread)
+        self._requote(MarketSide.SELL, fair_price.ask + self._half_spread)
 
     @subscribe("order_fill")
     def on_fill(self, _: str, trade: Trade):

@@ -1,4 +1,5 @@
 from jolteon.strategy.market_making.fair_value.fair_price_model import (
+    FairPrice,
     FairPriceContext,
     IFairPriceModel,
 )
@@ -7,10 +8,12 @@ from jolteon.strategy.market_making.fair_value.fair_price_model import (
 class MidPriceFairPriceModel(IFairPriceModel):
     """
     Simplest possible fair price model: the mid-point between the best bid
-    and the best ask. Intended as a starting point that can be replaced by
-    a more sophisticated model (e.g. one that also accounts for inventory
-    or volatility) without changing anything else in the strategy.
+    and the best ask, on both sides. Intended as a starting point that can
+    be replaced by a more sophisticated model (e.g. one that skews bid and
+    ask apart based on inventory or volatility) without changing anything
+    else in the strategy.
     """
 
-    def calculate(self, context: FairPriceContext) -> float:
-        return (context.bbo.bid_price + context.bbo.ask_price) / 2
+    def _calculate(self, context: FairPriceContext) -> FairPrice:
+        mid = (context.bbo.bid_price + context.bbo.ask_price) / 2
+        return FairPrice(bid=mid, ask=mid)
