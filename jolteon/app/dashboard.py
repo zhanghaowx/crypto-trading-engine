@@ -71,16 +71,31 @@ def main() -> None:
         ("Orders & PnL", ":material/currency_bitcoin:", orders_pnl.render),
         ("Errors", ":material/error:", logs.render),
     ]
-    for title, icon, render_fn in sections:
-        _section(title, icon, render_fn)
 
+    # Emitted before any card renders, not after: Streamlit streams
+    # elements to the browser as the script runs rather than painting the
+    # whole page at once, so a card's own container can reach the DOM
+    # several beats before the rule painting it white would - showing the
+    # grey canvas underneath for a moment before it snaps to white. Cards
+    # are keyed off the (static) titles above, so this needs nothing the
+    # sections loop itself produces.
     selector = ", ".join(
         f".st-key-{_section_key(title)}" for title, *_ in sections
     )
     st.html(
-        f"<style>{selector} {{ background-color: {CARD_BACKGROUND};"
-        f" box-shadow: {CARD_SHADOW}; }}</style>"
+        f"<style>"
+        f"html {{ interpolate-size: allow-keywords; }}"
+        f"{selector} {{ background-color: {CARD_BACKGROUND};"
+        f" box-shadow: {CARD_SHADOW};"
+        # `interpolate-size` (Chromium) is what lets a height transition
+        # animate to/from `auto` at all; elsewhere this is simply a no-op
+        # and a card's height still changes, just without the animation.
+        f" transition: height 300ms ease, box-shadow 300ms ease; }}"
+        f"</style>"
     )
+
+    for title, icon, render_fn in sections:
+        _section(title, icon, render_fn)
 
     if st.session_state.auto_refresh:
         time.sleep(st.session_state.refresh_seconds)
