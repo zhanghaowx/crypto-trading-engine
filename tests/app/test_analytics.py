@@ -2,9 +2,13 @@ import pandas as pd
 import pytest
 
 from jolteon.app.analytics import (
+    HORIZONS,
+    avg_fair_price_movement,
     compute_edge,
     compute_markout,
     compute_net_markout,
+    fair_price_movement,
+    fill_quality_by_side,
     usd_to_bps,
 )
 
@@ -15,8 +19,28 @@ def _fill(side, fill_price, fair_price_at_fill=None, **horizon_prices):
         "fill_price": fill_price,
         "fair_price_at_fill": fair_price_at_fill,
     }
+    row.update({f"fair_price_{horizon}": None for horizon in HORIZONS})
     row.update(horizon_prices)
     return pd.DataFrame([row])
+
+
+def _fills(*rows):
+    """A fills table from `(side, fill_price, fair_price_at_fill, fee,
+    fair_price_1s)` tuples. The other horizons are left unset (NaN), the
+    same as an unbackfilled fill in the real table."""
+    return pd.DataFrame(
+        [
+            {
+                "side": row[0],
+                "fill_price": row[1],
+                "fair_price_at_fill": row[2],
+                "fee": row[3],
+                **{f"fair_price_{horizon}": None for horizon in HORIZONS},
+                "fair_price_1s": row[4],
+            }
+            for row in rows
+        ]
+    )
 
 
 def test_buy_favorable_markout_is_positive():
@@ -69,3 +93,43 @@ def test_buy_edge_is_fair_minus_execution_price():
 def test_sell_edge_is_execution_price_minus_fair():
     fills = _fill("SELL", 105.0, fair_price_at_fill=100.0)
     assert compute_edge(fills).iloc[0] == pytest.approx(5.0)
+
+
+def test_fair_price_movement_is_signed_and_side_independent():
+    up = _fill("SELL", 100.0, fair_price_at_fill=100.0, fair_price_1s=103.0)
+    down = _fill("BUY", 100.0, fair_price_at_fill=100.0, fair_price_1s=97.0)
+    assert fair_price_movement(up, "1s").iloc[0] == pytest.approx(3.0)
+    assert fair_price_movement(down, "1s").iloc[0] == pytest.approx(-3.0)
+
+
+def test_avg_fair_price_movement_averages_across_fills():
+    fills = pd.concat(
+        [
+            _fill("BUY", 100.0, fair_price_at_fill=100.0, fair_price_1s=103.0),
+            _fill("BUY", 100.0, fair_price_at_fill=100.0, fair_price_1s=97.0),
+        ],
+        ignore_index=True,
+    )
+    assert avg_fair_price_movement(fills)["1s"] == pytest.approx(0.0)
+
+
+def test_fill_quality_by_side_separates_buy_and_sell():
+    fills = _fills(
+        ("BUY", 100.0, 101.0, 0.1, 103.0),
+        ("BUY", 100.0, 99.0, 0.2, 97.0),
+        ("SELL", 110.0, 108.0, 0.05, 105.0),
+    )
+
+    by_side = fill_quality_by_side(fills)
+
+    assert by_side.loc["BUY", "fill_count"] == 2
+    assert by_side.loc["BUY", "avg_edge"] == pytest.approx(0.0)
+    assert by_side.loc["BUY", "avg_fee"] == pytest.approx(0.15)
+    assert by_side.loc["BUY", "avg_markout_1s"] == pytest.approx(0.0)
+    assert by_side.loc["BUY", "avg_net_markout_1s"] == pytest.approx(-0.15)
+
+    assert by_side.loc["SELL", "fill_count"] == 1
+    assert by_side.loc["SELL", "avg_edge"] == pytest.approx(2.0)
+    assert by_side.loc["SELL", "avg_fee"] == pytest.approx(0.05)
+    assert by_side.loc["SELL", "avg_markout_1s"] == pytest.approx(5.0)
+    assert by_side.loc["SELL", "avg_net_markout_1s"] == pytest.approx(4.95)
