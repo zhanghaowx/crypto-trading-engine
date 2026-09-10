@@ -8,23 +8,7 @@ it shows up, and where the code is.
 
 ---
 
-## 1. Dashboard
-
-- **Session memory is unbounded.** Reads are now incremental, which fixed
-  the CPU cost per refresh, but not the footprint: each viewer's session
-  accumulates every row recorded during the session. See `read_table` in
-  `jolteon/app/data.py`.
-- **Whole tables are held to read a single value.** `ticker_feed` is
-  accumulated in full but only its last row is used — for the mid price in
-  `app_pages/market_data.py` and for the mark price in `_render_pnl`. The
-  same shape appears in `latest_quotes` and in the health page's
-  latest-heartbeat-per-sender. Each of those is an `ORDER BY ... LIMIT 1` or
-  a `GROUP BY` that would read a handful of rows instead. Since reads became
-  incremental this costs memory rather than time.
-
----
-
-## 2. Engine structure
+## 1. Engine structure
 
 - **A `Heartbeater` can only be constructed inside a running event loop.**
   `jolteon/core/health_monitor/heartbeat.py:94` calls `asyncio.create_task`
@@ -42,7 +26,7 @@ it shows up, and where the code is.
 
 ---
 
-## 3. Smaller things, knowingly accepted
+## 2. Smaller things, knowingly accepted
 
 These were deliberate trade-offs rather than oversights. They are recorded
 so the reasoning is not lost, not because they need action.
@@ -58,16 +42,3 @@ so the reasoning is not lost, not because they need action.
   data sources return a superset of the requested range.
 
 ---
-
-## Repository housekeeping (point-in-time, 2026-09-09)
-
-This section describes branch state on the day it was written and will go
-stale quickly — check before acting on it.
-
-- The position-manager fix landed on `main`.
-- Five SQLite and performance commits live only on
-  `sqlite-background-writer`, which has never been pushed and is not merged.
-- Neither branch contains the other's work.
-- A local `orders-pnl-readability` branch still holds two unpushed commits
-  that were also cherry-picked onto `sqlite-background-writer`, so those
-  changes exist in two places.
