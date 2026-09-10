@@ -520,18 +520,23 @@ def _render_fill_quality(fills: pd.DataFrame) -> None:
         _render_fair_price_movement(fills)
 
 
-def _render_copy_data_button(fills: pd.DataFrame) -> None:
-    """A top-right icon revealing every raw fill as CSV in a code block,
-    which Streamlit gives a built-in copy-to-clipboard icon - the fastest
-    way to get this page's data out for analysis elsewhere."""
+def render_header_actions() -> None:
+    """A download icon for the section title's own row (see
+    `dashboard.py`'s `actions` slot on `_section`) - every raw fill as a
+    CSV file, the fastest way to get this page's data out for analysis
+    elsewhere. A no-op until there are fills to download."""
+    fills = read_table(st.session_state.db_path, "decorated_order_fill")
+    if fills.empty:
+        return
     with st.container(horizontal=True, horizontal_alignment="right"):
-        with st.popover(
+        st.download_button(
             "",
-            icon=":material/content_copy:",
-            help="Copy every fill as CSV, to paste elsewhere for analysis.",
-        ):
-            st.caption(f"{len(fills)} fills, every recorded field")
-            st.code(fills.to_csv(index=False), language=None)
+            data=fills.to_csv(index=False),
+            file_name="fills.csv",
+            mime="text/csv",
+            icon=":material/download:",
+            help="Download every fill as CSV, for analysis elsewhere.",
+        )
 
 
 def render() -> None:
@@ -540,9 +545,6 @@ def render() -> None:
 
     db_path = st.session_state.db_path
     fills = read_table(db_path, "decorated_order_fill")
-
-    if not fills.empty:
-        _render_copy_data_button(fills)
 
     if fills.empty:
         st.info("No fills yet.")

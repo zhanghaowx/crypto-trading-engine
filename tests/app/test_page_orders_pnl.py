@@ -12,6 +12,9 @@ from jolteon.app.data import read_table
 def _script():
     from jolteon.app.app_pages import orders_pnl
 
+    # Mirrors dashboard.py's `_section`, which renders a page's header
+    # actions (if any) alongside its title, ahead of the page body.
+    orders_pnl.render_header_actions()
     orders_pnl.render()
 
 
@@ -88,26 +91,25 @@ def test_renders_pnl_and_recent_fills(populated_db_path):
     assert "-" in markdown_values
 
 
-def test_copy_data_button_holds_every_fill_as_csv(populated_db_path):
+def test_download_button_present_when_fills_exist(populated_db_path):
     at = AppTest.from_function(_script)
     at.session_state["db_path"] = populated_db_path
     at.run()
 
     assert not at.exception
-    assert len(at.code) == 1
-    csv_text = at.code[0].value
-    assert "trade_id" in csv_text
-    assert "fair_price_at_fill" in csv_text
-    assert "99.5" in csv_text
+    assert len(at.download_button) == 1
+    button = at.download_button[0]
+    assert button.icon == ":material/download:"
+    assert "Download every fill as CSV" in button.help
 
 
-def test_copy_data_button_hidden_when_no_fills(empty_db_path):
+def test_download_button_hidden_when_no_fills(empty_db_path):
     at = AppTest.from_function(_script)
     at.session_state["db_path"] = empty_db_path
     at.run()
 
     assert not at.exception
-    assert len(at.code) == 0
+    assert len(at.download_button) == 0
 
 
 def test_fills_table_uses_readable_headers_and_drops_opaque_ids(
