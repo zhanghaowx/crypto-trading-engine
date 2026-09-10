@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from jolteon.core.event.signal import subscribe
+from jolteon.core.event.signal import signal, subscribe
 from jolteon.core.event.signal_subscriber import SignalSubscriber
 from jolteon.core.side import MarketSide
 from jolteon.market_data.core.bbo import BBO
@@ -14,6 +14,12 @@ class Position:
     cash_value: float
 
 
+@dataclass
+class PositionUpdate:
+    symbol: str
+    volume: float
+
+
 class PositionManager(SignalSubscriber):
     def __init__(self):
         """
@@ -22,6 +28,7 @@ class PositionManager(SignalSubscriber):
         self.positions = dict[str, Position]()
         self.pnl = float(0.0)
         self._mark_prices = dict[str, float]()
+        self.position_updated_event = signal("position_updated")
 
     @property
     def total_pnl(self) -> float:
@@ -49,6 +56,14 @@ class PositionManager(SignalSubscriber):
             self._on_sell(trade.symbol, trade.price, trade.fee, trade.quantity)
         else:
             assert False, f"Trade has an invalid trade side: {trade}"
+
+        self.position_updated_event.send(
+            self.position_updated_event,
+            position_update=PositionUpdate(
+                symbol=trade.symbol,
+                volume=self._position_for(trade.symbol).volume,
+            ),
+        )
 
     def _position_for(self, symbol: str) -> Position:
         """

@@ -8,7 +8,7 @@ import pytz
 from jolteon.core.side import MarketSide
 from jolteon.market_data.core.bbo import BBO
 from jolteon.market_data.core.trade import Trade
-from jolteon.position.position_manager import PositionManager
+from jolteon.position.position_manager import PositionManager, PositionUpdate
 
 
 def randomInt(param, param1):
@@ -174,6 +174,30 @@ class TestPositionManager(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(-230.0, position_manager.positions["BTC"].cash_value)
         # -100 - 1 (buy) + 330 - 1 (sell)
         self.assertEqual(228.0, position_manager.pnl)
+
+    async def test_on_fill_emits_position_updated(self):
+        position_manager = PositionManager()
+        updates = list[PositionUpdate]()
+
+        def on_position_updated(_, position_update: PositionUpdate):
+            updates.append(position_update)
+
+        position_manager.position_updated_event.connect(on_position_updated)
+
+        position_manager.on_fill(
+            "_", self.create_trade(MarketSide.BUY, "BTC", 100.0, 1.0)
+        )
+        position_manager.on_fill(
+            "_", self.create_trade(MarketSide.SELL, "BTC", 100.0, 0.4)
+        )
+
+        self.assertEqual(
+            [
+                PositionUpdate(symbol="BTC", volume=1.0),
+                PositionUpdate(symbol="BTC", volume=0.6),
+            ],
+            updates,
+        )
 
     async def test_total_pnl_marks_a_short_position_to_market(self):
         """
