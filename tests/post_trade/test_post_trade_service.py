@@ -4,7 +4,6 @@ from datetime import datetime
 
 import pytz
 
-from jolteon.core.event.signal import signal
 from jolteon.core.side import MarketSide
 from jolteon.market_data.core.bbo import BBO
 from jolteon.market_data.core.trade import Trade
@@ -19,14 +18,6 @@ class TestPostTradeService(unittest.IsolatedAsyncioTestCase):
 
         self.records = list[DecoratedOrderFill]()
         self.post_trade_service.decorated_order_fill_event.connect(
-            self._on_decorated_order_fill
-        )
-
-    async def asyncTearDown(self):
-        # decorated_order_fill is a real, process-global blinker signal -
-        # disconnect explicitly so this test's receiver doesn't linger for
-        # the next test.
-        signal("decorated_order_fill").disconnect(
             self._on_decorated_order_fill
         )
 

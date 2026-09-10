@@ -183,20 +183,12 @@ class TestPositionManager(unittest.IsolatedAsyncioTestCase):
             updates.append(position_update)
 
         position_manager.position_updated_event.connect(on_position_updated)
-        try:
-            position_manager.on_fill(
-                "_", self.create_trade(MarketSide.BUY, "BTC", 100.0, 1.0)
-            )
-            position_manager.on_fill(
-                "_", self.create_trade(MarketSide.SELL, "BTC", 100.0, 0.4)
-            )
-        finally:
-            # position_updated is a real, process-global signal - GC of an
-            # unreferenced weak receiver isn't guaranteed to happen before
-            # the next test runs, so disconnect explicitly.
-            position_manager.position_updated_event.disconnect(
-                on_position_updated
-            )
+        position_manager.on_fill(
+            "_", self.create_trade(MarketSide.BUY, "BTC", 100.0, 1.0)
+        )
+        position_manager.on_fill(
+            "_", self.create_trade(MarketSide.SELL, "BTC", 100.0, 0.4)
+        )
 
         self.assertEqual(
             [
