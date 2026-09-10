@@ -101,6 +101,12 @@ def main() -> None:
             orders_pnl.render,
             orders_pnl.render_header_actions,
         ),
+        (
+            "Trade Quality",
+            ":material/target:",
+            orders_pnl.render_trade_quality,
+            None,
+        ),
         ("Errors", ":material/error:", logs.render, None),
     ]
 

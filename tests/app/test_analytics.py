@@ -4,11 +4,13 @@ import pytest
 from jolteon.app.analytics import (
     HORIZONS,
     avg_fair_price_movement,
+    classify_inventory_bucket,
     compute_edge,
     compute_markout,
     compute_net_markout,
     fair_price_movement,
     fill_quality_by_side,
+    inventory_bucket_stats,
     usd_to_bps,
 )
 
@@ -133,3 +135,66 @@ def test_fill_quality_by_side_separates_buy_and_sell():
     assert by_side.loc["SELL", "avg_fee"] == pytest.approx(0.05)
     assert by_side.loc["SELL", "avg_markout_1s"] == pytest.approx(5.0)
     assert by_side.loc["SELL", "avg_net_markout_1s"] == pytest.approx(4.95)
+
+
+def test_classify_inventory_bucket_matches_default_boundaries():
+    inventory = pd.Series([-0.6, -0.5, -0.3, -0.1, 0.0, 0.1, 0.3, 0.5, 0.6])
+    buckets = classify_inventory_bucket(inventory)
+    assert list(buckets.astype(str)) == [
+        "Strongly short",
+        "Strongly short",
+        "Moderately short",
+        "Moderately short",
+        "Near neutral",
+        "Near neutral",
+        "Moderately long",
+        "Moderately long",
+        "Strongly long",
+    ]
+
+
+def test_classify_inventory_bucket_uses_custom_boundaries():
+    boundaries = (("Short", -1.0), ("Long", float("inf")))
+    buckets = classify_inventory_bucket(
+        pd.Series([-2.0, 0.0, 2.0]), boundaries
+    )
+    assert list(buckets.astype(str)) == ["Short", "Long", "Long"]
+
+
+def _fill_with_inventory(side, inventory_before, fee, fair_price_1s):
+    row = {
+        "side": side,
+        "fill_price": 100.0,
+        "fill_qty": 1.0,
+        "fee": fee,
+        "inventory_before": inventory_before,
+        "fair_price_at_fill": 100.0,
+        **{f"fair_price_{h}": None for h in HORIZONS},
+        "fair_price_1s": fair_price_1s,
+    }
+    return row
+
+
+def test_inventory_bucket_stats_splits_by_bucket():
+    fills = pd.DataFrame(
+        [
+            _fill_with_inventory("BUY", -0.6, 0.1, 103.0),
+            _fill_with_inventory("SELL", 0.0, 0.2, 98.0),
+        ]
+    )
+
+    stats = inventory_bucket_stats(fills)
+
+    assert stats.loc["Strongly short", "fill_count"] == 1
+    assert stats.loc["Strongly short", "buy_count"] == 1
+    assert stats.loc["Strongly short", "sell_count"] == 0
+    assert stats.loc["Strongly short", "avg_markout_1s"] == pytest.approx(3.0)
+    assert stats.loc["Strongly short", "net_cash_flow"] == pytest.approx(
+        -100.1
+    )
+
+    assert stats.loc["Near neutral", "fill_count"] == 1
+    assert stats.loc["Near neutral", "avg_markout_1s"] == pytest.approx(2.0)
+    assert stats.loc["Near neutral", "net_cash_flow"] == pytest.approx(99.8)
+
+    assert "Strongly long" not in stats.index

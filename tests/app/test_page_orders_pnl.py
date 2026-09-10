@@ -12,10 +12,12 @@ from jolteon.app.data import read_table
 def _script():
     from jolteon.app.app_pages import orders_pnl
 
-    # Mirrors dashboard.py's `_section`, which renders a page's header
-    # actions (if any) alongside its title, ahead of the page body.
+    # Mirrors dashboard.py's `_section`, which renders each card - header
+    # actions ahead of a card's own body, then every card in order - since
+    # Orders & PnL and Trade Quality are separate cards on the same page.
     orders_pnl.render_header_actions()
     orders_pnl.render()
+    orders_pnl.render_trade_quality()
 
 
 def _animated_metrics(at):
@@ -47,7 +49,11 @@ def test_shows_no_fills_messages_when_empty(empty_db_path):
 
     assert not at.exception
     assert not at.warning
-    assert [i.value for i in at.info] == ["No fills yet.", "No fills yet."]
+    assert [i.value for i in at.info] == [
+        "No fills yet.",
+        "No fills yet.",
+        "No fills yet.",
+    ]
 
 
 def test_renders_pnl_and_recent_fills(populated_db_path):
@@ -247,6 +253,107 @@ def test_renders_fill_quality_by_side_and_fair_price_movement(tmp_path):
     dash_metrics = {m.label: m.value for m in at.metric}
     assert dash_metrics["Markout +1s"] == "-"
     assert dash_metrics["+1s"] == "-"
+
+
+def test_renders_inventory_buckets(tmp_path):
+    db_path = str(tmp_path / "inventory_buckets.sqlite")
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "CREATE TABLE decorated_order_fill "
+        "(timestamp REAL, transaction_timestamp REAL, side TEXT, "
+        "fill_price REAL, fill_qty REAL, fee REAL, symbol TEXT, "
+        "trade_id INTEGER PRIMARY KEY, fair_price_at_fill REAL, "
+        "inventory_before REAL, inventory_after REAL, "
+        "fair_price_100ms REAL, fair_price_1s REAL, fair_price_5s REAL, "
+        "fair_price_30s REAL)"
+    )
+    rows = [
+        # Strongly short: one BUY.
+        (
+            1700000000,
+            1700000000,
+            "BUY",
+            100.0,
+            1.0,
+            0.1,
+            "BTC-USD",
+            1,
+            100.0,
+            -0.6,
+            -0.5,
+            103.0,
+            None,
+            None,
+            None,
+        ),
+        # Near neutral: one SELL.
+        (
+            1700000001,
+            1700000001,
+            "SELL",
+            100.0,
+            1.0,
+            0.2,
+            "BTC-USD",
+            2,
+            100.0,
+            0.0,
+            -1.0,
+            98.0,
+            None,
+            None,
+            None,
+        ),
+    ]
+    conn.executemany(
+        "INSERT INTO decorated_order_fill VALUES "
+        "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        rows,
+    )
+    conn.commit()
+    conn.close()
+
+    at = AppTest.from_function(_script)
+    at.session_state["db_path"] = db_path
+    at.run()
+
+    assert not at.exception
+    markdown_values = [m.value for m in at.markdown]
+    assert "**Strongly short**" in markdown_values
+    assert "**Near neutral**" in markdown_values
+    assert "**Strongly long**" not in markdown_values
+
+    metrics = _animated_metrics(at)
+    assert metrics["inventory-strongly-short-fills"]["value"] == 1
+    assert metrics["inventory-strongly-short-buy"]["value"] == 1
+    assert metrics["inventory-strongly-short-sell"]["value"] == 0
+    assert metrics["inventory-strongly-short-markout-100ms"]["value"] == (
+        pytest.approx(3.0)
+    )
+    assert metrics["inventory-near-neutral-fills"]["value"] == 1
+    assert metrics["inventory-near-neutral-markout-100ms"]["value"] == (
+        pytest.approx(2.0)
+    )
+
+
+def test_hides_inventory_buckets_when_inventory_before_is_unset():
+    # inventory_before is present as a column but NaN on every fill, so
+    # no row falls into any bucket and stats comes back empty - nothing
+    # should be rendered, and no exception raised.
+    from jolteon.app.app_pages.orders_pnl import _render_inventory_buckets
+
+    fills = pd.DataFrame(
+        {
+            "inventory_before": pd.array([float("nan")], dtype="float64"),
+            "side": ["BUY"],
+            "fill_price": [100.0],
+            "fair_price_at_fill": [100.0],
+            "fill_qty": [1.0],
+            "fee": [0.1],
+        }
+    )
+
+    assert _render_inventory_buckets(fills) is None
 
 
 def test_marks_inventory_at_zero_without_a_ticker_feed(tmp_path):

@@ -9,6 +9,7 @@ from jolteon.app.analytics import (
     compute_edge,
     compute_markout,
     fill_quality_by_side,
+    inventory_bucket_stats,
 )
 from jolteon.app.components import (
     BadgeColor,
@@ -505,8 +506,7 @@ def _render_fair_price_movement(fills: pd.DataFrame) -> None:
 
 
 def _render_fill_quality(fills: pd.DataFrame) -> None:
-    """BUY vs SELL execution quality (section 6) and whether the fair
-    price itself has short-term predictive power (section 9)."""
+    """BUY vs SELL execution quality (section 6)."""
     needed = {"side", "fill_price", "fair_price_at_fill"}
     if not needed.issubset(fills.columns):
         return
@@ -516,8 +516,67 @@ def _render_fill_quality(fills: pd.DataFrame) -> None:
     for side, stats in card_grid(list(by_side.iterrows()), columns=2):
         _render_fill_quality_card(side, stats)
 
-    if f"fair_price_{HORIZONS[0]}" in fills.columns:
-        _render_fair_price_movement(fills)
+
+def _bucket_slug(bucket: str) -> str:
+    return bucket.lower().replace(" ", "-")
+
+
+def _render_inventory_bucket_card(bucket: str, stats: pd.Series) -> None:
+    st.markdown(f"**{bucket}**")
+    slug = _bucket_slug(bucket)
+    cols = iter(st.columns(3 + len(HORIZONS)))
+    with next(cols):
+        animated_metric(
+            f"inventory-{slug}-fills",
+            "Fills",
+            stats["fill_count"],
+            decimals=None,
+            border=True,
+            help="How many fills happened while inventory was in this range.",
+        )
+    with next(cols):
+        animated_metric(
+            f"inventory-{slug}-buy",
+            "BUY",
+            stats["buy_count"],
+            decimals=None,
+            border=True,
+            help="How many of this bucket's fills were BUYs.",
+        )
+    with next(cols):
+        animated_metric(
+            f"inventory-{slug}-sell",
+            "SELL",
+            stats["sell_count"],
+            decimals=None,
+            border=True,
+            help="How many of this bucket's fills were SELLs.",
+        )
+    for horizon in HORIZONS:
+        with next(cols):
+            _render_metric_or_dash(
+                f"inventory-{slug}-markout-{horizon}",
+                f"Markout +{horizon}",
+                stats[f"avg_markout_{horizon}"],
+                "How much the price moved in our favor, on average, "
+                f"{_HORIZON_PHRASES[horizon]} after a fill made while "
+                "inventory was in this range.",
+            )
+
+
+def _render_inventory_buckets(fills: pd.DataFrame) -> None:
+    """Whether fills made at extreme inventory levels look different from
+    fills made near neutral (section 5)."""
+    needed = {"inventory_before", "side", "fill_price", "fair_price_at_fill"}
+    if not needed.issubset(fills.columns):
+        return
+
+    stats = inventory_bucket_stats(fills)
+    if stats.empty:
+        return
+
+    for bucket, row in card_grid(list(stats.iterrows()), columns=2):
+        _render_inventory_bucket_card(bucket, row)
 
 
 def render_header_actions() -> None:
@@ -551,8 +610,6 @@ def render() -> None:
     else:
         latest_mid = read_latest_per_group(db_path, "ticker_feed", "symbol")
         _render_pnl(fills, latest_mid)
-        st.divider()
-        _render_fill_quality(fills)
 
     st.divider()
 
@@ -565,3 +622,23 @@ def render() -> None:
         )
         render_fills_list(display)
         show_pagination()
+
+
+def render_trade_quality() -> None:
+    """Execution quality (section 6, 9) and inventory bucketing (section
+    5) - their own card, separate from Orders & PnL's raw fills and cash
+    totals."""
+    if not warn_if_no_db():
+        return
+
+    fills = read_table(st.session_state.db_path, "decorated_order_fill")
+    if fills.empty:
+        st.info("No fills yet.")
+        return
+
+    _render_fill_quality(fills)
+    st.divider()
+    _render_inventory_buckets(fills)
+    st.divider()
+    if f"fair_price_{HORIZONS[0]}" in fills.columns:
+        _render_fair_price_movement(fills)
