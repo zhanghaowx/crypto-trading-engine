@@ -43,17 +43,6 @@ DOWN_BADGE: tuple[str, BadgeColor, str] = (
     ":material/heart_broken:",
 )
 
-# Light tints of the theme's semantic colors (config.toml), used to color a
-# whole health tile by status - there's no native `st.container` background
-# option, so this is applied as scoped CSS keyed to each tile's container.
-TILE_BACKGROUNDS: dict[BadgeColor, str] = {
-    "green": "rgba(78, 159, 31, 0.16)",
-    "yellow": "rgba(232, 185, 60, 0.20)",
-    "orange": "rgba(232, 135, 60, 0.20)",
-    "red": "rgba(226, 87, 76, 0.16)",
-    "gray": "rgba(138, 143, 124, 0.14)",
-}
-
 
 def _is_down(seconds_since_seen: float) -> bool:
     """Whether a sender has gone quiet for long enough to call it dead."""
@@ -94,20 +83,22 @@ def render() -> None:
         pd.Timestamp.now(tz=local_tz) - latest["last_seen"]
     ).dt.total_seconds()
     latest = latest.sort_values("sender")
+    rows = list(latest.itertuples())
 
-    tile_keys: list[tuple[str, BadgeColor]] = []
-    for row in card_grid(
-        list(latest.itertuples()),
-        columns=3,
-        key_fn=lambda row: _tile_key(row.sender),
-    ):
-        down = _is_down(row.quiet_for)
-        label, color, icon = (
+    statuses: dict[str, tuple[str, BadgeColor, str]] = {
+        row.sender: (
             DOWN_BADGE
-            if down
+            if _is_down(row.quiet_for)
             else HEARTBEAT_BADGES.get(row.level, UNKNOWN_BADGE)
         )
-        tile_keys.append((_tile_key(row.sender), color))
+        for row in rows
+    }
+
+    for row in card_grid(
+        rows, columns=3, key_fn=lambda row: _tile_key(row.sender)
+    ):
+        down = _is_down(row.quiet_for)
+        label, color, icon = statuses[row.sender]
         with st.container(horizontal=True, vertical_alignment="center"):
             st.markdown(f"**{row.sender}**")
             st.badge(label, color=color, icon=icon)
@@ -116,10 +107,3 @@ def render() -> None:
             parts.append(f"No heartbeat for {_describe_age(row.quiet_for)}")
         parts.append(f"Last seen {row.last_seen:%H:%M:%S} local time")
         st.caption(" · ".join(parts))
-
-    rules = "\n".join(
-        f".st-key-{key} {{ background-color: "
-        f"{TILE_BACKGROUNDS.get(color, TILE_BACKGROUNDS['gray'])}; }}"
-        for key, color in tile_keys
-    )
-    st.html(f"<style>{rules}</style>")
