@@ -24,7 +24,6 @@ class KrakenApplication(ApplicationBase):
         use_mock_execution: bool = True,
         database_name="/tmp/jolteon.sqlite",
         logfile_name="/tmp/jolteon.log",
-        candlestick_interval_in_seconds=60,
         strategy: object = None,
     ):
         print(f"Using {type(self).__name__}")
@@ -32,7 +31,6 @@ class KrakenApplication(ApplicationBase):
             symbol=symbol.replace("-", "/"),
             database_name=database_name,
             logfile_name=logfile_name,
-            candlestick_interval_in_seconds=candlestick_interval_in_seconds,
             strategy=strategy,
         )
         if use_mock_execution:
@@ -41,9 +39,7 @@ class KrakenApplication(ApplicationBase):
             super().use_execution_service(ExecutionService())
 
     async def start(self):
-        super().use_market_data_service(
-            PublicFeed(self._candlestick_interval_in_seconds)
-        )
+        super().use_market_data_service(PublicFeed())
 
         logging.info(f"Running {self._symbol} live")
         print(f"Running {self._symbol} live")
@@ -52,10 +48,7 @@ class KrakenApplication(ApplicationBase):
 
     async def run_replay(self, start: datetime, end: datetime):
         super().use_market_data_service(
-            HistoricalFeed(
-                KrakenHistoricalDataSource(),
-                self._candlestick_interval_in_seconds,
-            )
+            HistoricalFeed(KrakenHistoricalDataSource())
         )
 
         logging.info(f"Replaying {self._symbol} from {start} to {end}")

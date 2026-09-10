@@ -15,4 +15,3 @@ so the reasoning is not lost, not because they need action.
 
 - `IDataSource.TRADE_CACHE` is a class-level dict with no eviction, so every
   downloaded range stays resident for the life of the process.
-- We no longer use "candlestick" in our strategy, so let's remove all related code.

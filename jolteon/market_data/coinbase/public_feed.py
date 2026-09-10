@@ -11,7 +11,6 @@ from jolteon.core.health_monitor.heartbeat import (
     starts_heartbeating,
 )
 from jolteon.core.side import MarketSide
-from jolteon.market_data.core.candlestick_generator import CandlestickGenerator
 from jolteon.market_data.core.events import Events
 from jolteon.market_data.core.trade import Trade
 
@@ -44,14 +43,10 @@ class PublicFeed(Heartbeater):
     def __init__(
         self,
         env: CoinbaseEnvironment = CoinbaseEnvironment.SANDBOX,
-        candlestick_interval_in_seconds: int = 60,
     ):
         super().__init__(type(self).__name__, interval_in_seconds=10)
         self.events = Events()
         self._env = env
-        self._candlestick_generator = CandlestickGenerator(
-            interval_in_seconds=candlestick_interval_in_seconds
-        )
 
     @starts_heartbeating
     async def connect(self, product_id: str):
@@ -148,17 +143,6 @@ class PublicFeed(Heartbeater):
                         logging.debug(
                             "Received Market Trade: %s", market_trade
                         )
-
-                        candlesticks = (
-                            self._candlestick_generator.on_market_trade(
-                                market_trade
-                            )
-                        )
-                        for candlestick in candlesticks:
-                            self.events.candlestick.send(
-                                self.events.candlestick,
-                                candlestick=candlestick,
-                            )
                     else:
                         pass  # Ignore unsupported message types
 

@@ -84,15 +84,6 @@ def populated_db_path(tmp_path) -> str:
         )
 
         conn.execute(
-            "CREATE TABLE calculated_candlestick_feed "
-            "(start_time REAL, close REAL)"
-        )
-        conn.execute(
-            "INSERT INTO calculated_candlestick_feed VALUES "
-            "(1700000000, 100.5)"
-        )
-
-        conn.execute(
             'CREATE TABLE "order" '
             "(timestamp REAL, creation_time REAL, side TEXT, price REAL, "
             "quantity REAL, symbol TEXT, client_order_id TEXT, "

@@ -18,7 +18,7 @@ streamlit run jolteon/app/dashboard.py -- --db /tmp/replay.sqlite   # point at a
 
 * **Health** — heartbeat status for each monitored component, shown first since a stale component
   makes everything below it stale too.
-* **Market Data** — recent candlesticks and BBO for the traded symbol.
+* **Market Data** — recent mid price and BBO for the traded symbol.
 * **Risk Limits** — current state of the configured risk limits (order frequency, inventory, ...).
 * **Orders & PnL** — recorded orders, fills, and running PnL.
 

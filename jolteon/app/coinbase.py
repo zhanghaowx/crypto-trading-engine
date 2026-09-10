@@ -25,7 +25,6 @@ class CoinbaseApplication(ApplicationBase):
         use_mock_execution: bool = True,
         database_name="/tmp/jolteon.sqlite",
         logfile_name="/tmp/jolteon.log",
-        candlestick_interval_in_seconds=60,
         strategy: object = None,
     ):
         print(f"Using {type(self).__name__}")
@@ -33,7 +32,6 @@ class CoinbaseApplication(ApplicationBase):
             symbol=symbol,
             database_name=database_name,
             logfile_name=logfile_name,
-            candlestick_interval_in_seconds=candlestick_interval_in_seconds,
             strategy=strategy,
         )
         if use_mock_execution:
@@ -45,19 +43,13 @@ class CoinbaseApplication(ApplicationBase):
         logging.info(f"Running {self._symbol}")
 
         print(type(super()))
-        interval_in_seconds = self._candlestick_interval_in_seconds
-        super().use_market_data_service(
-            PublicFeed(candlestick_interval_in_seconds=interval_in_seconds)
-        )
+        super().use_market_data_service(PublicFeed())
         return await super().run_start()
 
     async def run_replay(self, start: datetime, end: datetime):
         logging.info(f"Replaying {self._symbol} from {start} to {end}")
         super().use_market_data_service(
-            HistoricalFeed(
-                CoinbaseHistoricalDataSource(),
-                self._candlestick_interval_in_seconds,
-            )
+            HistoricalFeed(CoinbaseHistoricalDataSource())
         )
         now = datetime.now(tz=pytz.utc)
         return await super().run_start(start, min(now, end))

@@ -8,7 +8,6 @@ import pytz
 from jolteon.core.event.signal_manager import SignalManager
 from jolteon.core.event.signal_recorder import SignalRecorder
 from jolteon.core.logging.logger import setup_global_logger
-from jolteon.market_data.core.indicator.rsi import RSICalculator
 from jolteon.market_data.data_source import DatabaseDataSource
 from jolteon.market_data.historical_feed import HistoricalFeed
 from jolteon.position.position_manager import PositionManager
@@ -22,7 +21,6 @@ class ApplicationBase(SignalManager):
         symbol: str,
         database_name,
         logfile_name,
-        candlestick_interval_in_seconds,
         strategy: object = None,
     ):
         """
@@ -30,7 +28,6 @@ class ApplicationBase(SignalManager):
         one symbol and one strategy.
         """
         self._symbol = symbol
-        self._candlestick_interval_in_seconds = candlestick_interval_in_seconds
 
         # Data Dumping Setup
         #
@@ -51,9 +48,6 @@ class ApplicationBase(SignalManager):
 
         # Strategy Setup
         self._strategy = strategy
-
-        # Indicators
-        self._rsi_calculator = RSICalculator()
 
         # Per Exchange Setup (Decided Later)
         self._exec_service: object = None
@@ -96,12 +90,7 @@ class ApplicationBase(SignalManager):
         start = data_source.start_time()
         end = data_source.end_time()
 
-        self.use_market_data_service(
-            HistoricalFeed(
-                data_source,
-                self._candlestick_interval_in_seconds,
-            )
-        )
+        self.use_market_data_service(HistoricalFeed(data_source))
 
         logging.info(f"Replaying {self._symbol} from {start} to {end}")
         print(f"Replaying {self._symbol} from {start} to {end}")
