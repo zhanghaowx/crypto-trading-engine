@@ -1,4 +1,5 @@
 import asyncio
+import functools
 import logging
 from datetime import datetime
 from enum import Enum
@@ -6,6 +7,18 @@ from typing import Union
 
 from jolteon.core.event.signal import signal
 from jolteon.core.time.time_manager import time_manager
+
+
+def starts_heartbeating(func):
+    """Marks a Heartbeater's driving coroutine: starts its periodic
+    heartbeat, on the caller's running loop, before running it."""
+
+    @functools.wraps(func)
+    async def wrapper(self, *args, **kwargs):
+        self.start_heartbeating()
+        return await func(self, *args, **kwargs)
+
+    return wrapper
 
 
 class HeartbeatLevel(Enum):
@@ -90,17 +103,32 @@ class Heartbeater:
         self._issues = [
             Heartbeat(level=HeartbeatLevel.NORMAL, sender=self._name)
         ]
-
-        if self._interval_in_seconds > 0:
-            self._heartbeating_task = asyncio.create_task(
-                self._start_heartbeating()
-            )
-        else:
-            self._heartbeating_task = None  # type: ignore[assignment]
+        self._heartbeating_task: Union[asyncio.Task, None] = None
 
     def __del__(self):
-        if self._heartbeating_task:
-            self._heartbeating_task.cancel()
+        task = self._heartbeating_task
+        if task and not task.get_loop().is_closed():
+            task.cancel()
+
+    def start_heartbeating(self):
+        """
+        Starts sending heartbeats periodically on the caller's running
+        event loop. Idempotent - only the first call has any effect.
+
+        Call this from the coroutine that does the component's real
+        recurring work, not from __init__, so a hang in that loop stalls
+        its own heartbeats instead of heartbeats riding on an unrelated
+        loop. `@subscribe`-decorated handlers call this automatically.
+        """
+        if self._heartbeating_task is None and self._interval_in_seconds > 0:
+            self._heartbeating_task = asyncio.get_running_loop().create_task(
+                self._run_heartbeating_loop()
+            )
+
+    async def _run_heartbeating_loop(self):
+        while True:
+            self.send_heartbeat()
+            await asyncio.sleep(self._interval_in_seconds)
 
     def heartbeat_signal(self):
         """
@@ -164,12 +192,3 @@ class Heartbeater:
             self._heartbeat_signal, heartbeat=last_heartbeat
         )
         logging.debug(f"Sent {last_heartbeat}")
-
-    async def _start_heartbeating(self):
-        assert self._interval_in_seconds > 0, (
-            "Please set interval_in_seconds to be a positive number "
-            "in seconds!"
-        )
-        while True:
-            self.send_heartbeat()
-            await asyncio.sleep(self._interval_in_seconds)
