@@ -6,14 +6,16 @@ import streamlit as st
 from jolteon.app.components import (
     BadgeColor,
     animated_metric,
+    paginate,
     row_add_rule,
     row_key,
     warn_if_no_db,
 )
 from jolteon.app.data import as_datetime, read_latest_per_group, read_table
 
-# The recorded tables grow without bound; only the tail is worth showing.
-MAX_ROWS = 20
+# The recorded tables grow without bound; fills are paginated rather than
+# read in full onto the page.
+PAGE_SIZE = 10
 
 # Fill quantities are floats, so a position that has been fully closed out
 # rarely lands exactly on zero.
@@ -43,10 +45,10 @@ def _time_column(df: pd.DataFrame, preferred: str) -> str:
     return preferred if preferred in df.columns else "timestamp"
 
 
-def _recent(df: pd.DataFrame, time_column: str) -> pd.DataFrame:
-    """The newest `MAX_ROWS` rows, newest first."""
+def _newest_first(df: pd.DataFrame, time_column: str) -> pd.DataFrame:
+    """Every row of `df`, newest first."""
     column = _time_column(df, time_column)
-    return df.sort_values(column, ascending=False).head(MAX_ROWS)
+    return df.sort_values(column, ascending=False)
 
 
 def _readable(columns: dict[str, pd.Series | None]) -> pd.DataFrame:
@@ -66,26 +68,27 @@ def _notional(price: pd.Series | None, qty: pd.Series | None):
 
 
 def fills_table(fills: pd.DataFrame) -> pd.DataFrame:
-    """Recent fills. The venue's maker/taker order ids are opaque UUIDs, so
-    they're dropped in favour of the short trade and client order ids."""
-    recent = _recent(fills, "transaction_time")
-    price = _optional(recent, "price")
-    quantity = _optional(recent, "quantity")
-    trade_id = _optional(recent, "trade_id")
+    """Every fill, newest first. The venue's maker/taker order ids are
+    opaque UUIDs, so they're dropped in favour of the short trade and
+    client order ids."""
+    ordered = _newest_first(fills, "transaction_time")
+    price = _optional(ordered, "price")
+    quantity = _optional(ordered, "quantity")
+    trade_id = _optional(ordered, "trade_id")
     return _readable(
         {
             "Time": _local_time(
-                recent.get("transaction_time", recent.get("timestamp"))
+                ordered.get("transaction_time", ordered.get("timestamp"))
             ),
             # As text, so the id reads as a label rather than a quantity.
             "Trade": None if trade_id is None else trade_id.astype(str),
-            "Order": _optional(recent, "client_order_id"),
-            "Side": _optional(recent, "side"),
-            "Symbol": _optional(recent, "symbol"),
+            "Order": _optional(ordered, "client_order_id"),
+            "Side": _optional(ordered, "side"),
+            "Symbol": _optional(ordered, "symbol"),
             "Price": price,
             "Quantity": quantity,
             "Value": _notional(price, quantity),
-            "Fee": _optional(recent, "fee"),
+            "Fee": _optional(ordered, "fee"),
         }
     )
 
@@ -382,4 +385,8 @@ def render() -> None:
     if fills.empty:
         st.info("No fills yet.")
     else:
-        render_fills_list(fills_table(fills))
+        display, show_pagination = paginate(
+            fills_table(fills), key="recent-fills", page_size=PAGE_SIZE
+        )
+        render_fills_list(display)
+        show_pagination()

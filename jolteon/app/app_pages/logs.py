@@ -4,10 +4,40 @@ from datetime import datetime
 import pandas as pd
 import streamlit as st
 
-from jolteon.app.components import row_add_rule, row_key, warn_if_no_db
+from jolteon.app.components import (
+    paginate,
+    row_add_rule,
+    row_key,
+    warn_if_no_db,
+)
 from jolteon.app.data import as_datetime, read_table
 
-MAX_ROWS = 20
+PAGE_SIZE = 10
+
+# CRITICAL is the same kind of thing an operator calls an "error" as ERROR
+# is - just a more severe one - so both belong in this card. Everything
+# below ERROR (INFO, WARNING) is recorded (see setup_global_logger) but
+# deliberately never shown here.
+_LEVELS = ("ERROR", "CRITICAL")
+
+_LEVEL_ICONS: dict[str, str] = {
+    "ERROR": ":material/error:",
+    "CRITICAL": ":material/dangerous:",
+}
+
+# The same colors HEARTBEAT_BADGES uses for these levels (config.toml).
+_LEVEL_ACCENTS: dict[str, str] = {
+    "ERROR": "#E8873C",
+    "CRITICAL": "#E2574C",
+}
+
+# Log entries read as a list of records, not cards - square corners (the
+# theme's own `baseRadius` rounds bordered containers and expanders alike)
+# read as more list-like here than the app's usual pill shapes.
+_SQUARE_ROW_CSS = (
+    '[class*="st-key-row-error-"], [class*="st-key-row-error-"] * '
+    "{ border-radius: 0 !important; }"
+)
 
 # SmartFormatter (jolteon/core/logging/logger.py) bakes
 # "[time][logger][level][thread][file:line] - " into `msg` itself, and a
@@ -30,6 +60,20 @@ def _local_time(seconds: pd.Series) -> pd.Series:
     return as_datetime(seconds).dt.tz_convert(local_tz)
 
 
+def _relative_age(local_time: pd.Timestamp) -> str:
+    """How long ago `local_time` was, in plain words (e.g. '3 minutes ago')."""
+    seconds = max(
+        0.0,
+        (pd.Timestamp.now(tz=local_time.tzinfo) - local_time).total_seconds(),
+    )
+    for unit, size in (("hour", 3600), ("minute", 60)):
+        if seconds >= size:
+            count = round(seconds / size)
+            return f"{count} {unit}{'s' if count != 1 else ''} ago"
+    count = round(seconds)
+    return f"{count} second{'s' if count != 1 else ''} ago"
+
+
 def render() -> None:
     log_db_path = st.session_state.log_db_path
     if not warn_if_no_db(log_db_path):
@@ -37,7 +81,7 @@ def render() -> None:
 
     logs = read_table(log_db_path, "logs")
     errors = (
-        logs[logs["levelname"] == "ERROR"]
+        logs[logs["levelname"].isin(_LEVELS)]
         if "levelname" in logs.columns
         else logs.iloc[0:0]
     )
@@ -45,23 +89,45 @@ def render() -> None:
         st.info("No ERROR logs recorded yet.")
         return
 
-    recent = errors.sort_values("created", ascending=False).head(MAX_ROWS)
-    recent = recent.assign(
-        local_time=_local_time(recent["created"].astype(float)),
-        clean_message=recent["msg"].map(_clean_message),
+    errors = errors.sort_values("created", ascending=False)
+    page, show_pagination = paginate(
+        errors, key="error-log", page_size=PAGE_SIZE
+    )
+    page = page.assign(
+        local_time=_local_time(page["created"].astype(float)),
+        clean_message=page["msg"].map(_clean_message),
     )
 
-    for _, row in recent.iterrows():
-        summary = f"{row['local_time']:%H:%M:%S}  ·  {row['clean_message']}"
+    row_levels: list[tuple[str, str]] = []
+    for _, row in page.iterrows():
+        level = row.get("levelname", "ERROR")
         # `created` uniquely identifies the underlying log record, so an
         # entry already shown keeps its key (and its mounted DOM node)
         # across reruns even as newer entries push it down the list.
-        with st.container(key=row_key("error", str(row["created"]))):
-            with st.expander(summary, icon=":material/error:"):
+        key = row_key("error", str(row["created"]))
+        row_levels.append((key, level))
+        summary = (
+            f"{_relative_age(row['local_time'])}  ·  {row['clean_message']}"
+        )
+        with st.container(key=key):
+            with st.expander(
+                summary, icon=_LEVEL_ICONS.get(level, ":material/error:")
+            ):
                 st.caption(
                     f"{row.get('name', '-')} · "
                     f"{row.get('filename', '-')}:{row.get('lineno', '-')}"
                 )
                 if row["clean_message"] != row["msg"]:
                     st.code(row["msg"], language=None)
-    st.html(f"<style>{row_add_rule('error')}</style>")
+
+    show_pagination()
+
+    accent_rules = "\n".join(
+        f".st-key-{key} {{ border-left: 3px solid "
+        f"{_LEVEL_ACCENTS.get(level, '#8A8D91')}; padding-left: 8px; }}"
+        for key, level in row_levels
+    )
+    st.html(
+        f"<style>{row_add_rule('error')}{accent_rules}{_SQUARE_ROW_CSS}"
+        f"</style>"
+    )

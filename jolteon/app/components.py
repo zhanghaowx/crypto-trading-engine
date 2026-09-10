@@ -2,9 +2,10 @@
 
 import re
 from pathlib import Path
-from typing import Literal, TypeVar
+from typing import Callable, Literal, TypeVar
 
 import altair as alt
+import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 
@@ -151,6 +152,83 @@ def card_grid(items, columns: int = 3, key_fn=None):
             key = key_fn(item) if key_fn else None
             with col, st.container(border=True, key=key):
                 yield item
+
+
+def _shift_page(state_key: str, delta: int, page_count: int) -> None:
+    """Moves a `paginate` page by `delta`, clamped to the valid range.
+
+    Run as a button's `on_click`, so it lands in `session_state` *before*
+    the script reruns - the rerun's own top-to-bottom pass then sees the
+    new page from the very first line, and disabled states, captions and
+    the sliced page all agree. Computed by incrementing a local variable
+    inline instead, whichever widget came first in the code would still
+    show the *old* page on the one rerun a click actually happens on.
+    """
+    current = st.session_state.get(state_key, 0)
+    st.session_state[state_key] = min(max(current + delta, 0), page_count - 1)
+
+
+def paginate(
+    df: pd.DataFrame, *, key: str, page_size: int = 10
+) -> tuple[pd.DataFrame, Callable[[], None]]:
+    """
+    The current page of `df` (already sorted, newest first), paired with a
+    function that draws its Previous/Next controls - call that separately,
+    whereever the controls should actually sit (typically below the rows
+    this page's data renders as). `key` keeps the page itself in its own
+    session-state slot, so it survives reruns (including the dashboard's
+    own auto-refresh) as long as the caller passes the same `key` every
+    time.
+
+    Below `page_size` rows there is nothing to page through: the returned
+    function then draws nothing.
+    """
+    total = len(df)
+    state_key = f"_paginate_page_{key}"
+    if total <= page_size:
+        return df, lambda: None
+
+    page_count = -(-total // page_size)
+    page = min(st.session_state.get(state_key, 0), page_count - 1)
+    start = page * page_size
+    current_page = df.iloc[start : start + page_size]
+
+    def controls() -> None:
+        # One cluster ("< Page 1 of N >"), centered, rather than three
+        # separately-gutter columns - `st.columns` always spaces its columns
+        # apart, which reads fine for unrelated content but pulls two
+        # buttons that belong right next to a shared label too far apart.
+        with st.container(
+            horizontal=True,
+            horizontal_alignment="center",
+            vertical_alignment="center",
+            gap="small",
+        ):
+            st.button(
+                "",
+                icon=":material/chevron_left:",
+                key=f"{key}-prev-page",
+                help="Previous page",
+                disabled=page == 0,
+                on_click=_shift_page,
+                args=(state_key, -1, page_count),
+            )
+            # `st.caption` defaults to `width="stretch"` (unlike `st.button`,
+            # which defaults to `width="content"`); left at that default it
+            # would eat all the row's remaining space and split the cluster
+            # apart instead of sitting snug between the two buttons.
+            st.caption(f"Page {page + 1} of {page_count}", width="content")
+            st.button(
+                "",
+                icon=":material/chevron_right:",
+                key=f"{key}-next-page",
+                help="Next page",
+                disabled=page >= page_count - 1,
+                on_click=_shift_page,
+                args=(state_key, 1, page_count),
+            )
+
+    return current_page, controls
 
 
 def warn_if_no_db(db_path: str | None = None) -> bool:
