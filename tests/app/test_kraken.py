@@ -23,8 +23,6 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
 
         from jolteon.app.kraken import KrakenApplication
 
-        KrakenApplication.THREAD_SYNC_INTERVAL = 0.01
-
         self.application = KrakenApplication(
             symbol=self.symbol,
             database_name=f"{tempfile.gettempdir()}/unittest.sqlite",
