@@ -35,11 +35,7 @@ Jolteon is capable of executing orders autonomously. This feature enables users 
 
 To enhance risk control, the platform incorporates a comprehensive risk management component. Users can set parameters for position sizing, implement stop-loss orders, and establish other risk mitigation measures.
 
-### 5. Instrument Scanner
-
-A powerful instrument scanner is integrated into Jolteon, enabling users to identify stocks or cryptocurrencies based on specific criteria. This feature streamlines the process of identifying assets that align with the user's trading strategies.
-
-### 6. Heartbeat Monitor Service
+### 5. Heartbeat Monitor Service
 
 Jolteon includes a heartbeat monitor service to ensure the seamless operation of both external APIs and internal components. This monitoring service automatically checks and alerts users in the event of any issues, ensuring the platform's reliability.
 
@@ -80,7 +76,15 @@ Jolteon is a single-symbol (`BTC-USD`), single-strategy trading engine, run via 
 uv run jolteon --exchange Kraken     # or --exchange Coinbase
 ```
 
-Live order execution requires exchange API credentials as environment variables:
+Add `--paper` to run against the exchange's real market data feed while sending orders to a mock
+execution service instead (paper trading), running a market making strategy tuned by
+`IParameterService`'s defaults so there is order/fill/risk-limit activity to watch on the dashboard:
+
+```bash
+uv run jolteon --exchange Kraken --paper
+```
+
+Live order execution (without `--paper`) requires exchange API credentials as environment variables:
 
 | Exchange | Environment variables |
 |----------|------------------------|
@@ -142,6 +146,16 @@ git config core.hooksPath .githooks
 
 Use `git push --no-verify` to bypass it in an emergency.
 
+### Dashboard
+
+A read-only [Streamlit](https://streamlit.io/) dashboard shows a run's health, market data, risk
+limits, and orders/PnL, polling the SQLite database from either a live or replayed run
+(see [docs/markdowns/ui/dashboard.md](docs/markdowns/ui/dashboard.md)):
+
+```bash
+uv run poe dashboard      # reads /tmp/jolteon.sqlite by default
+```
+
 ### Building Documentation
 
 ```bash
@@ -150,7 +164,7 @@ uv run poe docs      # serves the mkdocs site locally with live reload
 
 ## Contributing
 
-We welcome contributions! If you would like to contribute to the development of Jolteon, please refer to the [Contribution Guidelines](link-to-contributing).
+We welcome contributions! Fork the repo, make your changes on a branch, and open a pull request.
 
 ## License
 
