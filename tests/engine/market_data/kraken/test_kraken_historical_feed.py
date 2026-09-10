@@ -6,7 +6,9 @@ from jolteon.engine.core.time.time_manager import time_manager
 from jolteon.engine.market_data.core.trade import Trade
 from jolteon.engine.market_data.data_source import IDataSource
 from jolteon.engine.market_data.historical_feed import HistoricalFeed
-from jolteon.engine.market_data.kraken.data_source import KrakenHistoricalDataSource
+from jolteon.engine.market_data.kraken.data_source import (
+    KrakenHistoricalDataSource,
+)
 
 
 class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):

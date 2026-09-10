@@ -8,7 +8,10 @@ import pytz
 from jolteon.engine.core.side import MarketSide
 from jolteon.engine.market_data.core.bbo import BBO
 from jolteon.engine.market_data.core.trade import Trade
-from jolteon.engine.position.position_manager import PositionManager, PositionUpdate
+from jolteon.engine.position.position_manager import (
+    PositionManager,
+    PositionUpdate,
+)
 
 
 def randomInt(param, param1):

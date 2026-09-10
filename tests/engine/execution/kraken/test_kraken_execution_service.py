@@ -25,7 +25,9 @@ class TestExecutionService(IsolatedAsyncioTestCase):
         {"KRAKEN_API_SECRET": KRAKEN_API_TEST_SECRET},
     )
     async def asyncSetUp(self):
-        from jolteon.engine.execution.kraken.execution_service import ExecutionService
+        from jolteon.engine.execution.kraken.execution_service import (
+            ExecutionService,
+        )
 
         self.execution_service = ExecutionService(
             dry_run=False, poll_interval=0.1

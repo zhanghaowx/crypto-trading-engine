@@ -11,7 +11,9 @@ from jolteon.engine.market_data.core.trade import Trade
 from jolteon.engine.strategy.market_making.market_making_strategy import (
     MarketMakingStrategy,
 )
-from jolteon.engine.strategy.market_making.parameters import StaticParameterService
+from jolteon.engine.strategy.market_making.parameters import (
+    StaticParameterService,
+)
 
 
 class TestMarketMakingStrategy(unittest.IsolatedAsyncioTestCase):

@@ -347,9 +347,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
         with patch.object(self.feed, "add_issue") as mock_add_issue:
             await self.feed.connect("ETH-USD", max_retries=0)
 
-        self.assertEqual(
-            2, self.feed.events.channel_heartbeat.send.call_count
-        )
+        self.assertEqual(2, self.feed.events.channel_heartbeat.send.call_count)
         mock_add_issue.assert_not_called()
 
     @patch("websockets.connect")
