@@ -3,10 +3,17 @@ from datetime import datetime
 import pandas as pd
 import streamlit as st
 
-from jolteon.app.analytics import HORIZONS, compute_edge, compute_markout
+from jolteon.app.analytics import (
+    HORIZONS,
+    avg_fair_price_movement,
+    compute_edge,
+    compute_markout,
+    fill_quality_by_side,
+)
 from jolteon.app.components import (
     BadgeColor,
     animated_metric,
+    card_grid,
     paginate,
     row_add_rule,
     row_key,
@@ -426,6 +433,107 @@ def _render_pnl(fills: pd.DataFrame, latest_mid: pd.DataFrame) -> None:
                 )
 
 
+_HORIZON_PHRASES = {
+    "100ms": "100 milliseconds",
+    "1s": "1 second",
+    "5s": "5 seconds",
+    "30s": "30 seconds",
+}
+
+
+def _render_metric_or_dash(key: str, label: str, value: float, help: str):
+    if pd.isna(value):
+        st.metric(label, "-", border=True, help=help)
+    else:
+        animated_metric(
+            key,
+            label,
+            float(value),
+            color=_sign_color(value),
+            border=True,
+            help=help,
+        )
+
+
+def _render_fill_quality_card(side: str, stats: pd.Series) -> None:
+    st.markdown(f"**{side}**")
+    cols = iter(st.columns(2 + len(HORIZONS)))
+    with next(cols):
+        animated_metric(
+            f"fill-quality-{side}-count",
+            "Fills",
+            stats["fill_count"],
+            decimals=None,
+            border=True,
+            help="How many fills happened on this side.",
+        )
+    with next(cols):
+        _render_metric_or_dash(
+            f"fill-quality-{side}-edge",
+            "Average edge",
+            stats["avg_edge"],
+            "How far the fill price sat from fair value at the moment "
+            "of execution, in our favor, averaged across fills on this "
+            "side.",
+        )
+    for horizon in HORIZONS:
+        with next(cols):
+            _render_metric_or_dash(
+                f"fill-quality-{side}-markout-{horizon}",
+                f"Markout +{horizon}",
+                stats[f"avg_markout_{horizon}"],
+                "How much the price moved in our favor, on average, "
+                f"{_HORIZON_PHRASES[horizon]} after we filled.",
+            )
+
+
+def _render_fair_price_movement(fills: pd.DataFrame) -> None:
+    st.markdown("**Fair price movement**")
+    movement = avg_fair_price_movement(fills)
+    cols = iter(st.columns(len(HORIZONS)))
+    for horizon in HORIZONS:
+        with next(cols):
+            _render_metric_or_dash(
+                f"fair-price-movement-{horizon}",
+                f"+{horizon}",
+                movement[horizon],
+                "Average change in the fair price itself, "
+                f"{_HORIZON_PHRASES[horizon]} after a fill - a positive "
+                "number means it tends to keep rising, negative means it "
+                "tends to fall back.",
+            )
+
+
+def _render_fill_quality(fills: pd.DataFrame) -> None:
+    """BUY vs SELL execution quality (section 6) and whether the fair
+    price itself has short-term predictive power (section 9)."""
+    needed = {"side", "fill_price", "fair_price_at_fill"}
+    if not needed.issubset(fills.columns):
+        return
+
+    st.markdown("**Fill Quality**")
+    by_side = fill_quality_by_side(fills).sort_index()
+    for side, stats in card_grid(list(by_side.iterrows()), columns=2):
+        _render_fill_quality_card(side, stats)
+
+    if f"fair_price_{HORIZONS[0]}" in fills.columns:
+        _render_fair_price_movement(fills)
+
+
+def _render_copy_data_button(fills: pd.DataFrame) -> None:
+    """A top-right icon revealing every raw fill as CSV in a code block,
+    which Streamlit gives a built-in copy-to-clipboard icon - the fastest
+    way to get this page's data out for analysis elsewhere."""
+    with st.container(horizontal=True, horizontal_alignment="right"):
+        with st.popover(
+            "",
+            icon=":material/content_copy:",
+            help="Copy every fill as CSV, to paste elsewhere for analysis.",
+        ):
+            st.caption(f"{len(fills)} fills, every recorded field")
+            st.code(fills.to_csv(index=False), language=None)
+
+
 def render() -> None:
     if not warn_if_no_db():
         return
@@ -433,11 +541,16 @@ def render() -> None:
     db_path = st.session_state.db_path
     fills = read_table(db_path, "decorated_order_fill")
 
+    if not fills.empty:
+        _render_copy_data_button(fills)
+
     if fills.empty:
         st.info("No fills yet.")
     else:
         latest_mid = read_latest_per_group(db_path, "ticker_feed", "symbol")
         _render_pnl(fills, latest_mid)
+        st.divider()
+        _render_fill_quality(fills)
 
     st.divider()
 
