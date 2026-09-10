@@ -147,7 +147,9 @@ class TestSQLiteWriter(unittest.TestCase):
         with closing(
             sqlite3.connect(self.database_filepath, isolation_level=None)
         ) as blocker:
-            blocker.execute("PRAGMA journal_mode=WAL")
+            # BEGIN EXCLUSIVE blocks the writer's commit under either
+            # journal mode, so there's no need to set one here - doing so
+            # would race the writer thread's own identical PRAGMA in setUp().
             blocker.execute("BEGIN EXCLUSIVE")
             try:
                 started = time.monotonic()
