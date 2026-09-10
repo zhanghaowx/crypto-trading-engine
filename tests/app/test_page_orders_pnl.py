@@ -5,7 +5,8 @@ import pandas as pd
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from jolteon.app.app_pages.orders_pnl import realized_pnl
+from jolteon.app.app_pages.orders_pnl import fills_table, realized_pnl
+from jolteon.app.data import read_table
 
 
 def _script():
@@ -65,19 +66,24 @@ def test_renders_pnl_and_recent_fills(populated_db_path):
     assert metrics["inventory-value"]["value"] == pytest.approx(100.5)
     assert metrics["BTC-USD-position"]["value"] == 1.0
     assert metrics["BTC-USD-mark-price"]["value"] == pytest.approx(100.5)
-    # Recent fills; the per-symbol PnL breakdown is rendered as metrics
-    # rather than a table.
-    assert len(at.dataframe) == 1
+    # Recent fills renders as a row list, not st.dataframe (a canvas-drawn
+    # grid, which can't play a per-row entrance animation) - check for the
+    # header and the one fill's own values instead of a dataframe.
+    markdown_values = [m.value for m in at.markdown]
+    assert "**Time**" in markdown_values
+    assert "**Side**" in markdown_values
+    assert ":green-badge[BUY]" in markdown_values
+    assert "99.50" in markdown_values
 
 
-def test_tables_use_readable_headers_and_drop_opaque_ids(populated_db_path):
-    at = AppTest.from_function(_script)
-    at.session_state["db_path"] = populated_db_path
-    at.run()
+def test_fills_table_uses_readable_headers_and_drops_opaque_ids(
+    populated_db_path,
+):
+    fills = read_table(populated_db_path, "order_fill")
 
-    assert not at.exception
-    (fills,) = (frame.value for frame in at.dataframe)
-    assert list(fills.columns) == [
+    display = fills_table(fills)
+
+    assert list(display.columns) == [
         "Time",
         "Trade",
         "Order",
@@ -89,8 +95,8 @@ def test_tables_use_readable_headers_and_drop_opaque_ids(populated_db_path):
         "Fee",
     ]
     # The venue's opaque UUIDs are gone.
-    assert "maker_order_id" not in fills
-    assert "taker_order_id" not in fills
+    assert "maker_order_id" not in display
+    assert "taker_order_id" not in display
 
 
 def test_marks_inventory_at_zero_without_a_ticker_feed(tmp_path):

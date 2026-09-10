@@ -4,18 +4,13 @@ import pandas as pd
 import streamlit as st
 
 from jolteon.app.components import (
+    BadgeColor,
     animated_metric,
-    flash_key,
-    flash_rule,
-    style_table,
+    row_add_rule,
+    row_key,
     warn_if_no_db,
 )
 from jolteon.app.data import as_datetime, read_latest_per_group, read_table
-
-# Side badges in the theme's semantic green/red (config.toml), so BUY and
-# SELL rows are scannable at a glance in the fills table.
-SIDE_OPTIONS = ["BUY", "SELL"]
-SIDE_COLORS = ["#4E9F1F", "#E2574C"]
 
 # The recorded tables grow without bound; only the tail is worth showing.
 MAX_ROWS = 20
@@ -85,7 +80,7 @@ def fills_table(fills: pd.DataFrame) -> pd.DataFrame:
             # As text, so the id reads as a label rather than a quantity.
             "Trade": None if trade_id is None else trade_id.astype(str),
             "Order": _optional(recent, "client_order_id"),
-            "Side": _side_badges(recent),
+            "Side": _optional(recent, "side"),
             "Symbol": _optional(recent, "symbol"),
             "Price": price,
             "Quantity": quantity,
@@ -95,31 +90,85 @@ def fills_table(fills: pd.DataFrame) -> pd.DataFrame:
     )
 
 
-def _side_badges(df: pd.DataFrame) -> pd.Series | None:
-    """Sides wrapped as single-item lists, the shape MultiselectColumn needs
-    to draw them as colored badges."""
-    side = _optional(df, "side")
-    return None if side is None else side.map(lambda value: [value])
+# (label, relative column width) - the widths roughly mirror the "small"
+# columns (Time/Trade/Order/Side) the table's old column_config used.
+_FILL_COLUMNS: list[tuple[str, float]] = [
+    ("Time", 1.3),
+    ("Trade", 0.9),
+    ("Order", 0.9),
+    ("Side", 0.8),
+    ("Symbol", 1.0),
+    ("Price", 1.0),
+    ("Quantity", 1.1),
+    ("Value", 1.0),
+    ("Fee", 0.9),
+]
+
+# Side badges in the theme's semantic green/red (config.toml), so BUY and
+# SELL rows are scannable at a glance in the fills list.
+_SIDE_BADGE_COLORS: dict[str, BadgeColor] = {"BUY": "green", "SELL": "red"}
+
+_FILL_ROW_CSS = """
+[class*="st-key-row-fill-"] {
+  border-bottom: 1px solid #D7D7D3;
+  padding: 6px 0;
+}
+"""
 
 
-def _column_config(time_help: str, order_help: str, **extra) -> dict:
-    config = {
-        "Time": st.column_config.DatetimeColumn(
-            format="HH:mm:ss.SSS", help=time_help, width="small"
-        ),
-        "Order": st.column_config.TextColumn(help=order_help, width="small"),
-        "Side": st.column_config.MultiselectColumn(
-            options=SIDE_OPTIONS, color=SIDE_COLORS, width="small"
-        ),
-        "Price": st.column_config.NumberColumn(format="%,.2f"),
-        "Quantity": st.column_config.NumberColumn(format="%.6f"),
-        "Value": st.column_config.NumberColumn(
-            format="%,.2f",
-            help="What the trade is worth: price times quantity.",
-        ),
-    }
-    config.update(extra)
-    return config
+def _fill_identity(row: pd.Series) -> str:
+    """A fill's own stable identity - not its position in the recent
+    list, which shifts as newer fills arrive and push it down - so an
+    unchanged row keeps its key, and its animation, across reruns."""
+    trade = row.get("Trade")
+    if trade:
+        return str(trade)
+    return (
+        f"{row.get('Time')}-{row.get('Symbol')}-"
+        f"{row.get('Price')}-{row.get('Quantity')}"
+    )
+
+
+def _render_fill_cell(col, label: str, value) -> None:
+    with col:
+        if label == "Side":
+            st.badge(value, color=_SIDE_BADGE_COLORS.get(value, "gray"))
+        elif label == "Time":
+            st.write(value.strftime("%H:%M:%S.%f")[:-3])
+        elif label in ("Price", "Value"):
+            st.write(f"{value:,.2f}")
+        elif label == "Quantity":
+            st.write(f"{value:.6f}")
+        elif label == "Fee":
+            st.write(f"{value:,.4f}")
+        else:
+            st.write(value)
+
+
+def render_fills_list(display: pd.DataFrame) -> None:
+    """
+    Recent fills as a list of rows a human can read at a glance, each in
+    its own container keyed by the fill's own identity - not `st.dataframe`
+    (a canvas-drawn grid, not real per-row DOM), which can't play a
+    per-row entrance animation when a new fill arrives.
+    """
+    present = [
+        (label, weight)
+        for label, weight in _FILL_COLUMNS
+        if label in display.columns
+    ]
+    labels = [label for label, _ in present]
+    weights = [weight for _, weight in present]
+
+    for col, label in zip(st.columns(weights), labels):
+        col.markdown(f"**{label}**")
+
+    for _, row in display.iterrows():
+        with st.container(key=row_key("fill", _fill_identity(row))):
+            for col, label in zip(st.columns(weights), labels):
+                _render_fill_cell(col, label, row[label])
+
+    st.html(f"<style>{row_add_rule('fill')}{_FILL_ROW_CSS}</style>")
 
 
 def pnl_by_symbol(
@@ -333,20 +382,4 @@ def render() -> None:
     if fills.empty:
         st.info("No fills yet.")
     else:
-        table_key = flash_key("fills", str(len(fills)))
-        with st.container(key=table_key):
-            st.dataframe(
-                style_table(fills_table(fills)),
-                column_config=_column_config(
-                    time_help="When the trade was filled, in your local time.",
-                    order_help="The id of the order this trade filled.",
-                    Trade=st.column_config.TextColumn(
-                        help="The id of this individual trade.",
-                        width="small",
-                    ),
-                    Fee=st.column_config.NumberColumn(format="%,.4f"),
-                ),
-                hide_index=True,
-                width="stretch",
-            )
-        st.html(f"<style>{flash_rule(table_key)}</style>")
+        render_fills_list(fills_table(fills))

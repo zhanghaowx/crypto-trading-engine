@@ -4,7 +4,7 @@ from datetime import datetime
 import pandas as pd
 import streamlit as st
 
-from jolteon.app.components import flash_key, flash_rule, warn_if_no_db
+from jolteon.app.components import row_add_rule, row_key, warn_if_no_db
 from jolteon.app.data import as_datetime, read_table
 
 MAX_ROWS = 20
@@ -51,12 +51,12 @@ def render() -> None:
         clean_message=recent["msg"].map(_clean_message),
     )
 
-    list_key = flash_key("errors", str(len(errors)))
-    with st.container(key=list_key):
-        for _, row in recent.iterrows():
-            summary = (
-                f"{row['local_time']:%H:%M:%S}  ·  {row['clean_message']}"
-            )
+    for _, row in recent.iterrows():
+        summary = f"{row['local_time']:%H:%M:%S}  ·  {row['clean_message']}"
+        # `created` uniquely identifies the underlying log record, so an
+        # entry already shown keeps its key (and its mounted DOM node)
+        # across reruns even as newer entries push it down the list.
+        with st.container(key=row_key("error", str(row["created"]))):
             with st.expander(summary, icon=":material/error:"):
                 st.caption(
                     f"{row.get('name', '-')} · "
@@ -64,4 +64,4 @@ def render() -> None:
                 )
                 if row["clean_message"] != row["msg"]:
                     st.code(row["msg"], language=None)
-    st.html(f"<style>{flash_rule(list_key)}</style>")
+    st.html(f"<style>{row_add_rule('error')}</style>")

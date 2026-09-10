@@ -1,0 +1,20 @@
+/*
+ * A row/entry's entrance: a slight downward slide, a fade-in, and a brief
+ * highlight, played once when it first mounts. See `row_key`/`row_add_rule`
+ * in jolteon/app/components.py - giving a row a key derived from its own
+ * stable identity (not its position, which shifts as newer rows arrive) is
+ * what makes the browser replay this only for a row that's genuinely new,
+ * rather than for every row on every rerun.
+ */
+@keyframes jolteon-row-add {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+    background-color: rgba(80, 160, 255, 0.15);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    background-color: transparent;
+  }
+}

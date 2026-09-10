@@ -5,10 +5,8 @@ from pathlib import Path
 from typing import Literal, TypeVar
 
 import altair as alt
-import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
-from pandas.io.formats.style import Styler
 
 # Cards (the bordered section containers) sit on the page's grey canvas
 # (`backgroundColor` in .streamlit/config.toml) and would otherwise be
@@ -26,12 +24,6 @@ CARD_SHADOW = "0 2px 6px rgba(21, 23, 28, 0.07)"
 # top padding keeps the highest series (the dashed quote rules, say) off the
 # content directly above the chart.
 CHART_TOP_PADDING = 20
-
-# Dataframe interiors follow `theme.backgroundColor`, so inside a white card
-# they'd show as a grey hole. Only the header and border are theme-settable
-# (`dataframeHeaderBackgroundColor` / `dataframeBorderColor` in config.toml),
-# so the body is painted through a pandas Styler instead - in the card's own
-# white, leaving the grey header band and gridlines to delineate the table.
 
 BadgeColor = Literal[
     "red",
@@ -60,45 +52,36 @@ def style_chart(chart: ChartT) -> ChartT:
     )
 
 
-def style_table(df: pd.DataFrame) -> Styler:
+_ROW_ANIMATIONS_CSS = (
+    Path(__file__).resolve().parent / "static" / "row_animations.css"
+).read_text()
+
+
+def row_key(prefix: str, identity: str) -> str:
     """
-    Give a dataframe the card's white interior, so it doesn't fall back to
-    the grey page background inside a white card.
+    A container `key` for a row/entry, stable for as long as its own
+    `identity` is (e.g. a fill's trade id, a log line's timestamp) -
+    *not* its position in a list, which shifts as newer rows arrive.
+
+    Streamlit keeps a container's DOM node across reruns as long as its
+    key is unchanged, so an existing row is left alone (no replayed
+    animation) while a row whose identity has never been seen before
+    mounts fresh - which is what `row_add_rule` needs to play once, only
+    for the row that's actually new.
     """
-    return df.style.set_properties(**{"background-color": CARD_BACKGROUND})
+    slug = re.sub(r"[^a-z0-9]+", "-", identity.lower()).strip("-")
+    return f"row-{prefix}-{slug}"
 
 
-_FLASH_ANIMATION = "jolteon-flash"
-_FLASH_KEYFRAMES = f"""
-@keyframes {_FLASH_ANIMATION} {{
-  from {{ background-color: rgba(21, 23, 28, 0.12); }}
-  to {{ background-color: transparent; }}
-}}
-"""
-
-
-def flash_key(*parts: str) -> str:
+def row_add_rule(prefix: str) -> str:
     """
-    A container `key` that changes exactly when `parts` do.
-
-    Streamlit reuses a widget's DOM node across reruns unless its `key`
-    changes, so folding a value into the key is what forces the remount a
-    CSS animation needs in order to play again once that value updates.
+    CSS making every container keyed by `row_key(prefix, ...)` slide down,
+    fade in, and briefly highlight when it mounts - once per row, however
+    many rows exist, since only a brand-new key ever triggers a mount.
     """
-    return "flash-" + re.sub(
-        r"[^a-z0-9]+", "-", "-".join(parts).lower()
-    ).strip("-")
-
-
-def flash_rule(*keys: str) -> str:
-    """CSS making every container keyed by `flash_key` pulse once when it
-    mounts. Empty if there are no keys, rather than an empty style tag."""
-    if not keys:
-        return ""
-    selector = ", ".join(f".st-key-{key}" for key in keys)
     return (
-        f"{_FLASH_KEYFRAMES}{selector} "
-        f"{{ animation: {_FLASH_ANIMATION} 900ms ease-out; }}"
+        f'{_ROW_ANIMATIONS_CSS}[class*="st-key-row-{prefix}-"] '
+        f"{{ animation: jolteon-row-add 350ms ease-out; }}"
     )
 
 
