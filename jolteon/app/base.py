@@ -29,8 +29,6 @@ class ApplicationBase(SignalManager):
         """
         self._symbol = symbol
 
-        # Data Dumping Setup
-        #
         # Logs get their own file so their writer never contends with
         # `database_name`'s for its write lock.
         setup_global_logger(
@@ -42,20 +40,12 @@ class ApplicationBase(SignalManager):
         self._signal_recorder = SignalRecorder(
             database_name=database_name,
         )
-
-        # Position Manager Setup
         self._position_manager = PositionManager()
-
-        # Strategy Setup
         self._strategy = strategy
 
-        # Per Exchange Setup (Decided Later)
         self._exec_service: object = None
         self._md: object = None
 
-        # Loop/task handles for every thread started via `_start_thread`,
-        # by name, so a shutdown request can reach into each one and
-        # cancel its task without this class needing to know what it is.
         self._background_tasks: dict[
             str, tuple[asyncio.AbstractEventLoop, asyncio.Task]
         ] = {}
@@ -94,17 +84,8 @@ class ApplicationBase(SignalManager):
         return self._position_manager.pnl
 
     def request_shutdown(self):
-        """
-        Cancel every `_start_thread`-started task from outside its thread.
-
-        A live feed's `connect()` runs until cancelled, so `run_start`
-        would otherwise block on `md_thread.join()` forever once asked to
-        stop - `sys.exit()` from a signal handler only unwinds the main
-        thread and never reaches a separate thread's event loop.
-
-        Returns:
-            None
-        """
+        # sys.exit() from a signal handler only unwinds the main thread;
+        # a task in another thread's loop needs to be cancelled directly.
         for loop, task in self._background_tasks.values():
             loop.call_soon_threadsafe(task.cancel)
 
@@ -121,7 +102,6 @@ class ApplicationBase(SignalManager):
         return await self.run_start(start, min(now, end))
 
     def stop(self):
-        # Disconnect every blinker signal from its receivers
         self._disconnect_signals()
 
     def _connect_signals(self):
@@ -134,25 +114,13 @@ class ApplicationBase(SignalManager):
 
     @staticmethod
     def _start_thread(name: str, task):
-        """
-        Run `task` to completion on a new event loop of its own, on a new
-        thread of its own.
-
-        Returns:
-            The thread, and the loop/task pair a caller elsewhere can use
-            to cancel `task` via `loop.call_soon_threadsafe(task.cancel)` -
-            the only safe way to reach into another thread's event loop.
-        """
         ready = threading.Event()
         handle: dict[str, object] = {}
 
         def run_task():
-            # Create a new event loop for the thread
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
 
-            # Publish the loop and task before running them, so a caller
-            # waiting on `ready` can cancel this task from another thread.
             running_task = loop.create_task(task)
             handle["loop"] = loop
             handle["task"] = running_task
@@ -161,7 +129,7 @@ class ApplicationBase(SignalManager):
             try:
                 loop.run_until_complete(running_task)
             except asyncio.CancelledError:
-                pass  # Ignore CancelledError on cleanup
+                pass
             except Exception as e:
                 logging.error(f"{name} got exception: {e}", exc_info=True)
                 raise e
