@@ -17,6 +17,12 @@ _CACHE_KEY = "_table_cache"
 # Alias for the row id, named so it cannot collide with a recorded column.
 _ROWID = "_jolteon_rowid"
 
+# A session left open long enough would otherwise grow this cache forever;
+# past this many rows, the oldest are dropped in favor of a bounded
+# footprint, the same trade-off SQLiteHandler already makes for the logs
+# table.
+_MAX_CACHED_ROWS = 100_000
+
 
 def reset_table_cache() -> None:
     """Forget every row read so far, so the next read starts from scratch."""
@@ -76,6 +82,10 @@ def read_table(db_path: str, table: str) -> pd.DataFrame:
                     if frame.empty
                     else pd.concat([frame, fresh], ignore_index=True)
                 )
+                if len(frame) > _MAX_CACHED_ROWS:
+                    frame = frame.iloc[-_MAX_CACHED_ROWS:].reset_index(
+                        drop=True
+                    )
     except (sqlite3.OperationalError, pd.errors.DatabaseError):
         return pd.DataFrame()
     finally:
@@ -93,8 +103,51 @@ def as_datetime(column: pd.Series) -> pd.Series:
     return pd.to_datetime(column, unit="s", utc=True)
 
 
-def latest_quotes(orders: pd.DataFrame) -> pd.DataFrame:
-    """The most recent order the strategy sent for each side, if any."""
-    if orders.empty:
-        return orders
-    return orders.sort_values("timestamp").groupby("side").tail(1)
+def read_latest_row(db_path: str, table: str) -> pd.Series | None:
+    """
+    The most recently recorded row of `table`, or None if there isn't one.
+
+    Reads only that one row from disk instead of going through `read_table`,
+    for callers that only ever look at the tail - `read_table` would hold
+    every row the session has seen just to answer that.
+    """
+    if not Path(db_path).exists():
+        return None
+
+    conn = sqlite3.connect(db_path)
+    try:
+        frame = pd.read_sql(
+            f'SELECT * FROM "{table}" ORDER BY rowid DESC LIMIT 1', conn
+        )
+    except (sqlite3.OperationalError, pd.errors.DatabaseError):
+        return None
+    finally:
+        conn.close()
+
+    return None if frame.empty else frame.iloc[0]
+
+
+def read_latest_per_group(
+    db_path: str, table: str, group_column: str
+) -> pd.DataFrame:
+    """
+    The most recently recorded row of `table` for each distinct value of
+    `group_column` - the last heartbeat per sender, the last order per
+    side, and so on - without reading every row to find it.
+    """
+    if not Path(db_path).exists():
+        return pd.DataFrame()
+
+    conn = sqlite3.connect(db_path)
+    try:
+        frame = pd.read_sql(
+            f'SELECT * FROM "{table}" WHERE rowid IN '
+            f'(SELECT MAX(rowid) FROM "{table}" GROUP BY "{group_column}")',
+            conn,
+        )
+    except (sqlite3.OperationalError, pd.errors.DatabaseError):
+        return pd.DataFrame()
+    finally:
+        conn.close()
+
+    return frame
