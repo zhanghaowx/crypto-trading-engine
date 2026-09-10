@@ -322,10 +322,7 @@ class SQLiteWriter:
     def _prune(
         self, conn: sqlite3.Connection, table: str, keep_last: int
     ) -> None:
-        # A table this writer has never inserted into either doesn't exist
-        # yet or predates this process, and either way there is nothing
-        # queued behind it to justify a scan; skip rather than risk
-        # "no such table" on a name nothing has written to.
+        # Nothing to trim if this writer has never inserted into `table`.
         if table not in self._schema:
             return
         conn.execute(
