@@ -1,17 +1,18 @@
 # Coinbase
 
-> [!WARNING]  
-> The support of using coinbase's Advanced Trade API is paused due to coinbase's action on reviewing my accounts. As of now only replay feature is complete for coinbase.
+> [!WARNING]
+> Live order execution for Coinbase is on hold: it always falls back to a mock execution service.
+> Only market data and replay/backtesting are functional today.
 
-[Coinbase](https://www.coinbase.com/home) is one of the largest cryptocurrency exchange in the United States in terms of
-trading volume. It uses [Financial Information eXchange](http://en.wikipedia.org/wiki/Financial_Information_eXchange),
-or FIX, for its market data and order entry [API](https://docs.cloud.coinbase.com/exchange/docs/welcome).
+[Coinbase](https://www.coinbase.com/home) is one of the largest cryptocurrency exchanges in the
+United States by trading volume. Jolteon integrates with it over Coinbase's REST and WebSocket
+[Advanced Trade API](https://docs.cdp.coinbase.com/advanced-trade/docs/welcome), via the
+[coinbase-advanced-py](https://github.com/coinbase/coinbase-advanced-py) SDK.
 
 ## Order Entry
-* REST API for lower-frequency trading and general requests.
-* FIX Order Entry API for higher-frequency trading.
+* REST API (`coinbase.rest.RESTClient`), used only by the mock execution service — no live order
+  entry is implemented for Coinbase yet.
 
 ## Market Data
-* WebSocket Feed for market data.
-* FIX Market Data API for latency sensitive market data feeds.
-
+* WebSocket feed for real-time market data.
+* REST API for historical candles, used by the replay/backtesting data source.
