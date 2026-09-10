@@ -53,10 +53,12 @@ class ApplicationBase(SignalManager):
         self._exec_service: object = None
         self._md: object = None
 
-        # Set once the MD thread starts, so a shutdown request can reach
-        # into its event loop and cancel its task.
-        self._md_loop: asyncio.AbstractEventLoop | None = None
-        self._md_task: asyncio.Task | None = None
+        # Loop/task handles for every thread started via `_start_thread`,
+        # by name, so a shutdown request can reach into each one and
+        # cancel its task without this class needing to know what it is.
+        self._background_tasks: dict[
+            str, tuple[asyncio.AbstractEventLoop, asyncio.Task]
+        ] = {}
 
     def use_execution_service(self, service: object):
         print(f"Using {type(service).__name__}")
@@ -72,9 +74,10 @@ class ApplicationBase(SignalManager):
         self._connect_signals()
 
         if ApplicationBase.THREAD_ENABLED:
-            md_thread = self._start_thread(
+            md_thread, md_loop, md_task = self._start_thread(
                 "MD", self._md.connect(self._symbol, *args)
             )
+            self._background_tasks["MD"] = (md_loop, md_task)
 
             # join(), not a sleep loop, so shutdown isn't delayed by a poll
             # interval once the thread actually finishes.
@@ -92,18 +95,18 @@ class ApplicationBase(SignalManager):
 
     def request_shutdown(self):
         """
-        Cancel the MD thread's connection task from outside its thread.
+        Cancel every `_start_thread`-started task from outside its thread.
 
         A live feed's `connect()` runs until cancelled, so `run_start`
         would otherwise block on `md_thread.join()` forever once asked to
         stop - `sys.exit()` from a signal handler only unwinds the main
-        thread and never reaches this separate thread's event loop.
+        thread and never reaches a separate thread's event loop.
 
         Returns:
             None
         """
-        if self._md_loop is not None and self._md_task is not None:
-            self._md_loop.call_soon_threadsafe(self._md_task.cancel)
+        for loop, task in self._background_tasks.values():
+            loop.call_soon_threadsafe(task.cancel)
 
     async def run_local_replay(self, db: str):
         data_source = DatabaseDataSource(db)
@@ -129,22 +132,34 @@ class ApplicationBase(SignalManager):
         self.disconnect_all()
         self._signal_recorder.stop_recording()
 
-    def _start_thread(self, name: str, task):
+    @staticmethod
+    def _start_thread(name: str, task):
+        """
+        Run `task` to completion on a new event loop of its own, on a new
+        thread of its own.
+
+        Returns:
+            The thread, and the loop/task pair a caller elsewhere can use
+            to cancel `task` via `loop.call_soon_threadsafe(task.cancel)` -
+            the only safe way to reach into another thread's event loop.
+        """
         ready = threading.Event()
+        handle: dict[str, object] = {}
 
         def run_task():
             # Create a new event loop for the thread
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
 
-            # Publish the loop and task before running them, so
-            # request_shutdown() can cancel this task from another thread.
-            self._md_loop = loop
-            self._md_task = loop.create_task(task)
+            # Publish the loop and task before running them, so a caller
+            # waiting on `ready` can cancel this task from another thread.
+            running_task = loop.create_task(task)
+            handle["loop"] = loop
+            handle["task"] = running_task
             ready.set()
 
             try:
-                loop.run_until_complete(self._md_task)
+                loop.run_until_complete(running_task)
             except asyncio.CancelledError:
                 pass  # Ignore CancelledError on cleanup
             except Exception as e:
@@ -160,4 +175,4 @@ class ApplicationBase(SignalManager):
         thread.start()
         ready.wait()
 
-        return thread
+        return thread, handle["loop"], handle["task"]
