@@ -15,6 +15,9 @@ import pytz
 from jolteon.app.progress_bar import ProgressBar
 from jolteon.core.market import Market
 from jolteon.market_data.data_source import DatabaseDataSource
+from jolteon.strategy.market_making.fair_value.mid_price_model import (
+    MidPriceFairPriceModel,
+)
 from jolteon.strategy.market_making.market_making_strategy import (
     MarketMakingStrategy,
 )
@@ -122,12 +125,18 @@ async def main():
 
     else:
         strategy = None
+        fair_price_model = None
         if args.paper:
             # Kraken trades on "BTC/USD"; other exchanges keep "BTC-USD".
             strategy_symbol = (
                 symbol.replace("-", "/") if market == Market.KRAKEN else symbol
             )
-            strategy = MarketMakingStrategy(symbol=strategy_symbol)
+            # Shared with PostTradeService below, so decorated fills are
+            # scored against the same fair price the strategy quotes off.
+            fair_price_model = MidPriceFairPriceModel()
+            strategy = MarketMakingStrategy(
+                symbol=strategy_symbol, fair_price_model=fair_price_model
+            )
 
         app = Application(
             symbol,
@@ -135,6 +144,7 @@ async def main():
             database_name="/tmp/jolteon.sqlite",
             logfile_name="/tmp/jolteon.log",
             strategy=strategy,
+            fair_price_model=fair_price_model,
         )
         _active_app = app
         pnl = await app.start()

@@ -16,6 +16,9 @@ from jolteon.market_data.coinbase.data_source import (
 )
 from jolteon.market_data.coinbase.public_feed import PublicFeed
 from jolteon.market_data.historical_feed import HistoricalFeed
+from jolteon.strategy.market_making.fair_value.fair_price_model import (
+    IFairPriceModel,
+)
 
 
 class CoinbaseApplication(ApplicationBase):
@@ -26,6 +29,7 @@ class CoinbaseApplication(ApplicationBase):
         database_name="/tmp/jolteon.sqlite",
         logfile_name="/tmp/jolteon.log",
         strategy: object = None,
+        fair_price_model: IFairPriceModel | None = None,
     ):
         print(f"Using {type(self).__name__}")
         super().__init__(
@@ -33,6 +37,7 @@ class CoinbaseApplication(ApplicationBase):
             database_name=database_name,
             logfile_name=logfile_name,
             strategy=strategy,
+            fair_price_model=fair_price_model,
         )
         if use_mock_execution:
             super().use_execution_service(MockExecutionService())
