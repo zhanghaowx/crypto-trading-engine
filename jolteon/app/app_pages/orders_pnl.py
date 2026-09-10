@@ -189,15 +189,21 @@ def render_fills_list(display: pd.DataFrame) -> None:
     labels = [label for label, _ in present]
     weights = [weight for _, weight in present]
 
-    for col, label in zip(st.columns(weights), labels):
-        col.markdown(f"**{label}**")
+    # A placeholder's contents are replaced wholesale each rerun, rather
+    # than diffed row-by-row against whatever a previous, longer page left
+    # behind - a plain sequence of containers left stale rows on screen
+    # when paging onto a shorter page (the last page of a table isn't
+    # always full).
+    with st.empty(), st.container():
+        for col, label in zip(st.columns(weights), labels):
+            col.markdown(f"**{label}**")
 
-    for _, row in display.iterrows():
-        with st.container(key=row_key("fill", _fill_identity(row))):
-            for col, label in zip(st.columns(weights), labels):
-                _render_fill_cell(col, label, row[label])
+        for _, row in display.iterrows():
+            with st.container(key=row_key("fill", _fill_identity(row))):
+                for col, label in zip(st.columns(weights), labels):
+                    _render_fill_cell(col, label, row[label])
 
-    st.html(f"<style>{row_add_rule('fill')}{_FILL_ROW_CSS}</style>")
+        st.html(f"<style>{row_add_rule('fill')}{_FILL_ROW_CSS}</style>")
 
 
 def pnl_by_symbol(
