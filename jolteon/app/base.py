@@ -16,7 +16,6 @@ from jolteon.position.position_manager import PositionManager
 
 class ApplicationBase(SignalManager):
     THREAD_ENABLED: bool = True
-    THREAD_SYNC_INTERVAL: float = 10
 
     def __init__(
         self,
@@ -74,17 +73,15 @@ class ApplicationBase(SignalManager):
         self._connect_signals()
 
         if ApplicationBase.THREAD_ENABLED:
-            # Start receiving market data
             md_thread = self._start_thread(
                 "MD", self._md.connect(self._symbol, *args)
             )
 
-            # Start other asyncio tasks (heartbeating, ..., etc)
-            async def main_asyncio_tasks() -> None:
-                while md_thread.is_alive():
-                    await asyncio.sleep(self.THREAD_SYNC_INTERVAL)
-
-            await main_asyncio_tasks()
+            # join(), not a sleep loop, so shutdown isn't delayed by a poll
+            # interval once the thread actually finishes.
+            await asyncio.get_running_loop().run_in_executor(
+                None, md_thread.join
+            )
         else:
             await self._md.connect(self._symbol, *args)
 
