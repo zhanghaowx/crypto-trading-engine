@@ -1,0 +1,146 @@
+<!doctype html>
+<!--
+A minimal Streamlit "static" custom component (see Streamlit's docs on
+building components without a frontend framework): it speaks the raw
+postMessage protocol itself instead of pulling in streamlit-component-lib,
+since a single metric tile needs only "I'm ready" and "here are new args".
+
+This is what makes NumberFlow's digit-roll animation possible at all: a
+component's iframe here is a persistent document that Streamlit updates by
+posting new args into it, not by regenerating the iframe's `srcdoc` (which
+`st.html` does, tearing the document down every rerun). NumberFlow animates
+a value *change* on an element that's stayed mounted since the last render;
+a fresh element on a fresh document has no previous value to animate from.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica,
+      Arial, sans-serif;
+  }
+  /*
+   * Sized to match Streamlit's own st.metric as closely as possible (67px
+   * unbordered, 97px bordered - both zero-padding otherwise, border added
+   * via a wrapper), so this component's tiles don't sit taller than a
+   * plain st.metric fallback (e.g. the "-" mark-price placeholder) next
+   * to them.
+   */
+  .metric {
+    box-sizing: border-box;
+  }
+  .metric.bordered {
+    padding: 15px;
+    border: 1px solid #D7D7D3;
+    border-radius: 15px;
+  }
+  .label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 13px;
+    line-height: 21px;
+    color: rgba(21, 23, 28, 0.6);
+    white-space: nowrap;
+  }
+  .help {
+    display: inline-flex;
+    width: 14px;
+    height: 14px;
+    flex: none;
+    border-radius: 50%;
+    border: 1px solid rgba(21, 23, 28, 0.35);
+    color: rgba(21, 23, 28, 0.55);
+    font-size: 10px;
+    align-items: center;
+    justify-content: center;
+    cursor: default;
+  }
+  .value {
+    display: block;
+    font-size: 34px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: #15171C;
+    line-height: 44px;
+    /*
+     * NumberFlow pads itself internally (proportionally to font-size) to
+     * room for its edge-fade mask during a digit transition; left at its
+     * default (0.25em/0.5em) that alone makes the tile visibly taller
+     * than a plain st.metric. Shrinking the mask keeps a little of the
+     * fade without the extra height.
+     */
+    --number-flow-mask-height: 0.05em;
+    --number-flow-mask-width: 0.15em;
+  }
+</style>
+</head>
+<body>
+  <div class="metric" id="metric">
+    <div class="label">
+      <span id="label"></span>
+      <span class="help" id="help" title="" hidden>?</span>
+    </div>
+    <number-flow class="value" id="value"></number-flow>
+  </div>
+  <script src="./number-flow.min.js"></script>
+  <script>
+    const metricEl = document.getElementById("metric");
+    const labelEl = document.getElementById("label");
+    const helpEl = document.getElementById("help");
+    const valueEl = document.getElementById("value");
+
+    // The host's top-level message dispatcher (ComponentRegistry) drops
+    // anything without this flag before it ever reaches per-component
+    // handling - silently, with no console warning either side.
+    function post(message) {
+      window.parent.postMessage({ isStreamlitMessage: true, ...message }, "*");
+    }
+
+    function sendHeight() {
+      post({
+        type: "streamlit:setFrameHeight",
+        height: document.documentElement.scrollHeight,
+      });
+    }
+
+    function render(args) {
+      labelEl.textContent = args.label;
+      metricEl.classList.toggle("bordered", !!args.border);
+      if (args.help) {
+        helpEl.hidden = false;
+        helpEl.title = args.help;
+      } else {
+        helpEl.hidden = true;
+      }
+
+      valueEl.style.color = args.color || "#15171C";
+      valueEl.format =
+        args.decimals == null
+          ? { maximumFractionDigits: 8 }
+          : { minimumFractionDigits: args.decimals, maximumFractionDigits: args.decimals };
+      valueEl.numberPrefix = args.prefix || "";
+      valueEl.numberSuffix = args.suffix || "";
+      valueEl.update(args.value);
+    }
+
+    // A single post-update measurement isn't enough: NumberFlow's own
+    // transition (~900ms, see its `transformTiming`) keeps resizing the
+    // element as digits are added/removed, so the frame's height has to
+    // keep tracking it for the rest of the animation too, not just its
+    // very first frame.
+    new ResizeObserver(sendHeight).observe(metricEl);
+
+    window.addEventListener("message", (event) => {
+      if (event.data && event.data.type === "streamlit:render") {
+        render(event.data.args);
+      }
+    });
+    post({ type: "streamlit:componentReady", apiVersion: 1 });
+  </script>
+</body>
+</html>

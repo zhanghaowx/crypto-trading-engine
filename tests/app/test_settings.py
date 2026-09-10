@@ -17,14 +17,26 @@ def test_parse_args_defaults_db_path(monkeypatch):
     args = parse_args()
 
     assert args.db == "/tmp/jolteon.sqlite"
+    assert args.log_db == "/tmp/jolteon.log.sqlite"
 
 
 def test_parse_args_reads_custom_db_path(monkeypatch):
-    monkeypatch.setattr(sys, "argv", ["prog", "--db", "/custom/path.sqlite"])
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "prog",
+            "--db",
+            "/custom/path.sqlite",
+            "--log-db",
+            "/custom/log.sqlite",
+        ],
+    )
 
     args = parse_args()
 
     assert args.db == "/custom/path.sqlite"
+    assert args.log_db == "/custom/log.sqlite"
 
 
 def test_init_settings_sets_session_state_defaults():
@@ -32,8 +44,10 @@ def test_init_settings_sets_session_state_defaults():
 
     assert not at.exception
     assert at.session_state["db_path"] == "/tmp/jolteon.sqlite"
+    assert at.session_state["log_db_path"] == "/tmp/jolteon.log.sqlite"
     assert at.session_state["auto_refresh"] is True
     assert at.session_state["refresh_seconds"] == 5
+    assert at.session_state["chart_window_minutes"] == 15
 
 
 def test_init_settings_does_not_override_existing_session_state():

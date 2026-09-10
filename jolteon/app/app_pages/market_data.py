@@ -1,8 +1,19 @@
 import altair as alt
 import streamlit as st
 
-from jolteon.app.components import style_chart, warn_if_no_db
-from jolteon.app.data import as_datetime, latest_quotes, read_table
+from jolteon.app.components import animated_metric, style_chart, warn_if_no_db
+from jolteon.app.data import (
+    as_datetime,
+    read_latest_per_group,
+    read_latest_row,
+    read_table,
+)
+
+_QUOTE_HELP = (
+    "Dashed lines on the chart mark the last quote sent per side. "
+    "Cancellations aren't recorded, so a side that has since stopped "
+    "quoting (e.g. inventory cap hit) may still show a stale line here."
+)
 
 
 def price_chart(candles) -> alt.Chart:
@@ -46,12 +57,19 @@ def quote_lines(quotes) -> alt.Chart:
     )
 
 
-def _quote_metric(col, quotes, side: str, label: str, color: str) -> None:
+def _quote_metric(col, quotes, side: str, label: str) -> None:
     match = quotes[quotes["side"] == side]
-    value = (
-        f":{color}[{match.iloc[0]['price']:.2f}]" if not match.empty else "—"
-    )
-    col.metric(label, value)
+    with col:
+        if match.empty:
+            st.metric(label, "—", help=_QUOTE_HELP)
+        else:
+            animated_metric(
+                f"quote-{side}",
+                label,
+                float(match.iloc[0]["price"]),
+                color=_QUOTE_LINE_COLORS[side],
+                help=_QUOTE_HELP,
+            )
 
 
 def render() -> None:
@@ -59,32 +77,38 @@ def render() -> None:
         return
 
     db_path = st.session_state.db_path
-    bbo = read_table(db_path, "ticker_feed")
+    bbo = read_latest_row(db_path, "ticker_feed")
     candles = read_table(db_path, "calculated_candlestick_feed")
-    quotes = latest_quotes(read_table(db_path, "order"))
+    quotes = read_latest_per_group(db_path, "order", "side")
 
-    if bbo.empty:
+    if bbo is None:
         st.info("No market data recorded yet.")
         if not quotes.empty:
             quote_cols = st.columns(2)
-            _quote_metric(quote_cols[0], quotes, "BUY", "Buy Quote", "green")
-            _quote_metric(quote_cols[1], quotes, "SELL", "Sell Quote", "red")
+            _quote_metric(quote_cols[0], quotes, "BUY", "Buy Quote")
+            _quote_metric(quote_cols[1], quotes, "SELL", "Sell Quote")
     else:
-        latest = bbo.sort_values("timestamp").iloc[-1]
-        mid = (latest["bid_price"] + latest["ask_price"]) / 2
+        mid = (bbo["bid_price"] + bbo["ask_price"]) / 2
         cols = st.columns(4)
-        cols[0].metric("Symbol", latest.get("symbol", "-"))
-        cols[1].metric("Bid", f"{latest['bid_price']:.2f}")
-        cols[2].metric("Ask", f"{latest['ask_price']:.2f}")
-        cols[3].metric("Mid", f"{mid:.2f}")
+        with cols[0]:
+            st.metric("Symbol", bbo.get("symbol", "-"))
+        with cols[1]:
+            animated_metric("bid", "Bid", float(bbo["bid_price"]))
+        with cols[2]:
+            animated_metric("ask", "Ask", float(bbo["ask_price"]))
+        with cols[3]:
+            animated_metric("mid", "Mid", float(mid))
         if not quotes.empty:
-            _quote_metric(cols[1], quotes, "BUY", "Buy Quote", "green")
-            _quote_metric(cols[2], quotes, "SELL", "Sell Quote", "red")
+            _quote_metric(cols[1], quotes, "BUY", "Buy Quote")
+            _quote_metric(cols[2], quotes, "SELL", "Sell Quote")
 
     if not candles.empty:
         candles = candles.drop_duplicates(
             subset="start_time", keep="last"
         ).sort_values("start_time")
+        window_seconds = st.session_state.chart_window_minutes * 60
+        cutoff = candles["start_time"].max() - window_seconds
+        candles = candles[candles["start_time"] >= cutoff]
         candles["time"] = as_datetime(candles["start_time"])
         chart = (
             alt.layer(price_chart(candles), quote_lines(quotes))
@@ -92,10 +116,3 @@ def render() -> None:
             else price_chart(candles)
         )
         st.altair_chart(style_chart(chart), width="stretch")
-        if not quotes.empty:
-            st.caption(
-                "Dashed lines mark the last quote sent per side. "
-                "Cancellations aren't recorded, so a side that has since "
-                "stopped quoting (e.g. inventory cap hit) may still show "
-                "a stale line here."
-            )

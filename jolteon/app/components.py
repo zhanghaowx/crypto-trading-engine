@@ -1,14 +1,16 @@
 """Shared UI helpers used by more than one dashboard page."""
 
+import re
 from pathlib import Path
 from typing import Literal, TypeVar
 
 import altair as alt
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 from pandas.io.formats.style import Styler
 
-# Cards (the bordered section containers) sit on the sage canvas
+# Cards (the bordered section containers) sit on the page's grey canvas
 # (`backgroundColor` in .streamlit/config.toml) and would otherwise be
 # transparent, leaving the whole page one flat sheet. There is no native
 # container background option, so cards are painted with scoped CSS keyed to
@@ -26,10 +28,10 @@ CARD_SHADOW = "0 2px 6px rgba(21, 23, 28, 0.07)"
 CHART_TOP_PADDING = 20
 
 # Dataframe interiors follow `theme.backgroundColor`, so inside a white card
-# they'd show as a sage hole. Only the header and border are theme-settable
+# they'd show as a grey hole. Only the header and border are theme-settable
 # (`dataframeHeaderBackgroundColor` / `dataframeBorderColor` in config.toml),
 # so the body is painted through a pandas Styler instead - in the card's own
-# white, leaving the sage header band and gridlines to delineate the table.
+# white, leaving the grey header band and gridlines to delineate the table.
 
 BadgeColor = Literal[
     "red",
@@ -61,9 +63,87 @@ def style_chart(chart: ChartT) -> ChartT:
 def style_table(df: pd.DataFrame) -> Styler:
     """
     Give a dataframe the card's white interior, so it doesn't fall back to
-    the sage page background inside a white card.
+    the grey page background inside a white card.
     """
     return df.style.set_properties(**{"background-color": CARD_BACKGROUND})
+
+
+_FLASH_ANIMATION = "jolteon-flash"
+_FLASH_KEYFRAMES = f"""
+@keyframes {_FLASH_ANIMATION} {{
+  from {{ background-color: rgba(21, 23, 28, 0.12); }}
+  to {{ background-color: transparent; }}
+}}
+"""
+
+
+def flash_key(*parts: str) -> str:
+    """
+    A container `key` that changes exactly when `parts` do.
+
+    Streamlit reuses a widget's DOM node across reruns unless its `key`
+    changes, so folding a value into the key is what forces the remount a
+    CSS animation needs in order to play again once that value updates.
+    """
+    return "flash-" + re.sub(
+        r"[^a-z0-9]+", "-", "-".join(parts).lower()
+    ).strip("-")
+
+
+def flash_rule(*keys: str) -> str:
+    """CSS making every container keyed by `flash_key` pulse once when it
+    mounts. Empty if there are no keys, rather than an empty style tag."""
+    if not keys:
+        return ""
+    selector = ", ".join(f".st-key-{key}" for key in keys)
+    return (
+        f"{_FLASH_KEYFRAMES}{selector} "
+        f"{{ animation: {_FLASH_ANIMATION} 900ms ease-out; }}"
+    )
+
+
+_ANIMATED_METRIC_DIR = (
+    Path(__file__).resolve().parent / "static" / "animated_metric"
+)
+_animated_metric = components.declare_component(
+    "animated_metric", path=str(_ANIMATED_METRIC_DIR)
+)
+
+
+def animated_metric(
+    key: str,
+    label: str,
+    value: float,
+    *,
+    decimals: int | None = 2,
+    color: str | None = None,
+    prefix: str = "",
+    suffix: str = "",
+    help: str | None = None,
+    border: bool = False,
+) -> None:
+    """
+    A metric tile whose number rolls, digit by digit, to its new value
+    (via NumberFlow - see jolteon/app/static/animated_metric) rather than
+    just replacing the old text - `st.metric` has no such transition.
+
+    `key` must stay stable for a given metric across reruns: Streamlit
+    then keeps this component's iframe mounted and delivers new args into
+    it in place, instead of recreating the iframe (which `st.metric` and
+    `st.html` both effectively do on every rerun) - a fresh element has no
+    previous value to animate from.
+    """
+    _animated_metric(
+        label=label,
+        value=value,
+        decimals=decimals,
+        color=color,
+        prefix=prefix,
+        suffix=suffix,
+        help=help,
+        border=border,
+        key=key,
+    )
 
 
 def card_grid(items, columns: int = 3, key_fn=None):
@@ -90,9 +170,9 @@ def card_grid(items, columns: int = 3, key_fn=None):
                 yield item
 
 
-def warn_if_no_db() -> bool:
-    """Returns whether the configured database exists yet."""
-    db_path = st.session_state.db_path
+def warn_if_no_db(db_path: str | None = None) -> bool:
+    """Returns whether `db_path` (the main database by default) exists."""
+    db_path = db_path or st.session_state.db_path
     if Path(db_path).exists():
         return True
     st.warning(

@@ -10,10 +10,26 @@ def render() -> None:
     )
 
     st.text_input("Database path", key="db_path")
+    st.text_input("Log database path", key="log_db_path")
     st.checkbox("Auto-refresh", key="auto_refresh")
     st.slider("Refresh every (s)", 1, 30, key="refresh_seconds")
+    st.slider(
+        "Chart window (minutes)",
+        1,
+        120,
+        key="chart_window_minutes",
+        help="How much history Market Data's price chart and Risk "
+        "Limits' sparklines show.",
+    )
 
     if not Path(st.session_state.db_path).exists():
         st.warning(f"No database found at `{st.session_state.db_path}` yet.")
     else:
         st.success(f"Reading from `{st.session_state.db_path}`.")
+
+    if not Path(st.session_state.log_db_path).exists():
+        st.warning(
+            f"No log database found at `{st.session_state.log_db_path}` yet."
+        )
+    else:
+        st.success(f"Reading logs from `{st.session_state.log_db_path}`.")

@@ -3,11 +3,17 @@ from datetime import datetime
 import pandas as pd
 import streamlit as st
 
-from jolteon.app.components import style_table, warn_if_no_db
-from jolteon.app.data import as_datetime, read_table
+from jolteon.app.components import (
+    animated_metric,
+    flash_key,
+    flash_rule,
+    style_table,
+    warn_if_no_db,
+)
+from jolteon.app.data import as_datetime, read_latest_per_group, read_table
 
 # Side badges in the theme's semantic green/red (config.toml), so BUY and
-# SELL rows are scannable at a glance in the order and fill tables.
+# SELL rows are scannable at a glance in the fills table.
 SIDE_OPTIONS = ["BUY", "SELL"]
 SIDE_COLORS = ["#4E9F1F", "#E2574C"]
 
@@ -64,29 +70,6 @@ def _notional(price: pd.Series | None, qty: pd.Series | None):
     return None if price is None or qty is None else price * qty
 
 
-def orders_table(orders: pd.DataFrame) -> pd.DataFrame:
-    """Recent orders, without the columns a human can't use: the recording
-    `timestamp` (a near-duplicate of the creation time) stays out."""
-    recent = _recent(orders, "creation_time")
-    order_type = _optional(recent, "order_type")
-    price = _optional(recent, "price")
-    quantity = _optional(recent, "quantity")
-    return _readable(
-        {
-            "Time": _local_time(
-                recent.get("creation_time", recent.get("timestamp"))
-            ),
-            "Order": _optional(recent, "client_order_id"),
-            "Side": _side_badges(recent),
-            "Type": None if order_type is None else order_type.str.title(),
-            "Symbol": _optional(recent, "symbol"),
-            "Price": price,
-            "Quantity": quantity,
-            "Value": _notional(price, quantity),
-        }
-    )
-
-
 def fills_table(fills: pd.DataFrame) -> pd.DataFrame:
     """Recent fills. The venue's maker/taker order ids are opaque UUIDs, so
     they're dropped in favour of the short trade and client order ids."""
@@ -139,13 +122,17 @@ def _column_config(time_help: str, order_help: str, **extra) -> dict:
     return config
 
 
-def pnl_by_symbol(fills: pd.DataFrame, bbo: pd.DataFrame) -> pd.DataFrame:
+def pnl_by_symbol(
+    fills: pd.DataFrame, latest_mid: pd.DataFrame
+) -> pd.DataFrame:
     """Position, net cash flow and mark-to-market PnL per symbol.
 
     Net cash flow alone looks worse than reality while inventory is still
     held: the cash spent buying it shows up as an outflow with nothing
     offsetting it. Held inventory is marked at the latest mid price too, to
-    match PositionManager.total_pnl in the engine.
+    match PositionManager.total_pnl in the engine. `latest_mid` is the last
+    `ticker_feed` row per symbol (see `read_latest_per_group`), not the
+    whole table - a mark price only ever needs the current one.
     """
     signed_qty = fills["quantity"].where(
         fills["side"] == "BUY", -fills["quantity"]
@@ -163,9 +150,11 @@ def pnl_by_symbol(fills: pd.DataFrame, bbo: pd.DataFrame) -> pd.DataFrame:
         .sum()
     )
 
-    if not bbo.empty:
-        latest_mid = bbo.sort_values("timestamp").groupby("symbol").last()
-        mark_price = (latest_mid["bid_price"] + latest_mid["ask_price"]) / 2
+    if not latest_mid.empty:
+        mark_price = pd.Series(
+            ((latest_mid["bid_price"] + latest_mid["ask_price"]) / 2).values,
+            index=latest_mid["symbol"],
+        )
     else:
         mark_price = pd.Series(dtype=float)
     by_symbol["mark_price"] = by_symbol.index.map(mark_price)
@@ -221,68 +210,108 @@ def realized_pnl(fills: pd.DataFrame) -> float:
     return total
 
 
-def _signed(value: float) -> str:
-    """A PnL amount colored by sign, the way quotes are colored elsewhere."""
-    color = "green" if value >= 0 else "red"
-    return f":{color}[{value:,.2f}]"
+_POSITIVE_COLOR = "#4E9F1F"
+_NEGATIVE_COLOR = "#E2574C"
 
 
-def _render_pnl(fills: pd.DataFrame, bbo: pd.DataFrame) -> None:
-    by_symbol = pnl_by_symbol(fills, bbo)
+def _sign_color(value: float) -> str:
+    """A PnL amount's color, the way quotes are colored elsewhere."""
+    return _POSITIVE_COLOR if value >= 0 else _NEGATIVE_COLOR
 
-    with st.container(horizontal=True):
-        st.metric(
+
+def _render_pnl(fills: pd.DataFrame, latest_mid: pd.DataFrame) -> None:
+    by_symbol = pnl_by_symbol(fills, latest_mid)
+
+    # `animated_metric` is a custom component, and unlike `st.metric` it
+    # fills whatever width it's given rather than shrinking to its content
+    # - so it needs a fixed-width column of its own, the same way the
+    # Market Data metrics get one, rather than a plain flex row.
+    cols = iter(st.columns(5 + 2 * len(by_symbol)))
+
+    total_pnl = by_symbol["total_pnl"].sum()
+    with next(cols):
+        animated_metric(
+            "total-pnl",
             "Total PnL",
-            _signed(by_symbol["total_pnl"].sum()),
+            total_pnl,
+            color=_sign_color(total_pnl),
             border=True,
             help="Everything made or lost so far, counting inventory "
             "still held at the current mid price.",
         )
-        st.metric(
+    realized = realized_pnl(fills)
+    with next(cols):
+        animated_metric(
+            "realized-pnl",
             "Realized PnL",
-            _signed(realized_pnl(fills)),
+            realized,
+            color=_sign_color(realized),
             border=True,
             help="Profit on positions that have been closed out again, "
             "after fees. Inventory still held only counts once it is sold.",
         )
-        st.metric(
+    net_cash = by_symbol["net_cash"].sum()
+    with next(cols):
+        animated_metric(
+            "net-cash-flow",
             "Net cash flow",
-            _signed(by_symbol["net_cash"].sum()),
+            net_cash,
+            color=_sign_color(net_cash),
             border=True,
             help="Cash taken in from sells minus cash paid out on buys, "
             "after fees. Buying inventory looks like a loss here until it "
             "is sold again.",
         )
-        st.metric(
+    with next(cols):
+        animated_metric(
+            "inventory-value",
             "Inventory value",
-            f"{by_symbol['inventory_value'].sum():,.2f}",
+            by_symbol["inventory_value"].sum(),
             border=True,
             help="What the inventory still held is worth at the current "
             "mid price.",
         )
-        st.metric(
+    with next(cols):
+        animated_metric(
+            "fees-paid",
             "Fees paid",
-            f"{fills['fee'].sum():,.2f}",
+            fills["fee"].sum(),
             border=True,
             help="Fees charged across all fills, already subtracted from "
             "realized PnL and net cash flow.",
         )
-        for symbol, row in by_symbol.iterrows():
-            st.metric(
+    for symbol, row in by_symbol.iterrows():
+        with next(cols):
+            animated_metric(
+                f"{symbol}-position",
                 f"{symbol} position",
-                f"{row['position']:g}",
+                row["position"],
+                decimals=None,
                 border=True,
-                help="How much is held right now. A negative number means "
-                "the position is short.",
+                help="How much is held right now. A negative number "
+                "means the position is short.",
             )
-            mark = row["mark_price"]
-            st.metric(
-                f"{symbol} mark price",
-                "-" if pd.isna(mark) else f"{mark:,.2f}",
-                border=True,
-                help="The current mid price, halfway between the best bid "
-                "and the best ask.",
-            )
+        mark = row["mark_price"]
+        mark_help = (
+            "The current mid price, halfway between the best bid "
+            "and the best ask."
+        )
+        with next(cols):
+            if pd.isna(mark):
+                st.metric(
+                    f"{symbol} mark price",
+                    "-",
+                    border=True,
+                    help=mark_help,
+                )
+            else:
+                animated_metric(
+                    f"{symbol}-mark-price",
+                    f"{symbol} mark price",
+                    float(mark),
+                    border=True,
+                    help=mark_help,
+                )
 
 
 def render() -> None:
@@ -290,49 +319,34 @@ def render() -> None:
         return
 
     db_path = st.session_state.db_path
-    orders = read_table(db_path, "order")
     fills = read_table(db_path, "order_fill")
 
     if fills.empty:
         st.info("No fills yet.")
     else:
-        _render_pnl(fills, read_table(db_path, "ticker_feed"))
+        latest_mid = read_latest_per_group(db_path, "ticker_feed", "symbol")
+        _render_pnl(fills, latest_mid)
 
     st.divider()
-
-    st.markdown("**Recent orders**")
-    if orders.empty:
-        st.info("No orders placed yet.")
-    else:
-        st.dataframe(
-            style_table(orders_table(orders)),
-            column_config=_column_config(
-                time_help="When the order was sent, in your local time.",
-                order_help="The id the strategy gave this order.",
-                Type=st.column_config.TextColumn(
-                    help="The kind of order that was sent, such as limit "
-                    "or market.",
-                    width="small",
-                ),
-            ),
-            hide_index=True,
-            width="stretch",
-        )
 
     st.markdown("**Recent fills**")
     if fills.empty:
         st.info("No fills yet.")
     else:
-        st.dataframe(
-            style_table(fills_table(fills)),
-            column_config=_column_config(
-                time_help="When the trade was filled, in your local time.",
-                order_help="The id of the order this trade filled.",
-                Trade=st.column_config.TextColumn(
-                    help="The id of this individual trade.", width="small"
+        table_key = flash_key("fills", str(len(fills)))
+        with st.container(key=table_key):
+            st.dataframe(
+                style_table(fills_table(fills)),
+                column_config=_column_config(
+                    time_help="When the trade was filled, in your local time.",
+                    order_help="The id of the order this trade filled.",
+                    Trade=st.column_config.TextColumn(
+                        help="The id of this individual trade.",
+                        width="small",
+                    ),
+                    Fee=st.column_config.NumberColumn(format="%,.4f"),
                 ),
-                Fee=st.column_config.NumberColumn(format="%,.4f"),
-            ),
-            hide_index=True,
-            width="stretch",
-        )
+                hide_index=True,
+                width="stretch",
+            )
+        st.html(f"<style>{flash_rule(table_key)}</style>")
