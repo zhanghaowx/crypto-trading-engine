@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytz
 
 from jolteon.cli import main
-from jolteon.strategy.market_making.market_making_strategy import (
+from jolteon.engine.strategy.market_making.market_making_strategy import (
     MarketMakingStrategy,
 )
 

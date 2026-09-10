@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 import pytz
 
-from jolteon.core.time.time_manager import time_manager
+from jolteon.engine.core.time.time_manager import time_manager
 
 
 class ProgressBar:

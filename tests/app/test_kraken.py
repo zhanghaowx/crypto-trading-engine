@@ -8,8 +8,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytz
 
-from jolteon.market_data.core.trade import Trade
-from jolteon.position.position_manager import Position
+from jolteon.engine.market_data.core.trade import Trade
+from jolteon.engine.position.position_manager import Position
 
 
 class TestApplication(unittest.IsolatedAsyncioTestCase):

@@ -6,7 +6,7 @@ import streamlit as st
 
 from jolteon.app.components import BadgeColor, card_grid, warn_if_no_db
 from jolteon.app.data import as_datetime, read_latest_per_group
-from jolteon.core.health_monitor.heartbeat import HeartbeatLevel
+from jolteon.engine.core.health_monitor.heartbeat import HeartbeatLevel
 
 HEARTBEAT_BADGES: dict[int, tuple[str, BadgeColor, str]] = {
     HeartbeatLevel.NORMAL.value: (

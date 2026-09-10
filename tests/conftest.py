@@ -2,7 +2,7 @@ import sys
 
 import pytest
 
-from jolteon.core.event.signal_manager import SignalManager
+from jolteon.engine.core.event.signal_manager import SignalManager
 
 
 # each test runs on cwd to its temp dir
