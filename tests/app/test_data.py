@@ -3,8 +3,14 @@ import tempfile
 import unittest
 from contextlib import closing
 from pathlib import Path
+from unittest import mock
 
-from jolteon.app.data import read_table, reset_table_cache
+from jolteon.app.data import (
+    read_latest_per_group,
+    read_latest_row,
+    read_table,
+    reset_table_cache,
+)
 
 
 class TestReadTable(unittest.TestCase):
@@ -144,3 +150,91 @@ class TestReadTable(unittest.TestCase):
         df["time"] = 0
 
         self.assertNotIn("time", read_table(self.db_path, "order").columns)
+
+    @mock.patch("jolteon.app.data._MAX_CACHED_ROWS", 2)
+    def test_caps_cached_rows_to_bound_session_memory(self):
+        self.insert("2", 200.0)
+        self.insert("3", 300.0)
+
+        df = read_table(self.db_path, "order")
+
+        self.assertEqual(["2", "3"], list(df["client_order_id"]))
+
+
+class TestReadLatestRow(unittest.TestCase):
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self.db_path = str(Path(self._tmpdir.name) / "test.sqlite")
+
+    def tearDown(self):
+        self._tmpdir.cleanup()
+
+    def write(self, *statements: str) -> None:
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            for statement in statements:
+                conn.execute(statement)
+            conn.commit()
+
+    def test_missing_database_file_returns_none(self):
+        missing_path = str(Path(self._tmpdir.name) / "missing.sqlite")
+
+        self.assertIsNone(read_latest_row(missing_path, "ticker_feed"))
+
+    def test_missing_table_returns_none(self):
+        self.write("CREATE TABLE other (a INTEGER)")
+
+        self.assertIsNone(read_latest_row(self.db_path, "does_not_exist"))
+
+    def test_returns_only_the_most_recently_inserted_row(self):
+        self.write(
+            "CREATE TABLE ticker_feed (price REAL)",
+            "INSERT INTO ticker_feed VALUES (1.0)",
+            "INSERT INTO ticker_feed VALUES (2.0)",
+        )
+
+        row = read_latest_row(self.db_path, "ticker_feed")
+
+        self.assertEqual(2.0, row["price"])
+
+
+class TestReadLatestPerGroup(unittest.TestCase):
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self.db_path = str(Path(self._tmpdir.name) / "test.sqlite")
+
+    def tearDown(self):
+        self._tmpdir.cleanup()
+
+    def write(self, *statements: str) -> None:
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            for statement in statements:
+                conn.execute(statement)
+            conn.commit()
+
+    def test_missing_database_file_returns_empty_dataframe(self):
+        missing_path = str(Path(self._tmpdir.name) / "missing.sqlite")
+
+        df = read_latest_per_group(missing_path, "heartbeat", "sender")
+
+        self.assertTrue(df.empty)
+
+    def test_missing_table_returns_empty_dataframe(self):
+        self.write("CREATE TABLE other (a INTEGER)")
+
+        df = read_latest_per_group(self.db_path, "does_not_exist", "sender")
+
+        self.assertTrue(df.empty)
+
+    def test_returns_the_latest_row_for_each_distinct_group_value(self):
+        self.write(
+            'CREATE TABLE "order" (side TEXT, price REAL)',
+            "INSERT INTO \"order\" VALUES ('BUY', 1.0)",
+            "INSERT INTO \"order\" VALUES ('BUY', 2.0)",
+            "INSERT INTO \"order\" VALUES ('SELL', 3.0)",
+        )
+
+        df = read_latest_per_group(self.db_path, "order", "side")
+
+        self.assertEqual(
+            {"BUY": 2.0, "SELL": 3.0}, dict(zip(df["side"], df["price"]))
+        )

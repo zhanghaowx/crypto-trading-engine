@@ -5,7 +5,7 @@ import pandas as pd
 import streamlit as st
 
 from jolteon.app.components import BadgeColor, card_grid, warn_if_no_db
-from jolteon.app.data import as_datetime, read_table
+from jolteon.app.data import as_datetime, read_latest_per_group
 from jolteon.core.health_monitor.heartbeat import HeartbeatLevel
 
 HEARTBEAT_BADGES: dict[int, tuple[str, BadgeColor, str]] = {
@@ -79,14 +79,13 @@ def render() -> None:
     if not warn_if_no_db():
         return
 
-    heartbeats = read_table(st.session_state.db_path, "heartbeat")
-    if heartbeats.empty:
+    latest = read_latest_per_group(
+        st.session_state.db_path, "heartbeat", "sender"
+    )
+    if latest.empty:
         st.info("No heartbeats recorded yet.")
         return
 
-    latest = (
-        heartbeats.sort_values("timestamp").groupby("sender").tail(1).copy()
-    )
     local_tz = st.context.timezone or datetime.now().astimezone().tzinfo
     latest["last_seen"] = as_datetime(latest["timestamp"]).dt.tz_convert(
         local_tz
