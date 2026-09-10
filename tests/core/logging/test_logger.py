@@ -13,7 +13,7 @@ from contextlib import closing
 import pandas as pd
 from freezegun import freeze_time
 
-from jolteon.core.logging.logger import setup_global_logger
+from jolteon.core.logging.logger import SQLiteHandler, setup_global_logger
 
 
 class TestLogging(unittest.IsolatedAsyncioTestCase):
@@ -33,6 +33,17 @@ class TestLogging(unittest.IsolatedAsyncioTestCase):
 
     def tearDown(self):
         logging.getLogger("asyncio").setLevel(self._asyncio_logger_level)
+
+        # setup_global_logger only closes a leftover SQLiteHandler the next
+        # time it is called, so the one this test installed is still
+        # holding self.database_filepath open. Windows refuses to remove a
+        # file that is still open, so close it here instead of waiting for
+        # the next test's setup_global_logger call to do it too late.
+        root_logger = logging.getLogger()
+        for handler in list(root_logger.handlers):
+            if isinstance(handler, SQLiteHandler):
+                root_logger.removeHandler(handler)
+                handler.close()
 
         if os.path.exists(self.database_filepath):
             os.remove(self.database_filepath)
@@ -72,7 +83,7 @@ class TestLogging(unittest.IsolatedAsyncioTestCase):
                 "[2022-01-01 00:00:00]"
                 "[root][INFO]"
                 "[MainThread]"
-                "[test_logger.py:66] - "
+                "[test_logger.py:77] - "
                 "Info Message"
             ],
         )
