@@ -11,6 +11,10 @@ from jolteon.core.logging.logger import setup_global_logger
 from jolteon.market_data.data_source import DatabaseDataSource
 from jolteon.market_data.historical_feed import HistoricalFeed
 from jolteon.position.position_manager import PositionManager
+from jolteon.post_trade.post_trade_service import PostTradeService
+from jolteon.strategy.market_making.fair_value.fair_price_model import (
+    IFairPriceModel,
+)
 
 
 class ApplicationBase(SignalManager):
@@ -22,6 +26,7 @@ class ApplicationBase(SignalManager):
         database_name,
         logfile_name,
         strategy: object = None,
+        fair_price_model: IFairPriceModel | None = None,
     ):
         """
         Connects different components to build the trading engine. It supports
@@ -41,6 +46,13 @@ class ApplicationBase(SignalManager):
             database_name=database_name,
         )
         self._position_manager = PositionManager()
+        # _position_manager must sort before _post_trade_service here:
+        # connect_all() connects subscribers in alphabetical dir() order,
+        # and PostTradeService.on_fill relies on PositionManager's
+        # position_updated having already fired for the same fill.
+        self._post_trade_service = PostTradeService(
+            fair_price_model=fair_price_model
+        )
         self._strategy = strategy
 
         self._exec_service: object = None
