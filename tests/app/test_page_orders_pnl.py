@@ -88,6 +88,28 @@ def test_renders_pnl_and_recent_fills(populated_db_path):
     assert "-" in markdown_values
 
 
+def test_copy_data_button_holds_every_fill_as_csv(populated_db_path):
+    at = AppTest.from_function(_script)
+    at.session_state["db_path"] = populated_db_path
+    at.run()
+
+    assert not at.exception
+    assert len(at.code) == 1
+    csv_text = at.code[0].value
+    assert "trade_id" in csv_text
+    assert "fair_price_at_fill" in csv_text
+    assert "99.5" in csv_text
+
+
+def test_copy_data_button_hidden_when_no_fills(empty_db_path):
+    at = AppTest.from_function(_script)
+    at.session_state["db_path"] = empty_db_path
+    at.run()
+
+    assert not at.exception
+    assert len(at.code) == 0
+
+
 def test_fills_table_uses_readable_headers_and_drops_opaque_ids(
     populated_db_path,
 ):
@@ -117,6 +139,112 @@ def test_fills_table_uses_readable_headers_and_drops_opaque_ids(
     # The venue's opaque UUIDs are gone.
     assert "maker_order_id" not in display
     assert "taker_order_id" not in display
+
+
+def test_renders_fill_quality_by_side_and_fair_price_movement(tmp_path):
+    db_path = str(tmp_path / "fill_quality.sqlite")
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "CREATE TABLE decorated_order_fill "
+        "(timestamp REAL, transaction_timestamp REAL, side TEXT, "
+        "fill_price REAL, fill_qty REAL, fee REAL, symbol TEXT, "
+        "trade_id INTEGER PRIMARY KEY, fair_price_at_fill REAL, "
+        "inventory_before REAL, inventory_after REAL, "
+        "fair_price_100ms REAL, fair_price_1s REAL, fair_price_5s REAL, "
+        "fair_price_30s REAL)"
+    )
+    rows = [
+        # BUY favorable then adverse, averaging to a $0 edge and markout.
+        (
+            1700000000,
+            1700000000,
+            "BUY",
+            100.0,
+            1.0,
+            0.1,
+            "BTC-USD",
+            1,
+            101.0,
+            0.0,
+            1.0,
+            102.0,
+            None,
+            None,
+            None,
+        ),
+        (
+            1700000001,
+            1700000001,
+            "BUY",
+            100.0,
+            1.0,
+            0.2,
+            "BTC-USD",
+            2,
+            99.0,
+            1.0,
+            2.0,
+            98.0,
+            None,
+            None,
+            None,
+        ),
+        # SELL, favorable on both edge and markout.
+        (
+            1700000002,
+            1700000002,
+            "SELL",
+            110.0,
+            1.0,
+            0.05,
+            "BTC-USD",
+            3,
+            108.0,
+            2.0,
+            1.0,
+            105.0,
+            None,
+            None,
+            None,
+        ),
+    ]
+    conn.executemany(
+        "INSERT INTO decorated_order_fill VALUES "
+        "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        rows,
+    )
+    conn.commit()
+    conn.close()
+
+    at = AppTest.from_function(_script)
+    at.session_state["db_path"] = db_path
+    at.run()
+
+    assert not at.exception
+    markdown_values = [m.value for m in at.markdown]
+    assert "**Fill Quality**" in markdown_values
+    assert "**BUY**" in markdown_values
+    assert "**SELL**" in markdown_values
+    assert "**Fair price movement**" in markdown_values
+
+    metrics = _animated_metrics(at)
+    assert metrics["fill-quality-BUY-count"]["value"] == 2
+    assert metrics["fill-quality-BUY-edge"]["value"] == pytest.approx(0.0)
+    assert metrics["fill-quality-BUY-markout-100ms"]["value"] == (
+        pytest.approx(0.0)
+    )
+    assert metrics["fill-quality-SELL-count"]["value"] == 1
+    assert metrics["fill-quality-SELL-edge"]["value"] == pytest.approx(2.0)
+    assert metrics["fill-quality-SELL-markout-100ms"]["value"] == (
+        pytest.approx(5.0)
+    )
+    # Fair price movement is side-independent: (102-101) + (98-99) +
+    # (105-108) averaged across all three fills = -1.
+    assert metrics["fair-price-movement-100ms"]["value"] == pytest.approx(-1.0)
+    # No fill has a 1s/5s/30s fair price backfilled yet.
+    dash_metrics = {m.label: m.value for m in at.metric}
+    assert dash_metrics["Markout +1s"] == "-"
+    assert dash_metrics["+1s"] == "-"
 
 
 def test_marks_inventory_at_zero_without_a_ticker_feed(tmp_path):
