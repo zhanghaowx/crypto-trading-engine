@@ -1,17 +1,17 @@
-# Jolteon dashboard theme — bold, rounded fintech look (sage/mint/lavender on
+# Jolteon dashboard theme — bold, rounded fintech look (grey/lavender on
 # off-white) with a solid black sidebar panel, inspired by a bright,
 # card-driven crypto dashboard reference.
 
 [theme]
 base = "light"
 primaryColor = "#15171C"             # Near-black - pill buttons, active elements
-backgroundColor = "#E4E9DA"          # Soft sage canvas
-secondaryBackgroundColor = "#F8F9F3" # Off-white widget surfaces
-codeBackgroundColor = "#F1F2EA"
+backgroundColor = "#E7E8E6"          # Soft neutral grey canvas
+secondaryBackgroundColor = "#F8F8F6" # Off-white widget surfaces
+codeBackgroundColor = "#EFEFED"
 textColor = "#15171C"
-linkColor = "#4C7300"
-borderColor = "#D3D9C6"
-codeTextColor = "#2B2D25"
+linkColor = "#3E5A6E"
+borderColor = "#D7D7D3"
+codeTextColor = "#2B2D2C"
 showWidgetBorder = true
 showSidebarBorder = false
 baseRadius = "1rem"                  # Big, playful rounding
@@ -28,38 +28,39 @@ headingFontSizes = ["40px", "26px", "20px", "17px", "15px", "13px"]
 headingFontWeights = [700, 700, 600, 600, 600, 500]
 linkUnderline = false
 
-# Semantic colors - mint green and lavender, echoing the reference palette
+# Semantic colors - gains/losses stay the standard green/red; everything
+# else is grey and lavender for a calmer, more professional feel
 greenColor = "#4E9F1F"  # Positive/gains
 redColor = "#E2574C"    # Negative/losses
 yellowColor = "#E8B93C" # Warnings/caution
 orangeColor = "#E8873C" # Alerts
 blueColor = "#3E8FD0"   # Informational
 violetColor = "#8B7EF0" # Accent/highlights
-grayColor = "#8A8F7C"   # Neutral/secondary text
+grayColor = "#8A8D91"   # Neutral/secondary text
 
-# Chart colors - mint/lavender first, financial red kept distinguishable
+# Chart colors - slate and lavender first, financial red kept distinguishable
 chartCategoricalColors = [
-    "#7BC94C",
+    "#5B7C99",
     "#8B7EF0",
     "#15171C",
     "#E8B93C",
     "#3E8FD0",
     "#E2574C",
-    "#8A8F7C",
+    "#8A8D91",
 ]
 
-# Sequential colors for heatmaps (mint gradient)
+# Sequential colors for heatmaps (grey gradient)
 chartSequentialColors = [
-    "#F1F5E9",
-    "#DCEAC7",
-    "#C4DEA5",
-    "#ABD183",
-    "#92C462",
-    "#78B742",
-    "#61A02D",
-    "#4E871F",
-    "#3D6E14",
-    "#2C540B",
+    "#F2F2F1",
+    "#E1E2DF",
+    "#CFD0CC",
+    "#BCBDB8",
+    "#A8AAA4",
+    "#94968F",
+    "#80827A",
+    "#6C6E66",
+    "#585A52",
+    "#44463F",
 ]
 
 # Dataframe styling. The body is painted white through a pandas Styler (see
@@ -69,8 +70,8 @@ chartSequentialColors = [
 # the grid draws its header labels in `fadedText60` (the theme's text color
 # at 60%) with no way to override them, and it renders to a canvas, so CSS
 # can't recolor them either - on a dark header the labels simply disappear.
-dataframeBorderColor = "#D3D9C6"
-dataframeHeaderBackgroundColor = "#DDE3D0"
+dataframeBorderColor = "#D7D7D3"
+dataframeHeaderBackgroundColor = "#DEDFDC"
 
 # Sidebar - solid black panel, mirroring the dark card in the reference image
 [theme.sidebar]
@@ -79,4 +80,4 @@ secondaryBackgroundColor = "#20232B"
 codeBackgroundColor = "#20232B"
 textColor = "#F5F6F1"
 borderColor = "#2C2F38"
-primaryColor = "#9BE86B"
+primaryColor = "#8FA3B0"
