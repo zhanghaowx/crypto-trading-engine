@@ -1,5 +1,7 @@
+import asyncio
 import os
 import tempfile
+import threading
 import unittest
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -93,3 +95,31 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
 
         # Ensure the live feed connection is called with the correct arguments
         mock_feed.connect.assert_called_once_with(self.symbol)
+
+    @patch("jolteon.app.kraken.PublicFeed")
+    async def test_request_shutdown_cancels_a_feed_that_never_finishes(
+        self, MockFeed
+    ):
+        """
+        A live feed's connect() runs until cancelled, so nothing but an
+        explicit shutdown request ever ends it - this is what a Ctrl+C
+        needs to reach in order to unblock start() instead of hanging.
+        """
+        mock_feed = self.create_mock_feed(MockFeed)
+        connected = threading.Event()
+
+        async def never_ending_connect(symbol):
+            connected.set()
+            await asyncio.Event().wait()
+
+        mock_feed.connect = never_ending_connect
+
+        start_task = asyncio.ensure_future(self.application.start())
+        await asyncio.get_running_loop().run_in_executor(
+            None, connected.wait, 1
+        )
+        self.assertTrue(connected.is_set())
+
+        self.application.request_shutdown()
+
+        await asyncio.wait_for(start_task, timeout=1)

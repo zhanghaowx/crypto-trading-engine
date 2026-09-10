@@ -4,7 +4,7 @@ import sys
 import unittest
 from datetime import datetime
 from io import StringIO
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytz
 
@@ -278,3 +278,24 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
                 captured_output.getvalue(),
             )
             self.assertEqual(1, mock_exit.call_count)
+
+    async def test_graceful_exit_cancels_the_active_app_instead_of_exiting(
+        self,
+    ):
+        """
+        Once an app is running, Ctrl+C must cancel its MD thread's task
+        rather than calling sys.exit() - sys.exit() only unwinds the main
+        thread and leaves a live feed's connect() (which runs until
+        cancelled) stuck, hanging shutdown.
+        """
+        import jolteon.cli as cli
+
+        mock_app = MagicMock()
+        with (
+            patch.object(cli, "_active_app", mock_app),
+            patch("sys.exit") as mock_exit,
+        ):
+            cli.graceful_exit(signal.SIGINT, None)
+
+            mock_app.request_shutdown.assert_called_once()
+            mock_exit.assert_not_called()
