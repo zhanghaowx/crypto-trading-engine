@@ -79,14 +79,15 @@ def test_renders_pnl_and_recent_fills(populated_db_path):
 def test_fills_table_uses_readable_headers_and_drops_opaque_ids(
     populated_db_path,
 ):
-    fills = read_table(populated_db_path, "order_fill")
+    fills = read_table(populated_db_path, "decorated_order_fill")
 
     display = fills_table(fills)
 
+    # decorated_order_fill carries no client_order_id, so "Order" isn't
+    # rendered - `_optional` drops whatever column the table doesn't have.
     assert list(display.columns) == [
         "Time",
         "Trade",
-        "Order",
         "Side",
         "Symbol",
         "Price",
@@ -105,12 +106,12 @@ def test_marks_inventory_at_zero_without_a_ticker_feed(tmp_path):
     db_path = str(tmp_path / "no_ticker_feed.sqlite")
     conn = sqlite3.connect(db_path)
     conn.execute(
-        "CREATE TABLE order_fill "
-        "(timestamp REAL, side TEXT, price REAL, quantity REAL, "
+        "CREATE TABLE decorated_order_fill "
+        "(timestamp REAL, side TEXT, fill_price REAL, fill_qty REAL, "
         "fee REAL, symbol TEXT)"
     )
     conn.execute(
-        "INSERT INTO order_fill VALUES "
+        "INSERT INTO decorated_order_fill VALUES "
         "(1700000000, 'BUY', 99.5, 1.0, 0.1, 'BTC-USD')"
     )
     conn.commit()
@@ -134,11 +135,11 @@ def _fills(*trades) -> pd.DataFrame:
     return pd.DataFrame(
         [
             {
-                "transaction_time": 1700000000 + index,
+                "transaction_timestamp": 1700000000 + index,
                 "symbol": "BTC-USD",
                 "side": side,
-                "price": price,
-                "quantity": quantity,
+                "fill_price": price,
+                "fill_qty": quantity,
                 "fee": fee,
             }
             for index, (side, price, quantity, fee) in enumerate(trades)

@@ -96,15 +96,18 @@ def populated_db_path(tmp_path) -> str:
         )
 
         conn.execute(
-            "CREATE TABLE order_fill "
-            "(timestamp REAL, transaction_time REAL, side TEXT, price REAL, "
-            "quantity REAL, fee REAL, symbol TEXT, trade_id INTEGER, "
-            "client_order_id TEXT, maker_order_id TEXT, taker_order_id TEXT)"
+            "CREATE TABLE decorated_order_fill "
+            "(timestamp REAL, transaction_timestamp REAL, side TEXT, "
+            "fill_price REAL, fill_qty REAL, fee REAL, symbol TEXT, "
+            "trade_id INTEGER PRIMARY KEY, fair_price_at_fill REAL, "
+            "inventory_before REAL, inventory_after REAL, "
+            "fair_price_100ms REAL, fair_price_1s REAL, fair_price_5s REAL, "
+            "fair_price_30s REAL)"
         )
         conn.execute(
-            "INSERT INTO order_fill VALUES "
+            "INSERT INTO decorated_order_fill VALUES "
             "(1700000000, 1700000000, 'BUY', 99.5, 1.0, 0.1, 'BTC-USD', 2, "
-            "'1', 'maker-uuid', 'taker-uuid')"
+            "100.0, 0.0, 1.0, NULL, NULL, NULL, NULL)"
         )
 
         conn.execute(

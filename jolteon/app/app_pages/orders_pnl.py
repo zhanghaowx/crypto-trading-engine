@@ -71,14 +71,16 @@ def fills_table(fills: pd.DataFrame) -> pd.DataFrame:
     """Every fill, newest first. The venue's maker/taker order ids are
     opaque UUIDs, so they're dropped in favour of the short trade and
     client order ids."""
-    ordered = _newest_first(fills, "transaction_time")
-    price = _optional(ordered, "price")
-    quantity = _optional(ordered, "quantity")
+    ordered = _newest_first(fills, "transaction_timestamp")
+    price = _optional(ordered, "fill_price")
+    quantity = _optional(ordered, "fill_qty")
     trade_id = _optional(ordered, "trade_id")
     return _readable(
         {
             "Time": _local_time(
-                ordered.get("transaction_time", ordered.get("timestamp"))
+                ordered.get(
+                    "transaction_timestamp", ordered.get("timestamp")
+                )
             ),
             # As text, so the id reads as a label rather than a quantity.
             "Trade": None if trade_id is None else trade_id.astype(str),
@@ -186,10 +188,10 @@ def pnl_by_symbol(
     `ticker_feed` row per symbol (see `read_latest_per_group`), not the
     whole table - a mark price only ever needs the current one.
     """
-    signed_qty = fills["quantity"].where(
-        fills["side"] == "BUY", -fills["quantity"]
+    signed_qty = fills["fill_qty"].where(
+        fills["side"] == "BUY", -fills["fill_qty"]
     )
-    cash_flow = (-fills["price"] * signed_qty) - fills["fee"]
+    cash_flow = (-fills["fill_price"] * signed_qty) - fills["fee"]
     by_symbol = (
         pd.DataFrame(
             {
@@ -229,11 +231,11 @@ def realized_pnl(fills: pd.DataFrame) -> float:
     unrealized gain sitting in open inventory.
     """
     total = 0.0
-    ordered = fills.sort_values(_time_column(fills, "transaction_time"))
+    ordered = fills.sort_values(_time_column(fills, "transaction_timestamp"))
     for _, symbol_fills in ordered.groupby("symbol"):
         position, avg_cost = 0.0, 0.0
         for fill in symbol_fills.itertuples():
-            signed = fill.quantity if fill.side == "BUY" else -fill.quantity
+            signed = fill.fill_qty if fill.side == "BUY" else -fill.fill_qty
             total -= fill.fee
 
             opening = position == 0.0 or (position > 0) == (signed > 0)
@@ -241,7 +243,7 @@ def realized_pnl(fills: pd.DataFrame) -> float:
                 # Adding to the position: fold the fill into the average.
                 size = abs(position) + abs(signed)
                 avg_cost = (
-                    abs(position) * avg_cost + abs(signed) * fill.price
+                    abs(position) * avg_cost + abs(signed) * fill.fill_price
                 ) / size
                 position += signed
                 continue
@@ -250,13 +252,13 @@ def realized_pnl(fills: pd.DataFrame) -> float:
             # the fill price and the average cost of what it closes out.
             closed = min(abs(signed), abs(position))
             direction = 1.0 if position > 0 else -1.0
-            total += closed * (fill.price - avg_cost) * direction
+            total += closed * (fill.fill_price - avg_cost) * direction
 
             flipped = abs(signed) - closed > POSITION_EPSILON
             position += signed
             if flipped:
                 # The remainder opens a new position the other way round.
-                avg_cost = fill.price
+                avg_cost = fill.fill_price
             elif abs(position) <= POSITION_EPSILON:
                 position, avg_cost = 0.0, 0.0
     return total
@@ -371,7 +373,7 @@ def render() -> None:
         return
 
     db_path = st.session_state.db_path
-    fills = read_table(db_path, "order_fill")
+    fills = read_table(db_path, "decorated_order_fill")
 
     if fills.empty:
         st.info("No fills yet.")
