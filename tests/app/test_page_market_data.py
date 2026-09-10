@@ -1,3 +1,4 @@
+import json
 import sqlite3
 
 from streamlit.testing.v1 import AppTest
@@ -7,6 +8,18 @@ def _script():
     from jolteon.app.app_pages import market_data
 
     market_data.render()
+
+
+def _animated_metrics(at):
+    """Args passed to each `animated_metric` custom component, by its key.
+
+    `st.metric` values are exposed by AppTest directly (`at.metric`), but a
+    custom component is not - it only shows up as a generic
+    `component_instance`, whose `json_args` carries what was passed in.
+    """
+    return {
+        e.key: json.loads(e.json_args) for e in at.get("component_instance")
+    }
 
 
 def test_shows_warning_when_db_missing(missing_db_path):
@@ -32,18 +45,23 @@ def test_shows_info_when_no_market_data_recorded(empty_db_path):
 def test_renders_metrics_and_chart_from_recorded_data(populated_db_path):
     at = AppTest.from_function(_script)
     at.session_state["db_path"] = populated_db_path
+    at.session_state["chart_window_minutes"] = 15
     at.run()
 
     assert not at.exception
-    metrics = {m.label: m.value for m in at.metric}
-    assert metrics["Symbol"] == "BTC-USD"
-    assert metrics["Bid"] == "100.00"
-    assert metrics["Ask"] == "101.00"
-    assert metrics["Mid"] == "100.50"
+    assert at.metric[0].label == "Symbol"
+    assert at.metric[0].value == "BTC-USD"
+
+    metrics = _animated_metrics(at)
+    assert metrics["bid"]["value"] == 100.0
+    assert metrics["ask"]["value"] == 101.0
+    assert metrics["mid"]["value"] == 100.5
     # Buy/Sell Quote are colored green/red to match the quote lines drawn
     # on the price chart.
-    assert metrics["Buy Quote"] == ":green[99.50]"
-    assert metrics["Sell Quote"] == "—"
+    assert metrics["quote-BUY"]["value"] == 99.5
+    assert metrics["quote-BUY"]["color"] == "#4E9F1F"
+    assert "quote-SELL" not in metrics
+    assert {m.label: m.value for m in at.metric}["Sell Quote"] == "—"
     assert len(at.get("vega_lite_chart")) == 1
 
 
@@ -74,9 +92,12 @@ def test_sell_quote_is_colored_red(tmp_path):
 
     at = AppTest.from_function(_script)
     at.session_state["db_path"] = db_path
+    at.session_state["chart_window_minutes"] = 15
     at.run()
 
     assert not at.exception
-    metrics = {m.label: m.value for m in at.metric}
-    assert metrics["Buy Quote"] == ":green[99.50]"
-    assert metrics["Sell Quote"] == ":red[101.50]"
+    metrics = _animated_metrics(at)
+    assert metrics["quote-BUY"]["value"] == 99.5
+    assert metrics["quote-BUY"]["color"] == "#4E9F1F"
+    assert metrics["quote-SELL"]["value"] == 101.5
+    assert metrics["quote-SELL"]["color"] == "#E2574C"

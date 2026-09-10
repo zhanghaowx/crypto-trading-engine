@@ -1,3 +1,4 @@
+import json
 import sqlite3
 
 import pandas as pd
@@ -13,6 +14,18 @@ def _script():
     orders_pnl.render()
 
 
+def _animated_metrics(at):
+    """Args passed to each `animated_metric` custom component, by its key.
+
+    `st.metric` values are exposed by AppTest directly (`at.metric`), but a
+    custom component is not - it only shows up as a generic
+    `component_instance`, whose `json_args` carries what was passed in.
+    """
+    return {
+        e.key: json.loads(e.json_args) for e in at.get("component_instance")
+    }
+
+
 def test_shows_warning_when_db_missing(missing_db_path):
     at = AppTest.from_function(_script)
     at.session_state["db_path"] = missing_db_path
@@ -23,21 +36,17 @@ def test_shows_warning_when_db_missing(missing_db_path):
     assert not at.info
 
 
-def test_shows_no_fills_and_no_orders_messages_when_empty(empty_db_path):
+def test_shows_no_fills_messages_when_empty(empty_db_path):
     at = AppTest.from_function(_script)
     at.session_state["db_path"] = empty_db_path
     at.run()
 
     assert not at.exception
     assert not at.warning
-    assert [i.value for i in at.info] == [
-        "No fills yet.",
-        "No orders placed yet.",
-        "No fills yet.",
-    ]
+    assert [i.value for i in at.info] == ["No fills yet.", "No fills yet."]
 
 
-def test_renders_pnl_and_recent_orders_and_fills(populated_db_path):
+def test_renders_pnl_and_recent_fills(populated_db_path):
     at = AppTest.from_function(_script)
     at.session_state["db_path"] = populated_db_path
     at.run()
@@ -46,16 +55,19 @@ def test_renders_pnl_and_recent_orders_and_fills(populated_db_path):
     # net cash = -(99.5 * 1.0) - 0.1 = -99.6; inventory marked at mid 100.5
     # -> inventory_value = 1.0 * 100.5 = 100.5; total_pnl = 0.9. Nothing has
     # been sold back, so realized PnL is just the fee paid.
-    metrics = {m.label: m.value for m in at.metric}
-    assert metrics["Net cash flow"] == ":red[-99.60]"
-    assert metrics["Realized PnL"] == ":red[-0.10]"
-    assert metrics["Total PnL"] == ":green[0.90]"
-    assert metrics["Inventory value"] == "100.50"
-    assert metrics["BTC-USD position"] == "1"
-    assert metrics["BTC-USD mark price"] == "100.50"
-    # Recent orders and recent fills; the per-symbol PnL breakdown is
-    # rendered as metrics rather than a table.
-    assert len(at.dataframe) == 2
+    metrics = _animated_metrics(at)
+    assert metrics["net-cash-flow"]["value"] == pytest.approx(-99.6)
+    assert metrics["net-cash-flow"]["color"] == "#E2574C"
+    assert metrics["realized-pnl"]["value"] == pytest.approx(-0.1)
+    assert metrics["realized-pnl"]["color"] == "#E2574C"
+    assert metrics["total-pnl"]["value"] == pytest.approx(0.9)
+    assert metrics["total-pnl"]["color"] == "#4E9F1F"
+    assert metrics["inventory-value"]["value"] == pytest.approx(100.5)
+    assert metrics["BTC-USD-position"]["value"] == 1.0
+    assert metrics["BTC-USD-mark-price"]["value"] == pytest.approx(100.5)
+    # Recent fills; the per-symbol PnL breakdown is rendered as metrics
+    # rather than a table.
+    assert len(at.dataframe) == 1
 
 
 def test_tables_use_readable_headers_and_drop_opaque_ids(populated_db_path):
@@ -64,17 +76,7 @@ def test_tables_use_readable_headers_and_drop_opaque_ids(populated_db_path):
     at.run()
 
     assert not at.exception
-    orders, fills = (frame.value for frame in at.dataframe)
-    assert list(orders.columns) == [
-        "Time",
-        "Order",
-        "Side",
-        "Type",
-        "Symbol",
-        "Price",
-        "Quantity",
-        "Value",
-    ]
+    (fills,) = (frame.value for frame in at.dataframe)
     assert list(fills.columns) == [
         "Time",
         "Trade",
@@ -86,10 +88,9 @@ def test_tables_use_readable_headers_and_drop_opaque_ids(populated_db_path):
         "Value",
         "Fee",
     ]
-    # The venue's opaque UUIDs and the raw recording timestamp are gone.
+    # The venue's opaque UUIDs are gone.
     assert "maker_order_id" not in fills
     assert "taker_order_id" not in fills
-    assert "timestamp" not in orders
 
 
 def test_marks_inventory_at_zero_without_a_ticker_feed(tmp_path):
@@ -114,9 +115,11 @@ def test_marks_inventory_at_zero_without_a_ticker_feed(tmp_path):
     at.run()
 
     assert not at.exception
-    metrics = {m.label: m.value for m in at.metric}
+    metrics = _animated_metrics(at)
     # No mark price available, so total PnL falls back to net cash alone.
-    assert metrics["Net cash flow"] == metrics["Total PnL"]
+    assert metrics["net-cash-flow"]["value"] == metrics["total-pnl"]["value"]
+    # And the mark price itself falls back to a plain, unanimated "-".
+    assert {m.label: m.value for m in at.metric}["BTC-USD mark price"] == "-"
 
 
 def _fills(*trades) -> pd.DataFrame:

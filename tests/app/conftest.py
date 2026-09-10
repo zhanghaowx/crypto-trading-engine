@@ -19,6 +19,7 @@ def dashboard(missing_db_path) -> AppTest:
     at = AppTest.from_file(_DASHBOARD_PATH)
     at.session_state["auto_refresh"] = False
     at.session_state["db_path"] = missing_db_path
+    at.session_state["log_db_path"] = missing_db_path
     return at
 
 

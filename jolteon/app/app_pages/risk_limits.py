@@ -174,6 +174,7 @@ def render() -> None:
     risk = risk.sort_values("timestamp")
     risk["time"] = as_datetime(risk["timestamp"])
     groups = list(risk.groupby(["name", "symbol"]))
+    window_seconds = st.session_state.chart_window_minutes * 60
 
     for (name, symbol), history in card_grid(groups, columns=3):
         latest = history.iloc[-1]
@@ -188,6 +189,10 @@ def render() -> None:
             st.caption(symbol, width="content")
             st.badge(label, color=color, icon=icon)
         gauge_color = GAUGE_COLORS.get(color, GAUGE_TRACK_COLOR)
+        # The gauge always reflects the latest snapshot; only the sparkline
+        # is windowed, the same stretch of history Market Data's chart uses.
+        cutoff = history["timestamp"].max() - window_seconds
+        chart_history = history[history["timestamp"] >= cutoff]
         # A horizontal container rather than `st.columns`: the gauge keeps its
         # natural width and the chart takes whatever is left, so the two sit
         # side by side without the empty space proportional columns leave
@@ -196,4 +201,4 @@ def render() -> None:
             horizontal=True, vertical_alignment="center", gap="small"
         ):
             st.html(_gauge_svg(utilization, gauge_color, maximum), width=200)
-            st.altair_chart(_history_chart(history), width="stretch")
+            st.altair_chart(_history_chart(chart_history), width="stretch")

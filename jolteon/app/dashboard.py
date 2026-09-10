@@ -24,6 +24,7 @@ import streamlit as st
 
 from jolteon.app.app_pages import (
     health,
+    logs,
     market_data,
     orders_pnl,
     parameters,
@@ -39,7 +40,7 @@ _LOGO_PATH = (
 
 # Section cards are keyed so scoped CSS can style them (see `CARD_BACKGROUND`
 # and `CARD_SHADOW`); without it they'd be flat and transparent against the
-# sage canvas, and the page would read as one continuous sheet.
+# grey canvas, and the page would read as one continuous sheet.
 def _section_key(title: str) -> str:
     return "card-" + re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
 
@@ -68,6 +69,7 @@ def main() -> None:
         ("Market Data", ":material/candlestick_chart:", market_data.render),
         ("Risk Limits", ":material/earthquake:", risk_limits.render),
         ("Orders & PnL", ":material/currency_bitcoin:", orders_pnl.render),
+        ("Errors", ":material/error:", logs.render),
     ]
     for title, icon, render_fn in sections:
         _section(title, icon, render_fn)

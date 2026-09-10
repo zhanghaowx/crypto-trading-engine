@@ -32,6 +32,7 @@ def test_shows_info_when_no_risk_limit_data_recorded(empty_db_path):
 def test_renders_a_card_per_name_and_symbol(populated_db_path):
     at = AppTest.from_function(_script)
     at.session_state["db_path"] = populated_db_path
+    at.session_state["chart_window_minutes"] = 15
     at.run()
 
     assert not at.exception
@@ -62,6 +63,7 @@ def test_badge_reflects_utilization_thresholds(tmp_path):
 
     at = AppTest.from_function(_script)
     at.session_state["db_path"] = db_path
+    at.session_state["chart_window_minutes"] = 15
     at.run()
 
     assert not at.exception
