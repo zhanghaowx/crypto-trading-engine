@@ -5,14 +5,9 @@ from datetime import datetime
 
 from jolteon.core.sqlite_writer import SQLiteWriter
 
-# Bounds on the file handler's rotation: once the active file reaches
-# _MAX_LOGFILE_BYTES it is rotated out and a new one started, and only the
-# most recent _LOGFILE_BACKUP_COUNT rotated files are kept.
 _MAX_LOGFILE_BYTES = 10 * 1024 * 1024
 _LOGFILE_BACKUP_COUNT = 5
 
-# Bounds on the `logs` table: after every _PRUNE_INTERVAL rows emitted, the
-# table is trimmed back down to its most recent _MAX_LOG_ROWS rows.
 _MAX_LOG_ROWS = 200_000
 _PRUNE_INTERVAL = 1_000
 
@@ -23,9 +18,8 @@ class SQLiteHandler(logging.Handler):
 
     Logging happens on the market data thread as well as the engine's event
     loop, so `emit` must not touch SQLite itself: it hands the record to a
-    `SQLiteWriter`, which owns the connection and does the write on its own
-    thread. Row count is capped the same way: `emit` only asks the writer to
-    prune, and the writer does the deleting.
+    `SQLiteWriter`, which owns the connection and does the write, and later
+    the pruning, on its own thread.
     """
 
     def __init__(self, db_path: str):

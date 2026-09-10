@@ -35,9 +35,8 @@ class ApplicationBase(SignalManager):
 
         # Data Dumping Setup
         #
-        # Logs get their own SQLite file instead of sharing `database_name`,
-        # so their writer thread never contends for another database's
-        # single write lock.
+        # Logs get their own file so their writer never contends with
+        # `database_name`'s for its write lock.
         setup_global_logger(
             log_level=logging.DEBUG,
             logfile_name=logfile_name,
