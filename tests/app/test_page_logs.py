@@ -1,4 +1,5 @@
 import sqlite3
+import time
 
 from streamlit.testing.v1 import AppTest
 
@@ -83,6 +84,64 @@ def test_renders_only_error_rows_as_expandable_entries(tmp_path):
     entry = at.status[0]
     assert "connection dropped" in entry.label
     assert entry.caption[0].value == "jolteon.market_data · feed.py:42"
+
+
+def test_includes_critical_rows_alongside_error(tmp_path):
+    db_path = str(tmp_path / "logs.sqlite")
+    _write_logs(
+        db_path,
+        (
+            "1700000000.0",
+            "jolteon",
+            "ERROR",
+            "feed.py",
+            "42",
+            "connection dropped",
+        ),
+        (
+            "1700000001.0",
+            "jolteon",
+            "CRITICAL",
+            "engine.py",
+            "7",
+            "out of memory",
+        ),
+    )
+
+    at = AppTest.from_function(_script)
+    at.session_state["log_db_path"] = db_path
+    at.run()
+
+    assert not at.exception
+    # CRITICAL used to be silently dropped: the old filter matched only
+    # levelname == "ERROR", so a component that died with a CRITICAL log
+    # line never showed up on this card at all.
+    assert len(at.status) == 2
+    labels = [entry.label for entry in at.status]
+    assert any("connection dropped" in label for label in labels)
+    assert any("out of memory" in label for label in labels)
+
+
+def test_formats_a_just_recorded_entry_in_seconds(tmp_path):
+    db_path = str(tmp_path / "logs.sqlite")
+    _write_logs(
+        db_path,
+        (
+            str(time.time() - 5),
+            "jolteon",
+            "ERROR",
+            "feed.py",
+            "42",
+            "connection dropped",
+        ),
+    )
+
+    at = AppTest.from_function(_script)
+    at.session_state["log_db_path"] = db_path
+    at.run()
+
+    assert not at.exception
+    assert "seconds ago" in at.status[0].label
 
 
 def test_strips_the_formatter_s_own_prefix_from_the_message(tmp_path):

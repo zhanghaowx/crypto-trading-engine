@@ -1,6 +1,19 @@
 from streamlit.testing.v1 import AppTest
 
 
+def paginate_script():
+    import pandas as pd
+    import streamlit as st
+
+    from jolteon.app.components import paginate
+
+    total_rows = st.session_state.get("total_rows", 25)
+    df = pd.DataFrame({"value": range(total_rows)})
+    page, show_controls = paginate(df, key="demo", page_size=10)
+    st.write(page["value"].tolist())
+    show_controls()
+
+
 def card_grid_script():
     import streamlit as st
 
@@ -63,3 +76,73 @@ def test_warn_if_no_db_returns_true_and_does_not_warn_when_present(
     assert not at.exception
     assert not at.warning
     assert at.markdown[-1].value == "`True`"
+
+
+def test_paginate_returns_whole_frame_with_no_controls_below_page_size():
+    at = AppTest.from_function(paginate_script)
+    at.session_state["total_rows"] = 10
+    at.run()
+
+    assert not at.exception
+    assert at.json[0].value == str(list(range(10)))
+    assert not at.button
+    assert not at.caption
+
+
+def test_paginate_shows_the_first_page_with_previous_disabled():
+    at = AppTest.from_function(paginate_script)
+    at.session_state["total_rows"] = 25
+    at.run()
+
+    assert not at.exception
+    assert at.json[0].value == str(list(range(10)))
+    assert at.caption[0].value == "Page 1 of 3"
+    assert at.button(key="demo-prev-page").disabled
+    assert not at.button(key="demo-next-page").disabled
+
+
+def test_paginate_advancing_a_page_immediately_re_enables_previous():
+    """Regression test: Previous used to stay disabled for one extra rerun
+    after Next was clicked, because a local `page` variable was mutated
+    only after Previous's own `disabled=` had already been evaluated - the
+    button you'd just used to get past page 1 looked stuck disabled."""
+    at = AppTest.from_function(paginate_script)
+    at.session_state["total_rows"] = 25
+    at.run()
+
+    at.button(key="demo-next-page").click().run()
+
+    assert not at.exception
+    assert at.json[0].value == str(list(range(10, 20)))
+    assert at.caption[0].value == "Page 2 of 3"
+    assert not at.button(key="demo-prev-page").disabled
+    assert not at.button(key="demo-next-page").disabled
+
+
+def test_paginate_disables_next_on_the_last_page():
+    at = AppTest.from_function(paginate_script)
+    at.session_state["total_rows"] = 25
+    at.run()
+
+    at.button(key="demo-next-page").click().run()
+    at.button(key="demo-next-page").click().run()
+
+    assert not at.exception
+    assert at.json[0].value == str(list(range(20, 25)))
+    assert at.caption[0].value == "Page 3 of 3"
+    assert at.button(key="demo-next-page").disabled
+    assert not at.button(key="demo-prev-page").disabled
+
+
+def test_paginate_previous_returns_to_the_first_page():
+    at = AppTest.from_function(paginate_script)
+    at.session_state["total_rows"] = 25
+    at.run()
+
+    at.button(key="demo-next-page").click().run()
+    at.button(key="demo-prev-page").click().run()
+
+    assert not at.exception
+    assert at.json[0].value == str(list(range(10)))
+    assert at.caption[0].value == "Page 1 of 3"
+    assert at.button(key="demo-prev-page").disabled
