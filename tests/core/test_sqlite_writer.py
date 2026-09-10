@@ -5,6 +5,7 @@ import time
 import unittest
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
 
 from jolteon.core.sqlite_writer import SQLiteWriter
 
@@ -27,13 +28,18 @@ class TestSQLiteWriter(unittest.TestCase):
                 os.remove(path)
 
     def query(self, sql: str) -> list[tuple]:
-        with sqlite3.connect(self.database_filepath) as conn:
+        with closing(sqlite3.connect(self.database_filepath)) as conn:
             return conn.execute(sql).fetchall()
 
     def columns(self, table: str) -> list[str]:
-        with sqlite3.connect(self.database_filepath) as conn:
+        with closing(sqlite3.connect(self.database_filepath)) as conn:
             info = conn.execute(f'PRAGMA table_info("{table}")').fetchall()
         return [row[1] for row in info]
+
+    def create_table(self, ddl: str) -> None:
+        with closing(sqlite3.connect(self.database_filepath)) as conn:
+            conn.execute(ddl)
+            conn.commit()
 
     def test_writes_rows(self):
         self.writer.put("t", {"a": 1, "b": "x"})
@@ -94,8 +100,7 @@ class TestSQLiteWriter(unittest.TestCase):
         Databases recorded before primary keys were declared keep their own
         schema, so rows must still append rather than fail to upsert.
         """
-        with sqlite3.connect(self.database_filepath) as conn:
-            conn.execute("CREATE TABLE t (k, v)")
+        self.create_table("CREATE TABLE t (k, v)")
 
         self.writer.put("t", {"k": 1, "v": "first"}, primary_key="k")
         self.writer.put("t", {"k": 1, "v": "second"}, primary_key="k")
@@ -108,8 +113,7 @@ class TestSQLiteWriter(unittest.TestCase):
         Writes happen off the caller's thread, so a failure has to surface
         at the next flush instead of vanishing.
         """
-        with sqlite3.connect(self.database_filepath) as conn:
-            conn.execute("CREATE TABLE t (a NOT NULL)")
+        self.create_table("CREATE TABLE t (a NOT NULL)")
 
         self.writer.put("t", {"a": None})
         with self.assertRaises(sqlite3.IntegrityError):

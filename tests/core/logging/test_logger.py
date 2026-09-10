@@ -13,7 +13,7 @@ from contextlib import closing
 import pandas as pd
 from freezegun import freeze_time
 
-from jolteon.core.logging.logger import setup_global_logger
+from jolteon.core.logging.logger import SQLiteHandler, setup_global_logger
 
 
 class TestLogging(unittest.IsolatedAsyncioTestCase):
@@ -31,11 +31,31 @@ class TestLogging(unittest.IsolatedAsyncioTestCase):
         self._asyncio_logger_level = logging.getLogger("asyncio").level
         logging.getLogger("asyncio").setLevel(logging.CRITICAL)
 
+        self._db_handlers: list[SQLiteHandler] = []
+
     def tearDown(self):
         logging.getLogger("asyncio").setLevel(self._asyncio_logger_level)
 
+        # Every test below calls setup_logger() from inside assertLogs(),
+        # which swaps the root logger's handlers out for its own capturing
+        # handler and restores the previous list on __exit__ - silently
+        # dropping, without closing, any SQLiteHandler installed inside
+        # that block. That leaves its writer thread running and its
+        # connection open, which Windows won't let this remove the file
+        # out from under, so close every handler setup_logger() tracked
+        # rather than looking for it on the root logger.
+        for handler in self._db_handlers:
+            handler.close()
+
         if os.path.exists(self.database_filepath):
             os.remove(self.database_filepath)
+
+    def setup_logger(self, log_level, logfile_db: str = "") -> None:
+        """Call setup_global_logger and track any SQLiteHandler it installs."""
+        setup_global_logger(log_level, logfile_db=logfile_db)
+        for handler in logging.getLogger().handlers:
+            if isinstance(handler, SQLiteHandler):
+                self._db_handlers.append(handler)
 
     def assert_number_of_logging(
         self,
@@ -62,7 +82,7 @@ class TestLogging(unittest.IsolatedAsyncioTestCase):
     async def test_perform_logging_format(self):
         # Perform the logging and capture the log output
         with self.assertLogs(level="DEBUG") as log_output:
-            setup_global_logger(logging.DEBUG)
+            self.setup_logger(logging.DEBUG)
             logging.info("Info Message")
 
         # Make assertions on the log format
@@ -72,7 +92,7 @@ class TestLogging(unittest.IsolatedAsyncioTestCase):
                 "[2022-01-01 00:00:00]"
                 "[root][INFO]"
                 "[MainThread]"
-                "[test_logger.py:66] - "
+                "[test_logger.py:86] - "
                 "Info Message"
             ],
         )
@@ -85,7 +105,7 @@ class TestLogging(unittest.IsolatedAsyncioTestCase):
         takes to see them.
         """
         with self.assertLogs(level="DEBUG"):
-            setup_global_logger(
+            self.setup_logger(
                 logging.DEBUG, logfile_db=self.database_filepath
             )
             with closing(sqlite3.connect(self.database_filepath)) as conn:
@@ -103,7 +123,7 @@ class TestLogging(unittest.IsolatedAsyncioTestCase):
 
     async def test_db_logger_exceed_wait_time(self):
         with self.assertLogs(level="DEBUG"):
-            setup_global_logger(
+            self.setup_logger(
                 logging.DEBUG, logfile_db=self.database_filepath
             )
             with closing(sqlite3.connect(self.database_filepath)) as conn:
@@ -129,7 +149,7 @@ class TestLogging(unittest.IsolatedAsyncioTestCase):
             f"WHERE type='table' AND name='logs';"
         )
         with self.assertLogs(level="INFO"):
-            setup_global_logger(
+            self.setup_logger(
                 logging.DEBUG, logfile_db=self.database_filepath
             )
             with closing(sqlite3.connect(self.database_filepath)) as conn:
@@ -154,7 +174,7 @@ class TestLogging(unittest.IsolatedAsyncioTestCase):
             conn.execute("CREATE TABLE logs (id INTEGER PRIMARY KEY)")
 
         with self.assertLogs(level="INFO"):
-            setup_global_logger(
+            self.setup_logger(
                 logging.DEBUG, logfile_db=self.database_filepath
             )
             logging.info("Info Message")
@@ -178,7 +198,7 @@ class TestLogging(unittest.IsolatedAsyncioTestCase):
             conn.execute("CREATE TABLE logs (required NOT NULL)")
 
         with self.assertLogs(level="INFO"):
-            setup_global_logger(
+            self.setup_logger(
                 logging.DEBUG, logfile_db=self.database_filepath
             )
             logging.info("Info Message")
@@ -189,7 +209,7 @@ class TestLogging(unittest.IsolatedAsyncioTestCase):
 
     async def test_db_logger_ignore_debug_logging(self):
         with self.assertLogs(level="DEBUG"):
-            setup_global_logger(
+            self.setup_logger(
                 logging.DEBUG, logfile_db=self.database_filepath
             )
             with closing(sqlite3.connect(self.database_filepath)) as conn:
@@ -217,7 +237,7 @@ class TestLogging(unittest.IsolatedAsyncioTestCase):
     async def test_db_logger_thread_safety(self):
         warnings.filterwarnings("ignore", category=RuntimeWarning)
         with self.assertLogs(level="DEBUG"):
-            setup_global_logger(
+            self.setup_logger(
                 logging.DEBUG, logfile_db=self.database_filepath
             )
             # Number of threads

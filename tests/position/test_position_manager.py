@@ -138,3 +138,66 @@ class TestPositionManager(unittest.IsolatedAsyncioTestCase):
         # Mark-to-market at the new mid (110) reveals the unrealized gain.
         self.assertEqual(-101.0, position_manager.pnl)
         self.assertEqual(9.0, position_manager.total_pnl)
+
+    async def test_sell_without_an_existing_position_opens_a_short(self):
+        """
+        A sell can be the first fill seen for a symbol, with no buy before
+        it, and must open a short rather than being rejected.
+        """
+        position_manager = PositionManager()
+
+        position_manager.on_fill(
+            "_", self.create_trade(MarketSide.SELL, "BTC", 100.0, 2.0)
+        )
+
+        self.assertEqual(1, len(position_manager.positions))
+        self.assertEqual(-2.0, position_manager.positions["BTC"].volume)
+        self.assertEqual(-200.0, position_manager.positions["BTC"].cash_value)
+        # Cash in from the sale, less the fee
+        self.assertEqual(199.0, position_manager.pnl)
+
+    async def test_selling_more_than_held_runs_the_position_short(self):
+        """
+        A sell larger than the position held takes it through zero and
+        leaves it short.
+        """
+        position_manager = PositionManager()
+
+        position_manager.on_fill(
+            "_", self.create_trade(MarketSide.BUY, "BTC", 100.0, 1.0)
+        )
+        position_manager.on_fill(
+            "_", self.create_trade(MarketSide.SELL, "BTC", 110.0, 3.0)
+        )
+
+        self.assertEqual(-2.0, position_manager.positions["BTC"].volume)
+        self.assertEqual(-230.0, position_manager.positions["BTC"].cash_value)
+        # -100 - 1 (buy) + 330 - 1 (sell)
+        self.assertEqual(228.0, position_manager.pnl)
+
+    async def test_total_pnl_marks_a_short_position_to_market(self):
+        """
+        A short loses value as the price rises, so the mark-to-market has to
+        carry the sign of the position rather than its size.
+        """
+        position_manager = PositionManager()
+
+        position_manager.on_fill(
+            "_", self.create_trade(MarketSide.SELL, "BTC", 100.0, 1.0)
+        )
+        self.assertEqual(99.0, position_manager.pnl)
+
+        position_manager.on_bbo(
+            "_",
+            BBO(
+                symbol="BTC",
+                bid_price=109.0,
+                bid_quantity=1.0,
+                ask_price=111.0,
+                ask_quantity=1.0,
+            ),
+        )
+
+        # Sold at 100, now marked at 110: an 11.0 loss once the fee is in
+        self.assertEqual(99.0, position_manager.pnl)
+        self.assertEqual(-11.0, position_manager.total_pnl)
