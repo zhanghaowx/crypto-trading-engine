@@ -9,6 +9,7 @@ import uuid
 import warnings
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
+from unittest.mock import patch
 
 import pandas as pd
 from freezegun import freeze_time
@@ -92,7 +93,7 @@ class TestLogging(unittest.IsolatedAsyncioTestCase):
                 "[2022-01-01 00:00:00]"
                 "[root][INFO]"
                 "[MainThread]"
-                "[test_logger.py:86] - "
+                "[test_logger.py:87] - "
                 "Info Message"
             ],
         )
@@ -233,6 +234,30 @@ class TestLogging(unittest.IsolatedAsyncioTestCase):
                 self.assert_number_of_logging(
                     3, conn, should_flush_logger=True
                 )
+
+    async def test_db_logger_prunes_old_rows(self):
+        """
+        The `logs` table has no retention on its own, so the handler must
+        ask the writer to trim it back down periodically rather than let it
+        grow for the life of the session.
+        """
+        with self.assertLogs(level="DEBUG"):
+            with (
+                patch("jolteon.core.logging.logger._MAX_LOG_ROWS", 5),
+                patch("jolteon.core.logging.logger._PRUNE_INTERVAL", 10),
+            ):
+                self.setup_logger(
+                    logging.DEBUG, logfile_db=self.database_filepath
+                )
+                for _ in range(10):
+                    logging.info("Info Message")
+
+                with closing(
+                    sqlite3.connect(self.database_filepath)
+                ) as conn:
+                    self.assert_number_of_logging(
+                        5, conn, should_flush_logger=True
+                    )
 
     async def test_db_logger_thread_safety(self):
         warnings.filterwarnings("ignore", category=RuntimeWarning)

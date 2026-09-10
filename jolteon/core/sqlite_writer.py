@@ -35,6 +35,16 @@ class _Stop:
     """Marker asking the writer thread to exit after draining."""
 
 
+class _Prune:
+    """Marker asking the writer to trim a table down to its newest rows."""
+
+    __slots__ = ("table", "keep_last")
+
+    def __init__(self, table: str, keep_last: int) -> None:
+        self.table = table
+        self.keep_last = keep_last
+
+
 class _Table:
     """What the writer knows about one table's schema."""
 
@@ -100,6 +110,16 @@ class SQLiteWriter:
                          instead of adding a duplicate.
         """
         self._queue.put((table, row, primary_key))
+
+    def prune(self, table: str, keep_last: int) -> None:
+        """
+        Ask the writer to delete every row in `table` except the
+        `keep_last` most recently inserted ones.
+
+        Like `put`, this only appends to the queue; the deleting happens on
+        the writer thread the next time it drains the queue.
+        """
+        self._queue.put(_Prune(table, keep_last))
 
     def flush(self) -> None:
         """
@@ -209,6 +229,7 @@ class SQLiteWriter:
         batch = dict[str, list[dict[str, Any]]]()
         primary_keys = dict[str, str | None]()
         flushes = list[_Flush]()
+        prunes = list[_Prune]()
         item = first
         rows = 0
         stop = False
@@ -219,6 +240,8 @@ class SQLiteWriter:
             elif isinstance(item, _Stop):
                 stop = True
                 break
+            elif isinstance(item, _Prune):
+                prunes.append(item)
             else:
                 table, row, primary_key = item
                 batch.setdefault(table, []).append(row)
@@ -231,10 +254,12 @@ class SQLiteWriter:
             except queue.Empty:
                 break
 
-        if batch:
+        if batch or prunes:
             try:
                 for table, table_rows in batch.items():
                     self._write(conn, table, table_rows, primary_keys[table])
+                for prune in prunes:
+                    self._prune(conn, prune.table, prune.keep_last)
                 conn.commit()
             except BaseException as e:  # noqa: BLE001 - via flush()
                 conn.rollback()
@@ -292,6 +317,22 @@ class SQLiteWriter:
         conn.executemany(
             statement,
             [tuple(row.get(c) for c in columns) for row in rows],
+        )
+
+    def _prune(
+        self, conn: sqlite3.Connection, table: str, keep_last: int
+    ) -> None:
+        # A table this writer has never inserted into either doesn't exist
+        # yet or predates this process, and either way there is nothing
+        # queued behind it to justify a scan; skip rather than risk
+        # "no such table" on a name nothing has written to.
+        if table not in self._schema:
+            return
+        conn.execute(
+            f"DELETE FROM {_quote(table)} WHERE rowid NOT IN "
+            f"(SELECT rowid FROM {_quote(table)} "
+            f"ORDER BY rowid DESC LIMIT ?)",
+            (keep_last,),
         )
 
     def _ensure_table(

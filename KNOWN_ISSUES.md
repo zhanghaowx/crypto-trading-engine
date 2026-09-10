@@ -8,21 +8,7 @@ it shows up, and where the code is.
 
 ---
 
-## 1. Logging
-
-- **Logs share a database with recorded events.**
-  `jolteon/app/base.py:40` passes `logfile_db=database_name`, so the logging
-  handler and the signal recorder run two writer threads against one SQLite
-  file and contend for its single write lock. This is much less severe than
-  it was — neither writer sits on an engine thread any more — but giving
-  logs their own file removes the contention entirely and costs nothing.
-- **No retention or rotation.** Log lines accumulate in the `logs` table and
-  in the log file for as long as a session runs, with nothing pruning
-  either. A recorded session had already reached a 16 MB log file.
-
----
-
-## 2. Dashboard
+## 1. Dashboard
 
 - **Session memory is unbounded.** Reads are now incremental, which fixed
   the CPU cost per refresh, but not the footprint: each viewer's session
@@ -38,7 +24,7 @@ it shows up, and where the code is.
 
 ---
 
-## 3. Engine structure
+## 2. Engine structure
 
 - **A `Heartbeater` can only be constructed inside a running event loop.**
   `jolteon/core/health_monitor/heartbeat.py:94` calls `asyncio.create_task`
@@ -56,7 +42,7 @@ it shows up, and where the code is.
 
 ---
 
-## 4. Smaller things, knowingly accepted
+## 3. Smaller things, knowingly accepted
 
 These were deliberate trade-offs rather than oversights. They are recorded
 so the reasoning is not lost, not because they need action.

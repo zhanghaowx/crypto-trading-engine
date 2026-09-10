@@ -1,8 +1,20 @@
 # Create a custom formatter
 import logging
+import logging.handlers
 from datetime import datetime
 
 from jolteon.core.sqlite_writer import SQLiteWriter
+
+# Bounds on the file handler's rotation: once the active file reaches
+# _MAX_LOGFILE_BYTES it is rotated out and a new one started, and only the
+# most recent _LOGFILE_BACKUP_COUNT rotated files are kept.
+_MAX_LOGFILE_BYTES = 10 * 1024 * 1024
+_LOGFILE_BACKUP_COUNT = 5
+
+# Bounds on the `logs` table: after every _PRUNE_INTERVAL rows emitted, the
+# table is trimmed back down to its most recent _MAX_LOG_ROWS rows.
+_MAX_LOG_ROWS = 200_000
+_PRUNE_INTERVAL = 1_000
 
 
 class SQLiteHandler(logging.Handler):
@@ -12,7 +24,8 @@ class SQLiteHandler(logging.Handler):
     Logging happens on the market data thread as well as the engine's event
     loop, so `emit` must not touch SQLite itself: it hands the record to a
     `SQLiteWriter`, which owns the connection and does the write on its own
-    thread.
+    thread. Row count is capped the same way: `emit` only asks the writer to
+    prune, and the writer does the deleting.
     """
 
     def __init__(self, db_path: str):
@@ -26,6 +39,7 @@ class SQLiteHandler(logging.Handler):
         self._db_path = db_path
         self._writer = SQLiteWriter(db_path)
         self._table_name = "logs"
+        self._emitted = 0
 
     def emit(self, record):
         # Values are stringified because a LogRecord carries arbitrary
@@ -34,6 +48,10 @@ class SQLiteHandler(logging.Handler):
             self._table_name,
             {key: str(value) for key, value in record.__dict__.items()},
         )
+
+        self._emitted += 1
+        if self._emitted % _PRUNE_INTERVAL == 0:
+            self._writer.prune(self._table_name, _MAX_LOG_ROWS)
 
     def flush(self):
         """Block until every record emitted so far is in the database."""
@@ -62,7 +80,13 @@ def setup_global_logger(
 ):
     handlers = list[logging.Handler]()
     if logfile_name:
-        handlers.append(logging.FileHandler(logfile_name))
+        handlers.append(
+            logging.handlers.RotatingFileHandler(
+                logfile_name,
+                maxBytes=_MAX_LOGFILE_BYTES,
+                backupCount=_LOGFILE_BACKUP_COUNT,
+            )
+        )
     else:
         handlers.append(logging.StreamHandler())
 

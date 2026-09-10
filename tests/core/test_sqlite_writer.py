@@ -162,6 +162,27 @@ class TestSQLiteWriter(unittest.TestCase):
         self.writer.flush()
         self.assertEqual([(1000,)], self.query("SELECT COUNT(*) FROM t"))
 
+    def test_prune_keeps_only_the_newest_rows(self):
+        for i in range(10):
+            self.writer.put("t", {"a": i})
+        self.writer.flush()
+
+        self.writer.prune("t", keep_last=3)
+        self.writer.flush()
+
+        self.assertEqual(
+            [(7,), (8,), (9,)], self.query("SELECT a FROM t ORDER BY a")
+        )
+
+    def test_prune_of_a_table_never_written_to_is_a_no_op(self):
+        """
+        A prune request naming a table this writer has no schema for (never
+        written to, or written to by an earlier process) must not raise
+        "no such table" - there is nothing for it to trim.
+        """
+        self.writer.prune("never_written", keep_last=3)
+        self.writer.flush()
+
     def test_concurrent_producers_lose_nothing(self):
         num_threads = 50
         rows_each = 20
