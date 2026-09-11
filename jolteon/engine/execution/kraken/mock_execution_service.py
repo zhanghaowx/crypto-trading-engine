@@ -9,6 +9,7 @@ import requests
 
 from jolteon.engine.core.event.signal import signal, subscribe
 from jolteon.engine.core.event.signal_subscriber import SignalSubscriber
+from jolteon.engine.core.fee_schedule import KRAKEN
 from jolteon.engine.core.health_monitor.heartbeat import Heartbeater
 from jolteon.engine.core.id_generator import id_generator
 from jolteon.engine.core.side import MarketSide
@@ -82,6 +83,7 @@ class MockExecutionService(Heartbeater, SignalSubscriber):
         self._generate_order_fill(
             order=order,
             filled_price=price,
+            maker=False,
         )
 
     @subscribe("cancel_order")
@@ -154,6 +156,7 @@ class MockExecutionService(Heartbeater, SignalSubscriber):
         self._generate_order_fill(
             order=order,
             filled_price=resting.price,
+            maker=True,
             quantity=filled_quantity,
         )
 
@@ -207,9 +210,11 @@ class MockExecutionService(Heartbeater, SignalSubscriber):
         self,
         order: Order,
         filled_price: float,
+        maker: bool,
         quantity: Union[float, None] = None,
     ):
         filled_quantity = order.quantity if quantity is None else quantity
+        fee = KRAKEN.maker_fee if maker else KRAKEN.taker_fee
         trade = Trade(
             trade_id=id_generator().next(),
             client_order_id=order.client_order_id,
@@ -218,8 +223,7 @@ class MockExecutionService(Heartbeater, SignalSubscriber):
             taker_order_id=str(uuid.uuid4()),
             side=order.side,
             price=filled_price,
-            # Based on https://www.kraken.com/features/fee-schedule
-            fee=filled_price * filled_quantity * 0.0026,
+            fee=fee(filled_price, filled_quantity),
             quantity=filled_quantity,
             transaction_time=time_manager().now(),
         )

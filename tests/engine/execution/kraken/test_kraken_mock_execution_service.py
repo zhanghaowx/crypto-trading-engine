@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytz
 
+from jolteon.engine.core.fee_schedule import KRAKEN
 from jolteon.engine.core.side import MarketSide
 from jolteon.engine.execution.kraken.mock_execution_service import (
     MockExecutionService,
@@ -65,7 +66,7 @@ class TestMockExecutionService(IsolatedAsyncioTestCase):
             self.execution_service.on_order(self, self.mock_order)
 
         self.assertEqual(len(self.fills), 1)
-        self.assertEqual(self.fills[0].fee, 50000 * 0.0001 * 0.0026)
+        self.assertEqual(self.fills[0].fee, 50000 * 0.0001 * 0.0040)
 
     @staticmethod
     def create_market_trade(side: MarketSide, price: float, quantity: float):
@@ -110,6 +111,18 @@ class TestMockExecutionService(IsolatedAsyncioTestCase):
         self.assertEqual(1, len(self.fills))
         self.assertEqual(0.01, self.fills[0].quantity)
         self.assertEqual(100.0, self.fills[0].price)
+
+    async def test_a_resting_limit_order_is_charged_the_maker_rate(self):
+        order = self.create_limit_order(MarketSide.BUY, 100.0)
+        self.execution_service.on_order(self, order)
+        self.execution_service.on_market_trade(
+            self, self.create_market_trade(MarketSide.SELL, 100.0, 0.01)
+        )
+
+        self.assertEqual(1, len(self.fills))
+        self.assertAlmostEqual(
+            KRAKEN.maker_fee(100.0, 0.01), self.fills[0].fee
+        )
 
     async def test_limit_order_queue_position_delays_fill(self):
         # Someone is displaying 0.02 ahead of us at the bid when we join.
@@ -224,7 +237,7 @@ class TestMockExecutionService(IsolatedAsyncioTestCase):
         self.execution_service.on_order(self, self.mock_order)
 
         self.assertEqual(len(self.fills), 1)
-        self.assertEqual(self.fills[0].fee, 50000 * 0.0001 * 0.0026)
+        self.assertEqual(self.fills[0].fee, 50000 * 0.0001 * 0.0040)
 
     async def test_trades_in_another_symbol_leave_resting_orders_alone(self):
         order = self.create_limit_order(MarketSide.BUY, 100.0)
