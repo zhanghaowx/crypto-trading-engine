@@ -8,8 +8,8 @@ class MicropriceAdjustment(IFairPriceAdjustment):
     """
     Shifts fair price toward the side of the book with less resting size -
     a size-weighted view of order flow imbalance computable from the BBO
-    alone, so it subscribes to nothing. A poor cousin of true order-flow
-    imbalance (STRATEGY.md Part 3), until an L2 feed exists.
+    alone, so it subscribes to nothing and still works on a feed that
+    carries no depth.
     """
 
     def __init__(self, scale: float = 1.0):
