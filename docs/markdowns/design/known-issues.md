@@ -6,11 +6,13 @@ out to depend very little on hedging and a great deal on fees, fill
 simulation, and inventory control, so the findings are recorded here
 rather than in any one component's notes.
 
-Nothing below is fixed. Each entry states what is wrong, why it matters,
-and what would resolve it. Arithmetic assumes BTC around $100,000 and the
-defaults in `StaticParameterService`: `quote_size = 0.0005`,
-`max_inventory = 1`, and in `StaticQuoteOffsetService`:
-`half_spread = 50.0`.
+Each entry states what is wrong, why it matters, and what would resolve
+it; the few marked fixed record what changed. Arithmetic assumes BTC
+around $100,000 and the defaults in `StaticParameterService`:
+`quote_size = 0.0005` and `max_inventory = 1`. Where a quote offset
+matters, the figure given is the one a paper session actually quotes:
+`FeeAwareQuoteOffsetService(edge = 5.0)`, which at that price asks
+$255 a side.
 
 ## Summary
 
@@ -31,7 +33,8 @@ defaults in `StaticParameterService`: `quote_size = 0.0005`,
 `IQuoteOffsetService` returns. Under the `StaticQuoteOffsetService`
 default that is a flat `half_spread` on each side, and
 `MidPriceFairPriceModel` returns mid on both sides, so the gross edge per
-fill is `half_spread * quote_size` = $0.025, or 5 bps of notional.
+fill is `half_spread * quote_size` = $0.025 at `half_spread = 50.0`, or
+5 bps of notional.
 
 Kraken's base-tier maker fee is 0.25%, which is 25 bps, or $0.13 on the
 same $50 notional. Every fill loses about $0.105 before adverse selection
@@ -66,10 +69,11 @@ is a fact about the fee tier rather than about the code. What it does is
 stop the strategy quoting below cost silently: it quotes at
 `edge + maker_rate * price`, so the break-even column of the table above
 is charged automatically and the resulting offset is recorded on the
-`quote_offset` signal. Swapping it in for the static default makes a
-run's quotes roughly five times wider and almost certainly stops filling
-altogether, which is the arithmetic above made visible rather than a
-regression.
+`quote_offset` signal. The paper session now runs it at `edge = 5.0`, so
+its quotes sit roughly five times further out than the static default's
+and will almost certainly stop filling altogether. That is the arithmetic
+above made visible rather than a regression, and it is why issue 1 stays
+open.
 
 ## 2. The fee constant is stale and conflates maker with taker (fixed)
 
@@ -104,14 +108,15 @@ strategy is first in queue at every level it ever quotes.
 This is the largest single error in the fill model. Correcting it likely
 drops the simulated fill count by an order of magnitude.
 
-L2 depth, per `l2-order-book-feed.md`, supplies the resting size at any
-price and fixes the starting estimate. It cannot fix rank within a level:
-L2 aggregates by price, so position inside the queue is known only at
-insertion and must be modelled thereafter. When a level shrinks with no
-trade printed at that price the cause was a cancellation, but whether it
-sat ahead or behind is unknowable, and that choice materially swings fill
-rate. Kraken's `level3` channel resolves this and is out of scope for the
-L2 plan because it requires an API token.
+`OrderBook` now carries the resting size at any price, which is what the
+starting estimate needs, but `_rest_order` still reads only the BBO. Even
+once it reads depth, rank within a level stays out of reach: L2 aggregates
+by price, so position inside the queue is known only at insertion and must
+be modelled thereafter. When a level shrinks with no trade printed at that
+price the cause was a cancellation, but whether it sat ahead or behind is
+unknowable, and that choice materially swings fill rate. Kraken's `level3`
+channel resolves this and is not implemented, because it requires an API
+token.
 
 ## 4. Sweeps fill the whole remainder
 
@@ -119,11 +124,11 @@ In `_try_fill_resting_order`, a trade printing beyond the resting price is
 treated as clearing the level and fills the entire remaining quantity. The
 size is assumed rather than derived.
 
-With depth available, the fill can be capped at the quantity actually
-consumed between the touch and the resting level. Note that this branch is
-also the only one that fires in practice for quotes far behind the touch,
-which means simulated fills arrive almost exclusively when the market is
-moving through the quote. The adverse selection is real rather than a
+Now that depth is published, the fill can be capped at the quantity
+actually consumed between the touch and the resting level. Note that this
+branch is also the only one that fires in practice for quotes far behind
+the touch, which means simulated fills arrive almost exclusively when the
+market is moving through the quote. The adverse selection is real rather than a
 simulation artifact, but its size is currently guessed.
 
 ## 5. No latency model
@@ -132,8 +137,8 @@ An order is decided on a BBO and rests instantly. Real quoting pays wire
 time out, matching engine time, and market data time back in, so the
 strategy joins each queue later than the simulation assumes and behind
 orders the simulation places it in front of. For queue position accuracy
-this is roughly as important as depth, and it is orthogonal to the L2
-plan.
+this is roughly as important as depth, and it is orthogonal to the depth
+work.
 
 ## 6. The simulated book never reacts to our orders
 
@@ -167,19 +172,18 @@ size.
 
 ## 8. A better fill model would be live-only
 
-The L2 plan puts L2 replay out of scope, and its derived-feature recorder
-stores top of book, imbalance, and depth-weighted price, which is
-deliberately too little to reconstruct a book. An improved fill model would
-therefore run only in live paper mode, while replay kept the behaviour
-described in issues 3 and 4.
+Replay carries no depth: `HistoricalFeed` publishes market trades only,
+and `BookFeatureRecorder` stores top of book, imbalance, and
+depth-weighted price, which is deliberately too little to reconstruct a
+book. An improved fill model would therefore run only in live paper mode,
+while replay kept the behaviour described in issues 3 and 4.
 
 That is the wrong way round for evaluating the strategy, since replay is
 where weeks of data can be swept and live paper yields one slow real-time
-sample. If fill realism is the goal rather than better signals, the compact
-book writer belongs on the critical path. The L2 plan also has no commit
-wiring the book into the Kraken mock, whose fill model imports no
-`OrderBook` at all; commit 1 rewrites the class with no callers left to
-update and leaves the resting-order logic untouched.
+sample. If fill realism is the goal rather than better signals, a compact
+book writer belongs on the critical path. Nothing wires the book into the
+Kraken mock either, whose fill model imports no `OrderBook` at all and
+whose resting-order logic is untouched by the depth work.
 
 ## Reading results while these stand
 
