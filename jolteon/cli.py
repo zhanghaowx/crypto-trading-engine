@@ -24,11 +24,14 @@ from jolteon.engine.strategy.market_making.fair_value.mid_price_model import (
 from jolteon.engine.strategy.market_making.fair_value.momentum import (
     MomentumAdjustment,
 )
+from jolteon.engine.strategy.market_making.fair_value.order_flow_imbalance import (  # noqa: E501
+    OrderFlowImbalanceAdjustment,
+)
 from jolteon.engine.strategy.market_making.market_making_strategy import (
     MarketMakingStrategy,
 )
 from jolteon.engine.strategy.market_making.quote_offset import (
-    StaticQuoteOffsetService,
+    FeeAwareQuoteOffsetService,
 )
 
 _active_app = None
@@ -135,16 +138,24 @@ async def main():
         fair_price_model = None
         if args.paper:
             strategy_symbol = symbol.replace("-", "/")
+            quote_edge = 5.0
+            quote_offset_service = FeeAwareQuoteOffsetService(edge=quote_edge)
             # Shared with PostTradeService below, so decorated fills are
             # scored against the same fair price the strategy quotes off.
-            # Signals land in `adjustments` below (STRATEGY.md Part 3).
+            # Capping the adjustment at the edge keeps a signal from
+            # giving away more than the quote was priced to earn.
             fair_price_model = AdjustedFairPriceModel(
                 base=MidPriceFairPriceModel(),
-                adjustments=[MomentumAdjustment()],
-                max_adjustment=StaticQuoteOffsetService.DEFAULT_HALF_SPREAD,
+                adjustments=[
+                    MomentumAdjustment(),
+                    OrderFlowImbalanceAdjustment(),
+                ],
+                max_adjustment=quote_edge,
             )
             strategy = MarketMakingStrategy(
-                symbol=strategy_symbol, fair_price_model=fair_price_model
+                symbol=strategy_symbol,
+                fair_price_model=fair_price_model,
+                quote_offset_service=quote_offset_service,
             )
 
         app = Application(

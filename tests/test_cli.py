@@ -18,8 +18,14 @@ from jolteon.engine.strategy.market_making.fair_value.mid_price_model import (
 from jolteon.engine.strategy.market_making.fair_value.momentum import (
     MomentumAdjustment,
 )
+from jolteon.engine.strategy.market_making.fair_value.order_flow_imbalance import (  # noqa: E501
+    OrderFlowImbalanceAdjustment,
+)
 from jolteon.engine.strategy.market_making.market_making_strategy import (
     MarketMakingStrategy,
+)
+from jolteon.engine.strategy.market_making.quote_offset import (
+    FeeAwareQuoteOffsetService,
 )
 
 
@@ -173,11 +179,20 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
         fair_price_model = MockApplication.call_args.kwargs["fair_price_model"]
         self.assertIsInstance(fair_price_model, AdjustedFairPriceModel)
         self.assertIsInstance(fair_price_model._base, MidPriceFairPriceModel)
-        self.assertEqual(1, len(fair_price_model._adjustments))
+        self.assertEqual(2, len(fair_price_model._adjustments))
         self.assertIsInstance(
             fair_price_model._adjustments[0], MomentumAdjustment
         )
+        self.assertIsInstance(
+            fair_price_model._adjustments[1], OrderFlowImbalanceAdjustment
+        )
         self.assertIs(fair_price_model, strategy._fair_price_model)
+
+        offset_service = strategy._quote_offset_service
+        self.assertIsInstance(offset_service, FeeAwareQuoteOffsetService)
+        self.assertEqual(
+            offset_service._edge, fair_price_model._max_adjustment
+        )
 
         self.assertEqual("", captured_output.getvalue().split("\n")[-1])
 
