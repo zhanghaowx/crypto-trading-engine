@@ -1,55 +1,102 @@
+import bisect
 from dataclasses import dataclass
+from datetime import datetime
 
-from jolteon.engine.core.side import MarketSide
+from jolteon.engine.market_data.core.bbo import BBO
 
 
-@dataclass
-class SidedOrderBook:
+@dataclass(frozen=True)
+class PriceLevel:
+    price: float
+    quantity: float
+
+
+@dataclass(frozen=True)
+class BookUpdate:
     """
-    Represent the order book for a sided market
+    One exchange-neutral change to an order book. A quantity of zero means
+    the level is gone. Translating a wire format into this is the entire
+    job of an exchange adapter.
     """
 
-    side: MarketSide
-    levels: dict[float, float]
-    total_volume: float
+    symbol: str
+    bids: list[PriceLevel]
+    asks: list[PriceLevel]
+    is_snapshot: bool
+    exchange_time: datetime
 
 
 class OrderBook:
     """
-    Represent the order book for one symbol
+    A level 2 order book for one symbol: the resting quantity at each
+    price on each side, kept in price order.
+
+    Both sides are stored ascending by price and maintained with a binary
+    search, so the best bid is the last bid and the best ask is the first
+    ask. Reads hand back the best levels first, whichever side they come
+    from.
     """
 
-    def __init__(self):
-        self.bids = SidedOrderBook(
-            side=MarketSide.BUY, levels={}, total_volume=0
+    def __init__(self, symbol: str):
+        self.symbol = symbol
+        self.exchange_time: datetime | None = None
+        self._bids: list[PriceLevel] = []
+        self._asks: list[PriceLevel] = []
+
+    def apply(self, update: BookUpdate) -> None:
+        if update.is_snapshot:
+            self.clear()
+
+        for level in update.bids:
+            self._apply_level(self._bids, level)
+        for level in update.asks:
+            self._apply_level(self._asks, level)
+
+        self.exchange_time = update.exchange_time
+
+    def clear(self) -> None:
+        self._bids.clear()
+        self._asks.clear()
+
+    def best_bid(self) -> PriceLevel | None:
+        return self._bids[-1] if self._bids else None
+
+    def best_ask(self) -> PriceLevel | None:
+        return self._asks[0] if self._asks else None
+
+    def bbo(self) -> BBO | None:
+        best_bid, best_ask = self.best_bid(), self.best_ask()
+        if not best_bid or not best_ask:
+            return None
+
+        return BBO(
+            symbol=self.symbol,
+            bid_price=best_bid.price,
+            bid_quantity=best_bid.quantity,
+            ask_price=best_ask.price,
+            ask_quantity=best_ask.quantity,
         )
-        self.asks = SidedOrderBook(
-            side=MarketSide.SELL, levels={}, total_volume=0
-        )
 
-    def add_bid(self, price, quantity):
-        """
-        Add a bid to the order book
-        Args:
-            price: Price of the bid
-            quantity: Quantity of the bid
+    def bids(self, depth: int) -> list[PriceLevel]:
+        """Returns: Up to `depth` bids, highest price first."""
+        if depth <= 0:
+            return []
+        return self._bids[: -depth - 1 : -1]
 
-        Returns:
-            None
-        """
-        self.bids.levels[price] = self.bids.levels.get(price, 0) + quantity
-        self.bids.total_volume += quantity
+    def asks(self, depth: int) -> list[PriceLevel]:
+        """Returns: Up to `depth` asks, lowest price first."""
+        if depth <= 0:
+            return []
+        return self._asks[:depth]
 
-    def add_ask(self, price, quantity):
-        """
-        Add an ask to the order book
+    @staticmethod
+    def _apply_level(levels: list[PriceLevel], level: PriceLevel) -> None:
+        index = bisect.bisect_left(levels, level.price, key=lambda x: x.price)
 
-        Args:
-            price: Price of the ask
-            quantity: Quantity of the ask
-
-        Returns:
-            None
-        """
-        self.asks.levels[price] = self.asks.levels.get(price, 0) + quantity
-        self.asks.total_volume += quantity
+        if index < len(levels) and levels[index].price == level.price:
+            if level.quantity > 0:
+                levels[index] = level
+            else:
+                del levels[index]
+        elif level.quantity > 0:
+            levels.insert(index, level)
