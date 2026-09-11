@@ -12,6 +12,7 @@ from jolteon.app.analytics import (
     fair_price_movement,
     fill_quality_by_side,
     inventory_bucket_stats,
+    signed_cash_flow,
     usd_to_bps,
 )
 
@@ -110,6 +111,17 @@ def test_fill_edge_turns_negative_when_the_fee_outweighs_the_edge():
     fills["fill_qty"] = 1.0
     fills["fee"] = 0.5
     assert compute_fill_edge(fills).iloc[0] == pytest.approx(-0.4)
+
+
+def test_buying_pays_cash_out_and_selling_brings_cash_in():
+    fills = pd.DataFrame(
+        {
+            "side": ["BUY", "SELL"],
+            "fill_price": [100.0, 200.0],
+            "fill_qty": [2.0, 0.5],
+        }
+    )
+    assert list(signed_cash_flow(fills)) == pytest.approx([-200.0, 100.0])
 
 
 def test_fair_price_movement_is_signed_and_side_independent():

@@ -49,6 +49,13 @@ def compute_fill_edge(fills: pd.DataFrame) -> pd.Series:
     return compute_edge(fills) * fills["fill_qty"] - fills["fee"]
 
 
+def signed_cash_flow(fills: pd.DataFrame) -> pd.Series:
+    """Cash each fill moved, before fees: positive when selling brings
+    cash in, negative when buying pays it out."""
+    direction = fills["side"].map(_SIDE_DIRECTION)
+    return -direction * fills["fill_price"] * fills["fill_qty"]
+
+
 def usd_to_bps(usd: pd.Series, execution_price: pd.Series) -> pd.Series:
     """A USD amount as basis points of the execution price."""
     return usd / execution_price * 10_000

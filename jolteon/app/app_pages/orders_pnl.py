@@ -12,6 +12,7 @@ from jolteon.app.analytics import (
     compute_markout,
     fill_quality_by_side,
     inventory_bucket_stats,
+    signed_cash_flow,
 )
 from jolteon.app.components import (
     NEGATIVE_RGB,
@@ -77,8 +78,9 @@ def _readable(columns: dict[str, pd.Series | None]) -> pd.DataFrame:
     )
 
 
-def _notional(price: pd.Series | None, qty: pd.Series | None):
-    return None if price is None or qty is None else price * qty
+def _cash_flow_column(fills: pd.DataFrame) -> pd.Series | None:
+    needed = {"side", "fill_price", "fill_qty"}
+    return signed_cash_flow(fills) if needed.issubset(fills.columns) else None
 
 
 def _edge_column(fills: pd.DataFrame) -> pd.Series | None:
@@ -121,7 +123,7 @@ def fills_table(fills: pd.DataFrame) -> pd.DataFrame:
             "Price": price,
             "Edge": _edge_column(ordered),
             "Quantity": quantity,
-            "Value": _notional(price, quantity),
+            "Cash Flow": _cash_flow_column(ordered),
             "Fee": _optional(ordered, "fee"),
             **_markout_columns(ordered),
         }
@@ -139,7 +141,7 @@ _FILL_COLUMNS: list[tuple[str, float]] = [
     ("Price", 1.0),
     ("Edge", 1.0),
     ("Quantity", 1.1),
-    ("Value", 1.0),
+    ("Cash Flow", 1.1),
     ("Fee", 0.9),
     ("Markout +100ms", 1.3),
     ("Markout +1s", 1.2),
@@ -183,6 +185,7 @@ def _fill_identity(row: pd.Series) -> str:
 
 _SIGNED_USD_LABELS = {
     "Edge",
+    "Cash Flow",
     "Markout +100ms",
     "Markout +1s",
     "Markout +5s",
@@ -191,8 +194,7 @@ _SIGNED_USD_LABELS = {
 
 
 def _render_signed_usd(value) -> None:
-    """A markout/edge amount, colored the way Side badges are: green
-    when it favors the market maker, red when it's adverse selection."""
+    """A signed dollar amount in the theme's semantic green/red."""
     if pd.isna(value):
         # Horizons not yet reached still carry NULL in the DB.
         st.write("-")
@@ -210,7 +212,7 @@ def _render_fill_cell(col, label: str, value) -> None:
             st.write(value.strftime("%H:%M:%S.%f")[:-3])
         elif label in _SIGNED_USD_LABELS:
             _render_signed_usd(value)
-        elif label in ("Price", "Value"):
+        elif label == "Price":
             st.write(f"{value:,.2f}")
         elif label == "Quantity":
             st.write(f"{value:.6f}")
