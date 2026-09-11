@@ -8,7 +8,7 @@ import streamlit as st
 from jolteon.app.analytics import (
     HORIZONS,
     avg_fair_price_movement,
-    compute_edge,
+    compute_fill_edge,
     compute_markout,
     fill_quality_by_side,
     inventory_bucket_stats,
@@ -82,8 +82,8 @@ def _notional(price: pd.Series | None, qty: pd.Series | None):
 
 
 def _edge_column(fills: pd.DataFrame) -> pd.Series | None:
-    needed = {"side", "fill_price", "fair_price_at_fill"}
-    return compute_edge(fills) if needed.issubset(fills.columns) else None
+    needed = {"side", "fill_price", "fair_price_at_fill", "fill_qty", "fee"}
+    return compute_fill_edge(fills) if needed.issubset(fills.columns) else None
 
 
 def _markout_columns(fills: pd.DataFrame) -> dict[str, pd.Series | None]:

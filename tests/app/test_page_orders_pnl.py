@@ -84,11 +84,11 @@ def test_renders_pnl_and_recent_fills(populated_db_path):
     assert ":green-badge[BUY]" in markdown_values
     assert "99.50" in markdown_values
     # PostTradeService's fields drive derived edge/markout, not the raw
-    # fair prices: fair_price_at_fill=100.0 vs fill_price=99.5 on a BUY is
-    # a $0.50 favorable edge; the horizon fair prices are still NULL this
-    # soon after, so their markout renders as "-".
+    # fair prices: fair_price_at_fill=100.0 vs fill_price=99.5 on a BUY of
+    # 1.0 is a $0.50 favorable edge, less the $0.10 fee; the horizon fair
+    # prices are still NULL this soon after, so their markout renders "-".
     assert "Edge" in markdown_values
-    assert ":green[+$0.50]" in markdown_values
+    assert ":green[+$0.40]" in markdown_values
     assert "1.000000" in markdown_values
     assert "Inventory Before" not in markdown_values
     assert "Inventory After" not in markdown_values
