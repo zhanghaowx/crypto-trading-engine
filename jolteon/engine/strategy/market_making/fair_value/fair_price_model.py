@@ -3,6 +3,7 @@ from dataclasses import dataclass
 
 from jolteon.engine.core.event.signal import signal
 from jolteon.engine.market_data.core.bbo import BBO
+from jolteon.engine.market_data.core.order_book import OrderBook
 
 
 @dataclass
@@ -12,9 +13,14 @@ class FairPriceContext:
     compute a fair price. New fields (e.g. inventory, volatility, recent
     trades) can be added here as more sophisticated models need them,
     without breaking IFairPriceModel's signature.
+
+    `order_book` is None on a feed that publishes no depth, and during
+    replay. A model or adjustment that needs depth abstains when it is
+    absent rather than guessing.
     """
 
     bbo: BBO
+    order_book: OrderBook | None = None
 
 
 @dataclass

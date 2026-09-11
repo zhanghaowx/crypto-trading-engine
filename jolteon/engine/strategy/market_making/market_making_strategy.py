@@ -8,6 +8,7 @@ from jolteon.engine.core.side import MarketSide
 from jolteon.engine.core.time.time_manager import time_manager
 from jolteon.engine.market_data.core.bbo import BBO
 from jolteon.engine.market_data.core.order import CancelOrder, Order, OrderType
+from jolteon.engine.market_data.core.order_book import OrderBook
 from jolteon.engine.market_data.core.trade import Trade
 from jolteon.engine.risk_limit.inventory_limit import InventoryLimit
 from jolteon.engine.risk_limit.risk_limit import RiskLimitLevel
@@ -59,6 +60,7 @@ class MarketMakingStrategy(Heartbeater, SignalSubscriber):
         self._inventory_limit = InventoryLimit(params.max_inventory)
 
         self._live_orders: dict[MarketSide, Order] = {}
+        self._order_book: OrderBook | None = None
 
         self.order_event = signal("order")
         self.cancel_order_event = signal("cancel_order")
@@ -83,10 +85,14 @@ class MarketMakingStrategy(Heartbeater, SignalSubscriber):
             ),
         )
 
+    @subscribe("order_book_feed")
+    def on_order_book(self, _: str, order_book: OrderBook):
+        self._order_book = order_book
+
     @subscribe("ticker_feed")
     def on_bbo(self, _: str, bbo: BBO):
         fair_price = self._fair_price_model.calculate(
-            FairPriceContext(bbo=bbo)
+            FairPriceContext(bbo=bbo, order_book=self._order_book)
         )
         self._requote(MarketSide.BUY, fair_price.bid - self._half_spread)
         self._requote(MarketSide.SELL, fair_price.ask + self._half_spread)
