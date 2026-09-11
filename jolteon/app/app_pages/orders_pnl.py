@@ -14,11 +14,15 @@ from jolteon.app.analytics import (
     inventory_bucket_stats,
 )
 from jolteon.app.components import (
+    NEGATIVE_RGB,
+    POSITIVE_RGB,
     BadgeColor,
     animated_metric,
     paginate,
     row_add_rule,
     row_key,
+    sign_color,
+    styled_table,
     warn_if_no_db,
 )
 from jolteon.app.data import as_datetime, read_latest_per_group, read_table
@@ -344,24 +348,6 @@ def realized_pnl(fills: pd.DataFrame) -> float:
     return total
 
 
-_POSITIVE_COLOR = "#16A34A"
-_NEGATIVE_COLOR = "#DC2626"
-
-
-def _sign_color(value: float) -> str:
-    """A PnL amount's color, the way quotes are colored elsewhere."""
-    return _POSITIVE_COLOR if value >= 0 else _NEGATIVE_COLOR
-
-
-def _hex_to_rgb(color: str) -> tuple[int, int, int]:
-    color = color.lstrip("#")
-    return int(color[0:2], 16), int(color[2:4], 16), int(color[4:6], 16)
-
-
-_POSITIVE_RGB = _hex_to_rgb(_POSITIVE_COLOR)
-_NEGATIVE_RGB = _hex_to_rgb(_NEGATIVE_COLOR)
-
-
 def _fmt_usd(value: float) -> str:
     if pd.isna(value):
         return "–"
@@ -369,27 +355,9 @@ def _fmt_usd(value: float) -> str:
     return f"{sign}${abs(value):,.2f}"
 
 
-def _shade(value: float, scale: float) -> str:
-    """A background tint for a signed USD cell, deeper the further
-    `value` sits from zero relative to `scale` (the column's own largest
-    magnitude) - so the standout numbers in a row of tightly-packed
-    figures read through color, not through font size."""
-    if pd.isna(value) or scale == 0:
-        return ""
-    intensity = min(abs(value) / scale, 1.0)
-    r, g, b = _POSITIVE_RGB if value >= 0 else _NEGATIVE_RGB
-    alpha = 0.10 + 0.35 * intensity
-    return f"background-color: rgba({r}, {g}, {b}, {alpha:.2f})"
-
-
-def _shade_column(column: pd.Series) -> list[str]:
-    scale = column.abs().max()
-    return [_shade(value, scale) for value in column]
-
-
 _SIDE_TINTS = {
-    "BUY": "background-color: rgba({}, {}, {}, 0.12)".format(*_POSITIVE_RGB),
-    "SELL": "background-color: rgba({}, {}, {}, 0.12)".format(*_NEGATIVE_RGB),
+    "BUY": "background-color: rgba({}, {}, {}, 0.12)".format(*POSITIVE_RGB),
+    "SELL": "background-color: rgba({}, {}, {}, 0.12)".format(*NEGATIVE_RGB),
 }
 
 
@@ -412,7 +380,7 @@ def _render_pnl(fills: pd.DataFrame, latest_mid: pd.DataFrame) -> None:
             "total-pnl",
             "Total PnL",
             total_pnl,
-            color=_sign_color(total_pnl),
+            color=sign_color(total_pnl),
             border=True,
         )
     realized = realized_pnl(fills)
@@ -421,7 +389,7 @@ def _render_pnl(fills: pd.DataFrame, latest_mid: pd.DataFrame) -> None:
             "realized-pnl",
             "Realized PnL",
             realized,
-            color=_sign_color(realized),
+            color=sign_color(realized),
             border=True,
         )
     net_cash = by_symbol["net_cash"].sum()
@@ -430,7 +398,7 @@ def _render_pnl(fills: pd.DataFrame, latest_mid: pd.DataFrame) -> None:
             "net-cash-flow",
             "Net cash flow",
             net_cash,
-            color=_sign_color(net_cash),
+            color=sign_color(net_cash),
             border=True,
         )
     with next(cols):
@@ -512,8 +480,7 @@ def _shaded_table(
     *,
     shade_side: bool = False,
 ) -> None:
-    styled = table.style.format({col: _fmt_usd for col in money_columns})
-    styled = styled.apply(_shade_column, subset=money_columns, axis=0)
+    styled = styled_table(table, money_columns, _fmt_usd)
     if shade_side:
         styled = styled.apply(_shade_side, subset=["Side"], axis=0)
     st.dataframe(
