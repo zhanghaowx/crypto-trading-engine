@@ -1,5 +1,7 @@
 import tempfile
 import unittest
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from jolteon.app.base import ApplicationBase
 from jolteon.engine.core.event.signal import signal, subscribe
@@ -62,6 +64,54 @@ class TestApplicationBaseFairPriceModel(unittest.TestCase):
 
         app.connect_all()
         app.disconnect_all()
+
+
+class TestApplicationBaseRunStart(unittest.IsolatedAsyncioTestCase):
+    def _make_app(self):
+        return ApplicationBase(
+            symbol="BTC/USD",
+            database_name=f"{tempfile.gettempdir()}/test_run_start.sqlite",
+            logfile_name=f"{tempfile.gettempdir()}/test_run_start.log",
+        )
+
+    async def test_run_start_without_a_market_data_thread(self):
+        """
+        Replays run the feed inline so a test (or a profiler) sees the whole
+        run on one thread.
+        """
+        app = self._make_app()
+        connected = []
+
+        async def connect(symbol, *args):
+            connected.append((symbol, args))
+
+        app.use_market_data_service(SimpleNamespace(connect=connect))
+
+        with patch.object(ApplicationBase, "THREAD_ENABLED", False):
+            pnl = await app.run_start()
+
+        self.assertEqual([("BTC/USD", ())], connected)
+        self.assertEqual(0.0, pnl)
+
+    async def test_market_data_thread_reports_an_unexpected_failure(self):
+        """
+        The feed runs on a thread of its own, so a failure there has no
+        caller to propagate to and would otherwise be lost.
+        """
+
+        async def failing_connect():
+            raise RuntimeError("feed blew up")
+
+        with (
+            patch("threading.excepthook"),
+            self.assertLogs(level="ERROR") as logs,
+        ):
+            thread, _, _ = ApplicationBase._start_thread(
+                "MD", failing_connect()
+            )
+            thread.join(timeout=5)
+
+        self.assertIn("MD got exception: feed blew up", "".join(logs.output))
 
 
 if __name__ == "__main__":

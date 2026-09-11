@@ -123,3 +123,20 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
         self.application.request_shutdown()
 
         await asyncio.wait_for(start_task, timeout=1)
+
+    @patch.dict(os.environ, {"KRAKEN_API_KEY": "api_key"})
+    @patch.dict(os.environ, {"KRAKEN_API_SECRET": "api_secret"})
+    async def test_live_execution_is_used_unless_mocked(self):
+        from jolteon.app.kraken import KrakenApplication
+        from jolteon.engine.execution.kraken.execution_service import (
+            ExecutionService,
+        )
+
+        application = KrakenApplication(
+            symbol=self.symbol,
+            use_mock_execution=False,
+            database_name=f"{tempfile.gettempdir()}/unittest.sqlite",
+            logfile_name=f"{tempfile.gettempdir()}/unittest.log",
+        )
+
+        self.assertIsInstance(application._exec_service, ExecutionService)

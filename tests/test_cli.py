@@ -181,6 +181,23 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual("", captured_output.getvalue().split("\n")[-1])
 
+    @patch(
+        "argparse.ArgumentParser.parse_args",
+        return_value=argparse.Namespace(
+            replay_start="2024-01-01T00:00:00",
+            replay_end="2024-01-02T00:00:00",
+            replay_db="/tmp/unittest.sqlite",
+            exchange="Kraken",
+        ),
+    )
+    async def test_main_rejects_a_replay_range_and_a_database(self, mock_args):
+        """
+        A recording carries its own start and end, so asking for both a
+        range and a database leaves it ambiguous which one to replay.
+        """
+        with self.assertRaises(AssertionError):
+            await main()
+
     async def test_graceful_exit(self):
         # Redirect stdout to capture output
         captured_output = StringIO()
