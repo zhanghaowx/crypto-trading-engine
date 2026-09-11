@@ -28,7 +28,7 @@ _LEVEL_ICONS: dict[str, str] = {
 # The same colors HEARTBEAT_BADGES uses for these levels (config.toml).
 _LEVEL_ACCENTS: dict[str, str] = {
     "ERROR": "#E8873C",
-    "CRITICAL": "#E2574C",
+    "CRITICAL": "#DC2626",
 }
 
 # Log entries read as a list of records, not cards - square corners (the
