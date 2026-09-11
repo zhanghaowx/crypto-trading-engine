@@ -22,6 +22,7 @@ from typing import Callable
 import streamlit as st
 
 from jolteon.app.app_pages import (
+    fair_price_signals,
     health,
     logs,
     market_data,
@@ -133,6 +134,13 @@ def main() -> None:
             "Trade Quality",
             ":material/target:",
             orders_pnl.render_trade_quality,
+            None,
+            None,
+        ),
+        (
+            "Fair Price Signals",
+            ":material/insights:",
+            fair_price_signals.render,
             None,
             None,
         ),
