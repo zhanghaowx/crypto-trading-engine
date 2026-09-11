@@ -112,3 +112,104 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
             )
 
         self.assertEqual(len(self.market_trades), 1)
+
+    async def test_warns_when_trade_ids_are_not_contiguous(self):
+        IDataSource.TRADE_CACHE.clear()
+
+        symbol = "BTC/USD"
+        start_time = datetime(2023, 1, 1, 1, 1, 0, tzinfo=timezone.utc)
+        end_time = datetime(2023, 1, 1, 1, 2, 0, tzinfo=timezone.utc)
+
+        mock_response = {
+            "error": [],
+            "result": {
+                symbol: [
+                    [50000.0, 1.0, start_time.timestamp(), "b", "m", "", 1],
+                    [51000.0, 1.0, end_time.timestamp(), "s", "l", "", 9],
+                ],
+                "last": end_time.timestamp() * 1e9,
+            },
+        }
+
+        with patch("requests.get", new_callable=MagicMock) as mock_get:
+            mock_get.return_value = MagicMock()
+            mock_get.return_value.status_code = 200
+            mock_get.return_value.json.return_value = mock_response
+
+            with self.assertLogs(level="WARNING") as logs:
+                await self.historical_feed.connect(
+                    symbol, start_time, end_time
+                )
+
+        self.assertIn(
+            "Some market trades might be missing!", "".join(logs.output)
+        )
+        self.assertEqual(len(self.market_trades), 2)
+
+
+class TestKrakenHistoricalDataSource(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        IDataSource.TRADE_CACHE.clear()
+        self.data_source = KrakenHistoricalDataSource()
+        self.symbol = "BTC/USD"
+        self.start_time = datetime(2023, 1, 1, tzinfo=timezone.utc)
+        self.end_time = self.start_time + timedelta(seconds=1)
+
+    async def asyncTearDown(self):
+        IDataSource.TRADE_CACHE.clear()
+
+    async def download(self):
+        return await self.data_source.download_market_trades(
+            self.symbol, self.start_time, self.end_time
+        )
+
+    def mock_get(self, status_code: int = 200, json_response=None):
+        response = MagicMock()
+        response.status_code = status_code
+        response.json.return_value = json_response
+        return patch("requests.get", return_value=response)
+
+    async def test_downloaded_trades_are_cached(self):
+        json_response = {
+            "error": [],
+            "result": {
+                self.symbol: [
+                    [
+                        50000.0,
+                        1.0,
+                        self.start_time.timestamp(),
+                        "b",
+                        "m",
+                        "",
+                        1,
+                    ]
+                ],
+                "last": self.end_time.timestamp() * 1e9,
+            },
+        }
+
+        with self.mock_get(json_response=json_response) as mock_get:
+            first = await self.download()
+            second = await self.download()
+
+        self.assertEqual(first, second)
+        self.assertEqual(1, mock_get.call_count)
+
+    async def test_raises_on_a_failed_http_request(self):
+        with self.mock_get(status_code=503):
+            with self.assertRaises(Exception) as context:
+                await self.download()
+
+        self.assertIn("HTTP 503", str(context.exception))
+
+    async def test_raises_on_an_error_reported_by_the_exchange(self):
+        json_response = {
+            "error": ["EQuery:Unknown asset pair"],
+            "result": None,
+        }
+
+        with self.mock_get(json_response=json_response):
+            with self.assertRaises(Exception) as context:
+                await self.download()
+
+        self.assertIn("EQuery:Unknown asset pair", str(context.exception))

@@ -168,6 +168,14 @@ class TestDatabaseDataSource(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ValueError):
             self.data_source.start_time()
 
+    async def test_start_time_with_an_empty_market_trade_table(self):
+        """A recording may hold the table but no trades, e.g. a run that
+        was stopped before the first trade arrived."""
+        self.record(0)
+
+        with self.assertRaises(ValueError):
+            self.data_source.start_time()
+
     async def test_indexes_transaction_time(self):
         """
         Both the range query and the bounds are ordered by transaction_time,
