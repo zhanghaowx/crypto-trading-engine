@@ -1,7 +1,5 @@
 from jolteon.engine.market_data.core.book_features import imbalance
-from jolteon.engine.strategy.market_making.fair_value.fair_price_model import (
-    FairPriceContext,
-)
+from jolteon.engine.market_data.core.book_snapshot import BookSnapshot
 from jolteon.engine.strategy.market_making.fair_value.price_adjustment import (
     IFairPriceAdjustment,
 )
@@ -27,7 +25,7 @@ class OrderFlowImbalanceAdjustment(IFairPriceAdjustment):
     def name(self) -> str:
         return "order_flow_imbalance"
 
-    def adjustment(self, context: FairPriceContext) -> float:
+    def adjustment(self, context: BookSnapshot) -> float:
         skew = imbalance(
             context.bids[: self._depth], context.asks[: self._depth]
         )

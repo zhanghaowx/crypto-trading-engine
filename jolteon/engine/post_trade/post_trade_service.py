@@ -3,11 +3,11 @@ import asyncio
 from jolteon.engine.core.event.signal import signal, subscribe
 from jolteon.engine.core.event.signal_subscriber import SignalSubscriber
 from jolteon.engine.market_data.core.bbo import BBO
+from jolteon.engine.market_data.core.book_snapshot import BookSnapshot
 from jolteon.engine.market_data.core.trade import Trade
 from jolteon.engine.position.position_manager import PositionUpdate
 from jolteon.engine.post_trade.decorated_order_fill import DecoratedOrderFill
 from jolteon.engine.strategy.market_making.fair_value.fair_price_model import (
-    FairPriceContext,
     IFairPriceModel,
 )
 from jolteon.engine.strategy.market_making.fair_value.mid_price_model import (
@@ -95,9 +95,7 @@ class PostTradeService(SignalSubscriber):
             del self._pending_fills[trade_id]
 
     def _fair_price(self, bbo: BBO) -> float:
-        fair_price = self._fair_price_model.calculate(
-            FairPriceContext(bbo=bbo)
-        )
+        fair_price = self._fair_price_model.calculate(BookSnapshot(bbo=bbo))
         return (fair_price.bid + fair_price.ask) / 2
 
     def _send(self, record: DecoratedOrderFill):

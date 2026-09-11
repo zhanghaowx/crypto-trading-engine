@@ -7,13 +7,13 @@ from jolteon.engine.core.id_generator import id_generator
 from jolteon.engine.core.side import MarketSide
 from jolteon.engine.core.time.time_manager import time_manager
 from jolteon.engine.market_data.core.bbo import BBO
+from jolteon.engine.market_data.core.book_snapshot import BookSnapshot
 from jolteon.engine.market_data.core.order import CancelOrder, Order, OrderType
 from jolteon.engine.market_data.core.order_book import OrderBook
 from jolteon.engine.market_data.core.trade import Trade
 from jolteon.engine.risk_limit.inventory_limit import InventoryLimit
 from jolteon.engine.risk_limit.risk_limit import RiskLimitLevel
 from jolteon.engine.strategy.market_making.fair_value.fair_price_model import (
-    FairPriceContext,
     IFairPriceModel,
 )
 from jolteon.engine.strategy.market_making.fair_value.mid_price_model import (
@@ -97,13 +97,13 @@ class MarketMakingStrategy(Heartbeater, SignalSubscriber):
         self._requote(MarketSide.BUY, fair_price.bid - self._half_spread)
         self._requote(MarketSide.SELL, fair_price.ask + self._half_spread)
 
-    def _context(self, bbo: BBO) -> FairPriceContext:
+    def _context(self, bbo: BBO) -> BookSnapshot:
         book = self._order_book
         if not book:
-            return FairPriceContext(bbo=bbo)
+            return BookSnapshot(bbo=bbo)
 
         depth = MarketMakingStrategy.BOOK_DEPTH
-        return FairPriceContext(
+        return BookSnapshot(
             bbo=bbo, bids=tuple(book.bids(depth)), asks=tuple(book.asks(depth))
         )
 

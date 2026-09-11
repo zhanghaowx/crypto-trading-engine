@@ -1,9 +1,7 @@
 import unittest
 
 from jolteon.engine.market_data.core.bbo import BBO
-from jolteon.engine.strategy.market_making.fair_value.fair_price_model import (
-    FairPriceContext,
-)
+from jolteon.engine.market_data.core.book_snapshot import BookSnapshot
 from jolteon.engine.strategy.market_making.fair_value.microprice import (
     MicropriceAdjustment,
 )
@@ -11,8 +9,8 @@ from jolteon.engine.strategy.market_making.fair_value.microprice import (
 
 class TestMicropriceAdjustment(unittest.TestCase):
     @staticmethod
-    def context(bid_quantity: float, ask_quantity: float) -> FairPriceContext:
-        return FairPriceContext(
+    def context(bid_quantity: float, ask_quantity: float) -> BookSnapshot:
+        return BookSnapshot(
             bbo=BBO(
                 symbol="BTC/USD",
                 bid_price=100.0,

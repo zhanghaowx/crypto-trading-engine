@@ -5,10 +5,8 @@ import pytz
 
 from jolteon.engine.core.side import MarketSide
 from jolteon.engine.market_data.core.bbo import BBO
+from jolteon.engine.market_data.core.book_snapshot import BookSnapshot
 from jolteon.engine.market_data.core.trade import Trade
-from jolteon.engine.strategy.market_making.fair_value.fair_price_model import (
-    FairPriceContext,
-)
 from jolteon.engine.strategy.market_making.fair_value.momentum import (
     MomentumAdjustment,
 )
@@ -16,7 +14,7 @@ from jolteon.engine.strategy.market_making.fair_value.momentum import (
 
 class TestMomentumAdjustment(unittest.TestCase):
     def setUp(self):
-        self.context = FairPriceContext(
+        self.context = BookSnapshot(
             bbo=BBO(
                 symbol="BTC/USD",
                 bid_price=100.0,

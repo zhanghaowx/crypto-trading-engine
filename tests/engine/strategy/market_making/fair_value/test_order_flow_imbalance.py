@@ -3,13 +3,11 @@ from dataclasses import replace
 from datetime import datetime
 
 from jolteon.engine.market_data.core.bbo import BBO
+from jolteon.engine.market_data.core.book_snapshot import BookSnapshot
 from jolteon.engine.market_data.core.order_book import (
     BookUpdate,
     OrderBook,
     PriceLevel,
-)
-from jolteon.engine.strategy.market_making.fair_value.fair_price_model import (
-    FairPriceContext,
 )
 from jolteon.engine.strategy.market_making.fair_value.order_flow_imbalance import (  # noqa: E501
     OrderFlowImbalanceAdjustment,
@@ -21,7 +19,7 @@ class TestOrderFlowImbalanceAdjustment(unittest.TestCase):
         self.adjustment = OrderFlowImbalanceAdjustment()
 
     @staticmethod
-    def context(bids, asks) -> FairPriceContext:
+    def context(bids, asks) -> BookSnapshot:
         order_book = OrderBook("BTC/USD")
         order_book.apply(
             BookUpdate(
@@ -34,7 +32,7 @@ class TestOrderFlowImbalanceAdjustment(unittest.TestCase):
         )
         bbo = order_book.bbo()
         assert bbo is not None
-        return FairPriceContext(
+        return BookSnapshot(
             bbo=bbo,
             bids=tuple(order_book.bids(10)),
             asks=tuple(order_book.asks(10)),
@@ -50,7 +48,7 @@ class TestOrderFlowImbalanceAdjustment(unittest.TestCase):
         )
 
         self.assertEqual(
-            0.0, self.adjustment.adjustment(FairPriceContext(bbo=bbo))
+            0.0, self.adjustment.adjustment(BookSnapshot(bbo=bbo))
         )
 
     def test_a_balanced_book_does_not_move_fair_price(self):

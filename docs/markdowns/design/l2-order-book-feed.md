@@ -30,7 +30,8 @@ the consumers.
   trade. There is no book signal.
 - Kraken's `PublicFeed` subscribes to `trade` and `ticker`. It implements
   no shared interface, and `ApplicationBase._md` is typed `object`.
-- `FairPriceContext` carries a single `bbo` field.
+- `BookSnapshot` (then named `FairPriceContext`) carries a single
+  `bbo` field.
 - `HistoricalFeed` replays market trades only, so replay has no top of
   book at all.
 
@@ -201,19 +202,27 @@ separate compact writer.
 
 ### Consumers
 
-`FairPriceContext` gains an optional book.
+`BookSnapshot` gains the book's levels.
 
 ```python
-@dataclass
-class FairPriceContext:
+@dataclass(frozen=True)
+class BookSnapshot:
     bbo: BBO
-    order_book: OrderBook | None = None
+    bids: tuple[PriceLevel, ...] = ()
+    asks: tuple[PriceLevel, ...] = ()
 ```
 
-`None` is the honest value during replay and on any feed without depth.
-Adjustments already abstain by returning 0.0 when they have nothing to
-say, so a depth-dependent adjustment abstains when the book is absent. No
-existing adjustment changes.
+It carries levels copied at construction rather than the published book
+itself. The book is live and mutable, so holding a reference to it beside
+a `BBO` fixed at construction would let the two drift apart for any
+consumer that kept the snapshot past its tick — and `PostTradeService`
+does hold market state that long, across its markout horizons. Copying is
+bounded by the depth the producer asks for, and `PriceLevel` is frozen,
+so it stays shallow.
+
+Empty tuples are the honest value during replay and on any feed without
+depth, and they need no special case: `imbalance()` over nothing already
+returns the 0.0 that means abstain.
 
 ### Two views of the touch
 
@@ -250,7 +259,7 @@ flicker between two views of it.
    and update messages into `BookUpdate`, apply, and publish.
 6. Add checksum validation and the resync path.
 7. Add the derived-feature recorder.
-8. Add `order_book` to `FairPriceContext`.
+8. Add the book's levels to `BookSnapshot`.
 9. Add an order-flow imbalance adjustment that reads the book.
 
 Commits 1 through 4 are a refactor with no behavior change and can land

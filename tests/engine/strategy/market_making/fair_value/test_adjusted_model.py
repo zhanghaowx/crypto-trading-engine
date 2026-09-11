@@ -2,13 +2,13 @@ import unittest
 
 from jolteon.engine.core.event.signal import signal, subscribe
 from jolteon.engine.market_data.core.bbo import BBO
+from jolteon.engine.market_data.core.book_snapshot import BookSnapshot
 from jolteon.engine.strategy.market_making.fair_value.adjusted_model import (
     AdjustedFairPriceModel,
     FairPriceAdjustmentSnapshot,
 )
 from jolteon.engine.strategy.market_making.fair_value.fair_price_model import (
     FairPrice,
-    FairPriceContext,
     FairPriceUpdate,
 )
 from jolteon.engine.strategy.market_making.fair_value.mid_price_model import (
@@ -28,13 +28,13 @@ class StubAdjustment(IFairPriceAdjustment):
     def name(self) -> str:
         return self._name
 
-    def adjustment(self, context: FairPriceContext) -> float:
+    def adjustment(self, context: BookSnapshot) -> float:
         return self.value
 
 
 class SubscribingAdjustment(IFairPriceAdjustment):
     """An adjustment sourcing its own view from a signal, rather than
-    from FairPriceContext - proves AdjustedFairPriceModel.connect()
+    from BookSnapshot - proves AdjustedFairPriceModel.connect()
     reaches adjustments nested inside its own adjustments list."""
 
     def __init__(self):
@@ -44,7 +44,7 @@ class SubscribingAdjustment(IFairPriceAdjustment):
     def name(self) -> str:
         return "subscribing"
 
-    def adjustment(self, context: FairPriceContext) -> float:
+    def adjustment(self, context: BookSnapshot) -> float:
         return 0.0
 
     @subscribe("ticker_feed")
@@ -61,7 +61,7 @@ class TestAdjustedFairPriceModel(unittest.TestCase):
             ask_price=102.0,
             ask_quantity=1.0,
         )
-        self.context = FairPriceContext(bbo=self.bbo)
+        self.context = BookSnapshot(bbo=self.bbo)
 
     def test_no_adjustments_matches_the_base_model(self):
         model = AdjustedFairPriceModel(

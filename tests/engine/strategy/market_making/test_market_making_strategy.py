@@ -6,6 +6,7 @@ import pytz
 
 from jolteon.engine.core.side import MarketSide
 from jolteon.engine.market_data.core.bbo import BBO
+from jolteon.engine.market_data.core.book_snapshot import BookSnapshot
 from jolteon.engine.market_data.core.order import CancelOrder, Order, OrderType
 from jolteon.engine.market_data.core.order_book import (
     BookUpdate,
@@ -15,7 +16,6 @@ from jolteon.engine.market_data.core.order_book import (
 from jolteon.engine.market_data.core.trade import Trade
 from jolteon.engine.strategy.market_making.fair_value.fair_price_model import (
     FairPrice,
-    FairPriceContext,
     IFairPriceModel,
 )
 from jolteon.engine.strategy.market_making.market_making_strategy import (
@@ -196,6 +196,6 @@ class _RecordingFairPriceModel(IFairPriceModel):
         super().__init__()
         self._seen = seen
 
-    def _calculate(self, context: FairPriceContext) -> FairPrice:
+    def _calculate(self, context: BookSnapshot) -> FairPrice:
         self._seen.append(context.bids)
         return FairPrice(bid=context.bbo.bid_price, ask=context.bbo.ask_price)

@@ -2,24 +2,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 from jolteon.engine.core.event.signal import signal
-from jolteon.engine.market_data.core.bbo import BBO
-from jolteon.engine.market_data.core.order_book import PriceLevel
-
-
-@dataclass(frozen=True)
-class FairPriceContext:
-    """
-    The market state a caller prices against, fixed at the moment it was
-    built. The published order book keeps changing after that, so its
-    levels are copied in here rather than referenced.
-
-    `bids` and `asks` run best price first, and are empty when no depth
-    is available.
-    """
-
-    bbo: BBO
-    bids: tuple[PriceLevel, ...] = ()
-    asks: tuple[PriceLevel, ...] = ()
+from jolteon.engine.market_data.core.book_snapshot import BookSnapshot
 
 
 @dataclass
@@ -40,7 +23,7 @@ class IFairPriceModel(ABC):
     def __init__(self):
         self.fair_price_event = signal("fair_price")
 
-    def calculate(self, context: FairPriceContext) -> FairPrice:
+    def calculate(self, context: BookSnapshot) -> FairPrice:
         """
         Returns: The fair bid/ask price of the market given the current
         context, also published on `fair_price_event` so a history of
@@ -62,5 +45,5 @@ class IFairPriceModel(ABC):
         return fair_price
 
     @abstractmethod
-    def _calculate(self, context: FairPriceContext) -> FairPrice:
+    def _calculate(self, context: BookSnapshot) -> FairPrice:
         raise NotImplementedError  # pragma: no cover

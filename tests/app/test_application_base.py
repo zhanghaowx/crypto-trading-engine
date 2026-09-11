@@ -7,9 +7,9 @@ from jolteon.app.base import ApplicationBase
 from jolteon.engine.core.event.signal import signal, subscribe
 from jolteon.engine.core.event.signal_subscriber import SignalSubscriber
 from jolteon.engine.market_data.core.bbo import BBO
+from jolteon.engine.market_data.core.book_snapshot import BookSnapshot
 from jolteon.engine.strategy.market_making.fair_value.fair_price_model import (
     FairPrice,
-    FairPriceContext,
     IFairPriceModel,
 )
 
@@ -23,7 +23,7 @@ class SubscribingFairPriceModel(IFairPriceModel, SignalSubscriber):
         super().__init__()
         self.ticks_seen = 0
 
-    def _calculate(self, context: FairPriceContext) -> FairPrice:
+    def _calculate(self, context: BookSnapshot) -> FairPrice:
         return FairPrice(bid=0.0, ask=0.0)
 
     @subscribe("ticker_feed")
