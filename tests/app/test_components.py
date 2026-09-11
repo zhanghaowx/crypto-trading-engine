@@ -96,7 +96,9 @@ def test_paginate_shows_the_first_page_with_previous_disabled():
 
     assert not at.exception
     assert at.json[0].value == str(list(range(10)))
-    assert at.caption[0].value == "Page 1 of 3"
+    # The current page's own button is disabled rather than clickable.
+    assert at.button(key="demo-page-0").disabled
+    assert not at.button(key="demo-page-1").disabled
     assert at.button(key="demo-prev-page").disabled
     assert not at.button(key="demo-next-page").disabled
 
@@ -114,7 +116,8 @@ def test_paginate_advancing_a_page_immediately_re_enables_previous():
 
     assert not at.exception
     assert at.json[0].value == str(list(range(10, 20)))
-    assert at.caption[0].value == "Page 2 of 3"
+    assert at.button(key="demo-page-1").disabled
+    assert not at.button(key="demo-page-0").disabled
     assert not at.button(key="demo-prev-page").disabled
     assert not at.button(key="demo-next-page").disabled
 
@@ -129,9 +132,37 @@ def test_paginate_disables_next_on_the_last_page():
 
     assert not at.exception
     assert at.json[0].value == str(list(range(20, 25)))
-    assert at.caption[0].value == "Page 3 of 3"
+    assert at.button(key="demo-page-2").disabled
     assert at.button(key="demo-next-page").disabled
     assert not at.button(key="demo-prev-page").disabled
+
+
+def test_paginate_jumps_straight_to_a_clicked_page_number():
+    at = AppTest.from_function(paginate_script)
+    at.session_state["total_rows"] = 25
+    at.run()
+
+    at.button(key="demo-page-2").click().run()
+
+    assert not at.exception
+    assert at.json[0].value == str(list(range(20, 25)))
+    assert at.button(key="demo-page-2").disabled
+    assert not at.button(key="demo-page-0").disabled
+
+
+def test_paginate_collapses_far_pages_behind_an_ellipsis():
+    at = AppTest.from_function(paginate_script)
+    at.session_state["total_rows"] = 100
+    at.run()
+
+    assert not at.exception
+    # 10 pages: only the first, its neighbor, and the last get a button -
+    # the rest collapse into one ellipsis between them.
+    assert at.button(key="demo-page-0").disabled
+    assert not at.button(key="demo-page-1").disabled
+    assert not at.button(key="demo-page-9").disabled
+    assert at.button(key="demo-page-ellipsis-2").disabled
+    assert len(at.button) == 6  # prev, 0, 1, ellipsis, 9, next
 
 
 def test_paginate_previous_returns_to_the_first_page():
@@ -144,5 +175,5 @@ def test_paginate_previous_returns_to_the_first_page():
 
     assert not at.exception
     assert at.json[0].value == str(list(range(10)))
-    assert at.caption[0].value == "Page 1 of 3"
+    assert at.button(key="demo-page-0").disabled
     assert at.button(key="demo-prev-page").disabled
