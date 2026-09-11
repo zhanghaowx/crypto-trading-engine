@@ -65,6 +65,38 @@ def test_renders_metrics_and_chart_from_recorded_data(populated_db_path):
     assert len(at.get("vega_lite_chart")) == 1
 
 
+def test_shows_quote_metrics_without_market_data(tmp_path):
+    """No ticker_feed row yet, but an order was already placed: the
+    Buy/Sell Quote metrics should still render alongside the info
+    message."""
+    db_path = str(tmp_path / "quotes_only.sqlite")
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        'CREATE TABLE "order" '
+        "(timestamp REAL, side TEXT, price REAL, symbol TEXT, "
+        "client_order_id TEXT)"
+    )
+    conn.executemany(
+        'INSERT INTO "order" VALUES (?, ?, ?, ?, ?)',
+        [
+            (1700000000, "BUY", 99.5, "BTC-USD", "1"),
+            (1700000000, "SELL", 101.5, "BTC-USD", "2"),
+        ],
+    )
+    conn.commit()
+    conn.close()
+
+    at = AppTest.from_function(_script)
+    at.session_state["db_path"] = db_path
+    at.run()
+
+    assert not at.exception
+    assert at.info[0].value == "No market data recorded yet."
+    metrics = _animated_metrics(at)
+    assert metrics["quote-BUY"]["value"] == 99.5
+    assert metrics["quote-SELL"]["value"] == 101.5
+
+
 def test_sell_quote_is_colored_red(tmp_path):
     db_path = str(tmp_path / "both_sides.sqlite")
     conn = sqlite3.connect(db_path)
