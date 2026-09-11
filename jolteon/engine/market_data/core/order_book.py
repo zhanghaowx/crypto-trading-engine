@@ -37,6 +37,11 @@ class OrderBook:
     from.
     """
 
+    # SignalRecorder would flatten a book into one column per level per
+    # side, widening its table as the book moves. Derived features are
+    # recorded instead.
+    RECORDED = False
+
     def __init__(self, symbol: str):
         self.symbol = symbol
         self.exchange_time: datetime | None = None

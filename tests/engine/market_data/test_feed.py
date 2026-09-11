@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import MagicMock
 
+from jolteon.engine.market_data.core.order_book import OrderBook
 from jolteon.engine.market_data.feed import Channel, IMarketDataFeed
 from jolteon.engine.market_data.historical_feed import HistoricalFeed
 from jolteon.engine.market_data.kraken.public_feed import PublicFeed
@@ -28,3 +29,14 @@ class TestMarketDataFeed(unittest.TestCase):
     def test_every_feed_carries_its_own_events(self):
         self.assertIsNotNone(PublicFeed().events.market_trade)
         self.assertIsNotNone(HistoricalFeed(MagicMock()).events.market_trade)
+
+
+class TestEvents(unittest.TestCase):
+    def test_feeds_share_one_order_book_signal(self):
+        self.assertIs(
+            PublicFeed().events.order_book,
+            HistoricalFeed(MagicMock()).events.order_book,
+        )
+
+    def test_raw_books_are_not_recorded(self):
+        self.assertFalse(OrderBook("BTC/USD").RECORDED)
