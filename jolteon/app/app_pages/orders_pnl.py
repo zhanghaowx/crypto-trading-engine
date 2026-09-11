@@ -356,8 +356,6 @@ def _render_pnl(fills: pd.DataFrame, latest_mid: pd.DataFrame) -> None:
             total_pnl,
             color=_sign_color(total_pnl),
             border=True,
-            help="Everything made or lost so far, counting inventory "
-            "still held at the current mid price.",
         )
     realized = realized_pnl(fills)
     with next(cols):
@@ -367,8 +365,6 @@ def _render_pnl(fills: pd.DataFrame, latest_mid: pd.DataFrame) -> None:
             realized,
             color=_sign_color(realized),
             border=True,
-            help="Profit on positions that have been closed out again, "
-            "after fees. Inventory still held only counts once it is sold.",
         )
     net_cash = by_symbol["net_cash"].sum()
     with next(cols):
@@ -378,9 +374,6 @@ def _render_pnl(fills: pd.DataFrame, latest_mid: pd.DataFrame) -> None:
             net_cash,
             color=_sign_color(net_cash),
             border=True,
-            help="Cash taken in from sells minus cash paid out on buys, "
-            "after fees. Buying inventory looks like a loss here until it "
-            "is sold again.",
         )
     with next(cols):
         animated_metric(
@@ -388,8 +381,6 @@ def _render_pnl(fills: pd.DataFrame, latest_mid: pd.DataFrame) -> None:
             "Inventory value",
             by_symbol["inventory_value"].sum(),
             border=True,
-            help="What the inventory still held is worth at the current "
-            "mid price.",
         )
     with next(cols):
         animated_metric(
@@ -397,8 +388,6 @@ def _render_pnl(fills: pd.DataFrame, latest_mid: pd.DataFrame) -> None:
             "Fees paid",
             fills["fee"].sum(),
             border=True,
-            help="Fees charged across all fills, already subtracted from "
-            "realized PnL and net cash flow.",
         )
     for symbol, row in by_symbol.iterrows():
         with next(cols):
@@ -408,8 +397,6 @@ def _render_pnl(fills: pd.DataFrame, latest_mid: pd.DataFrame) -> None:
                 row["position"],
                 decimals=None,
                 border=True,
-                help="How much is held right now. A negative number "
-                "means the position is short.",
             )
         mark = row["mark_price"]
         mark_help = (
@@ -430,7 +417,6 @@ def _render_pnl(fills: pd.DataFrame, latest_mid: pd.DataFrame) -> None:
                     f"{symbol} mark price",
                     float(mark),
                     border=True,
-                    help=mark_help,
                 )
 
 
