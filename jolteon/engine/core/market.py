@@ -3,7 +3,6 @@ from enum import StrEnum
 
 class Market(StrEnum):
     MOCK = "MOCK"
-    COINBASE = "COINBASE"
     KRAKEN = "KRAKEN"
 
     @staticmethod
