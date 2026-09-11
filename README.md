@@ -14,9 +14,9 @@ afterwards in the included dashboard.
 
 ## What's in it
 
-- **Market data** from Kraken and Coinbase, live over websockets or replayed from history.
+- **Market data** from Kraken, live over websockets or replayed from history.
 - **A market making strategy** that quotes a fixed spread either side of a fair price.
-- **Order execution** on Kraken. Coinbase orders always go to a mock service.
+- **Order execution** on Kraken.
 - **Risk limits** on inventory size and order frequency.
 - **A health monitor** that watches whether feeds and internal components are still alive.
 - **A Streamlit dashboard** for reading back a run.
@@ -65,15 +65,6 @@ uv run jolteon --exchange Kraken --replay-db /tmp/jolteon.sqlite
 Live and paper runs write to `/tmp/jolteon.log` and `/tmp/jolteon.sqlite`; replays
 write to `/tmp/replay.log`, `/tmp/replay.sqlite`, and a profiler trace at `/tmp/jolteon.stat`.
 
-### About the exchanges
-
-Kraken is the one that works end to end. Coinbase can supply market data and be
-backtested, but its orders never reach the exchange — see
-[docs/markdowns/markets/coinbase.md](docs/markdowns/markets/coinbase.md).
-
-Coinbase backtests need `COINBASE_API_KEY` and `COINBASE_API_SECRET` to download
-historical data.
-
 ### Dashboard
 
 A read-only view of a run — health, market data, risk limits, orders and PnL.
@@ -99,7 +90,7 @@ Tasks run through [poe](https://poethepoet.natn.io/):
 uv run poe fmt          # format and sort imports
 uv run poe lint         # ruff + mypy
 uv run poe test         # lint, then unit tests with coverage
-uv run poe integration  # lint, then tests against live exchanges
+uv run poe integration  # lint, then tests against the live exchange
 uv run poe docs         # serve the mkdocs site locally
 uv run poe clean        # delete build and test artifacts
 ```

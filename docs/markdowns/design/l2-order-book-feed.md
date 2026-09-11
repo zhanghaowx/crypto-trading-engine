@@ -6,7 +6,7 @@ knowing which exchange produced it.
 
 ## Why
 
-The engine sees only the top of book today, via each exchange's ticker
+The engine sees only the top of book today, via the exchange's ticker
 channel, normalized into `BBO`. Every depth-aware signal is therefore
 unbuildable: order-flow imbalance, depth-weighted fair price, and
 queue-aware quoting all need levels behind the touch.
@@ -23,14 +23,13 @@ the consumers.
 - `jolteon/engine/market_data/core/order_book.py` holds an `OrderBook`
   that only accumulates. `add_bid(price, quantity)` does
   `levels[price] += quantity`. There is no removal, no replacement, no
-  ordering, and no best-bid accessor. Its only caller is the Coinbase mock
-  execution service, which rebuilds it from candlesticks on every match,
-  so there is no external contract to preserve.
+  ordering, and no best-bid accessor. Nothing calls it at all since the
+  Coinbase integration was removed, so there is no contract to preserve
+  and the rewrite below is free.
 - `Events` declares three signals: channel heartbeat, ticker, and market
   trade. There is no book signal.
-- Kraken's `PublicFeed` subscribes to `trade` and `ticker`. Coinbase's
-  subscribes to its own channels. Neither implements a shared interface,
-  and `ApplicationBase._md` is typed `object`.
+- Kraken's `PublicFeed` subscribes to `trade` and `ticker`. It implements
+  no shared interface, and `ApplicationBase._md` is typed `object`.
 - `FairPriceContext` carries a single `bbo` field.
 - `HistoricalFeed` replays market trades only, so replay has no top of
   book at all.
@@ -214,20 +213,19 @@ flicker between two views of it.
   own plan once live capture exists.
 - **Kraken's level3 channel.** Per-order rather than per-level, and it
   requires an API token.
-- **A Coinbase book adapter.** The interface is shaped so it drops in,
-  but Coinbase is not the cheap second exchange it looks like. The
-  Exchange websocket that `CoinbasePublicFeed` connects to gates its
-  `level2` channel behind authentication, which that class already
-  records as a TODO. Kraken is the first exchange to implement precisely
-  because its depth is public.
+- **A second exchange.** The interface is shaped so one drops in, but
+  Coinbase was never the cheap second venue it looked like: its Exchange
+  websocket gates `level2` behind authentication, which is why the
+  integration was removed rather than finished. Kraken is the first
+  exchange to implement precisely because its depth is public.
 
 ## Commits
 
 1. Rewrite `OrderBook` as a real L2 book with snapshot and update
-   application, ordering, and BBO accessors. Replace its test and update
-   the Coinbase mock execution service, its only caller.
+   application, ordering, and BBO accessors. Replace its test; the class
+   has no callers to update.
 2. Add `imbalance` and `vwap` reads to `OrderBook`.
-3. Add `IMarketDataFeed` and `Channel`. Make both public feeds and
+3. Add `IMarketDataFeed` and `Channel`. Make the public feed and
    `HistoricalFeed` implement it, and type `ApplicationBase._md` to it.
 4. Add the `order_book` signal to `Events`.
 5. Subscribe Kraken's public feed to the book channel, decode snapshot

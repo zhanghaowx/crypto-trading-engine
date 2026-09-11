@@ -22,8 +22,7 @@ defaults in `StaticParameterService`: `quote_size = 0.0005`,
 | 5 | No latency model | Queue position optimistic |
 | 6 | Simulated book never reacts to our orders | Inherent to replay |
 | 7 | No inventory skew wired in; cap is not a control | Unbounded directional risk |
-| 8 | Coinbase mock never rests orders | Paper P&L is meaningless |
-| 9 | A better fill model would be live-only | Cannot be backtested |
+| 8 | A better fill model would be live-only | Cannot be backtested |
 
 ## 1. Fees exceed the quoted edge
 
@@ -69,9 +68,7 @@ maker and 0.40% taker at base tier.
 The strategy only ever rests passive limit orders, so every fill is a
 maker fill and should be charged the maker rate. The constant is roughly
 right at base tier by coincidence, and stays wrong at every other tier,
-since it cannot move with volume. `coinbase/mock_execution_service.py`
-charges `fee = 0.0`, so any P&L measured there omits the dominant cost
-entirely.
+since it cannot move with volume.
 
 Fix: move maker and taker rates into the parameter service and charge by
 liquidity flag, so a replay can be run at a chosen tier and the fee tier at
@@ -150,16 +147,7 @@ a tight cap and skewed quotes is an ordinary arrangement. What is missing
 is the skew and a cap sized as a control, perhaps 20 to 50 times quote
 size.
 
-## 8. The Coinbase mock never rests orders
-
-`coinbase/mock_execution_service.py` matches once at submission against a
-REST order book snapshot and then discards the order. A passive quote
-behind the touch cannot cross at submission, so it never fills and never
-rests to fill later. Combined with `fee = 0.0`, Coinbase paper runs
-produce almost no fills and a flattering P&L. The Kraken mock is the only
-execution simulator worth measuring against.
-
-## 9. A better fill model would be live-only
+## 8. A better fill model would be live-only
 
 The L2 plan puts L2 replay out of scope, and its derived-feature recorder
 stores top of book, imbalance, and depth-weighted price, which is
@@ -172,8 +160,8 @@ where weeks of data can be swept and live paper yields one slow real-time
 sample. If fill realism is the goal rather than better signals, the compact
 book writer belongs on the critical path. The L2 plan also has no commit
 wiring the book into the Kraken mock, whose fill model imports no
-`OrderBook` at all; commit 1 updates the Coinbase mock as the class's only
-caller and leaves the resting-order logic untouched.
+`OrderBook` at all; commit 1 rewrites the class with no callers left to
+update and leaves the resting-order logic untouched.
 
 ## Reading results while these stand
 
