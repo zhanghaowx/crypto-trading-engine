@@ -15,6 +15,9 @@ from jolteon.engine.strategy.market_making.fair_value.adjusted_model import (
 from jolteon.engine.strategy.market_making.fair_value.mid_price_model import (
     MidPriceFairPriceModel,
 )
+from jolteon.engine.strategy.market_making.fair_value.momentum import (
+    MomentumAdjustment,
+)
 from jolteon.engine.strategy.market_making.market_making_strategy import (
     MarketMakingStrategy,
 )
@@ -267,7 +270,10 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
         fair_price_model = MockApplication.call_args.kwargs["fair_price_model"]
         self.assertIsInstance(fair_price_model, AdjustedFairPriceModel)
         self.assertIsInstance(fair_price_model._base, MidPriceFairPriceModel)
-        self.assertEqual([], fair_price_model._adjustments)
+        self.assertEqual(1, len(fair_price_model._adjustments))
+        self.assertIsInstance(
+            fair_price_model._adjustments[0], MomentumAdjustment
+        )
         self.assertIs(fair_price_model, strategy._fair_price_model)
 
         self.assertEqual("", captured_output.getvalue().split("\n")[-1])
