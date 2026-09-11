@@ -161,3 +161,81 @@ class TestOrderBook(unittest.TestCase):
 
         self.assertEqual(3, len(self.order_book.bids(10)))
         self.assertEqual(2, len(self.order_book.asks(10)))
+
+
+class TestDepthLimitedOrderBook(unittest.TestCase):
+    """
+    A venue publishing only the top levels does not always say when one
+    falls out of that window, so the book has to trim itself.
+    """
+
+    def setUp(self):
+        self.order_book = OrderBook("BTC/USD", depth=2)
+
+    def update(self, bids, asks, is_snapshot=False):
+        return BookUpdate(
+            symbol="BTC/USD",
+            bids=[PriceLevel(price, quantity) for price, quantity in bids],
+            asks=[PriceLevel(price, quantity) for price, quantity in asks],
+            is_snapshot=is_snapshot,
+            exchange_time=datetime(2024, 1, 1, 12, 0, 0),
+        )
+
+    def test_depth_must_be_positive(self):
+        with self.assertRaises(AssertionError):
+            OrderBook("BTC/USD", depth=0)
+
+    def test_a_snapshot_is_trimmed_to_depth(self):
+        self.order_book.apply(
+            self.update(
+                bids=[(100.0, 1.0), (99.0, 1.0), (98.0, 1.0)],
+                asks=[(101.0, 1.0), (102.0, 1.0), (103.0, 1.0)],
+                is_snapshot=True,
+            )
+        )
+
+        self.assertEqual(
+            [100.0, 99.0],
+            [level.price for level in self.order_book.bids(10)],
+        )
+        self.assertEqual(
+            [101.0, 102.0],
+            [level.price for level in self.order_book.asks(10)],
+        )
+
+    def test_a_level_pushed_out_of_the_window_does_not_linger(self):
+        self.order_book.apply(
+            self.update(
+                bids=[(100.0, 1.0), (99.0, 1.0)],
+                asks=[(101.0, 1.0), (102.0, 1.0)],
+                is_snapshot=True,
+            )
+        )
+
+        # A new touch on each side, with no delete for what it displaces.
+        self.order_book.apply(
+            self.update(bids=[(100.5, 2.0)], asks=[(100.8, 2.0)])
+        )
+
+        self.assertEqual(
+            [100.5, 100.0],
+            [level.price for level in self.order_book.bids(10)],
+        )
+        self.assertEqual(
+            [100.8, 101.0],
+            [level.price for level in self.order_book.asks(10)],
+        )
+
+    def test_an_unlimited_book_keeps_every_level(self):
+        order_book = OrderBook("BTC/USD")
+
+        order_book.apply(
+            self.update(
+                bids=[(100.0, 1.0), (99.0, 1.0), (98.0, 1.0)],
+                asks=[(101.0, 1.0), (102.0, 1.0), (103.0, 1.0)],
+                is_snapshot=True,
+            )
+        )
+
+        self.assertEqual(3, len(order_book.bids(10)))
+        self.assertEqual(3, len(order_book.asks(10)))

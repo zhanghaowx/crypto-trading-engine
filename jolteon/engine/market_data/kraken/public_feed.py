@@ -99,7 +99,7 @@ class PublicFeed(IMarketDataFeed):
             An asyncio task to be waiting for incoming messages
         """
 
-        self._order_book = OrderBook(symbol)
+        self._order_book = OrderBook(symbol, depth=PublicFeed.BOOK_DEPTH)
         self._last_bbo = None
 
         async with websockets.connect(PublicFeed.PRODUCTION_URI) as websocket:
