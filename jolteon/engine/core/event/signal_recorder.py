@@ -33,7 +33,10 @@ class SignalRecorder:
         Connect all signals and save a copy of each signal payload into a
         database. The payload may have a PRIMARY_KEY attribute. If the
         PRIMARY_KEY is set, a later payload carrying a key already recorded
-        updates that row instead of adding a duplicate. The sender shall
+        updates that row instead of adding a duplicate. A payload that sets
+        RECORDED to False is dispatched to its subscribers but never
+        persisted, for payloads too wide to flatten into a row. The sender
+        shall
         invoke the `send` method with exactly one positional argument which
         is the sender, and exactly one keyword argument which is the
         payload.
@@ -101,6 +104,9 @@ class SignalRecorder:
             return
 
         for payload in kwargs.values():
+            if not getattr(payload, "RECORDED", True):
+                return
+
             if not hasattr(payload, "__dict__") and not isinstance(
                 payload, dict
             ):

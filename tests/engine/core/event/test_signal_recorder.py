@@ -79,6 +79,23 @@ class TestSignalRecorder(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(1, len(self.rows("signal_a")))
         self.assertEqual(1, len(self.rows("signal_b")))
 
+    async def test_payload_that_opts_out_of_recording(self):
+        class Payload:
+            RECORDED = False
+
+            def __init__(self):
+                self.value = 1
+
+        received = []
+        self.signal_a.connect(
+            lambda sender, **kwargs: received.append(kwargs), weak=False
+        )
+
+        self.signal_a.send(self.signal_a, payload=Payload())
+
+        self.assertEqual(1, len(received))
+        self.assertTrue(self.rows("signal_a").empty)
+
     @freeze_time("2024-01-01 00:00:30 UTC")
     async def test_handle_payload_has_primary_key(self):
         class SomeEnum(Enum):
