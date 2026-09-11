@@ -8,6 +8,9 @@ import pytz
 from jolteon.engine.core.event.signal_manager import SignalManager
 from jolteon.engine.core.event.signal_recorder import SignalRecorder
 from jolteon.engine.core.logging.logger import setup_global_logger
+from jolteon.engine.market_data.book_feature_recorder import (
+    BookFeatureRecorder,
+)
 from jolteon.engine.market_data.data_source import DatabaseDataSource
 from jolteon.engine.market_data.feed import IMarketDataFeed
 from jolteon.engine.market_data.historical_feed import HistoricalFeed
@@ -46,6 +49,7 @@ class ApplicationBase(SignalManager):
         self._signal_recorder = SignalRecorder(
             database_name=database_name,
         )
+        self._book_feature_recorder = BookFeatureRecorder()
         self._fair_price_model = fair_price_model
         # _fair_price_model, then _position_manager, then
         # _post_trade_service must sort in this order: connect_all()
