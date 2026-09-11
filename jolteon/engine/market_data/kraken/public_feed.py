@@ -9,18 +9,17 @@ from enum import Enum
 import websockets
 
 from jolteon.engine.core.health_monitor.heartbeat import (
-    Heartbeater,
     HeartbeatLevel,
     starts_heartbeating,
 )
 from jolteon.engine.core.id_generator import id_generator
 from jolteon.engine.core.side import MarketSide
 from jolteon.engine.market_data.core.bbo import BBO
-from jolteon.engine.market_data.core.events import Events
 from jolteon.engine.market_data.core.trade import Trade
+from jolteon.engine.market_data.feed import Channel, IMarketDataFeed
 
 
-class PublicFeed(Heartbeater):
+class PublicFeed(IMarketDataFeed):
     """
     Download Kraken's public market data using Websockets. This class
     implements the v2 version of Kraken's websocket API.
@@ -37,9 +36,12 @@ class PublicFeed(Heartbeater):
 
     def __init__(self):
         super().__init__(type(self).__name__, interval_in_seconds=10)
-        self.events = Events()
         self._last_received_trade_id = -math.inf
         self._clock = time.monotonic
+
+    @property
+    def channels(self) -> frozenset[Channel]:
+        return frozenset({Channel.MARKET_TRADE, Channel.TICKER})
 
     @starts_heartbeating
     async def connect(

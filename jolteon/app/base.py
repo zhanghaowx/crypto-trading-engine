@@ -9,6 +9,7 @@ from jolteon.engine.core.event.signal_manager import SignalManager
 from jolteon.engine.core.event.signal_recorder import SignalRecorder
 from jolteon.engine.core.logging.logger import setup_global_logger
 from jolteon.engine.market_data.data_source import DatabaseDataSource
+from jolteon.engine.market_data.feed import IMarketDataFeed
 from jolteon.engine.market_data.historical_feed import HistoricalFeed
 from jolteon.engine.position.position_manager import PositionManager
 from jolteon.engine.post_trade.post_trade_service import PostTradeService
@@ -59,7 +60,7 @@ class ApplicationBase(SignalManager):
         self._strategy = strategy
 
         self._exec_service: object = None
-        self._md: object = None
+        self._md: IMarketDataFeed | None = None
 
         self._background_tasks: dict[
             str, tuple[asyncio.AbstractEventLoop, asyncio.Task]
@@ -70,12 +71,13 @@ class ApplicationBase(SignalManager):
         self._exec_service = service
         return self
 
-    def use_market_data_service(self, market_data: object):
+    def use_market_data_service(self, market_data: IMarketDataFeed):
         print(f"Using {type(market_data).__name__}")
         self._md = market_data
         return self
 
     async def run_start(self, *args):
+        assert self._md, "Please set a market data service before running"
         self._connect_signals()
 
         if ApplicationBase.THREAD_ENABLED:

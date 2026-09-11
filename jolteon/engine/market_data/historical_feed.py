@@ -4,16 +4,15 @@ from datetime import datetime
 from enum import StrEnum, auto
 
 from jolteon.engine.core.health_monitor.heartbeat import (
-    Heartbeater,
     HeartbeatLevel,
     starts_heartbeating,
 )
 from jolteon.engine.core.time.time_manager import time_manager
-from jolteon.engine.market_data.core.events import Events
 from jolteon.engine.market_data.data_source import IDataSource
+from jolteon.engine.market_data.feed import Channel, IMarketDataFeed
 
 
-class HistoricalFeed(Heartbeater):
+class HistoricalFeed(IMarketDataFeed):
     @dataclass
     class ErrorCode(StrEnum):
         DOWNLOADING = auto()
@@ -24,8 +23,11 @@ class HistoricalFeed(Heartbeater):
 
     def __init__(self, data_source: IDataSource):
         super().__init__(type(self).__name__, interval_in_seconds=10)
-        self.events = Events()
         self._data_source = data_source
+
+    @property
+    def channels(self) -> frozenset[Channel]:
+        return frozenset({Channel.MARKET_TRADE})
 
     @starts_heartbeating
     async def connect(
