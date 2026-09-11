@@ -138,7 +138,6 @@ def animated_metric(
         color=color,
         prefix=prefix,
         suffix=suffix,
-        help=help,
         border=border,
         key=key,
     )
@@ -182,6 +181,32 @@ def _shift_page(state_key: str, delta: int, page_count: int) -> None:
     st.session_state[state_key] = min(max(current + delta, 0), page_count - 1)
 
 
+def _goto_page(state_key: str, page: int) -> None:
+    st.session_state[state_key] = page
+
+
+def _page_window(
+    current: int, total: int, siblings: int = 1
+) -> list[int | None]:
+    """Page indices to show as buttons: first, last, `siblings` around
+    `current`, with a `None` for each collapsed gap between them."""
+    if total <= 2 * siblings + 5:
+        return list(range(total))
+    window = {0, total - 1, current}
+    for delta in range(1, siblings + 1):
+        window.add(current - delta)
+        window.add(current + delta)
+    ordered = sorted(p for p in window if 0 <= p < total)
+    pages: list[int | None] = []
+    previous: int | None = None
+    for p in ordered:
+        if previous is not None and p - previous > 1:
+            pages.append(None)
+        pages.append(p)
+        previous = p
+    return pages
+
+
 def paginate(
     df: pd.DataFrame, *, key: str, page_size: int = 10
 ) -> tuple[pd.DataFrame, Callable[[], None]]:
@@ -208,10 +233,10 @@ def paginate(
     current_page = df.iloc[start : start + page_size]
 
     def controls() -> None:
-        # One cluster ("< Page 1 of N >"), centered, rather than three
+        # One cluster (< 1 … 4 [5] 6 … 12 >), centered, rather than three
         # separately-gutter columns - `st.columns` always spaces its columns
-        # apart, which reads fine for unrelated content but pulls two
-        # buttons that belong right next to a shared label too far apart.
+        # apart, which reads fine for unrelated content but pulls buttons
+        # that belong right next to each other too far apart.
         with st.container(
             horizontal=True,
             horizontal_alignment="center",
@@ -227,11 +252,22 @@ def paginate(
                 on_click=_shift_page,
                 args=(state_key, -1, page_count),
             )
-            # `st.caption` defaults to `width="stretch"` (unlike `st.button`,
-            # which defaults to `width="content"`); left at that default it
-            # would eat all the row's remaining space and split the cluster
-            # apart instead of sitting snug between the two buttons.
-            st.caption(f"Page {page + 1} of {page_count}", width="content")
+            for index, entry in enumerate(_page_window(page, page_count)):
+                if entry is None:
+                    st.button(
+                        "…",
+                        key=f"{key}-page-ellipsis-{index}",
+                        disabled=True,
+                    )
+                    continue
+                st.button(
+                    str(entry + 1),
+                    key=f"{key}-page-{entry}",
+                    type="primary" if entry == page else "secondary",
+                    disabled=entry == page,
+                    on_click=_goto_page,
+                    args=(state_key, entry),
+                )
             st.button(
                 "",
                 icon=":material/chevron_right:",

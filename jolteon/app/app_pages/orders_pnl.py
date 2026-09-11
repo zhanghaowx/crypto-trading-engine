@@ -153,8 +153,22 @@ _SIDE_BADGE_COLORS: dict[str, BadgeColor] = {"BUY": "green", "SELL": "red"}
 
 _FILL_ROW_CSS = """
 [class*="st-key-row-fill-"] {
-  border-bottom: 1px solid #D7D7D3;
+  border-bottom: 1px solid #E5E5E5;
   padding: 6px 0;
+}
+"""
+
+_FILL_HEADER_CSS = """
+[class*="st-key-fills-table-header"] {
+  background-color: #FAFAFA;
+  border-bottom: 1px solid #E5E5E5;
+  padding: 8px 4px;
+}
+[class*="st-key-fills-table-header"] p {
+  font-weight: 500;
+  font-size: 0.8rem;
+  color: #525252;
+  margin: 0;
 }
 """
 
@@ -232,15 +246,19 @@ def render_fills_list(display: pd.DataFrame) -> None:
     # when paging onto a shorter page (the last page of a table isn't
     # always full).
     with st.empty(), st.container():
-        for col, label in zip(st.columns(weights), labels):
-            col.markdown(f"**{label}**")
+        with st.container(key="fills-table-header"):
+            for col, label in zip(st.columns(weights), labels):
+                col.write(label)
 
         for _, row in display.iterrows():
             with st.container(key=row_key("fill", _fill_identity(row))):
                 for col, label in zip(st.columns(weights), labels):
                     _render_fill_cell(col, label, row[label])
 
-        st.html(f"<style>{row_add_rule('fill')}{_FILL_ROW_CSS}</style>")
+        st.html(
+            f"<style>{row_add_rule('fill')}{_FILL_ROW_CSS}"
+            f"{_FILL_HEADER_CSS}</style>"
+        )
 
 
 def pnl_by_symbol(
