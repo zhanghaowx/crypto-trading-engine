@@ -6,6 +6,7 @@ from jolteon.app.analytics import (
     avg_fair_price_movement,
     classify_inventory_bucket,
     compute_edge,
+    compute_fill_edge,
     compute_markout,
     compute_net_markout,
     fair_price_movement,
@@ -95,6 +96,20 @@ def test_buy_edge_is_fair_minus_execution_price():
 def test_sell_edge_is_execution_price_minus_fair():
     fills = _fill("SELL", 105.0, fair_price_at_fill=100.0)
     assert compute_edge(fills).iloc[0] == pytest.approx(5.0)
+
+
+def test_fill_edge_scales_by_quantity_and_subtracts_the_fee():
+    fills = _fill("BUY", 95.0, fair_price_at_fill=100.0)
+    fills["fill_qty"] = 2.0
+    fills["fee"] = 0.5
+    assert compute_fill_edge(fills).iloc[0] == pytest.approx(9.5)
+
+
+def test_fill_edge_turns_negative_when_the_fee_outweighs_the_edge():
+    fills = _fill("SELL", 100.1, fair_price_at_fill=100.0)
+    fills["fill_qty"] = 1.0
+    fills["fee"] = 0.5
+    assert compute_fill_edge(fills).iloc[0] == pytest.approx(-0.4)
 
 
 def test_fair_price_movement_is_signed_and_side_independent():

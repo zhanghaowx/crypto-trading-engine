@@ -43,6 +43,12 @@ def compute_edge(fills: pd.DataFrame) -> pd.Series:
     return _signed(fills, fills["fair_price_at_fill"])
 
 
+def compute_fill_edge(fills: pd.DataFrame) -> pd.Series:
+    """Total USD edge kept on each fill: the per-unit edge scaled by how
+    much was traded, less the fee paid to trade it."""
+    return compute_edge(fills) * fills["fill_qty"] - fills["fee"]
+
+
 def usd_to_bps(usd: pd.Series, execution_price: pd.Series) -> pd.Series:
     """A USD amount as basis points of the execution price."""
     return usd / execution_price * 10_000
