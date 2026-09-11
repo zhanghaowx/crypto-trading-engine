@@ -14,7 +14,13 @@ from jolteon.engine.core.health_monitor.heartbeat import (
 )
 from jolteon.engine.core.id_generator import id_generator
 from jolteon.engine.core.side import MarketSide
+from jolteon.engine.core.time.time_manager import time_manager
 from jolteon.engine.market_data.core.bbo import BBO
+from jolteon.engine.market_data.core.order_book import (
+    BookUpdate,
+    OrderBook,
+    PriceLevel,
+)
 from jolteon.engine.market_data.core.trade import Trade
 from jolteon.engine.market_data.feed import Channel, IMarketDataFeed
 
@@ -29,6 +35,7 @@ class PublicFeed(IMarketDataFeed):
 
     PRODUCTION_URI = "wss://ws.kraken.com/v2"
     MIN_HEALTHY_CONNECTION_SECONDS = 60
+    BOOK_DEPTH = 10
 
     class ErrorCode(Enum):
         CONNECTION_LOST = "Connection Lost"
@@ -38,10 +45,14 @@ class PublicFeed(IMarketDataFeed):
         super().__init__(type(self).__name__, interval_in_seconds=10)
         self._last_received_trade_id = -math.inf
         self._clock = time.monotonic
+        self._order_book = OrderBook("")
+        self._last_bbo: BBO | None = None
 
     @property
     def channels(self) -> frozenset[Channel]:
-        return frozenset({Channel.MARKET_TRADE, Channel.TICKER})
+        return frozenset(
+            {Channel.MARKET_TRADE, Channel.TICKER, Channel.ORDER_BOOK}
+        )
 
     @starts_heartbeating
     async def connect(
@@ -81,15 +92,19 @@ class PublicFeed(IMarketDataFeed):
             An asyncio task to be waiting for incoming messages
         """
 
+        self._order_book = OrderBook(symbol)
+        self._last_bbo = None
+
         async with websockets.connect(PublicFeed.PRODUCTION_URI) as websocket:
 
-            async def subscribe_to_channel(channel_name: str):
+            async def subscribe_to_channel(channel_name: str, **params):
                 subscribe_message = {
                     "method": "subscribe",
                     "params": {
                         "channel": channel_name,
                         "snapshot": True,
                         "symbol": [symbol],
+                        **params,
                     },
                     "req_id": id_generator().next(),
                 }
@@ -104,6 +119,9 @@ class PublicFeed(IMarketDataFeed):
             # Ticker channel pushes updates whenever there is a trade or there
             # is a change (price or quantity) at the top-of-book.
             await subscribe_to_channel("ticker")
+            # Book channel pushes one snapshot followed by incremental
+            # updates to the levels behind the touch.
+            await subscribe_to_channel("book", depth=PublicFeed.BOOK_DEPTH)
 
             while True:
                 try:
@@ -148,6 +166,33 @@ class PublicFeed(IMarketDataFeed):
                 f"exception: {e}",
                 exc_info=True,
             )
+
+    def _decode_book_update(self, book_json, is_snapshot: bool) -> BookUpdate:
+        timestamp = book_json.get("timestamp")
+        return BookUpdate(
+            symbol=book_json["symbol"],
+            bids=[
+                PriceLevel(float(level["price"]), float(level["qty"]))
+                for level in book_json["bids"]
+            ],
+            asks=[
+                PriceLevel(float(level["price"]), float(level["qty"]))
+                for level in book_json["asks"]
+            ],
+            is_snapshot=is_snapshot,
+            exchange_time=(
+                datetime.fromisoformat(timestamp)
+                if timestamp
+                else time_manager().now()
+            ),
+        )
+
+    def _publish_bbo(self, bbo: BBO | None) -> None:
+        if not bbo or bbo == self._last_bbo:
+            return
+
+        self._last_bbo = bbo
+        self._dispatch_isolating_receiver_errors(self.events.ticker, bbo=bbo)
 
     def _decode_message(self, response):
         possible_error = response.get("error")
@@ -228,16 +273,50 @@ class PublicFeed(IMarketDataFeed):
                 "Should only receive ticker feed for one symbol"
             )
             ticker_json = response["data"][0]
-            bbo = BBO(
-                symbol=ticker_json["symbol"],
-                bid_price=ticker_json["bid"],
-                bid_quantity=ticker_json["bid_qty"],
-                ask_price=ticker_json["ask"],
-                ask_quantity=ticker_json["ask_qty"],
-            )
-            self._dispatch_isolating_receiver_errors(
-                self.events.ticker, bbo=bbo
-            )
+            # The book is the authoritative view of the touch on this feed.
+            # Ticker only fills the gap before the first book snapshot, and
+            # again while a desynced book is being rebuilt; otherwise the
+            # two views disagree transiently and BBO consumers see the
+            # touch flicker between them.
+            if not self._order_book.bbo():
+                self._publish_bbo(
+                    BBO(
+                        symbol=ticker_json["symbol"],
+                        bid_price=ticker_json["bid"],
+                        bid_quantity=ticker_json["bid_qty"],
+                        ask_price=ticker_json["ask"],
+                        ask_quantity=ticker_json["ask_qty"],
+                    )
+                )
+        elif message_type == "book":
+            """
+            Below is an example of a book message from Kraken. A snapshot
+            carries the whole book to the subscribed depth, an update
+            carries only the levels that changed, and a quantity of zero
+            means the level is gone:
+            {
+              "channel": "book",
+              "data": [
+                {
+                  "symbol": "BTC/USD",
+                  "bids": [{"price": 45283.5, "qty": 0.10000000}],
+                  "asks": [{"price": 45284.2, "qty": 0.00000000}],
+                  "checksum": 3039719286,
+                  "timestamp": "2023-10-06T17:35:55.440295Z"
+                }
+              ],
+              "type": "update"
+            }
+            """
+            is_snapshot = response.get("type") == "snapshot"
+            for book_json in response["data"]:
+                self._order_book.apply(
+                    self._decode_book_update(book_json, is_snapshot)
+                )
+                self._dispatch_isolating_receiver_errors(
+                    self.events.order_book, order_book=self._order_book
+                )
+                self._publish_bbo(self._order_book.bbo())
         elif message_type == "trade":
             """
             Below is an example of one trade message from Kraken:
