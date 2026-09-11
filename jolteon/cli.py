@@ -15,11 +15,17 @@ import pytz
 from jolteon.app.progress_bar import ProgressBar
 from jolteon.engine.core.market import Market
 from jolteon.engine.market_data.data_source import DatabaseDataSource
+from jolteon.engine.strategy.market_making.fair_value.adjusted_model import (
+    AdjustedFairPriceModel,
+)
 from jolteon.engine.strategy.market_making.fair_value.mid_price_model import (
     MidPriceFairPriceModel,
 )
 from jolteon.engine.strategy.market_making.market_making_strategy import (
     MarketMakingStrategy,
+)
+from jolteon.engine.strategy.market_making.parameters import (
+    StaticParameterService,
 )
 
 _active_app = None
@@ -133,7 +139,12 @@ async def main():
             )
             # Shared with PostTradeService below, so decorated fills are
             # scored against the same fair price the strategy quotes off.
-            fair_price_model = MidPriceFairPriceModel()
+            # Signals land in `adjustments` below (STRATEGY.md Part 3).
+            fair_price_model = AdjustedFairPriceModel(
+                base=MidPriceFairPriceModel(),
+                adjustments=[],
+                max_adjustment=StaticParameterService.DEFAULT_HALF_SPREAD,
+            )
             strategy = MarketMakingStrategy(
                 symbol=strategy_symbol, fair_price_model=fair_price_model
             )
