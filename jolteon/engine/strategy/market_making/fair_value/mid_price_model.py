@@ -1,6 +1,6 @@
+from jolteon.engine.market_data.core.book_snapshot import BookSnapshot
 from jolteon.engine.strategy.market_making.fair_value.fair_price_model import (
     FairPrice,
-    FairPriceContext,
     IFairPriceModel,
 )
 
@@ -14,6 +14,6 @@ class MidPriceFairPriceModel(IFairPriceModel):
     else in the strategy.
     """
 
-    def _calculate(self, context: FairPriceContext) -> FairPrice:
+    def _calculate(self, context: BookSnapshot) -> FairPrice:
         mid = (context.bbo.bid_price + context.bbo.ask_price) / 2
         return FairPrice(bid=mid, ask=mid)

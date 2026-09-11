@@ -1,16 +1,16 @@
 import unittest
 
 from jolteon.engine.market_data.core.bbo import BBO
+from jolteon.engine.market_data.core.book_snapshot import BookSnapshot
 from jolteon.engine.strategy.market_making.fair_value.fair_price_model import (
     FairPrice,
-    FairPriceContext,
     FairPriceUpdate,
     IFairPriceModel,
 )
 
 
 class StubFairPriceModel(IFairPriceModel):
-    def _calculate(self, context: FairPriceContext) -> FairPrice:
+    def _calculate(self, context: BookSnapshot) -> FairPrice:
         return FairPrice(bid=1.0, ask=2.0)
 
 
@@ -37,14 +37,14 @@ class TestIFairPriceModel(unittest.TestCase):
 
         self.assertEqual(
             FairPrice(bid=1.0, ask=2.0),
-            model.calculate(FairPriceContext(bbo=self.bbo)),
+            model.calculate(BookSnapshot(bbo=self.bbo)),
         )
 
     def test_update_names_the_emitting_model(self):
         model = StubFairPriceModel()
         self._record(model)
 
-        model.calculate(FairPriceContext(bbo=self.bbo))
+        model.calculate(BookSnapshot(bbo=self.bbo))
 
         self.assertEqual(
             [

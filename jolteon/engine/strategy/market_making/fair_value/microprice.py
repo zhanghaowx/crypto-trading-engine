@@ -1,6 +1,4 @@
-from jolteon.engine.strategy.market_making.fair_value.fair_price_model import (
-    FairPriceContext,
-)
+from jolteon.engine.market_data.core.book_snapshot import BookSnapshot
 from jolteon.engine.strategy.market_making.fair_value.price_adjustment import (
     IFairPriceAdjustment,
 )
@@ -21,7 +19,7 @@ class MicropriceAdjustment(IFairPriceAdjustment):
     def name(self) -> str:
         return "microprice"
 
-    def adjustment(self, context: FairPriceContext) -> float:
+    def adjustment(self, context: BookSnapshot) -> float:
         bbo = context.bbo
         total_quantity = bbo.bid_quantity + bbo.ask_quantity
         if total_quantity <= 0:

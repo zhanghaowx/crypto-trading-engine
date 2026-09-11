@@ -1,10 +1,8 @@
 import unittest
 
 from jolteon.engine.market_data.core.bbo import BBO
+from jolteon.engine.market_data.core.book_snapshot import BookSnapshot
 from jolteon.engine.position.position_manager import PositionUpdate
-from jolteon.engine.strategy.market_making.fair_value.fair_price_model import (
-    FairPriceContext,
-)
 from jolteon.engine.strategy.market_making.fair_value.inventory import (
     InventoryAdjustment,
 )
@@ -12,8 +10,8 @@ from jolteon.engine.strategy.market_making.fair_value.inventory import (
 
 class TestInventoryAdjustment(unittest.TestCase):
     @staticmethod
-    def context(symbol: str = "BTC/USD") -> FairPriceContext:
-        return FairPriceContext(
+    def context(symbol: str = "BTC/USD") -> BookSnapshot:
+        return BookSnapshot(
             bbo=BBO(
                 symbol=symbol,
                 bid_price=100.0,

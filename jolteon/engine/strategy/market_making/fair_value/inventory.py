@@ -1,8 +1,6 @@
 from jolteon.engine.core.event.signal import subscribe
+from jolteon.engine.market_data.core.book_snapshot import BookSnapshot
 from jolteon.engine.position.position_manager import PositionUpdate
-from jolteon.engine.strategy.market_making.fair_value.fair_price_model import (
-    FairPriceContext,
-)
 from jolteon.engine.strategy.market_making.fair_value.price_adjustment import (
     IFairPriceAdjustment,
 )
@@ -27,7 +25,7 @@ class InventoryAdjustment(IFairPriceAdjustment):
     def name(self) -> str:
         return "inventory"
 
-    def adjustment(self, context: FairPriceContext) -> float:
+    def adjustment(self, context: BookSnapshot) -> float:
         volume = self._volume.get(context.bbo.symbol, 0.0)
         return -self._scale * volume
 

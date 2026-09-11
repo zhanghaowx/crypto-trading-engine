@@ -1,16 +1,14 @@
 from abc import ABC, abstractmethod
 
 from jolteon.engine.core.event.signal_subscriber import SignalSubscriber
-from jolteon.engine.strategy.market_making.fair_value.fair_price_model import (
-    FairPriceContext,
-)
+from jolteon.engine.market_data.core.book_snapshot import BookSnapshot
 
 
 class IFairPriceAdjustment(SignalSubscriber, ABC):
     """
     One self-contained input into a composite fair price model: it sources
     whatever data it needs on its own (by subscribing to signals, or from
-    `FairPriceContext` alone), holds its own tuning, and returns a single
+    `BookSnapshot` alone), holds its own tuning, and returns a single
     price offset ready to add to the base fair price. Nothing outside an
     adjustment needs to know how it arrived at that number.
 
@@ -25,5 +23,5 @@ class IFairPriceAdjustment(SignalSubscriber, ABC):
         raise NotImplementedError  # pragma: no cover
 
     @abstractmethod
-    def adjustment(self, context: FairPriceContext) -> float:
+    def adjustment(self, context: BookSnapshot) -> float:
         raise NotImplementedError  # pragma: no cover

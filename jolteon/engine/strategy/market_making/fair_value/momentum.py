@@ -1,9 +1,7 @@
 from jolteon.engine.core.event.signal import subscribe
 from jolteon.engine.core.side import MarketSide
+from jolteon.engine.market_data.core.book_snapshot import BookSnapshot
 from jolteon.engine.market_data.core.trade import Trade
-from jolteon.engine.strategy.market_making.fair_value.fair_price_model import (
-    FairPriceContext,
-)
 from jolteon.engine.strategy.market_making.fair_value.price_adjustment import (
     IFairPriceAdjustment,
 )
@@ -30,7 +28,7 @@ class MomentumAdjustment(IFairPriceAdjustment):
     def name(self) -> str:
         return "momentum"
 
-    def adjustment(self, context: FairPriceContext) -> float:
+    def adjustment(self, context: BookSnapshot) -> float:
         if self._trades_seen < self._min_trades:
             return 0.0
         return self._scale * self._flow

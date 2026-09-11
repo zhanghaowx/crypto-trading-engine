@@ -3,9 +3,9 @@ from dataclasses import dataclass, field
 
 from jolteon.engine.core.event.signal import signal
 from jolteon.engine.core.event.signal_subscriber import SignalSubscriber
+from jolteon.engine.market_data.core.book_snapshot import BookSnapshot
 from jolteon.engine.strategy.market_making.fair_value.fair_price_model import (
     FairPrice,
-    FairPriceContext,
     IFairPriceModel,
 )
 from jolteon.engine.strategy.market_making.fair_value.price_adjustment import (
@@ -52,7 +52,7 @@ class AdjustedFairPriceModel(IFairPriceModel, SignalSubscriber):
         for adjustment in self._adjustments:
             adjustment.connect()
 
-    def _calculate(self, context: FairPriceContext) -> FairPrice:
+    def _calculate(self, context: BookSnapshot) -> FairPrice:
         base_price = self._base.calculate(context)
         base_mid = (base_price.bid + base_price.ask) / 2
 

@@ -1,9 +1,7 @@
 import unittest
 
 from jolteon.engine.market_data.core.bbo import BBO
-from jolteon.engine.strategy.market_making.fair_value.fair_price_model import (
-    FairPriceContext,
-)
+from jolteon.engine.market_data.core.book_snapshot import BookSnapshot
 from jolteon.engine.strategy.market_making.fair_value.price_adjustment import (
     IFairPriceAdjustment,
 )
@@ -18,14 +16,14 @@ class StubAdjustment(IFairPriceAdjustment):
     def name(self) -> str:
         return self._name
 
-    def adjustment(self, context: FairPriceContext) -> float:
+    def adjustment(self, context: BookSnapshot) -> float:
         return self._value
 
 
 class TestIFairPriceAdjustment(unittest.TestCase):
     def test_subclass_reports_its_name_and_adjustment(self):
         adjustment = StubAdjustment("stub", 1.5)
-        context = FairPriceContext(
+        context = BookSnapshot(
             bbo=BBO(
                 symbol="BTC/USD",
                 bid_price=100.0,
