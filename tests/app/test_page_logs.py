@@ -10,6 +10,14 @@ def _script():
     logs.render()
 
 
+def _has_errors_script():
+    import streamlit as st
+
+    from jolteon.app.app_pages import logs
+
+    st.session_state["result"] = logs.has_errors()
+
+
 def _write_logs(
     db_path: str, *rows: tuple[str, str, str, str, str, str]
 ) -> None:
@@ -21,6 +29,48 @@ def _write_logs(
     conn.executemany("INSERT INTO logs VALUES (?, ?, ?, ?, ?, ?)", rows)
     conn.commit()
     conn.close()
+
+
+def test_has_errors_true_when_db_missing(missing_db_path):
+    # Not yet knowable either way, so the card stays visible with the same
+    # "waiting for the engine" warning every other section shows.
+    at = AppTest.from_function(_has_errors_script)
+    at.session_state["log_db_path"] = missing_db_path
+    at.run()
+
+    assert not at.exception
+    assert at.session_state["result"] is True
+
+
+def test_has_errors_false_when_no_error_rows(empty_db_path):
+    at = AppTest.from_function(_has_errors_script)
+    at.session_state["log_db_path"] = empty_db_path
+    at.run()
+
+    assert not at.exception
+    assert at.session_state["result"] is False
+
+
+def test_has_errors_true_when_error_rows_recorded(tmp_path):
+    db_path = str(tmp_path / "logs.sqlite")
+    _write_logs(
+        db_path,
+        (
+            "1700000000.0",
+            "jolteon",
+            "ERROR",
+            "feed.py",
+            "42",
+            "connection dropped",
+        ),
+    )
+
+    at = AppTest.from_function(_has_errors_script)
+    at.session_state["log_db_path"] = db_path
+    at.run()
+
+    assert not at.exception
+    assert at.session_state["result"] is True
 
 
 def test_shows_warning_when_db_missing(missing_db_path):

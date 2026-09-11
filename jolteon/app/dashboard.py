@@ -49,7 +49,10 @@ def _section(
     icon: str,
     render_fn: Callable[[], None],
     actions: Callable[[], None] | None = None,
+    visible: Callable[[], bool] | None = None,
 ) -> None:
+    if visible is not None and not visible():
+        return
     with st.container(border=True, key=_section_key(title)):
         if actions is None:
             st.subheader(title, icon=icon)
@@ -69,11 +72,17 @@ def _section(
 
 def _render_sections(
     sections: list[
-        tuple[str, str, Callable[[], None], Callable[[], None] | None]
+        tuple[
+            str,
+            str,
+            Callable[[], None],
+            Callable[[], None] | None,
+            Callable[[], bool] | None,
+        ]
     ],
 ) -> None:
-    for title, icon, render_fn, actions in sections:
-        _section(title, icon, render_fn, actions)
+    for title, icon, render_fn, actions, visible in sections:
+        _section(title, icon, render_fn, actions, visible)
 
 
 def main() -> None:
@@ -88,26 +97,52 @@ def main() -> None:
         parameters.render()
 
     sections: list[
-        tuple[str, str, Callable[[], None], Callable[[], None] | None]
+        tuple[
+            str,
+            str,
+            Callable[[], None],
+            Callable[[], None] | None,
+            Callable[[], bool] | None,
+        ]
     ] = [
         # Health leads: if a component has gone quiet, everything below it
         # is stale data and the reader needs to know that first.
-        ("Health", ":material/monitor_heart:", health.render, None),
-        ("Market Data", ":material/show_chart:", market_data.render, None),
-        ("Risk Limits", ":material/earthquake:", risk_limits.render, None),
+        ("Health", ":material/monitor_heart:", health.render, None, None),
+        (
+            "Market Data",
+            ":material/show_chart:",
+            market_data.render,
+            None,
+            None,
+        ),
+        (
+            "Risk Limits",
+            ":material/earthquake:",
+            risk_limits.render,
+            None,
+            None,
+        ),
         (
             "Orders & PnL",
             ":material/currency_bitcoin:",
             orders_pnl.render,
             orders_pnl.render_header_actions,
+            None,
         ),
         (
             "Trade Quality",
             ":material/target:",
             orders_pnl.render_trade_quality,
             None,
+            None,
         ),
-        ("Errors", ":material/error:", logs.render, None),
+        (
+            "Errors",
+            ":material/error:",
+            logs.render,
+            None,
+            logs.has_errors,
+        ),
     ]
 
     # Emitted before any card renders, not after: Streamlit streams

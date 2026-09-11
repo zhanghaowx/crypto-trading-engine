@@ -12,6 +12,22 @@ def test_dashboard_renders_every_section_on_one_page(dashboard):
     ]
 
 
+def test_dashboard_hides_errors_section_once_confirmed_empty(
+    dashboard, empty_db_path
+):
+    dashboard.session_state["log_db_path"] = empty_db_path
+    at = dashboard.run()
+
+    assert not at.exception
+    assert [s.value for s in at.subheader] == [
+        "Health",
+        "Market Data",
+        "Risk Limits",
+        "Orders & PnL",
+        "Trade Quality",
+    ]
+
+
 def test_dashboard_warns_in_every_section_when_db_missing(dashboard):
     at = dashboard.run()
 
