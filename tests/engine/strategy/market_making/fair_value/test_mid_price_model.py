@@ -49,6 +49,7 @@ class TestMidPriceFairPriceModel(unittest.TestCase):
             [
                 FairPriceUpdate(
                     symbol="BTC/USD",
+                    model="MidPriceFairPriceModel",
                     bid_fair_price=101.0,
                     ask_fair_price=101.0,
                 )
