@@ -34,13 +34,13 @@ class TestHeartbeater(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(
             str(heartbeats[0]),
-            "Heartbeat: level=HeartbeatLevel.NORMAL, sender=None, message=None, "
-            "report_time=2",
+            "Heartbeat: level=HeartbeatLevel.NORMAL, sender=None, "
+            "message=None, report_time=2",
         )
         self.assertEqual(
             str(heartbeats[1]),
-            "Heartbeat: level=HeartbeatLevel.WARN, sender=None, message=Hello, "
-            "report_time=1",
+            "Heartbeat: level=HeartbeatLevel.WARN, sender=None, "
+            "message=Hello, report_time=1",
         )
 
     async def test_default_heartbeat(self):

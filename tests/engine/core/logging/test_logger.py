@@ -144,10 +144,6 @@ class TestLogging(unittest.IsolatedAsyncioTestCase):
         Makes sure that the application could gracefully shut down even when
         no logging is written to the database.
         """
-        log_table_exists_query = (
-            f"SELECT name FROM sqlite_master "
-            f"WHERE type='table' AND name='logs';"
-        )
         with self.assertLogs(level="INFO"):
             self.setup_logger(logging.DEBUG, logfile_db=self.database_filepath)
             with closing(sqlite3.connect(self.database_filepath)) as conn:

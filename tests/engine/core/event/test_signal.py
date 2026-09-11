@@ -37,7 +37,7 @@ class TestSubscribeFunction(unittest.TestCase):
                 pass
 
     def test_subscribe_valid_input(self):
-        new_signal = signal("valid_signal")
+        signal("valid_signal")
         self.assertIn("valid_signal", signal_namespace.keys())
 
         # Test subscribing with valid input
