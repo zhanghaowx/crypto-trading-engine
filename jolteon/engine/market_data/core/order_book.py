@@ -35,6 +35,11 @@ class OrderBook:
     search, so the best bid is the last bid and the best ask is the first
     ask. Reads hand back the best levels first, whichever side they come
     from.
+
+    A venue publishing only the top `depth` levels does not always say
+    when a level falls out of that window, so a book given a depth trims
+    itself back to it after every update. Without that, a level that left
+    the window lingers and reappears as the market moves back over it.
     """
 
     # SignalRecorder would flatten a book into one column per level per
@@ -42,9 +47,11 @@ class OrderBook:
     # recorded instead.
     RECORDED = False
 
-    def __init__(self, symbol: str):
+    def __init__(self, symbol: str, depth: int | None = None):
+        assert depth is None or depth > 0, "depth must be positive"
         self.symbol = symbol
         self.exchange_time: datetime | None = None
+        self._depth = depth
         self._bids: list[PriceLevel] = []
         self._asks: list[PriceLevel] = []
 
@@ -56,6 +63,10 @@ class OrderBook:
             self._apply_level(self._bids, level)
         for level in update.asks:
             self._apply_level(self._asks, level)
+
+        if self._depth is not None:
+            del self._bids[: -self._depth]
+            del self._asks[self._depth :]
 
         self.exchange_time = update.exchange_time
 
