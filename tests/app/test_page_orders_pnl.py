@@ -89,10 +89,9 @@ def test_renders_pnl_and_recent_fills(populated_db_path):
     # soon after, so their markout renders as "-".
     assert "Edge" in markdown_values
     assert ":green[+$0.50]" in markdown_values
-    assert "Inventory Before" in markdown_values
-    assert "0.000000" in markdown_values
-    assert "Inventory After" in markdown_values
     assert "1.000000" in markdown_values
+    assert "Inventory Before" not in markdown_values
+    assert "Inventory After" not in markdown_values
     assert "Markout +100ms" in markdown_values
     assert "-" in markdown_values
 
@@ -137,8 +136,6 @@ def test_fills_table_uses_readable_headers_and_drops_opaque_ids(
         "Quantity",
         "Value",
         "Fee",
-        "Inventory Before",
-        "Inventory After",
         "Markout +100ms",
         "Markout +1s",
         "Markout +5s",
