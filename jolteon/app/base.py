@@ -45,11 +45,14 @@ class ApplicationBase(SignalManager):
         self._signal_recorder = SignalRecorder(
             database_name=database_name,
         )
-        self._position_manager = PositionManager()
-        # _position_manager must sort before _post_trade_service here:
-        # connect_all() connects subscribers in alphabetical dir() order,
-        # and PostTradeService.on_fill relies on PositionManager's
+        self._fair_price_model = fair_price_model
+        # _fair_price_model, then _position_manager, then
+        # _post_trade_service must sort in this order: connect_all()
+        # connects subscribers in alphabetical dir() order, an adjustment
+        # needs a tick before the strategy quotes off it, and
+        # PostTradeService.on_fill relies on PositionManager's
         # position_updated having already fired for the same fill.
+        self._position_manager = PositionManager()
         self._post_trade_service = PostTradeService(
             fair_price_model=fair_price_model
         )

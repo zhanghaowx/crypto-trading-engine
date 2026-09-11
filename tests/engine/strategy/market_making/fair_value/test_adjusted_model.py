@@ -117,6 +117,24 @@ class TestAdjustedFairPriceModel(unittest.TestCase):
             FairPrice(bid=100.0, ask=100.0), model.calculate(self.context)
         )
 
+    def test_max_adjustment_does_not_clamp_a_total_within_bounds(self):
+        model = AdjustedFairPriceModel(
+            base=MidPriceFairPriceModel(),
+            adjustments=[StubAdjustment("a", 0.5)],
+            max_adjustment=1.0,
+        )
+        snapshots = list[FairPriceAdjustmentSnapshot]()
+
+        def on_snapshot(_, fair_price_adjustment: FairPriceAdjustmentSnapshot):
+            snapshots.append(fair_price_adjustment)
+
+        model.fair_price_adjustment_event.connect(on_snapshot)
+
+        self.assertEqual(
+            FairPrice(bid=101.5, ask=101.5), model.calculate(self.context)
+        )
+        self.assertFalse(snapshots[0].clamped)
+
     def test_no_max_adjustment_leaves_a_large_total_unclamped(self):
         model = AdjustedFairPriceModel(
             base=MidPriceFairPriceModel(),

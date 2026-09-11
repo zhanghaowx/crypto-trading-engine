@@ -9,6 +9,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytz
 
 from jolteon.cli import main
+from jolteon.engine.strategy.market_making.fair_value.adjusted_model import (
+    AdjustedFairPriceModel,
+)
+from jolteon.engine.strategy.market_making.fair_value.mid_price_model import (
+    MidPriceFairPriceModel,
+)
 from jolteon.engine.strategy.market_making.market_making_strategy import (
     MarketMakingStrategy,
 )
@@ -257,6 +263,13 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
         strategy = MockApplication.call_args.kwargs["strategy"]
         self.assertIsInstance(strategy, MarketMakingStrategy)
         self.assertEqual("BTC/USD", strategy._symbol)
+
+        fair_price_model = MockApplication.call_args.kwargs["fair_price_model"]
+        self.assertIsInstance(fair_price_model, AdjustedFairPriceModel)
+        self.assertIsInstance(fair_price_model._base, MidPriceFairPriceModel)
+        self.assertEqual([], fair_price_model._adjustments)
+        self.assertIs(fair_price_model, strategy._fair_price_model)
+
         self.assertEqual("", captured_output.getvalue().split("\n")[-1])
 
     async def test_graceful_exit(self):
