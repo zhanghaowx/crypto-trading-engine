@@ -67,11 +67,12 @@ def _slope_and_correlation(
     paired = pd.DataFrame(
         {"signal": signal, "forward_return": forward_return}
     ).dropna()
-    variance = paired["signal"].var()
-    if len(paired) < 2 or not variance:
+    signal_variance = paired["signal"].var()
+    forward_variance = paired["forward_return"].var()
+    if len(paired) < 2 or not signal_variance or not forward_variance:
         return float("nan"), float("nan"), len(paired)
 
-    slope = paired["signal"].cov(paired["forward_return"]) / variance
+    slope = paired["signal"].cov(paired["forward_return"]) / signal_variance
     correlation = paired["signal"].corr(paired["forward_return"])
     return float(slope), float(correlation), len(paired)
 
