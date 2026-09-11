@@ -1,6 +1,9 @@
+import contextlib
+import io
 import os
 import sqlite3
 import tempfile
+import threading
 import time
 import unittest
 import uuid
@@ -243,4 +246,107 @@ class TestSQLiteWriter(unittest.TestCase):
         self.assertEqual(
             [(num_threads * rows_each,)],
             self.query("SELECT COUNT(*) FROM t"),
+        )
+
+    def test_empty_row_writes_nothing(self):
+        self.writer.put("t", {})
+        self.writer.flush()
+
+        self.assertEqual(
+            [], self.query("SELECT name FROM sqlite_master WHERE name='t'")
+        )
+
+    def test_row_that_is_only_a_primary_key_is_not_duplicated(self):
+        self.writer.put("t", {"id": 1}, primary_key="id")
+        self.writer.flush()
+        self.writer.put("t", {"id": 1}, primary_key="id")
+        self.writer.flush()
+
+        self.assertEqual([(1,)], self.query("SELECT id FROM t"))
+
+    def test_a_burst_larger_than_one_batch_loses_nothing(self):
+        """
+        A burst the disk can't keep up with is committed in pieces, so the
+        writer never holds the write lock for one huge transaction.
+        """
+        total = 6000
+        with closing(
+            sqlite3.connect(self.database_filepath, isolation_level=None)
+        ) as blocker:
+            blocker.execute("BEGIN EXCLUSIVE")
+            try:
+                for i in range(total):
+                    self.writer.put("t", {"a": i})
+            finally:
+                blocker.execute("ROLLBACK")
+
+        self.writer.flush()
+        self.assertEqual([(total,)], self.query("SELECT COUNT(*) FROM t"))
+
+    def test_flush_gives_up_when_the_writer_thread_is_gone(self):
+        """
+        Nothing will ever set the flush marker once the writer thread has
+        died, so waiting on it outright would hang the caller forever.
+        """
+
+        class _DeadThread:
+            def __init__(self):
+                self.checks = 0
+
+            def is_alive(self):
+                self.checks += 1
+                return self.checks == 1
+
+        self.writer.close()
+        self.writer._thread = _DeadThread()
+
+        self.writer.flush()
+
+    def test_close_while_the_database_cannot_be_opened(self):
+        """
+        A shutdown requested before the writer gives up on opening the
+        database must still return, reporting why nothing was written.
+        """
+        release = threading.Event()
+        raised: list[BaseException] = []
+
+        def blocked_connect(_self):
+            release.wait(timeout=5)
+            raise sqlite3.OperationalError("cannot open database")
+
+        def close_writer():
+            try:
+                writer.close()
+            except BaseException as e:
+                raised.append(e)
+
+        with patch.object(SQLiteWriter, "_connect", blocked_connect):
+            writer = SQLiteWriter(self.database_filepath)
+            writer.put("t", {"a": 1})
+
+            closing_thread = threading.Thread(target=close_writer)
+            closing_thread.start()
+            release.set()
+            closing_thread.join(timeout=5)
+
+        self.assertFalse(closing_thread.is_alive())
+        self.assertEqual(1, len(raised))
+        self.assertIsInstance(raised[0], sqlite3.OperationalError)
+
+    def test_close_quietly_reports_failure_on_stderr(self):
+        """
+        atexit has nowhere to raise to, and logging would feed the failure
+        back into a writer of its own.
+        """
+        stderr = io.StringIO()
+        with (
+            patch.object(
+                self.writer, "close", side_effect=sqlite3.OperationalError
+            ),
+            contextlib.redirect_stderr(stderr),
+        ):
+            self.writer._close_quietly()
+
+        self.assertIn(
+            f"Failed to write to {self.database_filepath}", stderr.getvalue()
         )
