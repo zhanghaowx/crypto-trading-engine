@@ -35,7 +35,7 @@ class StaticParameterService(IParameterService):
     """
 
     DEFAULT_QUOTE_SIZE = 0.0005
-    DEFAULT_HALF_SPREAD = 5.0
+    DEFAULT_HALF_SPREAD = 50.0
     DEFAULT_MAX_INVENTORY = 0.002
 
     def __init__(
