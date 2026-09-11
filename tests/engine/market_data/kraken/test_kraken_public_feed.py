@@ -1,9 +1,11 @@
 import unittest
+from datetime import datetime
 from unittest.mock import AsyncMock, Mock, patch
 
 import websockets
 
 from jolteon.engine.core.health_monitor.heartbeat import HeartbeatLevel
+from jolteon.engine.market_data.core.order_book import PriceLevel
 from jolteon.engine.market_data.kraken.public_feed import PublicFeed
 
 
@@ -143,6 +145,79 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
           "symbol": "BTC/EUR",
           "volume": 0.02,
           "vwap": 6450.2
+        }
+      ],
+      "type": "update"
+    }
+    """
+
+    ticker_feed_3 = """
+    {
+      "channel": "ticker",
+      "data": [
+        {
+          "ask": 7000.3,
+          "ask_qty": 0.01,
+          "bid": 6001.0,
+          "bid_qty": 0.01,
+          "change": -100.0,
+          "change_pct": -1.54,
+          "high": 6500.9,
+          "last": 6400.6,
+          "low": 6400.1,
+          "symbol": "BTC/EUR",
+          "volume": 0.02,
+          "vwap": 6450.2
+        }
+      ],
+      "type": "update"
+    }
+    """
+    book_snapshot = """
+    {
+      "channel": "book",
+      "data": [
+        {
+          "symbol": "BTC/USD",
+          "bids": [
+            {"price": 45283.5, "qty": 0.10},
+            {"price": 45282.1, "qty": 0.20}
+          ],
+          "asks": [
+            {"price": 45284.2, "qty": 0.30},
+            {"price": 45285.0, "qty": 0.40}
+          ],
+          "checksum": 3039719286
+        }
+      ],
+      "type": "snapshot"
+    }
+    """
+    book_update = """
+    {
+      "channel": "book",
+      "data": [
+        {
+          "symbol": "BTC/USD",
+          "bids": [{"price": 45283.5, "qty": 0.00}],
+          "asks": [{"price": 45284.2, "qty": 0.55}],
+          "checksum": 1234567890,
+          "timestamp": "2023-10-06T17:35:55.440295Z"
+        }
+      ],
+      "type": "update"
+    }
+    """
+    book_update_behind_the_touch = """
+    {
+      "channel": "book",
+      "data": [
+        {
+          "symbol": "BTC/USD",
+          "bids": [{"price": 45282.1, "qty": 0.99}],
+          "asks": [],
+          "checksum": 1234567890,
+          "timestamp": "2023-10-06T17:35:56.440295Z"
         }
       ],
       "type": "update"
@@ -292,7 +367,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
             mock_connect,
             [
                 TestPublicFeed.ticker_feed_1,
-                TestPublicFeed.ticker_feed_2,
+                TestPublicFeed.ticker_feed_3,
             ],
         )
 
@@ -303,6 +378,100 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
             3, mock_websocket.__aenter__.return_value.recv.call_count
         )
         self.assertEqual(2, self.feed.events.ticker.send.call_count)
+
+    @patch("websockets.connect")
+    async def test_an_unchanged_touch_is_not_republished(self, mock_connect):
+        await self.create_mock_websocket(
+            mock_connect,
+            [
+                TestPublicFeed.ticker_feed_1,
+                TestPublicFeed.ticker_feed_2,
+            ],
+        )
+
+        await self.feed.connect("ETH-USD", max_retries=0)
+
+        self.assertEqual(1, self.feed.events.ticker.send.call_count)
+
+    @patch("websockets.connect")
+    async def test_book_feed(self, mock_connect):
+        await self.create_mock_websocket(
+            mock_connect,
+            [
+                TestPublicFeed.book_snapshot,
+                TestPublicFeed.book_update,
+            ],
+        )
+
+        await self.feed.connect("BTC-USD", max_retries=0)
+
+        self.assertEqual(2, self.feed.events.order_book.send.call_count)
+
+        book = self.feed.events.order_book.send.call_args.kwargs["order_book"]
+        self.assertEqual(
+            [PriceLevel(45282.1, 0.20)],
+            book.bids(10),
+        )
+        self.assertEqual(
+            [PriceLevel(45284.2, 0.55), PriceLevel(45285.0, 0.40)],
+            book.asks(10),
+        )
+        self.assertEqual(
+            datetime.fromisoformat("2023-10-06T17:35:55.440295Z"),
+            book.exchange_time,
+        )
+
+    @patch("websockets.connect")
+    async def test_book_is_authoritative_for_the_touch(self, mock_connect):
+        await self.create_mock_websocket(
+            mock_connect,
+            [
+                TestPublicFeed.book_snapshot,
+                TestPublicFeed.ticker_feed_1,
+            ],
+        )
+
+        await self.feed.connect("BTC-USD", max_retries=0)
+
+        self.assertEqual(1, self.feed.events.ticker.send.call_count)
+        bbo = self.feed.events.ticker.send.call_args.kwargs["bbo"]
+        self.assertEqual(45283.5, bbo.bid_price)
+        self.assertEqual(45284.2, bbo.ask_price)
+
+    @patch("websockets.connect")
+    async def test_ticker_fills_in_until_the_first_snapshot(
+        self, mock_connect
+    ):
+        await self.create_mock_websocket(
+            mock_connect,
+            [
+                TestPublicFeed.ticker_feed_1,
+                TestPublicFeed.book_snapshot,
+            ],
+        )
+
+        await self.feed.connect("BTC-USD", max_retries=0)
+
+        published = [
+            call.kwargs["bbo"].bid_price
+            for call in self.feed.events.ticker.send.call_args_list
+        ]
+        self.assertEqual([6000.0, 45283.5], published)
+
+    @patch("websockets.connect")
+    async def test_depth_behind_the_touch_does_not_requote(self, mock_connect):
+        await self.create_mock_websocket(
+            mock_connect,
+            [
+                TestPublicFeed.book_snapshot,
+                TestPublicFeed.book_update_behind_the_touch,
+            ],
+        )
+
+        await self.feed.connect("BTC-USD", max_retries=0)
+
+        self.assertEqual(2, self.feed.events.order_book.send.call_count)
+        self.assertEqual(1, self.feed.events.ticker.send.call_count)
 
     @patch("websockets.connect")
     async def test_unknown_feed(self, mock_connect):
