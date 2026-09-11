@@ -67,11 +67,11 @@ def test_renders_pnl_and_recent_fills(populated_db_path):
     # been sold back, so realized PnL is just the fee paid.
     metrics = _animated_metrics(at)
     assert metrics["net-cash-flow"]["value"] == pytest.approx(-99.6)
-    assert metrics["net-cash-flow"]["color"] == "#E2574C"
+    assert metrics["net-cash-flow"]["color"] == "#DC2626"
     assert metrics["realized-pnl"]["value"] == pytest.approx(-0.1)
-    assert metrics["realized-pnl"]["color"] == "#E2574C"
+    assert metrics["realized-pnl"]["color"] == "#DC2626"
     assert metrics["total-pnl"]["value"] == pytest.approx(0.9)
-    assert metrics["total-pnl"]["color"] == "#4E9F1F"
+    assert metrics["total-pnl"]["color"] == "#16A34A"
     assert metrics["inventory-value"]["value"] == pytest.approx(100.5)
     assert metrics["BTC-USD-position"]["value"] == 1.0
     assert metrics["BTC-USD-mark-price"]["value"] == pytest.approx(100.5)
@@ -79,21 +79,21 @@ def test_renders_pnl_and_recent_fills(populated_db_path):
     # grid, which can't play a per-row entrance animation) - check for the
     # header and the one fill's own values instead of a dataframe.
     markdown_values = [m.value for m in at.markdown]
-    assert "**Time**" in markdown_values
-    assert "**Side**" in markdown_values
+    assert "Time" in markdown_values
+    assert "Side" in markdown_values
     assert ":green-badge[BUY]" in markdown_values
     assert "99.50" in markdown_values
     # PostTradeService's fields drive derived edge/markout, not the raw
     # fair prices: fair_price_at_fill=100.0 vs fill_price=99.5 on a BUY is
     # a $0.50 favorable edge; the horizon fair prices are still NULL this
     # soon after, so their markout renders as "-".
-    assert "**Edge**" in markdown_values
+    assert "Edge" in markdown_values
     assert ":green[+$0.50]" in markdown_values
-    assert "**Inventory Before**" in markdown_values
+    assert "Inventory Before" in markdown_values
     assert "0.000000" in markdown_values
-    assert "**Inventory After**" in markdown_values
+    assert "Inventory After" in markdown_values
     assert "1.000000" in markdown_values
-    assert "**Markout +100ms**" in markdown_values
+    assert "Markout +100ms" in markdown_values
     assert "-" in markdown_values
 
 
@@ -231,28 +231,25 @@ def test_renders_fill_quality_by_side_and_fair_price_movement(tmp_path):
     assert not at.exception
     markdown_values = [m.value for m in at.markdown]
     assert "**Fill Quality**" in markdown_values
-    assert "**BUY**" in markdown_values
-    assert "**SELL**" in markdown_values
     assert "**Fair price movement**" in markdown_values
 
-    metrics = _animated_metrics(at)
-    assert metrics["fill-quality-BUY-count"]["value"] == 2
-    assert metrics["fill-quality-BUY-edge"]["value"] == pytest.approx(0.0)
-    assert metrics["fill-quality-BUY-markout-100ms"]["value"] == (
-        pytest.approx(0.0)
-    )
-    assert metrics["fill-quality-SELL-count"]["value"] == 1
-    assert metrics["fill-quality-SELL-edge"]["value"] == pytest.approx(2.0)
-    assert metrics["fill-quality-SELL-markout-100ms"]["value"] == (
-        pytest.approx(5.0)
-    )
-    # Fair price movement is side-independent: (102-101) + (98-99) +
-    # (105-108) averaged across all three fills = -1.
-    assert metrics["fair-price-movement-100ms"]["value"] == pytest.approx(-1.0)
+    fill_quality = at.dataframe[0].value.set_index("Side")
+    assert fill_quality.loc["BUY", "Fills"] == 2
+    assert fill_quality.loc["BUY", "Average edge"] == pytest.approx(0.0)
+    assert fill_quality.loc["BUY", "Markout +100ms"] == pytest.approx(0.0)
+    assert fill_quality.loc["SELL", "Fills"] == 1
+    assert fill_quality.loc["SELL", "Average edge"] == pytest.approx(2.0)
+    assert fill_quality.loc["SELL", "Markout +100ms"] == pytest.approx(5.0)
     # No fill has a 1s/5s/30s fair price backfilled yet.
-    dash_metrics = {m.label: m.value for m in at.metric}
-    assert dash_metrics["Markout +1s"] == "-"
-    assert dash_metrics["+1s"] == "-"
+    assert pd.isna(fill_quality.loc["BUY", "Markout +1s"])
+
+    # Fair price movement is side-independent: (102-101) + (98-99) +
+    # (105-108) averaged across all three fills = -1. It's the third
+    # table on the page - fill quality, then inventory buckets (this
+    # schema has inventory_before too), then this one.
+    fair_price_movement = at.dataframe[2].value
+    assert fair_price_movement.loc[0, "+100ms"] == pytest.approx(-1.0)
+    assert pd.isna(fair_price_movement.loc[0, "+1s"])
 
 
 def test_renders_inventory_buckets(tmp_path):
@@ -319,21 +316,23 @@ def test_renders_inventory_buckets(tmp_path):
 
     assert not at.exception
     markdown_values = [m.value for m in at.markdown]
-    assert "**Strongly short**" in markdown_values
-    assert "**Near neutral**" in markdown_values
-    assert "**Strongly long**" not in markdown_values
+    assert "**Inventory Buckets**" in markdown_values
 
-    metrics = _animated_metrics(at)
-    assert metrics["inventory-strongly-short-fills"]["value"] == 1
-    assert metrics["inventory-strongly-short-buy"]["value"] == 1
-    assert metrics["inventory-strongly-short-sell"]["value"] == 0
-    assert metrics["inventory-strongly-short-markout-100ms"]["value"] == (
+    # Fill quality (BUY/SELL, one each) is the first table on the page;
+    # inventory buckets is the second.
+    buckets = at.dataframe[1].value.set_index("Inventory")
+    assert "Strongly short" in buckets.index
+    assert "Near neutral" in buckets.index
+    assert "Strongly long" not in buckets.index
+
+    assert buckets.loc["Strongly short", "Fills"] == 1
+    assert buckets.loc["Strongly short", "BUY"] == 1
+    assert buckets.loc["Strongly short", "SELL"] == 0
+    assert buckets.loc["Strongly short", "Markout +100ms"] == (
         pytest.approx(3.0)
     )
-    assert metrics["inventory-near-neutral-fills"]["value"] == 1
-    assert metrics["inventory-near-neutral-markout-100ms"]["value"] == (
-        pytest.approx(2.0)
-    )
+    assert buckets.loc["Near neutral", "Fills"] == 1
+    assert buckets.loc["Near neutral", "Markout +100ms"] == pytest.approx(2.0)
 
 
 def test_hides_inventory_buckets_when_inventory_before_is_unset():
