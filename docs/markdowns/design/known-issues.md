@@ -1,0 +1,185 @@
+# Known Issues
+
+Issues found while working through a single question: with no hedging in
+the market making strategy, can it still make money? The answer turned
+out to depend very little on hedging and a great deal on fees, fill
+simulation, and inventory control, so the findings are recorded here
+rather than in any one component's notes.
+
+Nothing below is fixed. Each entry states what is wrong, why it matters,
+and what would resolve it. Arithmetic assumes BTC around $100,000 and the
+defaults in `StaticParameterService`: `quote_size = 0.0005`,
+`half_spread = 50.0`, `max_inventory = 1`.
+
+## Summary
+
+| # | Issue | Severity |
+|---|---|---|
+| 1 | Fees exceed quoted edge by ~5x | Strategy cannot profit |
+| 2 | Fee constant is stale and conflates maker with taker | Wrong P&L in every replay |
+| 3 | Simulated queue position is always zero | Fill rate wildly overstated |
+| 4 | Sweeps fill the whole remainder | Overstates size on adverse fills |
+| 5 | No latency model | Queue position optimistic |
+| 6 | Simulated book never reacts to our orders | Inherent to replay |
+| 7 | No inventory skew wired in; cap is not a control | Unbounded directional risk |
+| 8 | Coinbase mock never rests orders | Paper P&L is meaningless |
+| 9 | A better fill model would be live-only | Cannot be backtested |
+
+## 1. Fees exceed the quoted edge
+
+`MarketMakingStrategy.on_bbo` quotes at `mid ± half_spread`, and
+`MidPriceFairPriceModel` returns mid on both sides, so the gross edge per
+fill is `half_spread * quote_size` = $0.025, or 5 bps of notional.
+
+Kraken's base-tier maker fee is 0.25%, which is 25 bps, or $0.13 on the
+same $50 notional. Every fill loses about $0.105 before adverse selection
+is counted. Break-even `half_spread` is `maker_rate * price`:
+
+| 30-day volume | Maker fee | Break-even `half_spread` |
+|---|---|---|
+| < $10k | 0.25% | $250 |
+| $10k+ | 0.20% | $200 |
+| $250k+ | 0.10% | $100 |
+| $10M+ | 0.00% | $0 |
+
+Widening the spread does not rescue this. Kraken's BTC-USD touch is a few
+dollars wide, so a break-even quote would sit 50 to 100 times further from
+mid than the actual market and would only ever be reached when price moves
+$250 through the level. That is not market making, it is buying
+dislocations, and it has worse selection.
+
+The market's own quoted spread reveals what the winning makers pay. A pair
+quoting fractions of a basis point wide is being made by participants at
+the 0.00% tier. At base tier on BTC-USD the strategy is not at a
+disadvantage, it is arithmetically excluded.
+
+What would fix it, in order of effect: a better fee tier, which as of July
+2026 can also be reached through Assets on Platform rather than traded
+volume; or a pair whose natural spread is wide relative to the fee, where
+the arithmetic can close; or an edge that comes from a signal rather than
+from the spread, so the fee is a share of a larger number.
+
+## 2. The fee constant is stale and conflates maker with taker
+
+`kraken/mock_execution_service.py` hardcodes
+`fee = filled_price * filled_quantity * 0.0026` in `_generate_order_fill`,
+citing a Kraken schedule that no longer applies. Kraken now charges 0.25%
+maker and 0.40% taker at base tier.
+
+The strategy only ever rests passive limit orders, so every fill is a
+maker fill and should be charged the maker rate. The constant is roughly
+right at base tier by coincidence, and stays wrong at every other tier,
+since it cannot move with volume. `coinbase/mock_execution_service.py`
+charges `fee = 0.0`, so any P&L measured there omits the dominant cost
+entirely.
+
+Fix: move maker and taker rates into the parameter service and charge by
+liquidity flag, so a replay can be run at a chosen tier and the fee tier at
+which the strategy turns profitable becomes measurable.
+
+## 3. Simulated queue position is always zero
+
+`_rest_order` sets `ahead_quantity` from the BBO only when the order price
+exactly equals the current best bid or ask, and leaves it at `0.0`
+otherwise. The strategy quotes at `mid ± 50`, always well behind a touch
+that is a few dollars wide, so the condition never holds and
+`ahead_quantity` is always zero. The simulator therefore believes the
+strategy is first in queue at every level it ever quotes.
+
+This is the largest single error in the fill model. Correcting it likely
+drops the simulated fill count by an order of magnitude.
+
+L2 depth, per `l2-order-book-feed.md`, supplies the resting size at any
+price and fixes the starting estimate. It cannot fix rank within a level:
+L2 aggregates by price, so position inside the queue is known only at
+insertion and must be modelled thereafter. When a level shrinks with no
+trade printed at that price the cause was a cancellation, but whether it
+sat ahead or behind is unknowable, and that choice materially swings fill
+rate. Kraken's `level3` channel resolves this and is out of scope for the
+L2 plan because it requires an API token.
+
+## 4. Sweeps fill the whole remainder
+
+In `_try_fill_resting_order`, a trade printing beyond the resting price is
+treated as clearing the level and fills the entire remaining quantity. The
+size is assumed rather than derived.
+
+With depth available, the fill can be capped at the quantity actually
+consumed between the touch and the resting level. Note that this branch is
+also the only one that fires in practice for quotes far behind the touch,
+which means simulated fills arrive almost exclusively when the market is
+moving through the quote. The adverse selection is real rather than a
+simulation artifact, but its size is currently guessed.
+
+## 5. No latency model
+
+An order is decided on a BBO and rests instantly. Real quoting pays wire
+time out, matching engine time, and market data time back in, so the
+strategy joins each queue later than the simulation assumes and behind
+orders the simulation places it in front of. For queue position accuracy
+this is roughly as important as depth, and it is orthogonal to the L2
+plan.
+
+## 6. The simulated book never reacts to our orders
+
+The replayed book is the real market's, which never contained our quotes.
+Trades that would have hit us hit whoever really stood there, and
+participants who would have reacted to our presence do not. This is
+inherent to replaying a market we did not trade in and is not fixable with
+better data. It is recorded so that simulated results are read with it in
+mind.
+
+## 7. No inventory skew is wired in, and the cap is not a control
+
+`InventoryAdjustment` exists and shifts fair price against the current
+position, but `cli.py` registers only `MomentumAdjustment`, so nothing
+pushes inventory back toward flat during a run.
+
+The only remaining control is `InventoryLimit`'s hard cap of 1 BTC, which
+against a 0.0005 quote size is 2,000 fills away. It is a backstop, not a
+control. Meanwhile `MomentumAdjustment` shifts fair price in the direction
+of recent trade flow, which accumulates inventory in the direction of the
+trend.
+
+Scale: one round trip earns $0.05 gross, while a full 1 BTC position
+through a $500 move is $500, or 10,000 round trips of spread capture.
+
+Hedging is not what is missing here. Hedging reduces the variance of the
+inventory term rather than creating expectancy, and an unhedged maker with
+a tight cap and skewed quotes is an ordinary arrangement. What is missing
+is the skew and a cap sized as a control, perhaps 20 to 50 times quote
+size.
+
+## 8. The Coinbase mock never rests orders
+
+`coinbase/mock_execution_service.py` matches once at submission against a
+REST order book snapshot and then discards the order. A passive quote
+behind the touch cannot cross at submission, so it never fills and never
+rests to fill later. Combined with `fee = 0.0`, Coinbase paper runs
+produce almost no fills and a flattering P&L. The Kraken mock is the only
+execution simulator worth measuring against.
+
+## 9. A better fill model would be live-only
+
+The L2 plan puts L2 replay out of scope, and its derived-feature recorder
+stores top of book, imbalance, and depth-weighted price, which is
+deliberately too little to reconstruct a book. An improved fill model would
+therefore run only in live paper mode, while replay kept the behaviour
+described in issues 3 and 4.
+
+That is the wrong way round for evaluating the strategy, since replay is
+where weeks of data can be swept and live paper yields one slow real-time
+sample. If fill realism is the goal rather than better signals, the compact
+book writer belongs on the critical path. The L2 plan also has no commit
+wiring the book into the Kraken mock, whose fill model imports no
+`OrderBook` at all; commit 1 updates the Coinbase mock as the class's only
+caller and leaves the resting-order logic untouched.
+
+## Reading results while these stand
+
+Two questions are worth keeping apart. Whether the fair price model is any
+good is measured by gross markout and edge, with fees excluded, and a
+model with positive gross markout is a real result even when net is
+negative. Whether the fee tier is viable is arithmetic and involves no
+code. `jolteon/app/analytics.py` already computes gross and net markout
+side by side, so both readings are available from the same fills.
