@@ -78,8 +78,6 @@ async def main():
     market = Market.parse(args.exchange)
     if market == Market.KRAKEN:
         from jolteon.app.kraken import KrakenApplication as Application
-    elif market == Market.COINBASE:
-        from jolteon.app.coinbase import CoinbaseApplication as Application
     else:
         raise NotImplementedError(
             f"Application is not implemented for market {args.exchange}"
@@ -133,10 +131,7 @@ async def main():
         strategy = None
         fair_price_model = None
         if args.paper:
-            # Kraken trades on "BTC/USD"; other exchanges keep "BTC-USD".
-            strategy_symbol = (
-                symbol.replace("-", "/") if market == Market.KRAKEN else symbol
-            )
+            strategy_symbol = symbol.replace("-", "/")
             # Shared with PostTradeService below, so decorated fills are
             # scored against the same fair price the strategy quotes off.
             # Signals land in `adjustments` below (STRATEGY.md Part 3).
