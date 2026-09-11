@@ -276,3 +276,19 @@ class TestLogging(unittest.IsolatedAsyncioTestCase):
                 self.assert_number_of_logging(
                     num_threads, conn, should_flush_logger=True
                 )
+
+    async def test_db_logger_honours_a_level_above_info(self):
+        with self.assertLogs(level="WARNING"):
+            self.setup_logger(
+                logging.WARNING, logfile_db=self.database_filepath
+            )
+            with closing(sqlite3.connect(self.database_filepath)) as conn:
+                logging.info("Info Message")
+                self.assert_number_of_logging(
+                    0, conn, should_flush_logger=True
+                )
+
+                logging.warning("Warning Message")
+                self.assert_number_of_logging(
+                    1, conn, should_flush_logger=True
+                )

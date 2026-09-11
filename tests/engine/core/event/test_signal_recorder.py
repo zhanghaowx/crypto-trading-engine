@@ -7,6 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
 from datetime import datetime
 from enum import Enum
+from unittest.mock import patch
 
 import pandas as pd
 import pytz
@@ -337,6 +338,28 @@ class TestSignalRecorder(unittest.IsolatedAsyncioTestCase):
 
         self.assertTrue(self.rows("signal_a").empty)
         self.assertTrue(self.rows("signal_b").empty)
+
+    @freeze_time("2024-01-01 00:00:30 UTC")
+    async def test_handle_payload_field_is_none(self):
+        class Payload:
+            def __init__(self):
+                self.price = 100.0
+                self.fee = None
+
+        self.signal_a.send(self.signal_a, payload=Payload())
+
+        self.assert_recorded(
+            "signal_a",
+            [{"price": 100.0, "fee": None, "timestamp": 1704067230.0}],
+        )
+
+    async def test_stop_quietly_swallows_failure_at_exit(self):
+        self.signal_recorder.close()
+
+        with patch.object(
+            self.signal_recorder, "stop_recording", side_effect=OSError("disk")
+        ):
+            self.signal_recorder._stop_quietly()
 
     async def test_record_from_different_threads(self):
         """
