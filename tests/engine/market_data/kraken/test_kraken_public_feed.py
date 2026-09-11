@@ -1,3 +1,4 @@
+import json
 import unittest
 from datetime import datetime
 from unittest.mock import AsyncMock, Mock, patch
@@ -6,6 +7,7 @@ import websockets
 
 from jolteon.engine.core.health_monitor.heartbeat import HeartbeatLevel
 from jolteon.engine.market_data.core.order_book import PriceLevel
+from jolteon.engine.market_data.feed import IMarketDataFeed
 from jolteon.engine.market_data.kraken.public_feed import PublicFeed
 
 
@@ -598,3 +600,147 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertEqual(2, mock_connect.call_count)
+
+
+class TestBookChecksum(unittest.IsolatedAsyncioTestCase):
+    """
+    Kraken checksums the top ten levels of each side, rendered as strings
+    at the pair's own decimal precision. The book and expected CRC32 below
+    are the worked example from Kraken's own documentation.
+    """
+
+    DOCUMENTED_ASKS = [
+        (45285.2, 0.00100000),
+        (45286.4, 1.54571953),
+        (45286.6, 1.54571109),
+        (45289.6, 1.54560911),
+        (45290.2, 0.15890660),
+        (45291.8, 1.54553491),
+        (45294.7, 0.04454749),
+        (45296.1, 0.35380000),
+        (45297.5, 0.09945542),
+        (45299.5, 0.18772827),
+    ]
+    DOCUMENTED_BIDS = [
+        (45283.5, 0.10000000),
+        (45283.4, 1.54582015),
+        (45282.1, 0.10000000),
+        (45281.0, 0.10000000),
+        (45280.3, 1.54592586),
+        (45279.0, 0.07990000),
+        (45277.6, 0.03310103),
+        (45277.5, 0.30000000),
+        (45277.3, 1.54602737),
+        (45276.6, 0.15445238),
+    ]
+    DOCUMENTED_CHECKSUM = 3310070434
+
+    INSTRUMENT = json.dumps(
+        {
+            "channel": "instrument",
+            "type": "snapshot",
+            "data": {
+                "assets": [],
+                "pairs": [
+                    {
+                        "symbol": "BTC/USD",
+                        "price_precision": 1,
+                        "qty_precision": 8,
+                    }
+                ],
+            },
+        }
+    )
+
+    @classmethod
+    def book(cls, checksum: int) -> str:
+        def levels(side):
+            return [{"price": price, "qty": qty} for price, qty in side]
+
+        return json.dumps(
+            {
+                "channel": "book",
+                "type": "snapshot",
+                "data": [
+                    {
+                        "symbol": "BTC/USD",
+                        "bids": levels(cls.DOCUMENTED_BIDS),
+                        "asks": levels(cls.DOCUMENTED_ASKS),
+                        "checksum": checksum,
+                    }
+                ],
+            }
+        )
+
+    async def asyncSetUp(self):
+        self.feed = PublicFeed()
+        self.feed.events = Mock()
+
+    async def run_feed(self, mock_connect, feeds):
+        mock_websocket = await TestPublicFeed.create_mock_websocket(
+            mock_connect, feeds
+        )
+        await self.feed.connect("BTC/USD", max_retries=0)
+        return mock_websocket
+
+    def issues(self):
+        return [issue.message for issue in self.feed._issues]
+
+    @patch("websockets.connect")
+    async def test_a_matching_checksum_keeps_the_book(self, mock_connect):
+        await self.run_feed(
+            mock_connect,
+            [self.INSTRUMENT, self.book(self.DOCUMENTED_CHECKSUM)],
+        )
+
+        self.assertEqual(1, self.feed.events.order_book.send.call_count)
+        self.assertNotIn(
+            IMarketDataFeed.ErrorCode.ORDER_BOOK_OUT_OF_SYNC.name,
+            self.issues(),
+        )
+
+    @patch("websockets.connect")
+    async def test_a_failed_checksum_rebuilds_the_book(self, mock_connect):
+        mock_websocket = await self.run_feed(
+            mock_connect, [self.INSTRUMENT, self.book(checksum=1)]
+        )
+
+        self.assertEqual(0, self.feed.events.order_book.send.call_count)
+        self.assertEqual([], self.feed._order_book.bids(10))
+        self.assertIn(
+            IMarketDataFeed.ErrorCode.ORDER_BOOK_OUT_OF_SYNC.name,
+            self.issues(),
+        )
+
+        sent = mock_websocket.__aenter__.return_value.send
+        methods = [
+            json.loads(call.args[0])["method"] for call in sent.call_args_list
+        ]
+        self.assertEqual(["unsubscribe", "subscribe"], methods[-2:])
+
+    @patch("websockets.connect")
+    async def test_a_fresh_snapshot_clears_the_issue(self, mock_connect):
+        await self.run_feed(
+            mock_connect,
+            [
+                self.INSTRUMENT,
+                self.book(checksum=1),
+                self.book(self.DOCUMENTED_CHECKSUM),
+            ],
+        )
+
+        self.assertNotIn(
+            IMarketDataFeed.ErrorCode.ORDER_BOOK_OUT_OF_SYNC.name,
+            self.issues(),
+        )
+        self.assertEqual(1, self.feed.events.order_book.send.call_count)
+
+    @patch("websockets.connect")
+    async def test_no_precision_yet_means_no_verdict(self, mock_connect):
+        await self.run_feed(mock_connect, [self.book(checksum=1)])
+
+        self.assertEqual(1, self.feed.events.order_book.send.call_count)
+        self.assertNotIn(
+            IMarketDataFeed.ErrorCode.ORDER_BOOK_OUT_OF_SYNC.name,
+            self.issues(),
+        )

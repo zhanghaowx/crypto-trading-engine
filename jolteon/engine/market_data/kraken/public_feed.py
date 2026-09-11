@@ -3,6 +3,7 @@ import json
 import logging
 import math
 import time
+import zlib
 from datetime import datetime
 from enum import Enum
 
@@ -36,6 +37,9 @@ class PublicFeed(IMarketDataFeed):
     PRODUCTION_URI = "wss://ws.kraken.com/v2"
     MIN_HEALTHY_CONNECTION_SECONDS = 60
     BOOK_DEPTH = 10
+    # Kraken always checksums ten levels a side, whatever depth is
+    # subscribed to.
+    CHECKSUM_DEPTH = 10
 
     class ErrorCode(Enum):
         CONNECTION_LOST = "Connection Lost"
@@ -47,6 +51,9 @@ class PublicFeed(IMarketDataFeed):
         self._clock = time.monotonic
         self._order_book = OrderBook("")
         self._last_bbo: BBO | None = None
+        self._price_precision: dict[str, int] = {}
+        self._qty_precision: dict[str, int] = {}
+        self._websocket: websockets.WebSocketClientProtocol | None = None
 
     @property
     def channels(self) -> frozenset[Channel]:
@@ -96,32 +103,25 @@ class PublicFeed(IMarketDataFeed):
         self._last_bbo = None
 
         async with websockets.connect(PublicFeed.PRODUCTION_URI) as websocket:
-
-            async def subscribe_to_channel(channel_name: str, **params):
-                subscribe_message = {
-                    "method": "subscribe",
-                    "params": {
-                        "channel": channel_name,
-                        "snapshot": True,
-                        "symbol": [symbol],
-                        **params,
-                    },
-                    "req_id": id_generator().next(),
-                }
-                # Send the subscribe message as a JSON string
-                await websocket.send(json.dumps(subscribe_message))
+            self._websocket = websocket
 
             # Trade channel pushes trades in real-time. Multiple trades may be
             # batched in a single message but that does not necessarily mean
             # that every trade in a single message resulted from a single taker
             # order.
-            await subscribe_to_channel("trade")
+            await self._subscribe("trade", symbol=[symbol])
             # Ticker channel pushes updates whenever there is a trade or there
             # is a change (price or quantity) at the top-of-book.
-            await subscribe_to_channel("ticker")
+            await self._subscribe("ticker", symbol=[symbol])
+            # Instrument channel carries the decimal precision every book
+            # checksum has to be rendered at. It covers all pairs, so it
+            # takes no symbol.
+            await self._subscribe("instrument")
             # Book channel pushes one snapshot followed by incremental
             # updates to the levels behind the touch.
-            await subscribe_to_channel("book", depth=PublicFeed.BOOK_DEPTH)
+            await self._subscribe(
+                "book", symbol=[symbol], depth=PublicFeed.BOOK_DEPTH
+            )
 
             while True:
                 try:
@@ -130,7 +130,7 @@ class PublicFeed(IMarketDataFeed):
                     response = json.loads(data)
 
                     try:
-                        self._decode_message(response)
+                        await self._decode_message(response)
                     except Exception as e:
                         logging.error(
                             f"Error '{e}' when decoding message '{response}'",
@@ -167,6 +167,69 @@ class PublicFeed(IMarketDataFeed):
                 exc_info=True,
             )
 
+    async def _subscribe(self, channel_name: str, **params) -> None:
+        await self._send_request("subscribe", channel_name, **params)
+
+    async def _unsubscribe(self, channel_name: str, **params) -> None:
+        await self._send_request("unsubscribe", channel_name, **params)
+
+    async def _send_request(
+        self, method: str, channel_name: str, **params
+    ) -> None:
+        assert self._websocket, "Not connected to Kraken"
+        await self._websocket.send(
+            json.dumps(
+                {
+                    "method": method,
+                    "params": {
+                        "channel": channel_name,
+                        "snapshot": True,
+                        **params,
+                    },
+                    "req_id": id_generator().next(),
+                }
+            )
+        )
+
+    async def _request_order_book_snapshot(self, symbol: str) -> None:
+        # Kraken rejects a repeat subscribe to a live channel, so the old
+        # subscription has to go before a fresh snapshot can be asked for.
+        await self._unsubscribe(
+            "book", symbol=[symbol], depth=PublicFeed.BOOK_DEPTH
+        )
+        await self._subscribe(
+            "book", symbol=[symbol], depth=PublicFeed.BOOK_DEPTH
+        )
+
+    def _is_book_in_sync(self, checksum: int | None) -> bool:
+        """
+        Returns: Whether the book still matches Kraken's, which can only
+        be answered once the instrument channel has said what precision
+        this pair renders at.
+        """
+        symbol = self._order_book.symbol
+        if checksum is None or symbol not in self._price_precision:
+            return True
+
+        return self._book_checksum(symbol) == checksum
+
+    def _book_checksum(self, symbol: str) -> int:
+        depth = PublicFeed.CHECKSUM_DEPTH
+        payload = "".join(
+            self._render(level.price, self._price_precision[symbol])
+            + self._render(level.quantity, self._qty_precision[symbol])
+            for level in self._order_book.asks(depth)
+            + self._order_book.bids(depth)
+        )
+        return zlib.crc32(payload.encode())
+
+    @staticmethod
+    def _render(value: float, precision: int) -> str:
+        # Kraken checksums the digits as it rendered them, so the decimals
+        # a float lost on the way in have to be put back before the point
+        # is dropped and leading zeros stripped.
+        return f"{value:.{precision}f}".replace(".", "").lstrip("0")
+
     def _decode_book_update(self, book_json, is_snapshot: bool) -> BookUpdate:
         timestamp = book_json.get("timestamp")
         return BookUpdate(
@@ -194,7 +257,7 @@ class PublicFeed(IMarketDataFeed):
         self._last_bbo = bbo
         self._dispatch_isolating_receiver_errors(self.events.ticker, bbo=bbo)
 
-    def _decode_message(self, response):
+    async def _decode_message(self, response):
         possible_error = response.get("error")
         if possible_error:
             logging.error(
@@ -288,6 +351,29 @@ class PublicFeed(IMarketDataFeed):
                         ask_quantity=ticker_json["ask_qty"],
                     )
                 )
+        elif message_type == "instrument":
+            """
+            The instrument channel carries the decimal precision each pair
+            is quoted at, which a book checksum has to be rendered at:
+            {
+              "channel": "instrument",
+              "data": {
+                "assets": [],
+                "pairs": [
+                  {
+                    "symbol": "BTC/USD",
+                    "price_precision": 1,
+                    "qty_precision": 8
+                  }
+                ]
+              },
+              "type": "snapshot"
+            }
+            """
+            for pair_json in response["data"].get("pairs", []):
+                symbol = pair_json["symbol"]
+                self._price_precision[symbol] = pair_json["price_precision"]
+                self._qty_precision[symbol] = pair_json["qty_precision"]
         elif message_type == "book":
             """
             Below is an example of a book message from Kraken. A snapshot
@@ -313,6 +399,13 @@ class PublicFeed(IMarketDataFeed):
                 self._order_book.apply(
                     self._decode_book_update(book_json, is_snapshot)
                 )
+                if is_snapshot:
+                    self.on_order_book_synced()
+
+                if not self._is_book_in_sync(book_json.get("checksum")):
+                    await self.resync_order_book(self._order_book)
+                    return
+
                 self._dispatch_isolating_receiver_errors(
                     self.events.order_book, order_book=self._order_book
                 )
