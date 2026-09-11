@@ -80,9 +80,6 @@ class OrderBook:
     def bbo(self) -> BBO | None: ...
     def bids(self, depth: int) -> list[PriceLevel]: ...
     def asks(self, depth: int) -> list[PriceLevel]: ...
-
-    def imbalance(self, depth: int) -> float: ...
-    def vwap(self, side: MarketSide, quantity: float) -> float | None: ...
 ```
 
 `apply` replaces the quantity at a price, removes the level when that
@@ -93,9 +90,29 @@ best ask is the first, and an update costs one binary search plus a list
 shift. That beats sorting a dict on every read, which is what the current
 class would force.
 
-`imbalance` and `vwap` live on the book rather than in each consumer.
-They are what depth is for, and a new adjustment should not have to
-reimplement the arithmetic to use it.
+### Derived features
+
+`OrderBook` holds state, ordering, and neutral reads, and stops there.
+Imbalance and depth-weighted price are not reads of the book, they are
+interpretations of it: each one picks a depth, a sizing convention, and a
+weighting that a strategy is entitled to disagree with. On the book those
+choices would be owned by the wrong object, and the book would become the
+place every future signal accretes onto.
+
+They live in `jolteon/engine/market_data/core/book_features.py` as pure
+functions over the lists `bids` and `asks` already return.
+
+```python
+def imbalance(bids: list[PriceLevel], asks: list[PriceLevel]) -> float: ...
+def vwap(levels: list[PriceLevel], quantity: float) -> float | None: ...
+```
+
+Depth is the caller's choice, expressed in what it passes: a consumer
+calls `imbalance(book.bids(10), book.asks(10))`. Free functions over
+levels rather than methods on the book also means the derived-feature
+recorder and a strategy adjustment share the same arithmetic without
+either depending on the other, and a strategy that wants different
+arithmetic writes its own without touching the book.
 
 ### Feed interface
 
@@ -224,7 +241,8 @@ flicker between two views of it.
 1. Rewrite `OrderBook` as a real L2 book with snapshot and update
    application, ordering, and BBO accessors. Replace its test; the class
    has no callers to update.
-2. Add `imbalance` and `vwap` reads to `OrderBook`.
+2. Add `book_features` with `imbalance` and `vwap` as pure functions
+   over price levels.
 3. Add `IMarketDataFeed` and `Channel`. Make the public feed and
    `HistoricalFeed` implement it, and type `ApplicationBase._md` to it.
 4. Add the `order_book` signal to `Events`.
