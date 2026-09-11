@@ -5,16 +5,16 @@
 [theme]
 base = "light"
 primaryColor = "#15171C"             # Near-black - pill buttons, active elements
-backgroundColor = "#E7E8E6"          # Soft neutral grey canvas
+backgroundColor = "#FAFAFA"          # Untitled UI neutral-50 canvas
 secondaryBackgroundColor = "#F8F8F6" # Off-white widget surfaces
 codeBackgroundColor = "#EFEFED"
 textColor = "#15171C"
 linkColor = "#3E5A6E"
-borderColor = "#D7D7D3"
+borderColor = "#E5E5E5"              # Untitled UI neutral-200 hairline
 codeTextColor = "#2B2D2C"
 showWidgetBorder = true
 showSidebarBorder = false
-baseRadius = "1rem"                  # Big, playful rounding
+baseRadius = "0.75rem"               # Untitled UI's rounded-xl (12px)
 buttonRadius = "full"                # Pill-shaped buttons
 
 # Typography - bold geometric display font over a clean body face
@@ -30,8 +30,8 @@ linkUnderline = false
 
 # Semantic colors - gains/losses stay the standard green/red; everything
 # else is grey and lavender for a calmer, more professional feel
-greenColor = "#4E9F1F"  # Positive/gains
-redColor = "#E2574C"    # Negative/losses
+greenColor = "#16A34A"  # Positive/gains (Untitled UI green-600)
+redColor = "#DC2626"    # Negative/losses (Untitled UI red-600)
 yellowColor = "#E8B93C" # Warnings/caution
 orangeColor = "#E8873C" # Alerts
 blueColor = "#3E8FD0"   # Informational
@@ -70,8 +70,8 @@ chartSequentialColors = [
 # the grid draws its header labels in `fadedText60` (the theme's text color
 # at 60%) with no way to override them, and it renders to a canvas, so CSS
 # can't recolor them either - on a dark header the labels simply disappear.
-dataframeBorderColor = "#D7D7D3"
-dataframeHeaderBackgroundColor = "#DEDFDC"
+dataframeBorderColor = "#E5E5E5"
+dataframeHeaderBackgroundColor = "#FAFAFA"
 
 # Sidebar - solid black panel, mirroring the dark card in the reference image
 [theme.sidebar]
