@@ -27,8 +27,8 @@ from jolteon.engine.strategy.market_making.fair_value.momentum import (
 from jolteon.engine.strategy.market_making.market_making_strategy import (
     MarketMakingStrategy,
 )
-from jolteon.engine.strategy.market_making.parameters import (
-    StaticParameterService,
+from jolteon.engine.strategy.market_making.quote_offset import (
+    StaticQuoteOffsetService,
 )
 
 _active_app = None
@@ -141,7 +141,7 @@ async def main():
             fair_price_model = AdjustedFairPriceModel(
                 base=MidPriceFairPriceModel(),
                 adjustments=[MomentumAdjustment()],
-                max_adjustment=StaticParameterService.DEFAULT_HALF_SPREAD,
+                max_adjustment=StaticQuoteOffsetService.DEFAULT_HALF_SPREAD,
             )
             strategy = MarketMakingStrategy(
                 symbol=strategy_symbol, fair_price_model=fair_price_model

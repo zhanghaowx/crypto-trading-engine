@@ -6,13 +6,12 @@ from dataclasses import dataclass
 class MarketMakingParameters:
     """
     The tunable parameters a market making strategy needs to quote: how
-    large each quote is, how far from the fair price it sits, and how
-    much inventory it is allowed to accumulate before it stops quoting
-    on that side.
+    large each quote is, and how much inventory it is allowed to
+    accumulate before it stops quoting on that side. How far from the
+    fair price a quote sits is decided by an IQuoteOffsetService instead.
     """
 
     quote_size: float
-    half_spread: float
     max_inventory: float
 
 
@@ -35,18 +34,15 @@ class StaticParameterService(IParameterService):
     """
 
     DEFAULT_QUOTE_SIZE = 0.0005
-    DEFAULT_HALF_SPREAD = 50.0
     DEFAULT_MAX_INVENTORY = 1
 
     def __init__(
         self,
         quote_size: float = DEFAULT_QUOTE_SIZE,
-        half_spread: float = DEFAULT_HALF_SPREAD,
         max_inventory: float = DEFAULT_MAX_INVENTORY,
     ):
         self._parameters = MarketMakingParameters(
             quote_size=quote_size,
-            half_spread=half_spread,
             max_inventory=max_inventory,
         )
 

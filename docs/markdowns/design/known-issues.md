@@ -9,14 +9,15 @@ rather than in any one component's notes.
 Nothing below is fixed. Each entry states what is wrong, why it matters,
 and what would resolve it. Arithmetic assumes BTC around $100,000 and the
 defaults in `StaticParameterService`: `quote_size = 0.0005`,
-`half_spread = 50.0`, `max_inventory = 1`.
+`max_inventory = 1`, and in `StaticQuoteOffsetService`:
+`half_spread = 50.0`.
 
 ## Summary
 
 | # | Issue | Severity |
 |---|---|---|
 | 1 | Fees exceed quoted edge by ~5x | Strategy cannot profit |
-| 2 | Fee constant is stale and conflates maker with taker | Wrong P&L in every replay |
+| 2 | ~~Fee constant is stale and conflates maker with taker~~ | Fixed |
 | 3 | Simulated queue position is always zero | Fill rate wildly overstated |
 | 4 | Sweeps fill the whole remainder | Overstates size on adverse fills |
 | 5 | No latency model | Queue position optimistic |
@@ -26,7 +27,9 @@ defaults in `StaticParameterService`: `quote_size = 0.0005`,
 
 ## 1. Fees exceed the quoted edge
 
-`MarketMakingStrategy.on_bbo` quotes at `mid ± half_spread`, and
+`MarketMakingStrategy.on_bbo` quotes at `mid ±` whatever its
+`IQuoteOffsetService` returns. Under the `StaticQuoteOffsetService`
+default that is a flat `half_spread` on each side, and
 `MidPriceFairPriceModel` returns mid on both sides, so the gross edge per
 fill is `half_spread * quote_size` = $0.025, or 5 bps of notional.
 
@@ -58,21 +61,36 @@ volume; or a pair whose natural spread is wide relative to the fee, where
 the arithmetic can close; or an edge that comes from a signal rather than
 from the spread, so the fee is a share of a larger number.
 
-## 2. The fee constant is stale and conflates maker with taker
+`FeeAwareQuoteOffsetService` does not fix this, since the arithmetic above
+is a fact about the fee tier rather than about the code. What it does is
+stop the strategy quoting below cost silently: it quotes at
+`edge + maker_rate * price`, so the break-even column of the table above
+is charged automatically and the resulting offset is recorded on the
+`quote_offset` signal. Swapping it in for the static default makes a
+run's quotes roughly five times wider and almost certainly stops filling
+altogether, which is the arithmetic above made visible rather than a
+regression.
 
-`kraken/mock_execution_service.py` hardcodes
+## 2. The fee constant is stale and conflates maker with taker (fixed)
+
+`kraken/mock_execution_service.py` hardcoded
 `fee = filled_price * filled_quantity * 0.0026` in `_generate_order_fill`,
-citing a Kraken schedule that no longer applies. Kraken now charges 0.25%
+citing a Kraken schedule that no longer applies. Kraken charges 0.25%
 maker and 0.40% taker at base tier.
 
-The strategy only ever rests passive limit orders, so every fill is a
-maker fill and should be charged the maker rate. The constant is roughly
-right at base tier by coincidence, and stays wrong at every other tier,
-since it cannot move with volume.
+Both rates now live on a `FeeSchedule`, and `_generate_order_fill` takes a
+`maker` flag that its two callers set: a resting order that a print
+crosses is charged the maker rate, a market order that fills immediately
+the taker rate. `FeeAwareQuoteOffsetService` reads the same schedule, so
+the fee a quote is priced against and the fee a simulated fill is charged
+cannot drift apart.
 
-Fix: move maker and taker rates into the parameter service and charge by
-liquidity flag, so a replay can be run at a chosen tier and the fee tier at
-which the strategy turns profitable becomes measurable.
+The rates sit on the schedule rather than in the parameter service as
+first proposed, because the mock execution service needs them too and
+should not have to reach into the strategy's parameters to get them.
+Running a replay at a chosen tier is now a matter of passing a different
+`FeeSchedule`; picking the tier up from the account automatically is not
+done.
 
 ## 3. Simulated queue position is always zero
 
