@@ -227,6 +227,31 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
         )
 
     @patch("websockets.connect")
+    async def test_error_feed_reports_the_connection_as_lost(
+        self, mock_connect
+    ):
+        await self.create_mock_websocket(
+            mock_connect,
+            [TestPublicFeed.error_feed, TestPublicFeed.subscribe_feed],
+        )
+
+        with (
+            patch.object(self.feed, "add_issue") as mock_add_issue,
+            patch.object(self.feed, "remove_issue") as mock_remove_issue,
+            self.assertLogs(level="ERROR") as logs,
+        ):
+            await self.feed.connect("ETH-USD", max_retries=0)
+
+        self.assertIn("get an error message", "".join(logs.output))
+        mock_add_issue.assert_any_call(
+            HeartbeatLevel.ERROR,
+            PublicFeed.ErrorCode.CONNECTION_LOST.value,
+        )
+        mock_remove_issue.assert_any_call(
+            PublicFeed.ErrorCode.CONNECTION_LOST.value
+        )
+
+    @patch("websockets.connect")
     async def test_match_feed(self, mock_connect):
         mock_websocket = await self.create_mock_websocket(
             mock_connect, [TestPublicFeed.trade_feed_1]
