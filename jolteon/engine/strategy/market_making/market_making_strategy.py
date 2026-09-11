@@ -23,6 +23,10 @@ from jolteon.engine.strategy.market_making.parameters import (
     IParameterService,
     StaticParameterService,
 )
+from jolteon.engine.strategy.market_making.quote_offset import (
+    IQuoteOffsetService,
+    StaticQuoteOffsetService,
+)
 
 
 class MarketMakingStrategy(Heartbeater, SignalSubscriber):
@@ -30,12 +34,12 @@ class MarketMakingStrategy(Heartbeater, SignalSubscriber):
     A simple two-sided market making strategy:
     - Fair price comes from a pluggable IFairPriceModel (mid-price by
       default).
-    - Quotes a fixed size at a fixed half-spread around the fair price on
-      both sides.
+    - Quotes a fixed size on both sides, as far outside the fair price as
+      a pluggable IQuoteOffsetService asks for.
     - Inventory is capped by a hard limit: once the cap is hit on one side,
       that side stops quoting until fills bring the position back within
       bounds. No inventory-based price skewing yet.
-    - Quote size, half-spread and the inventory cap come from a pluggable
+    - Quote size and the inventory cap come from a pluggable
       IParameterService (fixed, conservative defaults if none is given),
       so callers such as the CLI don't need to know or pass tuning values.
     """
@@ -48,16 +52,18 @@ class MarketMakingStrategy(Heartbeater, SignalSubscriber):
         requote_tolerance: float = 0.0,
         fair_price_model: Union[IFairPriceModel, None] = None,
         parameter_service: Union[IParameterService, None] = None,
+        quote_offset_service: Union[IQuoteOffsetService, None] = None,
     ):
         super().__init__(type(self).__name__, interval_in_seconds=10)
         params = (parameter_service or StaticParameterService()).get(symbol)
         assert params.quote_size > 0, "quote_size must be positive"
-        assert params.half_spread > 0, "half_spread must be positive"
 
         self._symbol = symbol
         self._quote_size = params.quote_size
-        self._half_spread = params.half_spread
         self._requote_tolerance = requote_tolerance
+        self._quote_offset_service = (
+            quote_offset_service or StaticQuoteOffsetService()
+        )
         self._fair_price_model = fair_price_model or MidPriceFairPriceModel()
         self._inventory_limit = InventoryLimit(params.max_inventory)
 
@@ -93,9 +99,11 @@ class MarketMakingStrategy(Heartbeater, SignalSubscriber):
 
     @subscribe("ticker_feed")
     def on_bbo(self, _: str, bbo: BBO):
-        fair_price = self._fair_price_model.calculate(self._context(bbo))
-        self._requote(MarketSide.BUY, fair_price.bid - self._half_spread)
-        self._requote(MarketSide.SELL, fair_price.ask + self._half_spread)
+        context = self._context(bbo)
+        fair_price = self._fair_price_model.calculate(context)
+        offset = self._quote_offset_service.calculate(context)
+        self._requote(MarketSide.BUY, fair_price.bid - offset.bid)
+        self._requote(MarketSide.SELL, fair_price.ask + offset.ask)
 
     def _context(self, bbo: BBO) -> BookSnapshot:
         book = self._order_book

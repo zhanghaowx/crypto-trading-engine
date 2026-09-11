@@ -24,6 +24,9 @@ from jolteon.engine.strategy.market_making.market_making_strategy import (
 from jolteon.engine.strategy.market_making.parameters import (
     StaticParameterService,
 )
+from jolteon.engine.strategy.market_making.quote_offset import (
+    StaticQuoteOffsetService,
+)
 
 
 class TestMarketMakingStrategy(unittest.IsolatedAsyncioTestCase):
@@ -36,9 +39,9 @@ class TestMarketMakingStrategy(unittest.IsolatedAsyncioTestCase):
             requote_tolerance=0.0,
             parameter_service=StaticParameterService(
                 quote_size=0.01,
-                half_spread=1.0,
                 max_inventory=0.02,
             ),
+            quote_offset_service=StaticQuoteOffsetService(half_spread=1.0),
         )
         self.strategy.order_event.connect(self._on_order)
         self.strategy.cancel_order_event.connect(self._on_cancel_order)
