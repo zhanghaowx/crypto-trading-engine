@@ -118,7 +118,6 @@ def animated_metric(
     color: str | None = None,
     prefix: str = "",
     suffix: str = "",
-    help: str | None = None,
     border: bool = False,
 ) -> None:
     """

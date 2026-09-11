@@ -3,7 +3,6 @@
 // are new args", so pulling in streamlit-component-lib isn't worth it).
 const metricEl = document.getElementById("metric");
 const labelEl = document.getElementById("label");
-const helpEl = document.getElementById("help");
 const valueEl = document.getElementById("value");
 
 // The host's top-level message dispatcher (ComponentRegistry) drops
@@ -23,12 +22,6 @@ function sendHeight() {
 function render(args) {
   labelEl.textContent = args.label;
   metricEl.classList.toggle("bordered", !!args.border);
-  if (args.help) {
-    helpEl.hidden = false;
-    helpEl.title = args.help;
-  } else {
-    helpEl.hidden = true;
-  }
 
   valueEl.style.color = args.color || "#15171C";
   valueEl.format =
