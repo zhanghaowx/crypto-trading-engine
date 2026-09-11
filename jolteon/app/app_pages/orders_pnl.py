@@ -159,11 +159,6 @@ _FILL_ROW_CSS = """
 """
 
 _FILL_HEADER_CSS = """
-[class*="st-key-fills-table-header"] {
-  background-color: #FAFAFA;
-  border-bottom: 1px solid #E5E5E5;
-  padding: 8px 4px;
-}
 [class*="st-key-fills-table-header"] p {
   font-weight: 500;
   font-size: 0.8rem;
