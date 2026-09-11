@@ -119,6 +119,29 @@ def populated_db_path(tmp_path) -> str:
             "INSERT INTO risk_limit_snapshot VALUES "
             "(1700000000, 'inventory', 'BTC-USD', 10.0, 5.0)"
         )
+
+        conn.execute(
+            "CREATE TABLE fair_price_adjustment "
+            "(timestamp REAL, symbol TEXT, base_fair_price REAL, "
+            '"adjustments.momentum" REAL, total_adjustment REAL, '
+            "clamped INTEGER)"
+        )
+        conn.execute(
+            "INSERT INTO fair_price_adjustment VALUES "
+            "(1700000000, 'BTC-USD', 100.0, 0.5, 0.5, 0)"
+        )
+
+        conn.execute(
+            "CREATE TABLE fair_price "
+            "(timestamp REAL, symbol TEXT, model TEXT, bid_fair_price REAL, "
+            "ask_fair_price REAL)"
+        )
+        conn.execute(
+            "INSERT INTO fair_price VALUES "
+            "(1700000000.1, 'BTC-USD', 'MidPriceFairPriceModel', 100.3, "
+            "100.7), "
+            "(1700000001, 'BTC-USD', 'MidPriceFairPriceModel', 100.5, 101.5)"
+        )
         conn.commit()
     finally:
         conn.close()
