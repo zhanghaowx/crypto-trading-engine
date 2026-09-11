@@ -15,7 +15,7 @@ class OrderFlowImbalanceAdjustment(IFairPriceAdjustment):
     proportionate to how wide the market is, and `scale` caps it: a
     completely one-sided book moves fair price by `scale` half-spreads.
 
-    Returns 0.0 on a feed that publishes no depth, and during replay.
+    Returns 0.0 when no depth is available.
     """
 
     def __init__(self, scale: float = 1.0, depth: int = 10):
@@ -28,12 +28,8 @@ class OrderFlowImbalanceAdjustment(IFairPriceAdjustment):
         return "order_flow_imbalance"
 
     def adjustment(self, context: FairPriceContext) -> float:
-        order_book = context.order_book
-        if not order_book:
-            return 0.0
-
         skew = imbalance(
-            order_book.bids(self._depth), order_book.asks(self._depth)
+            context.bids[: self._depth], context.asks[: self._depth]
         )
         half_spread = (context.bbo.ask_price - context.bbo.bid_price) / 2
         return self._scale * skew * half_spread

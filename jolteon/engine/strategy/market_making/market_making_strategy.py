@@ -40,6 +40,8 @@ class MarketMakingStrategy(Heartbeater, SignalSubscriber):
       so callers such as the CLI don't need to know or pass tuning values.
     """
 
+    BOOK_DEPTH = 10
+
     def __init__(
         self,
         symbol: str,
@@ -91,11 +93,19 @@ class MarketMakingStrategy(Heartbeater, SignalSubscriber):
 
     @subscribe("ticker_feed")
     def on_bbo(self, _: str, bbo: BBO):
-        fair_price = self._fair_price_model.calculate(
-            FairPriceContext(bbo=bbo, order_book=self._order_book)
-        )
+        fair_price = self._fair_price_model.calculate(self._context(bbo))
         self._requote(MarketSide.BUY, fair_price.bid - self._half_spread)
         self._requote(MarketSide.SELL, fair_price.ask + self._half_spread)
+
+    def _context(self, bbo: BBO) -> FairPriceContext:
+        book = self._order_book
+        if not book:
+            return FairPriceContext(bbo=bbo)
+
+        depth = MarketMakingStrategy.BOOK_DEPTH
+        return FairPriceContext(
+            bbo=bbo, bids=tuple(book.bids(depth)), asks=tuple(book.asks(depth))
+        )
 
     @subscribe("order_fill")
     def on_fill(self, _: str, trade: Trade):

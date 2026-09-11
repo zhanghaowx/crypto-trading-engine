@@ -1,7 +1,9 @@
+from collections.abc import Sequence
+
 from jolteon.engine.market_data.core.order_book import PriceLevel
 
 
-def imbalance(bids: list[PriceLevel], asks: list[PriceLevel]) -> float:
+def imbalance(bids: Sequence[PriceLevel], asks: Sequence[PriceLevel]) -> float:
     """
     Returns: How lopsided the resting size is across the levels given,
     from -1.0 (all size on the ask) to 1.0 (all size on the bid), and 0.0
@@ -18,7 +20,7 @@ def imbalance(bids: list[PriceLevel], asks: list[PriceLevel]) -> float:
     return (bid_quantity - ask_quantity) / total_quantity
 
 
-def vwap(levels: list[PriceLevel], quantity: float) -> float | None:
+def vwap(levels: Sequence[PriceLevel], quantity: float) -> float | None:
     """
     Returns: The average price of filling `quantity` against the levels
     given, best price first, or None when they do not hold enough size to

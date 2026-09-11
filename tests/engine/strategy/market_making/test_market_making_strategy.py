@@ -7,7 +7,11 @@ import pytz
 from jolteon.engine.core.side import MarketSide
 from jolteon.engine.market_data.core.bbo import BBO
 from jolteon.engine.market_data.core.order import CancelOrder, Order, OrderType
-from jolteon.engine.market_data.core.order_book import OrderBook
+from jolteon.engine.market_data.core.order_book import (
+    BookUpdate,
+    OrderBook,
+    PriceLevel,
+)
 from jolteon.engine.market_data.core.trade import Trade
 from jolteon.engine.strategy.market_making.fair_value.fair_price_model import (
     FairPrice,
@@ -145,13 +149,46 @@ class TestMarketMakingStrategy(unittest.IsolatedAsyncioTestCase):
     async def test_hands_the_latest_book_to_the_fair_price_model(self):
         seen = []
         self.strategy._fair_price_model = _RecordingFairPriceModel(seen)
-        order_book = OrderBook("BTC/USD")
+        order_book = self.create_order_book(bid=99.0, ask=101.0)
 
         self.strategy.on_bbo("_", self.create_bbo(99.0, 101.0))
         self.strategy.on_order_book("_", order_book)
         self.strategy.on_bbo("_", self.create_bbo(99.0, 101.0))
 
-        self.assertEqual([None, order_book], seen)
+        self.assertEqual([(), (PriceLevel(99.0, 1.0),)], seen)
+
+    async def test_carried_levels_do_not_follow_a_later_book_update(self):
+        seen = []
+        self.strategy._fair_price_model = _RecordingFairPriceModel(seen)
+        order_book = self.create_order_book(bid=99.0, ask=101.0)
+
+        self.strategy.on_order_book("_", order_book)
+        self.strategy.on_bbo("_", self.create_bbo(99.0, 101.0))
+        order_book.apply(
+            BookUpdate(
+                symbol="BTC/USD",
+                bids=[PriceLevel(99.0, 0.0), PriceLevel(98.0, 7.0)],
+                asks=[],
+                is_snapshot=False,
+                exchange_time=datetime(2024, 1, 1),
+            )
+        )
+
+        self.assertEqual([(PriceLevel(99.0, 1.0),)], seen)
+
+    @staticmethod
+    def create_order_book(bid: float, ask: float) -> OrderBook:
+        order_book = OrderBook("BTC/USD")
+        order_book.apply(
+            BookUpdate(
+                symbol="BTC/USD",
+                bids=[PriceLevel(bid, 1.0)],
+                asks=[PriceLevel(ask, 1.0)],
+                is_snapshot=True,
+                exchange_time=datetime(2024, 1, 1),
+            )
+        )
+        return order_book
 
 
 class _RecordingFairPriceModel(IFairPriceModel):
@@ -160,5 +197,5 @@ class _RecordingFairPriceModel(IFairPriceModel):
         self._seen = seen
 
     def _calculate(self, context: FairPriceContext) -> FairPrice:
-        self._seen.append(context.order_book)
+        self._seen.append(context.bids)
         return FairPrice(bid=context.bbo.bid_price, ask=context.bbo.ask_price)

@@ -3,24 +3,23 @@ from dataclasses import dataclass
 
 from jolteon.engine.core.event.signal import signal
 from jolteon.engine.market_data.core.bbo import BBO
-from jolteon.engine.market_data.core.order_book import OrderBook
+from jolteon.engine.market_data.core.order_book import PriceLevel
 
 
-@dataclass
+@dataclass(frozen=True)
 class FairPriceContext:
     """
-    Market context available to a fair price model when it is asked to
-    compute a fair price. New fields (e.g. inventory, volatility, recent
-    trades) can be added here as more sophisticated models need them,
-    without breaking IFairPriceModel's signature.
+    The market state a caller prices against, fixed at the moment it was
+    built. The published order book keeps changing after that, so its
+    levels are copied in here rather than referenced.
 
-    `order_book` is None on a feed that publishes no depth, and during
-    replay. A model or adjustment that needs depth abstains when it is
-    absent rather than guessing.
+    `bids` and `asks` run best price first, and are empty when no depth
+    is available.
     """
 
     bbo: BBO
-    order_book: OrderBook | None = None
+    bids: tuple[PriceLevel, ...] = ()
+    asks: tuple[PriceLevel, ...] = ()
 
 
 @dataclass
