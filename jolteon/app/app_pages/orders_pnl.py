@@ -1,4 +1,6 @@
+from collections.abc import Mapping
 from datetime import datetime
+from typing import Any
 
 import pandas as pd
 import streamlit as st
@@ -14,7 +16,6 @@ from jolteon.app.analytics import (
 from jolteon.app.components import (
     BadgeColor,
     animated_metric,
-    card_grid,
     paginate,
     row_add_rule,
     row_key,
@@ -339,6 +340,50 @@ def _sign_color(value: float) -> str:
     return _POSITIVE_COLOR if value >= 0 else _NEGATIVE_COLOR
 
 
+def _hex_to_rgb(color: str) -> tuple[int, int, int]:
+    color = color.lstrip("#")
+    return int(color[0:2], 16), int(color[2:4], 16), int(color[4:6], 16)
+
+
+_POSITIVE_RGB = _hex_to_rgb(_POSITIVE_COLOR)
+_NEGATIVE_RGB = _hex_to_rgb(_NEGATIVE_COLOR)
+
+
+def _fmt_usd(value: float) -> str:
+    if pd.isna(value):
+        return "–"
+    sign = "+" if value >= 0 else "-"
+    return f"{sign}${abs(value):,.2f}"
+
+
+def _shade(value: float, scale: float) -> str:
+    """A background tint for a signed USD cell, deeper the further
+    `value` sits from zero relative to `scale` (the column's own largest
+    magnitude) - so the standout numbers in a row of tightly-packed
+    figures read through color, not through font size."""
+    if pd.isna(value) or scale == 0:
+        return ""
+    intensity = min(abs(value) / scale, 1.0)
+    r, g, b = _POSITIVE_RGB if value >= 0 else _NEGATIVE_RGB
+    alpha = 0.10 + 0.35 * intensity
+    return f"background-color: rgba({r}, {g}, {b}, {alpha:.2f})"
+
+
+def _shade_column(column: pd.Series) -> list[str]:
+    scale = column.abs().max()
+    return [_shade(value, scale) for value in column]
+
+
+_SIDE_TINTS = {
+    "BUY": "background-color: rgba({}, {}, {}, 0.12)".format(*_POSITIVE_RGB),
+    "SELL": "background-color: rgba({}, {}, {}, 0.12)".format(*_NEGATIVE_RGB),
+}
+
+
+def _shade_side(column: pd.Series) -> list[str]:
+    return [_SIDE_TINTS.get(value, "") for value in column]
+
+
 def _render_pnl(fills: pd.DataFrame, latest_mid: pd.DataFrame) -> None:
     by_symbol = pnl_by_symbol(fills, latest_mid)
 
@@ -427,68 +472,60 @@ _HORIZON_PHRASES = {
     "30s": "30 seconds",
 }
 
-
-def _render_metric_or_dash(key: str, label: str, value: float, help: str):
-    if pd.isna(value):
-        st.metric(label, "-", border=True, help=help)
-    else:
-        animated_metric(
-            key,
-            label,
-            float(value),
-            color=_sign_color(value),
-            border=True,
-            help=help,
-        )
+_MARKOUT_COLUMNS = [f"Markout +{horizon}" for horizon in HORIZONS]
 
 
-def _render_fill_quality_card(side: str, stats: pd.Series) -> None:
-    st.markdown(f"**{side}**")
-    cols = iter(st.columns(2 + len(HORIZONS)))
-    with next(cols):
-        animated_metric(
-            f"fill-quality-{side}-count",
-            "Fills",
-            stats["fill_count"],
-            decimals=None,
-            border=True,
-            help="How many fills happened on this side.",
+def _markout_stats(stats: pd.DataFrame) -> dict[str, pd.Series]:
+    return {
+        f"Markout +{horizon}": stats[f"avg_markout_{horizon}"]
+        for horizon in HORIZONS
+    }
+
+
+def _markout_column_config(context: str) -> dict[str, object]:
+    return {
+        f"Markout +{horizon}": st.column_config.NumberColumn(
+            help="How much the price moved in our favor, on average, "
+            f"{_HORIZON_PHRASES[horizon]} after {context}."
         )
-    with next(cols):
-        _render_metric_or_dash(
-            f"fill-quality-{side}-edge",
-            "Average edge",
-            stats["avg_edge"],
-            "How far the fill price sat from fair value at the moment "
-            "of execution, in our favor, averaged across fills on this "
-            "side.",
-        )
-    for horizon in HORIZONS:
-        with next(cols):
-            _render_metric_or_dash(
-                f"fill-quality-{side}-markout-{horizon}",
-                f"Markout +{horizon}",
-                stats[f"avg_markout_{horizon}"],
-                "How much the price moved in our favor, on average, "
-                f"{_HORIZON_PHRASES[horizon]} after we filled.",
-            )
+        for horizon in HORIZONS
+    }
+
+
+def _shaded_table(
+    table: pd.DataFrame,
+    money_columns: list[str],
+    column_config: Mapping[str, Any],
+    *,
+    shade_side: bool = False,
+) -> None:
+    styled = table.style.format({col: _fmt_usd for col in money_columns})
+    styled = styled.apply(_shade_column, subset=money_columns, axis=0)
+    if shade_side:
+        styled = styled.apply(_shade_side, subset=["Side"], axis=0)
+    st.dataframe(
+        styled,
+        hide_index=True,
+        width="stretch",
+        column_config=column_config,
+    )
 
 
 def _render_fair_price_movement(fills: pd.DataFrame) -> None:
     st.markdown("**Fair price movement**")
     movement = avg_fair_price_movement(fills)
-    cols = iter(st.columns(len(HORIZONS)))
-    for horizon in HORIZONS:
-        with next(cols):
-            _render_metric_or_dash(
-                f"fair-price-movement-{horizon}",
-                f"+{horizon}",
-                movement[horizon],
-                "Average change in the fair price itself, "
-                f"{_HORIZON_PHRASES[horizon]} after a fill - a positive "
-                "number means it tends to keep rising, negative means it "
-                "tends to fall back.",
-            )
+    columns = [f"+{horizon}" for horizon in HORIZONS]
+    table = pd.DataFrame([movement.values], columns=columns)
+    column_config = {
+        f"+{horizon}": st.column_config.NumberColumn(
+            help="Average change in the fair price itself, "
+            f"{_HORIZON_PHRASES[horizon]} after a fill - a positive "
+            "number means it tends to keep rising, negative means it "
+            "tends to fall back."
+        )
+        for horizon in HORIZONS
+    }
+    _shaded_table(table, columns, column_config)
 
 
 def _render_fill_quality(fills: pd.DataFrame) -> None:
@@ -499,55 +536,28 @@ def _render_fill_quality(fills: pd.DataFrame) -> None:
 
     st.markdown("**Fill Quality**")
     by_side = fill_quality_by_side(fills).sort_index()
-    for side, stats in card_grid(list(by_side.iterrows()), columns=2):
-        _render_fill_quality_card(side, stats)
-
-
-def _bucket_slug(bucket: str) -> str:
-    return bucket.lower().replace(" ", "-")
-
-
-def _render_inventory_bucket_card(bucket: str, stats: pd.Series) -> None:
-    st.markdown(f"**{bucket}**")
-    slug = _bucket_slug(bucket)
-    cols = iter(st.columns(3 + len(HORIZONS)))
-    with next(cols):
-        animated_metric(
-            f"inventory-{slug}-fills",
-            "Fills",
-            stats["fill_count"],
-            decimals=None,
-            border=True,
-            help="How many fills happened while inventory was in this range.",
-        )
-    with next(cols):
-        animated_metric(
-            f"inventory-{slug}-buy",
-            "BUY",
-            stats["buy_count"],
-            decimals=None,
-            border=True,
-            help="How many of this bucket's fills were BUYs.",
-        )
-    with next(cols):
-        animated_metric(
-            f"inventory-{slug}-sell",
-            "SELL",
-            stats["sell_count"],
-            decimals=None,
-            border=True,
-            help="How many of this bucket's fills were SELLs.",
-        )
-    for horizon in HORIZONS:
-        with next(cols):
-            _render_metric_or_dash(
-                f"inventory-{slug}-markout-{horizon}",
-                f"Markout +{horizon}",
-                stats[f"avg_markout_{horizon}"],
-                "How much the price moved in our favor, on average, "
-                f"{_HORIZON_PHRASES[horizon]} after a fill made while "
-                "inventory was in this range.",
-            )
+    table = pd.DataFrame(
+        {
+            "Side": by_side.index,
+            "Fills": by_side["fill_count"].astype(int),
+            "Average edge": by_side["avg_edge"],
+            **_markout_stats(by_side),
+        }
+    )
+    column_config = {
+        "Average edge": st.column_config.NumberColumn(
+            help="How far the fill price sat from fair value at the "
+            "moment of execution, in our favor, averaged across fills "
+            "on this side."
+        ),
+        **_markout_column_config("we filled"),
+    }
+    _shaded_table(
+        table,
+        ["Average edge", *_MARKOUT_COLUMNS],
+        column_config,
+        shade_side=True,
+    )
 
 
 def _render_inventory_buckets(fills: pd.DataFrame) -> None:
@@ -561,8 +571,28 @@ def _render_inventory_buckets(fills: pd.DataFrame) -> None:
     if stats.empty:
         return
 
-    for bucket, row in card_grid(list(stats.iterrows()), columns=2):
-        _render_inventory_bucket_card(bucket, row)
+    st.markdown("**Inventory Buckets**")
+    table = pd.DataFrame(
+        {
+            "Inventory": stats.index,
+            "Fills": stats["fill_count"].astype(int),
+            "BUY": stats["buy_count"].astype(int),
+            "SELL": stats["sell_count"].astype(int),
+            "Average edge": stats["avg_edge"],
+            **_markout_stats(stats),
+        }
+    )
+    column_config = {
+        "Average edge": st.column_config.NumberColumn(
+            help="How far the fill price sat from fair value at the "
+            "moment of execution, in our favor, averaged across fills "
+            "made while inventory was in this range."
+        ),
+        **_markout_column_config(
+            "a fill made while inventory was in this range"
+        ),
+    }
+    _shaded_table(table, ["Average edge", *_MARKOUT_COLUMNS], column_config)
 
 
 def render_header_actions() -> None:
