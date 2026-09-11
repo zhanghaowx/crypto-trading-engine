@@ -89,6 +89,8 @@ def test_renders_pnl_and_recent_fills(populated_db_path):
     # prices are still NULL this soon after, so their markout renders "-".
     assert "Edge" in markdown_values
     assert ":green[+$0.40]" in markdown_values
+    assert "Cash Flow" in markdown_values
+    assert ":red[-$99.50]" in markdown_values
     assert "1.000000" in markdown_values
     assert "Inventory Before" not in markdown_values
     assert "Inventory After" not in markdown_values
@@ -134,7 +136,7 @@ def test_fills_table_uses_readable_headers_and_drops_opaque_ids(
         "Price",
         "Edge",
         "Quantity",
-        "Value",
+        "Cash Flow",
         "Fee",
         "Markout +100ms",
         "Markout +1s",
