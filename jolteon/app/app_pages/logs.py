@@ -1,5 +1,6 @@
 import re
 from datetime import datetime
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
@@ -74,17 +75,34 @@ def _relative_age(local_time: pd.Timestamp) -> str:
     return f"{count} second{'s' if count != 1 else ''} ago"
 
 
+def _read_errors(log_db_path: str) -> pd.DataFrame:
+    logs = read_table(log_db_path, "logs")
+    return (
+        logs[logs["levelname"].isin(_LEVELS)]
+        if "levelname" in logs.columns
+        else logs.iloc[0:0]
+    )
+
+
+def has_errors() -> bool:
+    """Whether the Errors card has anything to show. "No errors" is a
+    non-event on a live trading dashboard, not worth a card of its own,
+    so the card is skipped once there's a log database to confirm that -
+    but not before: while the database doesn't exist yet, every other
+    section still shows its own "waiting for the engine" warning, and
+    this one should too rather than silently vanishing."""
+    log_db_path = st.session_state.log_db_path
+    if not Path(log_db_path).exists():
+        return True
+    return not _read_errors(log_db_path).empty
+
+
 def render() -> None:
     log_db_path = st.session_state.log_db_path
     if not warn_if_no_db(log_db_path):
         return
 
-    logs = read_table(log_db_path, "logs")
-    errors = (
-        logs[logs["levelname"].isin(_LEVELS)]
-        if "levelname" in logs.columns
-        else logs.iloc[0:0]
-    )
+    errors = _read_errors(log_db_path)
     if errors.empty:
         st.info("No ERROR logs recorded yet.")
         return
