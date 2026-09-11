@@ -123,8 +123,6 @@ def fills_table(fills: pd.DataFrame) -> pd.DataFrame:
             "Quantity": quantity,
             "Value": _notional(price, quantity),
             "Fee": _optional(ordered, "fee"),
-            "Inventory Before": _optional(ordered, "inventory_before"),
-            "Inventory After": _optional(ordered, "inventory_after"),
             **_markout_columns(ordered),
         }
     )
@@ -143,8 +141,6 @@ _FILL_COLUMNS: list[tuple[str, float]] = [
     ("Quantity", 1.1),
     ("Value", 1.0),
     ("Fee", 0.9),
-    ("Inventory Before", 1.2),
-    ("Inventory After", 1.2),
     ("Markout +100ms", 1.3),
     ("Markout +1s", 1.2),
     ("Markout +5s", 1.2),
@@ -216,7 +212,7 @@ def _render_fill_cell(col, label: str, value) -> None:
             _render_signed_usd(value)
         elif label in ("Price", "Value"):
             st.write(f"{value:,.2f}")
-        elif label in ("Quantity", "Inventory Before", "Inventory After"):
+        elif label == "Quantity":
             st.write(f"{value:.6f}")
         elif label == "Fee":
             st.write(f"{value:,.4f}")
