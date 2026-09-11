@@ -1,4 +1,5 @@
 import uuid
+from dataclasses import replace
 from datetime import datetime
 from unittest import IsolatedAsyncioTestCase
 from unittest.mock import MagicMock, patch
@@ -224,3 +225,69 @@ class TestMockExecutionService(IsolatedAsyncioTestCase):
 
         self.assertEqual(len(self.fills), 1)
         self.assertEqual(self.fills[0].fee, 50000 * 0.0001 * 0.0026)
+
+    async def test_trades_in_another_symbol_leave_resting_orders_alone(self):
+        order = self.create_limit_order(MarketSide.BUY, 100.0)
+        self.execution_service.on_order(self, order)
+
+        self.execution_service.on_market_trade(
+            self,
+            replace(
+                self.create_market_trade(MarketSide.SELL, 100.0, 1.0),
+                symbol="ETH/USD",
+            ),
+        )
+
+        self.assertEqual(0, len(self.fills))
+
+    async def test_sell_limit_order_queue_position_delays_fill(self):
+        # Someone is displaying 0.02 ahead of us at the ask when we join.
+        self.execution_service.on_bbo(
+            self,
+            BBO(
+                symbol="BTC/USD",
+                bid_price=99.0,
+                bid_quantity=1.0,
+                ask_price=100.0,
+                ask_quantity=0.02,
+            ),
+        )
+        order = self.create_limit_order(MarketSide.SELL, 100.0)
+        self.execution_service.on_order(self, order)
+
+        self.execution_service.on_market_trade(
+            self, self.create_market_trade(MarketSide.BUY, 100.0, 0.02)
+        )
+        self.assertEqual(0, len(self.fills))
+
+        self.execution_service.on_market_trade(
+            self, self.create_market_trade(MarketSide.BUY, 100.0, 0.01)
+        )
+        self.assertEqual(1, len(self.fills))
+        self.assertEqual(0.01, self.fills[0].quantity)
+
+    async def test_market_order_fills_at_zero_without_a_recent_trade(self):
+        """
+        Kraken only returns trades from before the order was placed, so
+        there is no price to match against.
+        """
+        symbol = "BTC/USD"
+        stale = self.mock_order.creation_time.timestamp() - 60
+
+        mock_response = {
+            "error": [],
+            "result": {
+                symbol: [[50000.0, 1.0, stale, "b", "m", "", 1]],
+                "last": stale,
+            },
+        }
+
+        with patch("requests.get", new_callable=MagicMock) as mock_get:
+            mock_get.return_value = MagicMock()
+            mock_get.return_value.status_code = 200
+            mock_get.return_value.json.return_value = mock_response
+
+            self.execution_service.on_order(self, self.mock_order)
+
+        self.assertEqual(1, len(self.fills))
+        self.assertEqual(0.0, self.fills[0].price)

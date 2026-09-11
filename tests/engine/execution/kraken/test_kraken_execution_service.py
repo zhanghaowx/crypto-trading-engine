@@ -256,3 +256,132 @@ class TestExecutionService(IsolatedAsyncioTestCase):
             mock_post.reset_mock()
             await asyncio.sleep(tiny_time_advance)
             mock_post.assert_not_called()
+
+    def order_status_response(self, *statuses: tuple[str, str]):
+        """A QueryOrders response, one entry per (status, vol_exec)."""
+        return {
+            "error": [],
+            "result": {
+                f"TXID-{i}": {
+                    "status": status,
+                    "closetm": 1688667796.8802,
+                    "descr": {
+                        "pair": "XBTUSD",
+                        "type": "buy",
+                        "ordertype": "market",
+                    },
+                    "vol": vol_exec,
+                    "vol_exec": vol_exec,
+                    "fee": "1.0",
+                    "price": "30010.0",
+                }
+                for i, (status, vol_exec) in enumerate(statuses)
+            },
+        }
+
+    async def test_on_order_rejected_by_exchange(self):
+        with patch("requests.post", new_callable=MagicMock) as mock_post:
+            mock_post.return_value = MagicMock()
+            mock_post.return_value.status_code = 200
+            mock_post.return_value.json.return_value = {
+                "error": ["EOrder:Insufficient funds"],
+            }
+
+            self.execution_service.on_order(self, self.mock_order)
+
+        self.assertIn(
+            self.execution_service.ErrorCode.CREATE_ORDER_FAILURE.name,
+            [issue.message for issue in self.execution_service._issues],
+        )
+        self.assertEqual({}, self.execution_service.order_history)
+
+    async def test_on_order_raises_before_reaching_the_exchange(self):
+        with patch("requests.post", new_callable=MagicMock) as mock_post:
+            # A non-numeric client_order_id can't be encoded as the numeric
+            # `userref` Kraken expects, so send_order raises before any
+            # request is made.
+            self.execution_service.on_order(
+                self,
+                Order(
+                    client_order_id="not-a-number",
+                    order_type=OrderType.MARKET_ORDER,
+                    symbol="BTC-USD",
+                    side=MarketSide.BUY,
+                    price=100,
+                    quantity=1,
+                    creation_time=datetime(2024, 1, 1, 0, 0, 0),
+                ),
+            )
+
+            mock_post.assert_not_called()
+
+        self.assertIn(
+            self.execution_service.ErrorCode.CREATE_ORDER_FAILURE.name,
+            [issue.message for issue in self.execution_service._issues],
+        )
+        self.assertEqual({}, self.execution_service.order_history)
+
+    async def test_response_without_a_transaction_id_is_not_polled(self):
+        with patch("requests.post", new_callable=MagicMock) as mock_post:
+            mock_post.return_value = MagicMock()
+            mock_post.return_value.status_code = 200
+            mock_post.return_value.json.return_value = {
+                "error": [],
+                "result": {"descr": {"order": "buy 1.0 XBTUSD @ market"}},
+            }
+
+            self.execution_service.on_order(self, self.mock_order)
+            mock_post.reset_mock()
+
+            await asyncio.sleep(self.execution_service._poll_interval + 0.01)
+
+            mock_post.assert_not_called()
+            self.assertEqual([], self.fills)
+
+    async def test_orders_still_open_are_not_reported_as_fills(self):
+        with patch("requests.post", new_callable=MagicMock) as mock_post:
+            mock_post.return_value = MagicMock()
+            mock_post.return_value.status_code = 200
+            mock_post.return_value.json.return_value = (
+                self.create_order_response
+            )
+
+            self.execution_service.on_order(self, self.mock_order)
+
+        with patch("requests.post", new_callable=MagicMock) as mock_post:
+            mock_post.return_value = MagicMock()
+            mock_post.return_value.status_code = 200
+            mock_post.return_value.json.return_value = (
+                self.order_status_response(
+                    ("open", "0.00000000"), ("closed", "1.00000000")
+                )
+            )
+
+            await asyncio.sleep(self.execution_service._poll_interval + 0.01)
+
+        self.assertEqual(1, len(self.fills))
+        self.assertEqual(1.0, self.fills[0].quantity)
+
+    async def test_partially_filled_order_keeps_polling(self):
+        with patch("requests.post", new_callable=MagicMock) as mock_post:
+            mock_post.return_value = MagicMock()
+            mock_post.return_value.status_code = 200
+            mock_post.return_value.json.return_value = (
+                self.create_order_response
+            )
+
+            self.execution_service.on_order(self, self.mock_order)
+
+        with patch("requests.post", new_callable=MagicMock) as mock_post:
+            mock_post.return_value = MagicMock()
+            mock_post.return_value.status_code = 200
+            mock_post.return_value.json.return_value = (
+                self.order_status_response(("closed", "0.30000000"))
+            )
+
+            for _ in range(2):
+                mock_post.reset_mock()
+                await asyncio.sleep(self.execution_service._poll_interval)
+                mock_post.assert_called_once()
+
+        self.assertEqual([], self.fills)
