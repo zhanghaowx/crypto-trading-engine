@@ -7,7 +7,13 @@ import pytz
 from jolteon.engine.core.side import MarketSide
 from jolteon.engine.market_data.core.bbo import BBO
 from jolteon.engine.market_data.core.order import CancelOrder, Order, OrderType
+from jolteon.engine.market_data.core.order_book import OrderBook
 from jolteon.engine.market_data.core.trade import Trade
+from jolteon.engine.strategy.market_making.fair_value.fair_price_model import (
+    FairPrice,
+    FairPriceContext,
+    IFairPriceModel,
+)
 from jolteon.engine.strategy.market_making.market_making_strategy import (
     MarketMakingStrategy,
 )
@@ -135,3 +141,24 @@ class TestMarketMakingStrategy(unittest.IsolatedAsyncioTestCase):
         self.strategy.on_bbo("_", self.create_bbo(99.0, 101.0))
 
         self.assertEqual([buy_order.client_order_id], self.cancelled_ids)
+
+    async def test_hands_the_latest_book_to_the_fair_price_model(self):
+        seen = []
+        self.strategy._fair_price_model = _RecordingFairPriceModel(seen)
+        order_book = OrderBook("BTC/USD")
+
+        self.strategy.on_bbo("_", self.create_bbo(99.0, 101.0))
+        self.strategy.on_order_book("_", order_book)
+        self.strategy.on_bbo("_", self.create_bbo(99.0, 101.0))
+
+        self.assertEqual([None, order_book], seen)
+
+
+class _RecordingFairPriceModel(IFairPriceModel):
+    def __init__(self, seen: list):
+        super().__init__()
+        self._seen = seen
+
+    def _calculate(self, context: FairPriceContext) -> FairPrice:
+        self._seen.append(context.order_book)
+        return FairPrice(bid=context.bbo.bid_price, ask=context.bbo.ask_price)
