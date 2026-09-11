@@ -1,4 +1,5 @@
 import unittest
+from dataclasses import replace
 from datetime import datetime
 
 from jolteon.engine.market_data.core.bbo import BBO
@@ -33,7 +34,11 @@ class TestOrderFlowImbalanceAdjustment(unittest.TestCase):
         )
         bbo = order_book.bbo()
         assert bbo is not None
-        return FairPriceContext(bbo=bbo, order_book=order_book)
+        return FairPriceContext(
+            bbo=bbo,
+            bids=tuple(order_book.bids(10)),
+            asks=tuple(order_book.asks(10)),
+        )
 
     def test_abstains_without_depth(self):
         bbo = BBO(
@@ -69,17 +74,9 @@ class TestOrderFlowImbalanceAdjustment(unittest.TestCase):
         from the ticker channel. The shift stays bounded there.
         """
         context = self.context([(99.0, 1.0)], [(101.0, 1.0)])
-        context.order_book.apply(
-            BookUpdate(
-                symbol="BTC/USD",
-                bids=[],
-                asks=[PriceLevel(101.0, 0.0)],
-                is_snapshot=False,
-                exchange_time=datetime(2024, 1, 1),
-            )
-        )
+        one_sided = replace(context, asks=())
 
-        self.assertAlmostEqual(1.0, self.adjustment.adjustment(context))
+        self.assertAlmostEqual(1.0, self.adjustment.adjustment(one_sided))
 
     def test_scale_caps_the_shift(self):
         adjustment = OrderFlowImbalanceAdjustment(scale=0.5)
