@@ -16,9 +16,10 @@ import streamlit.components.v1 as components
 # their container - the same escape hatch health.py uses to tint its tiles.
 CARD_BACKGROUND = "#FFFFFF"
 
-# A shallow, low-opacity drop shadow in the theme's near-black, enough to
-# lift the cards off the canvas without reading as a heavy border.
-CARD_SHADOW = "0 2px 6px rgba(21, 23, 28, 0.07)"
+# Untitled UI's shadow-xs token - a near-invisible lift, since the card's
+# own border (borderColor in config.toml) already separates it from the
+# canvas.
+CARD_SHADOW = "0px 1px 2px rgba(0, 0, 0, 0.05)"
 
 # Vega charts also default to the app background, which drops a green slab
 # into an otherwise white card, so they get the card's own background. The

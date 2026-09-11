@@ -330,8 +330,8 @@ def realized_pnl(fills: pd.DataFrame) -> float:
     return total
 
 
-_POSITIVE_COLOR = "#4E9F1F"
-_NEGATIVE_COLOR = "#E2574C"
+_POSITIVE_COLOR = "#16A34A"
+_NEGATIVE_COLOR = "#DC2626"
 
 
 def _sign_color(value: float) -> str:
