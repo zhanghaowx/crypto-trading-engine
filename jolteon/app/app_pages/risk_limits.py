@@ -17,9 +17,9 @@ from jolteon.app.data import as_datetime, read_table
 # inline SVG via `st.html`, the same escape hatch health.py uses for tile
 # backgrounds.
 GAUGE_COLORS: dict[BadgeColor, str] = {
-    "green": "#4E9F1F",
+    "green": "#16A34A",
     "orange": "#E8873C",
-    "red": "#E2574C",
+    "red": "#DC2626",
 }
 GAUGE_TRACK_COLOR = "#D3D9C6"
 
@@ -150,7 +150,7 @@ def _history_chart(history) -> alt.Chart:
     """
     return style_chart(
         alt.Chart(history)
-        .mark_line()
+        .mark_line(tooltip=False)
         .encode(
             x=alt.X("time:T", title=None),
             y=alt.Y("current:Q", title=None),

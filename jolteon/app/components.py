@@ -46,11 +46,25 @@ ChartT = TypeVar("ChartT", bound=alt.TopLevelMixin)
 def style_chart(chart: ChartT) -> ChartT:
     """
     Give a chart the card's white ground and some headroom, so it reads as
-    part of the card rather than as a colored panel dropped into it.
+    part of the card rather than as a colored panel dropped into it. Also
+    drops the axis lines/ticks and the vertical gridlines (Untitled UI's
+    `CartesianGrid vertical={false}`, stroked in its neutral-100), leaving
+    only faint horizontal gridlines so the data reads over the chrome
+    instead of competing with it.
     """
-    return chart.properties(
-        background=CARD_BACKGROUND,
-        padding={"top": CHART_TOP_PADDING, "left": 5, "right": 5, "bottom": 5},
+    return (
+        chart.properties(
+            background=CARD_BACKGROUND,
+            padding={
+                "top": CHART_TOP_PADDING,
+                "left": 5,
+                "right": 5,
+                "bottom": 5,
+            },
+        )
+        .configure_view(strokeWidth=0)
+        .configure_axis(domain=False, ticks=False, grid=False)
+        .configure_axisY(grid=True, gridColor="#F5F5F5", gridDash=[0])
     )
 
 

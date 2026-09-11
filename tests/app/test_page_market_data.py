@@ -59,7 +59,7 @@ def test_renders_metrics_and_chart_from_recorded_data(populated_db_path):
     # Buy/Sell Quote are colored green/red to match the quote lines drawn
     # on the price chart.
     assert metrics["quote-BUY"]["value"] == 99.5
-    assert metrics["quote-BUY"]["color"] == "#4E9F1F"
+    assert metrics["quote-BUY"]["color"] == "#16A34A"
     assert "quote-SELL" not in metrics
     assert {m.label: m.value for m in at.metric}["Sell Quote"] == "—"
     assert len(at.get("vega_lite_chart")) == 1
@@ -98,6 +98,6 @@ def test_sell_quote_is_colored_red(tmp_path):
     assert not at.exception
     metrics = _animated_metrics(at)
     assert metrics["quote-BUY"]["value"] == 99.5
-    assert metrics["quote-BUY"]["color"] == "#4E9F1F"
+    assert metrics["quote-BUY"]["color"] == "#16A34A"
     assert metrics["quote-SELL"]["value"] == 101.5
-    assert metrics["quote-SELL"]["color"] == "#E2574C"
+    assert metrics["quote-SELL"]["color"] == "#DC2626"

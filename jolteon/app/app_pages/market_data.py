@@ -25,7 +25,7 @@ def price_chart(ticks) -> alt.Chart:
     """
     return (
         alt.Chart(ticks)
-        .mark_line()
+        .mark_line(tooltip=False)
         .encode(
             x=alt.X("time:T", title=None),
             y=alt.Y("mid:Q", title="Mid Price", scale=alt.Scale(zero=False)),
@@ -33,7 +33,7 @@ def price_chart(ticks) -> alt.Chart:
     )
 
 
-_QUOTE_LINE_COLORS = {"BUY": "#4E9F1F", "SELL": "#E2574C"}
+_QUOTE_LINE_COLORS = {"BUY": "#16A34A", "SELL": "#DC2626"}
 
 
 def quote_lines(quotes) -> alt.Chart:
@@ -43,7 +43,7 @@ def quote_lines(quotes) -> alt.Chart:
     """
     return (
         alt.Chart(quotes)
-        .mark_rule(strokeDash=[6, 4], size=2)
+        .mark_rule(strokeDash=[6, 4], size=2, tooltip=False)
         .encode(
             y="price:Q",
             color=alt.Color(
@@ -69,7 +69,6 @@ def _quote_metric(col, quotes, side: str, label: str) -> None:
                 label,
                 float(match.iloc[0]["price"]),
                 color=_QUOTE_LINE_COLORS[side],
-                help=_QUOTE_HELP,
             )
 
 
