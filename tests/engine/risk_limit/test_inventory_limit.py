@@ -58,3 +58,8 @@ class TestInventoryLimit(unittest.TestCase):
         limit.record_fill(self.create_trade(MarketSide.SELL, 0.5))
         self.assertEqual(0.5, limit.position)
         self.assertTrue(limit.can_quote(MarketSide.BUY))
+
+    def test_rejects_quoting_on_an_unknown_side(self):
+        limit = InventoryLimit(max_inventory=1.0)
+
+        self.assertFalse(limit.can_quote(MarketSide.UNKNOWN))

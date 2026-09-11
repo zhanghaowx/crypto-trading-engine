@@ -110,3 +110,28 @@ class TestMarketMakingStrategy(unittest.IsolatedAsyncioTestCase):
         # Only the sell side should be quoted now.
         self.assertEqual(1, len(self.orders))
         self.assertEqual(MarketSide.SELL, self.orders[0].side)
+
+    async def test_cancels_own_order_after_it_fills(self):
+        self.strategy.on_bbo("_", self.create_bbo(99.0, 101.0))
+        buy_order = next(o for o in self.orders if o.side == MarketSide.BUY)
+
+        self.strategy.on_fill(
+            "_",
+            self.create_fill(buy_order.client_order_id, MarketSide.BUY, 99.0),
+        )
+
+        self.assertEqual([buy_order.client_order_id], self.cancelled_ids)
+
+    async def test_cancels_resting_quote_once_inventory_cap_hit(self):
+        self.strategy.on_bbo("_", self.create_bbo(99.0, 101.0))
+        buy_order = next(o for o in self.orders if o.side == MarketSide.BUY)
+
+        for i in range(2):
+            self.strategy.on_fill(
+                "_", self.create_fill(f"unrelated-{i}", MarketSide.BUY, 99.0)
+            )
+        self.assertEqual([], self.cancelled_ids)
+
+        self.strategy.on_bbo("_", self.create_bbo(99.0, 101.0))
+
+        self.assertEqual([buy_order.client_order_id], self.cancelled_ids)
