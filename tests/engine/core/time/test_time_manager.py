@@ -200,3 +200,22 @@ class TimeManagerTest(unittest.TestCase):
         )
 
         tm2.reset(admin=admin)
+
+    def test_context_manager_claims_admin_for_the_caller(self):
+        fake_time = datetime(2022, 1, 1, tzinfo=pytz.utc)
+
+        with TimeManager() as tm:
+            tm.use_fake_time(fake_time, self)
+
+            self.assertEqual(fake_time, tm.now())
+            self.assertTrue(tm.is_using_fake_time())
+
+    def test_context_manager_resets_on_exit(self):
+        tm = TimeManager()
+
+        with tm:
+            tm.use_fake_time(datetime(2022, 1, 1, tzinfo=pytz.utc), self)
+
+        self.assertFalse(tm.is_using_fake_time())
+        # Admin was released, so another user may now claim it.
+        tm.claim_admin(object())
