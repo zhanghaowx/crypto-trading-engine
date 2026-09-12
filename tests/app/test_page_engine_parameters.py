@@ -5,7 +5,10 @@ from streamlit.testing.v1 import AppTest
 from jolteon.engine.core.parameter.parameter_catalog import GROUPS
 from jolteon.engine.core.parameter.parameter_service import ALL_SYMBOLS
 from jolteon.engine.core.parameter.parameter_specification import definitions
-from jolteon.engine.core.parameter.parameter_store import ParameterStore
+from jolteon.engine.core.parameter.parameter_store import (
+    ParameterStore,
+    override_of,
+)
 from jolteon.engine.strategy.market_making.parameters import (
     MarketMakingParameters,
 )
@@ -157,3 +160,30 @@ def test_a_pushed_value_comes_back_as_the_widgets_value(
 
     fresh = _page(params_db_path, missing_db_path).run()
     assert fresh.number_input(key=QUOTE_SIZE).value == 0.02
+
+
+def test_says_nothing_about_a_parameter_left_at_its_default(
+    params_db_path, missing_db_path
+):
+    at = _page(params_db_path, missing_db_path).run()
+
+    assert not at.exception
+    assert not at.caption[1:]
+
+
+def test_reports_a_stored_value_no_engine_has_read(
+    params_db_path, missing_db_path
+):
+    """
+    A pushed value with no engine behind it has to say so. Showing it in
+    the widget and nothing else reads as though it were in force.
+    """
+    ParameterStore(params_db_path).push(
+        [override_of("MarketMakingParameters", "quote_size", 0.02)]
+    )
+    at = _page(params_db_path, missing_db_path).run()
+
+    assert not at.exception
+    assert any(
+        "no engine has reported" in caption.value for caption in at.caption
+    )

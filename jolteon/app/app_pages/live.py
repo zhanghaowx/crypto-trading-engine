@@ -11,7 +11,7 @@ from jolteon.app.app_pages import (
     orders_pnl,
     risk_limits,
 )
-from jolteon.app.components import CARD_BACKGROUND, CARD_SHADOW
+from jolteon.app.components import card_surface_rule
 
 Section = tuple[
     str,
@@ -114,18 +114,25 @@ sections: list[Section] = [
 # grey canvas underneath for a moment before it snaps to white. Cards
 # are keyed off the (static) titles above, so this needs nothing the
 # sections loop itself produces.
-_selector = ", ".join(
-    f".st-key-{_section_key(title)}" for title, *_ in sections
-)
+_card_keys = [_section_key(title) for title, *_ in sections]
+_selector = ", ".join(f".st-key-{key}" for key in _card_keys)
+
+# Emitted before any card renders, not after: Streamlit streams
+# elements to the browser as the script runs rather than painting the
+# whole page at once, so a card's own container can reach the DOM
+# several beats before the rule painting it white would - showing the
+# grey canvas underneath for a moment before it snaps to white. Cards
+# are keyed off the (static) titles above, so this needs nothing the
+# sections loop itself produces.
+st.html(card_surface_rule(_card_keys))
 st.html(
     f"<style>"
     f"html {{ interpolate-size: allow-keywords; }}"
-    f"{_selector} {{ background-color: {CARD_BACKGROUND};"
-    f" box-shadow: {CARD_SHADOW};"
     # `interpolate-size` (Chromium) is what lets a height transition
     # animate to/from `auto` at all; elsewhere this is simply a no-op
     # and a card's height still changes, just without the animation.
-    f" transition: height 300ms ease, box-shadow 300ms ease; }}"
+    f"{_selector} {{ transition: height 300ms ease,"
+    f" box-shadow 300ms ease; }}"
     f"</style>"
 )
 

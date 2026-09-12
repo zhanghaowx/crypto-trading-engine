@@ -11,7 +11,7 @@ from typing import Any
 
 import streamlit as st
 
-from jolteon.app.components import card_grid
+from jolteon.app.components import card_grid, card_surface_rule
 from jolteon.app.data import read_table
 from jolteon.engine.core.parameter.parameter_applied import (
     REJECTED,
@@ -70,6 +70,12 @@ def _current(group_name: str, definition: ParameterDefinition, stored):
 def _on_change(group_name: str, definition: ParameterDefinition) -> None:
     value = st.session_state[_widget_key(group_name, definition.name)]
     _staged()[(group_name, definition.name)] = definition.value_type(value)
+
+
+def _card_key(group: type) -> str:
+    return "param-card-" + re.sub(
+        r"[^a-z0-9]+", "-", group.__name__.lower()
+    ).strip("-")
 
 
 def _group_title(group_name: str) -> str:
@@ -152,10 +158,24 @@ def _as_int(bound: float | None) -> int | None:
     return None if bound is None else int(bound)
 
 
-def _state_badge(group_name: str, definition: ParameterDefinition) -> None:
+def _state_badge(
+    group_name: str,
+    definition: ParameterDefinition,
+    stored: dict[tuple[str, str], Any],
+) -> None:
+    """
+    What the engine did with this field, as it reported it. Nothing is
+    shown for a field left at its declared default, since there is
+    nothing to have picked up.
+    """
+    if (group_name, definition.name) not in stored:
+        return
+
     engine = st.session_state.get("_engine_parameter_state", {})
     row = engine.get(applied_key(group_name, definition.name, ALL_SYMBOLS))
     if row is None:
+        st.badge("not picked up", color="yellow")
+        st.caption("Stored, but no engine has reported reading it.")
         return
     if row.status == REJECTED:
         st.badge("rejected", color="red", icon=":material/error:")
@@ -226,7 +246,11 @@ def render() -> None:
             width="stretch",
         )
 
-    for group in card_grid(GROUPS, columns=3):
+    # Before the cards themselves: a rule arriving after a container has
+    # reached the browser shows the canvas through it for a moment first.
+    st.html(card_surface_rule(_card_key(group) for group in GROUPS))
+
+    for group in card_grid(GROUPS, columns=3, key_fn=_card_key):
         st.markdown(f"**{_group_title(group.__name__)}**")
         for definition in definitions(group):
             _widget(
@@ -234,4 +258,4 @@ def render() -> None:
                 definition,
                 _current(group.__name__, definition, stored),
             )
-            _state_badge(group.__name__, definition)
+            _state_badge(group.__name__, definition, stored)
