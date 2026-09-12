@@ -20,7 +20,14 @@ def dashboard(missing_db_path) -> AppTest:
     at.session_state["auto_refresh"] = False
     at.session_state["db_path"] = missing_db_path
     at.session_state["log_db_path"] = missing_db_path
+    at.session_state["params_db_path"] = missing_db_path
     return at
+
+
+@pytest.fixture
+def params_db_path(tmp_path) -> str:
+    """A parameter store path the Engine tab can push into."""
+    return str(tmp_path / "params.sqlite")
 
 
 @pytest.fixture
