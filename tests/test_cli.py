@@ -27,6 +27,9 @@ from jolteon.engine.strategy.market_making.fair_value.order_flow_imbalance impor
 from jolteon.engine.strategy.market_making.market_making_strategy import (
     MarketMakingStrategy,
 )
+from jolteon.engine.strategy.market_making.parameters import (
+    QuoteOffsetParameters,
+)
 from jolteon.engine.strategy.market_making.quote_offset import (
     FeeAwareQuoteOffsetService,
 )
@@ -195,9 +198,10 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
 
         offset_service = strategy._quote_offset_service
         self.assertIsInstance(offset_service, FeeAwareQuoteOffsetService)
-        self.assertEqual(
-            offset_service._edge, fair_price_model._max_adjustment
-        )
+        edge = strategy._parameter_service.get(
+            QuoteOffsetParameters, strategy._symbol
+        ).edge
+        self.assertEqual(edge, fair_price_model._max_adjustment)
 
         max_inventory = strategy._inventory_limit.max_inventory
         self.assertEqual(

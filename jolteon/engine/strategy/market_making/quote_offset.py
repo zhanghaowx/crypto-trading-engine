@@ -2,8 +2,16 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 from jolteon.engine.core.event.signal import signal
-from jolteon.engine.core.fee_schedule import KRAKEN, FeeSchedule
+from jolteon.engine.core.fee_schedule import FeeSchedule
+from jolteon.engine.core.parameter.parameter_service import (
+    ALL_SYMBOLS,
+    IParameterService,
+    StaticParameterService,
+)
 from jolteon.engine.market_data.core.book_snapshot import BookSnapshot
+from jolteon.engine.strategy.market_making.parameters import (
+    QuoteOffsetParameters,
+)
 
 
 @dataclass(frozen=True)
@@ -73,15 +81,25 @@ class StaticQuoteOffsetService(IQuoteOffsetService):
     run from, not a service to trade a real book on.
     """
 
-    DEFAULT_HALF_SPREAD = 50.0
-
-    def __init__(self, half_spread: float = DEFAULT_HALF_SPREAD):
+    def __init__(
+        self,
+        half_spread: float | None = None,
+        parameter_service: IParameterService | None = None,
+    ):
         super().__init__()
-        assert half_spread > 0, "half_spread must be positive"
+        assert half_spread is None or half_spread > 0, (
+            "half_spread must be positive"
+        )
         self._half_spread = half_spread
+        self._parameter_service = parameter_service or StaticParameterService()
 
     def _calculate(self, context: BookSnapshot) -> QuoteOffset:
-        return QuoteOffset(bid=self._half_spread, ask=self._half_spread)
+        half_spread = self._half_spread
+        if half_spread is None:
+            half_spread = self._parameter_service.get(
+                QuoteOffsetParameters, context.bbo.symbol
+            ).half_spread
+        return QuoteOffset(bid=half_spread, ask=half_spread)
 
 
 class FeeAwareQuoteOffsetService(IQuoteOffsetService):
@@ -95,14 +113,29 @@ class FeeAwareQuoteOffsetService(IQuoteOffsetService):
     limit order makes the maker rate the one that applies.
     """
 
-    def __init__(self, edge: float, fees: FeeSchedule = KRAKEN):
+    def __init__(
+        self,
+        edge: float | None = None,
+        fees: FeeSchedule | None = None,
+        parameter_service: IParameterService | None = None,
+    ):
         super().__init__()
-        assert edge > 0, "edge must be positive"
+        assert edge is None or edge > 0, "edge must be positive"
         self._edge = edge
         self._fees = fees
+        self._parameter_service = parameter_service or StaticParameterService()
 
     def _calculate(self, context: BookSnapshot) -> QuoteOffset:
+        symbol = context.bbo.symbol
+        edge = self._edge
+        if edge is None:
+            edge = self._parameter_service.get(
+                QuoteOffsetParameters, symbol
+            ).edge
+        fees = self._fees or self._parameter_service.get(
+            FeeSchedule, ALL_SYMBOLS
+        )
         return QuoteOffset(
-            bid=self._edge + self._fees.maker_fee(context.bbo.bid_price, 1.0),
-            ask=self._edge + self._fees.maker_fee(context.bbo.ask_price, 1.0),
+            bid=edge + fees.maker_fee(context.bbo.bid_price, 1.0),
+            ask=edge + fees.maker_fee(context.bbo.ask_price, 1.0),
         )

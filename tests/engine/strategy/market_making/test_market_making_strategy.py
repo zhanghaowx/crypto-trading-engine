@@ -4,6 +4,9 @@ from datetime import datetime
 
 import pytz
 
+from jolteon.engine.core.parameter.parameter_service import (
+    StaticParameterService,
+)
 from jolteon.engine.core.side import MarketSide
 from jolteon.engine.market_data.core.bbo import BBO
 from jolteon.engine.market_data.core.book_snapshot import BookSnapshot
@@ -22,7 +25,7 @@ from jolteon.engine.strategy.market_making.market_making_strategy import (
     MarketMakingStrategy,
 )
 from jolteon.engine.strategy.market_making.parameters import (
-    StaticParameterService,
+    MarketMakingParameters,
 )
 from jolteon.engine.strategy.market_making.quote_offset import (
     StaticQuoteOffsetService,
@@ -38,8 +41,7 @@ class TestMarketMakingStrategy(unittest.IsolatedAsyncioTestCase):
             symbol="BTC/USD",
             requote_tolerance=0.0,
             parameter_service=StaticParameterService(
-                quote_size=0.01,
-                max_inventory=0.02,
+                MarketMakingParameters(quote_size=0.01, max_inventory=0.02)
             ),
             quote_offset_service=StaticQuoteOffsetService(half_spread=1.0),
         )
@@ -202,3 +204,71 @@ class _RecordingFairPriceModel(IFairPriceModel):
     def _calculate(self, context: BookSnapshot) -> FairPrice:
         self._seen.append(context.bids)
         return FairPrice(bid=context.bbo.bid_price, ask=context.bbo.ask_price)
+
+
+class TestRetuningWhileRunning(unittest.IsolatedAsyncioTestCase):
+    """
+    The strategy reads its parameters on every tick rather than copying
+    them once, so a push that lands mid-session changes the next quote.
+    """
+
+    async def asyncSetUp(self):
+        self.orders = list[Order]()
+        self.store = _RetunableParameterService()
+        self.strategy = MarketMakingStrategy(
+            symbol="BTC/USD",
+            parameter_service=self.store,
+            quote_offset_service=StaticQuoteOffsetService(half_spread=1.0),
+        )
+        self.strategy.order_event.connect(self._on_order)
+
+    def _on_order(self, _, order: Order):
+        self.orders.append(order)
+
+    def _tick(self, bid=100.0, ask=101.0):
+        self.strategy.on_bbo(
+            "ticker_feed",
+            BBO(
+                symbol="BTC/USD",
+                bid_price=bid,
+                bid_quantity=1.0,
+                ask_price=ask,
+                ask_quantity=1.0,
+            ),
+        )
+
+    async def test_a_new_quote_size_reaches_the_next_order(self):
+        self._tick()
+        self.assertEqual(0.0005, self.orders[0].quantity)
+
+        self.store.retune(MarketMakingParameters(quote_size=0.02))
+        self._tick(bid=200.0, ask=201.0)
+
+        self.assertEqual(0.02, self.orders[-1].quantity)
+
+    async def test_a_new_inventory_cap_regates_quoting(self):
+        self.strategy._inventory_limit._position = 0.05
+        self._tick()
+        self.assertEqual(
+            [MarketSide.SELL], [order.side for order in self.orders]
+        )
+
+        self.store.retune(MarketMakingParameters(max_inventory=0.5))
+        self.orders.clear()
+        self._tick(bid=200.0, ask=201.0)
+
+        self.assertIn(MarketSide.BUY, [order.side for order in self.orders])
+
+    async def test_a_new_requote_tolerance_holds_a_resting_quote(self):
+        self._tick()
+        self.orders.clear()
+
+        self.store.retune(MarketMakingParameters(requote_tolerance=50.0))
+        self._tick(bid=110.0, ask=111.0)
+
+        self.assertEqual([], self.orders)
+
+
+class _RetunableParameterService(StaticParameterService):
+    def retune(self, group: MarketMakingParameters) -> None:
+        self._values = StaticParameterService(group).values()

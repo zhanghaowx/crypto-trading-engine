@@ -14,6 +14,9 @@ import pytz
 
 from jolteon.app.progress_bar import ProgressBar
 from jolteon.engine.core.market import Market
+from jolteon.engine.core.parameter.parameter_service import (
+    StaticParameterService,
+)
 from jolteon.engine.market_data.data_source import DatabaseDataSource
 from jolteon.engine.strategy.market_making.fair_value.adjusted_model import (
     AdjustedFairPriceModel,
@@ -34,7 +37,8 @@ from jolteon.engine.strategy.market_making.market_making_strategy import (
     MarketMakingStrategy,
 )
 from jolteon.engine.strategy.market_making.parameters import (
-    StaticParameterService,
+    MarketMakingParameters,
+    QuoteOffsetParameters,
 )
 from jolteon.engine.strategy.market_making.quote_offset import (
     FeeAwareQuoteOffsetService,
@@ -144,11 +148,15 @@ async def main():
         fair_price_model = None
         if args.paper:
             strategy_symbol = symbol.replace("-", "/")
-            quote_edge = 5.0
-            quote_offset_service = FeeAwareQuoteOffsetService(edge=quote_edge)
             parameter_service = StaticParameterService()
+            quote_offset_service = FeeAwareQuoteOffsetService(
+                parameter_service=parameter_service
+            )
+            quote_edge = parameter_service.get(
+                QuoteOffsetParameters, strategy_symbol
+            ).edge
             max_inventory = parameter_service.get(
-                strategy_symbol
+                MarketMakingParameters, strategy_symbol
             ).max_inventory
             skew_at_max_inventory = quote_edge
             # Shared with PostTradeService below, so decorated fills are
