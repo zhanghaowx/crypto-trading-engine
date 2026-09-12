@@ -70,7 +70,7 @@ def test_shows_info_when_waiting_for_fair_price_data(tmp_path):
     ]
 
 
-def test_renders_samples_slope_and_correlation(tmp_path):
+def test_renders_slope_and_correlation(tmp_path):
     db_path = str(tmp_path / "evaluation.sqlite")
     conn = sqlite3.connect(db_path)
     _create_adjustments_table(conn)
@@ -98,15 +98,12 @@ def test_renders_samples_slope_and_correlation(tmp_path):
 
     assert not at.exception
     markdown_values = [m.value for m in at.markdown]
-    assert "**Samples**" in markdown_values
     assert "**Calibration (slope)**" in markdown_values
     assert "**Reliability (correlation)**" in markdown_values
 
-    samples = at.dataframe[0].value.set_index("Adjustment")
-    slope = at.dataframe[1].value.set_index("Adjustment")
-    correlation = at.dataframe[2].value.set_index("Adjustment")
+    slope = at.dataframe[0].value.set_index("Adjustment")
+    correlation = at.dataframe[1].value.set_index("Adjustment")
 
-    assert samples.loc["momentum", "+1s"] == 2
     assert slope.loc["momentum", "+1s"] == pytest.approx(1.0)
     assert correlation.loc["momentum", "+1s"] == pytest.approx(1.0)
     assert slope.loc["Total", "+1s"] == pytest.approx(1.0)
