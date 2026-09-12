@@ -11,7 +11,14 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
 from unittest.mock import patch
 
-from jolteon.engine.core.sqlite_writer import SQLiteWriter
+from jolteon.engine.core.parameter.parameter_service import (
+    StaticParameterService,
+    use_parameter_service,
+)
+from jolteon.engine.core.sqlite_writer import (
+    SQLiteWriter,
+    SqliteWriterParameters,
+)
 
 
 class TestSQLiteWriter(unittest.TestCase):
@@ -41,6 +48,18 @@ class TestSQLiteWriter(unittest.TestCase):
         with closing(sqlite3.connect(self.database_filepath)) as conn:
             info = conn.execute(f'PRAGMA table_info("{table}")').fetchall()
         return [row[1] for row in info]
+
+    def writer_with(self, **tunables) -> SQLiteWriter:
+        """A writer reading the given tunables instead of the declared
+        defaults. SQLiteWriter reads them from the global service at
+        construction, so the service has to be in place first."""
+        use_parameter_service(
+            StaticParameterService(SqliteWriterParameters(**tunables))
+        )
+        self.addCleanup(use_parameter_service, StaticParameterService())
+        writer = SQLiteWriter(self.database_filepath)
+        self.addCleanup(writer.close)
+        return writer
 
     def create_table(self, ddl: str) -> None:
         with closing(sqlite3.connect(self.database_filepath)) as conn:
@@ -268,19 +287,24 @@ class TestSQLiteWriter(unittest.TestCase):
         """
         A burst the disk can't keep up with is committed in pieces, so the
         writer never holds the write lock for one huge transaction.
+
+        The cap is set far below the burst rather than left at its
+        declared 5000, so the split is forced instead of depending on how
+        much the writer happened to drain before the lock stopped it.
         """
-        total = 6000
+        total = 100
+        writer = self.writer_with(max_batch=2)
         with closing(
             sqlite3.connect(self.database_filepath, isolation_level=None)
         ) as blocker:
             blocker.execute("BEGIN EXCLUSIVE")
             try:
                 for i in range(total):
-                    self.writer.put("t", {"a": i})
+                    writer.put("t", {"a": i})
             finally:
                 blocker.execute("ROLLBACK")
 
-        self.writer.flush()
+        writer.flush()
         self.assertEqual([(total,)], self.query("SELECT COUNT(*) FROM t"))
 
     def test_flush_gives_up_when_the_writer_thread_is_gone(self):
