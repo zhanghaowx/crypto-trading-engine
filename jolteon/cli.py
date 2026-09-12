@@ -18,6 +18,9 @@ from jolteon.engine.market_data.data_source import DatabaseDataSource
 from jolteon.engine.strategy.market_making.fair_value.adjusted_model import (
     AdjustedFairPriceModel,
 )
+from jolteon.engine.strategy.market_making.fair_value.inventory import (
+    InventoryAdjustment,
+)
 from jolteon.engine.strategy.market_making.fair_value.mid_price_model import (
     MidPriceFairPriceModel,
 )
@@ -29,6 +32,9 @@ from jolteon.engine.strategy.market_making.fair_value.order_flow_imbalance impor
 )
 from jolteon.engine.strategy.market_making.market_making_strategy import (
     MarketMakingStrategy,
+)
+from jolteon.engine.strategy.market_making.parameters import (
+    StaticParameterService,
 )
 from jolteon.engine.strategy.market_making.quote_offset import (
     FeeAwareQuoteOffsetService,
@@ -140,21 +146,28 @@ async def main():
             strategy_symbol = symbol.replace("-", "/")
             quote_edge = 5.0
             quote_offset_service = FeeAwareQuoteOffsetService(edge=quote_edge)
+            parameter_service = StaticParameterService()
+            max_inventory = parameter_service.get(
+                strategy_symbol
+            ).max_inventory
+            skew_at_max_inventory = quote_edge
             # Shared with PostTradeService below, so decorated fills are
             # scored against the same fair price the strategy quotes off.
-            # Capping the adjustment at the edge keeps a signal from
-            # giving away more than the quote was priced to earn.
             fair_price_model = AdjustedFairPriceModel(
                 base=MidPriceFairPriceModel(),
                 adjustments=[
                     MomentumAdjustment(),
                     OrderFlowImbalanceAdjustment(),
+                    InventoryAdjustment(
+                        scale=skew_at_max_inventory / max_inventory
+                    ),
                 ],
                 max_adjustment=quote_edge,
             )
             strategy = MarketMakingStrategy(
                 symbol=strategy_symbol,
                 fair_price_model=fair_price_model,
+                parameter_service=parameter_service,
                 quote_offset_service=quote_offset_service,
             )
 

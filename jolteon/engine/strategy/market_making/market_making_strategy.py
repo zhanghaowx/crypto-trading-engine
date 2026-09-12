@@ -38,7 +38,7 @@ class MarketMakingStrategy(Heartbeater, SignalSubscriber):
       a pluggable IQuoteOffsetService asks for.
     - Inventory is capped by a hard limit: once the cap is hit on one side,
       that side stops quoting until fills bring the position back within
-      bounds. No inventory-based price skewing yet.
+      bounds.
     - Quote size and the inventory cap come from a pluggable
       IParameterService (fixed, conservative defaults if none is given),
       so callers such as the CLI don't need to know or pass tuning values.

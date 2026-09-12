@@ -12,6 +12,9 @@ from jolteon.cli import main
 from jolteon.engine.strategy.market_making.fair_value.adjusted_model import (
     AdjustedFairPriceModel,
 )
+from jolteon.engine.strategy.market_making.fair_value.inventory import (
+    InventoryAdjustment,
+)
 from jolteon.engine.strategy.market_making.fair_value.mid_price_model import (
     MidPriceFairPriceModel,
 )
@@ -179,19 +182,27 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
         fair_price_model = MockApplication.call_args.kwargs["fair_price_model"]
         self.assertIsInstance(fair_price_model, AdjustedFairPriceModel)
         self.assertIsInstance(fair_price_model._base, MidPriceFairPriceModel)
-        self.assertEqual(2, len(fair_price_model._adjustments))
+        self.assertEqual(3, len(fair_price_model._adjustments))
         self.assertIsInstance(
             fair_price_model._adjustments[0], MomentumAdjustment
         )
         self.assertIsInstance(
             fair_price_model._adjustments[1], OrderFlowImbalanceAdjustment
         )
+        inventory_adjustment = fair_price_model._adjustments[2]
+        self.assertIsInstance(inventory_adjustment, InventoryAdjustment)
         self.assertIs(fair_price_model, strategy._fair_price_model)
 
         offset_service = strategy._quote_offset_service
         self.assertIsInstance(offset_service, FeeAwareQuoteOffsetService)
         self.assertEqual(
             offset_service._edge, fair_price_model._max_adjustment
+        )
+
+        max_inventory = strategy._inventory_limit.max_inventory
+        self.assertEqual(
+            fair_price_model._max_adjustment,
+            inventory_adjustment._scale * max_inventory,
         )
 
         self.assertEqual("", captured_output.getvalue().split("\n")[-1])

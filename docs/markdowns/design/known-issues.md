@@ -9,7 +9,7 @@ rather than in any one component's notes.
 Each entry states what is wrong, why it matters, and what would resolve
 it; the few marked fixed record what changed. Arithmetic assumes BTC
 around $100,000 and the defaults in `StaticParameterService`:
-`quote_size = 0.0005` and `max_inventory = 1`. Where a quote offset
+`quote_size = 0.0005` and `max_inventory = 0.01`. Where a quote offset
 matters, the figure given is the one a paper session actually quotes:
 `FeeAwareQuoteOffsetService(edge = 5.0)`, which at that price asks
 $255 a side.
@@ -24,7 +24,7 @@ $255 a side.
 | 4 | Sweeps fill the whole remainder | Overstates size on adverse fills |
 | 5 | No latency model | Queue position optimistic |
 | 6 | Simulated book never reacts to our orders | Inherent to replay |
-| 7 | No inventory skew wired in; cap is not a control | Unbounded directional risk |
+| 7 | ~~No inventory skew wired in; cap is not a control~~ | Fixed |
 | 8 | A better fill model would be live-only | Cannot be backtested |
 
 ## 1. Fees exceed the quoted edge
@@ -149,26 +149,36 @@ inherent to replaying a market we did not trade in and is not fixable with
 better data. It is recorded so that simulated results are read with it in
 mind.
 
-## 7. No inventory skew is wired in, and the cap is not a control
+## 7. No inventory skew was wired in, and the cap was not a control (fixed)
 
-`InventoryAdjustment` exists and shifts fair price against the current
-position, but `cli.py` registers only `MomentumAdjustment`, so nothing
-pushes inventory back toward flat during a run.
+`InventoryAdjustment` existed and shifted fair price against the current
+position, but `cli.py` registered only `MomentumAdjustment` and
+`OrderFlowImbalanceAdjustment`, both of which lean into recent flow and so
+accumulate inventory in the direction of the trend. Nothing pushed it back
+toward flat, and the only remaining control was a hard cap of 1 BTC, which
+against a 0.0005 quote size is 2,000 fills away: a backstop rather than a
+control. For scale, one round trip earns $0.05 gross, while a full 1 BTC
+position through a $500 move is $500, or 10,000 round trips of spread
+capture.
 
-The only remaining control is `InventoryLimit`'s hard cap of 1 BTC, which
-against a 0.0005 quote size is 2,000 fills away. It is a backstop, not a
-control. Meanwhile `MomentumAdjustment` shifts fair price in the direction
-of recent trade flow, which accumulates inventory in the direction of the
-trend.
+The paper session now registers `InventoryAdjustment` alongside the two
+flow adjustments, and `DEFAULT_MAX_INVENTORY` is 20 times quote size
+rather than a flat 1 BTC, so the cap binds in tens of fills rather than
+thousands. The skew is scaled `max_adjustment / max_inventory`, so a
+position at the cap asks for the entire adjustment the model is allowed to
+apply and can always outvote the flow adjustments at the point where
+inventory matters most.
 
-Scale: one round trip earns $0.05 gross, while a full 1 BTC position
-through a $500 move is $500, or 10,000 round trips of spread capture.
+Hedging was never what was missing here. Hedging reduces the variance of
+the inventory term rather than creating expectancy, and an unhedged maker
+with a tight cap and skewed quotes is an ordinary arrangement.
 
-Hedging is not what is missing here. Hedging reduces the variance of the
-inventory term rather than creating expectancy, and an unhedged maker with
-a tight cap and skewed quotes is an ordinary arrangement. What is missing
-is the skew and a cap sized as a control, perhaps 20 to 50 times quote
-size.
+What this does not fix is how little room the skew has to work in. The
+adjustment is capped at the quoted edge of $5 while the offset itself is
+around $255, so even a position at the cap moves the quote by about 2% of
+its distance from mid. That ratio is issue 1 showing up again rather than
+a flaw in the skew: the fee term dominates the quote, so no fair price
+signal can steer much until the fee tier or the pair changes.
 
 ## 8. A better fill model would be live-only
 
