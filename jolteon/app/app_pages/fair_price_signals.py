@@ -38,19 +38,6 @@ def _pivot(evaluation: pd.DataFrame, value_column: str) -> pd.DataFrame:
     return pivoted.reset_index().rename(columns={"adjustment": "Adjustment"})
 
 
-def _render_samples(evaluation: pd.DataFrame) -> None:
-    st.markdown("**Samples**")
-    st.caption(
-        "How many (signal, forward return) pairs each figure below is "
-        "based on - a slope or correlation resting on only a handful of "
-        "samples is not yet trustworthy."
-    )
-    table = _pivot(evaluation, "n")
-    for column in _HORIZON_COLUMNS:
-        table[column] = table[column].astype(int)
-    st.dataframe(table, hide_index=True, width="stretch")
-
-
 def _render_slope(evaluation: pd.DataFrame) -> None:
     st.markdown("**Calibration (slope)**")
     table = _pivot(evaluation, "slope")
@@ -106,8 +93,6 @@ def render() -> None:
         st.info("Waiting for fair price data to evaluate against.")
         return
 
-    _render_samples(evaluation)
-    st.divider()
     _render_slope(evaluation)
     st.divider()
     _render_correlation(evaluation)
