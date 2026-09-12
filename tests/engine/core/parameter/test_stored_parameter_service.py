@@ -1,4 +1,5 @@
 import tempfile
+import threading
 import unittest
 from dataclasses import dataclass
 from pathlib import Path
@@ -235,6 +236,51 @@ class TestRefusingABadPush(StoredParameterServiceTestCase):
         service.start()
         self.assertEqual(0.03, service.get(QuotingParameters).quote_size)
 
+    def test_keeps_running_when_a_value_cannot_become_its_type(self):
+        """
+        Bounds cannot catch this one: the value never gets far enough to
+        be compared against them, since coercing it raises first.
+        """
+        self.store.push([override_of("QuotingParameters", "depth", 20)])
+        service = self.service()
+        service.start()
+
+        self.store.push([override_of("QuotingParameters", "depth", "ten")])
+        service._refresh()
+
+        self.assertEqual(20, service.get(QuotingParameters).depth)
+
+    def test_reports_why_an_uncoercible_value_was_refused(self):
+        service = self.service()
+        service.start()
+        self.applied.clear()
+
+        self.store.push([override_of("QuotingParameters", "depth", "ten")])
+        service._refresh()
+
+        refused = [a for a in self.applied if a.status == REJECTED]
+        self.assertEqual(["depth"], [a.field_name for a in refused])
+        self.assertIn("ten", refused[0].reason)
+
+    def test_one_uncoercible_value_refuses_the_whole_push(self):
+        """
+        A push is one transaction to the engine as well as to the file,
+        so it cannot half-apply: the good field would otherwise land on
+        top of values the refused one was meant to go with.
+        """
+        service = self.service()
+        service.start()
+
+        self.store.push(
+            [
+                override_of("QuotingParameters", "quote_size", 0.03),
+                override_of("QuotingParameters", "depth", "ten"),
+            ]
+        )
+        service._refresh()
+
+        self.assertEqual(0.0005, service.get(QuotingParameters).quote_size)
+
     def test_raises_a_warning_while_a_push_stands_refused(self):
         service = self.service()
         service.start()
@@ -304,6 +350,36 @@ class TestPollingThread(StoredParameterServiceTestCase):
         service.stop()
         self.assertFalse(thread.is_alive())
         self.assertIsNone(service._thread)
+
+    def test_a_refresh_that_raises_does_not_kill_the_poller(self):
+        """
+        The thread is the only thing carrying pushed values into the
+        engine, so it has to survive whatever one refresh does. A dead
+        poller looks exactly like a dashboard nobody is pushing from.
+        """
+        self.store.push(
+            [
+                override_of(
+                    "ParameterPollParameters", "interval_in_seconds", 0.1
+                )
+            ]
+        )
+        service = self.service()
+        service.start()
+
+        refreshed = threading.Event()
+        failures = []
+
+        def failing_refresh():
+            failures.append(None)
+            refreshed.set()
+            raise RuntimeError("boom")
+
+        with patch.object(service, "_refresh", side_effect=failing_refresh):
+            self.assertTrue(refreshed.wait(timeout=5))
+            self.assertTrue(service._thread.is_alive())
+
+        self.assertTrue(service._thread.is_alive())
 
     def test_stop_hands_back_the_store_file(self):
         """

@@ -2,6 +2,7 @@ import unittest
 from dataclasses import MISSING, dataclass, fields
 from unittest.mock import patch
 
+from jolteon.engine.core.health_monitor.parameters import HeartbeatParameters
 from jolteon.engine.core.parameter import parameter_catalog
 from jolteon.engine.core.parameter.parameter_catalog import (
     GROUPS,
@@ -92,3 +93,56 @@ class TestValidate(unittest.TestCase):
         self.assertEqual("BoundedParameters", problems[0].group_name)
         self.assertEqual("ratio", problems[0].field_name)
         self.assertIn("at most 1.0", problems[0].message)
+
+
+class TestConstraintsAcrossTwoGroups(unittest.TestCase):
+    """
+    Some constraints are about how two fields sit together and cannot be
+    stated on either one, so bounds alone will not catch them.
+    """
+
+    def test_a_timeout_shorter_than_the_beat_is_refused(self):
+        values = StaticParameterService(
+            HeartbeatParameters(
+                interval_in_seconds=10.0, timeout_in_seconds=5.0
+            )
+        ).values()
+
+        problems = validate(values)
+        self.assertEqual(
+            ["timeout_in_seconds"], [p.field_name for p in problems]
+        )
+        self.assertIn("zombie", problems[0].message)
+
+    def test_a_timeout_equal_to_the_beat_is_refused(self):
+        """
+        Equal leaves no room for a single missed beat, so a component
+        that is alive and on time reads as a zombie.
+        """
+        values = StaticParameterService(
+            HeartbeatParameters(
+                interval_in_seconds=10.0, timeout_in_seconds=10.0
+            )
+        ).values()
+
+        self.assertEqual(
+            ["timeout_in_seconds"], [p.field_name for p in validate(values)]
+        )
+
+    def test_a_timeout_longer_than_the_beat_is_accepted(self):
+        values = StaticParameterService(
+            HeartbeatParameters(
+                interval_in_seconds=10.0, timeout_in_seconds=10.5
+            )
+        ).values()
+
+        self.assertEqual([], validate(values))
+
+    def test_checking_the_pair_is_not_a_component_reading_it(self):
+        """
+        Validating must not look like a pickup, or a pushed value would
+        report as applied before anything used it.
+        """
+        values = StaticParameterService().values()
+        validate(values)
+        self.assertNotIn(HeartbeatParameters, values.observed)

@@ -1,6 +1,9 @@
 import unittest
 
 from jolteon.engine.core.event.signal import signal, subscribe
+from jolteon.engine.core.parameter.parameter_service import (
+    StaticParameterService,
+)
 from jolteon.engine.market_data.core.bbo import BBO
 from jolteon.engine.market_data.core.book_snapshot import BookSnapshot
 from jolteon.engine.strategy.market_making.fair_value.adjusted_model import (
@@ -13,6 +16,9 @@ from jolteon.engine.strategy.market_making.fair_value.fair_price_model import (
 )
 from jolteon.engine.strategy.market_making.fair_value.mid_price_model import (
     MidPriceFairPriceModel,
+)
+from jolteon.engine.strategy.market_making.fair_value.parameters import (
+    AdjustedFairPriceParameters,
 )
 from jolteon.engine.strategy.market_making.fair_value.price_adjustment import (
     IFairPriceAdjustment,
@@ -143,6 +149,56 @@ class TestAdjustedFairPriceModel(unittest.TestCase):
 
         self.assertEqual(
             FairPrice(bid=106.0, ask=106.0), model.calculate(self.context)
+        )
+
+    def test_a_parameter_service_supplies_the_missing_limit(self):
+        model = AdjustedFairPriceModel(
+            base=MidPriceFairPriceModel(),
+            adjustments=[StubAdjustment("a", 5.0)],
+            parameter_service=StaticParameterService(
+                AdjustedFairPriceParameters(max_adjustment=1.0)
+            ),
+        )
+
+        self.assertEqual(
+            FairPrice(bid=102.0, ask=102.0), model.calculate(self.context)
+        )
+
+    def test_a_passed_limit_is_kept_over_the_parameter_service(self):
+        """
+        Passing one fixes it for the life of the model, so leaving it out
+        is the only way a dashboard can retune a running limit.
+        """
+        model = AdjustedFairPriceModel(
+            base=MidPriceFairPriceModel(),
+            adjustments=[StubAdjustment("a", 5.0)],
+            max_adjustment=2.0,
+            parameter_service=StaticParameterService(
+                AdjustedFairPriceParameters(max_adjustment=1.0)
+            ),
+        )
+
+        self.assertEqual(
+            FairPrice(bid=103.0, ask=103.0), model.calculate(self.context)
+        )
+
+    def test_the_limit_is_read_every_time_rather_than_once(self):
+        service = StaticParameterService(
+            AdjustedFairPriceParameters(max_adjustment=1.0)
+        )
+        model = AdjustedFairPriceModel(
+            base=MidPriceFairPriceModel(),
+            adjustments=[StubAdjustment("a", 5.0)],
+            parameter_service=service,
+        )
+        model.calculate(self.context)
+
+        object.__setattr__(
+            service.get(AdjustedFairPriceParameters), "max_adjustment", 4.0
+        )
+
+        self.assertEqual(
+            FairPrice(bid=105.0, ask=105.0), model.calculate(self.context)
         )
 
     def test_emits_a_snapshot_with_the_per_adjustment_breakdown(self):

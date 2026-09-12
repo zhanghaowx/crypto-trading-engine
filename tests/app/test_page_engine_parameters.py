@@ -1,10 +1,25 @@
+import sqlite3
+from dataclasses import dataclass
 from pathlib import Path
+from unittest.mock import patch
 
+import pytest
 from streamlit.testing.v1 import AppTest
 
+from jolteon.app.app_pages import engine_parameters
+from jolteon.engine.core.parameter.parameter_applied import (
+    REJECTED,
+    TAKEN,
+    UNKNOWN,
+    applied_key,
+)
 from jolteon.engine.core.parameter.parameter_catalog import GROUPS
 from jolteon.engine.core.parameter.parameter_service import ALL_SYMBOLS
-from jolteon.engine.core.parameter.parameter_specification import definitions
+from jolteon.engine.core.parameter.parameter_specification import (
+    ParameterGroup,
+    definitions,
+    parameter,
+)
 from jolteon.engine.core.parameter.parameter_store import (
     ParameterStore,
     override_of,
@@ -271,3 +286,201 @@ class TestAStoreThePageCannotRender:
 
         assert at.session_state["_staged_parameters"] == {}
         assert store.read()[0].value == 99.0
+
+
+@dataclass(frozen=True)
+class DemoParameters(ParameterGroup):
+    """
+    A group declaring the two field kinds no catalogued group happens to
+    use yet. The page is built from what a group declares, so both have
+    to render for a later group that does use them.
+    """
+
+    mode: str = parameter("fast", choices=("fast", "slow"))
+    label: str = parameter("alpha")
+
+
+MODE = "param.DemoParameters.mode"
+LABEL = "param.DemoParameters.label"
+
+
+@pytest.fixture
+def demo_catalog():
+    """The page holds its own reference to GROUPS, so patching the
+    catalog module it came from would not reach it."""
+    with patch.object(engine_parameters, "GROUPS", (DemoParameters,)):
+        yield
+
+
+def _applied_db(tmp_path, **row) -> str:
+    """A database holding the one report an engine made about a pushed
+    parameter, as SQLiteWriter would have recorded it."""
+    db_path = str(tmp_path / "applied.sqlite")
+    columns = {
+        "key": applied_key(
+            "MarketMakingParameters", "quote_size", ALL_SYMBOLS
+        ),
+        "group_name": "MarketMakingParameters",
+        "field_name": "quote_size",
+        "symbol": ALL_SYMBOLS,
+        "stored_value": "0.02",
+        "revision": 1,
+        "observed_revision": 1,
+        "status": TAKEN,
+        "reason": "",
+        **row,
+    }
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "CREATE TABLE parameter_applied ("
+            "key TEXT PRIMARY KEY, group_name TEXT, field_name TEXT, "
+            "symbol TEXT, stored_value TEXT, revision INTEGER, "
+            "observed_revision INTEGER, status TEXT, reason TEXT)"
+        )
+        conn.execute(
+            "INSERT INTO parameter_applied VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            tuple(columns.values()),
+        )
+    conn.close()
+    return db_path
+
+
+class TestFieldKindsBeyondNumbers:
+    def test_a_field_with_choices_renders_as_a_selectbox(
+        self, demo_catalog, params_db_path, missing_db_path
+    ):
+        at = _page(params_db_path, missing_db_path).run()
+
+        assert not at.exception
+        assert at.selectbox(key=MODE).options == ["fast", "slow"]
+        assert at.selectbox(key=MODE).value == "fast"
+
+    def test_a_plain_string_field_renders_as_a_text_input(
+        self, demo_catalog, params_db_path, missing_db_path
+    ):
+        at = _page(params_db_path, missing_db_path).run()
+
+        assert not at.exception
+        assert at.text_input(key=LABEL).value == "alpha"
+
+    def test_choosing_another_option_stages_it(
+        self, demo_catalog, params_db_path, missing_db_path
+    ):
+        at = _page(params_db_path, missing_db_path).run()
+        at.selectbox(key=MODE).select("slow").run()
+        at.button[0].click().run()
+
+        assert not at.exception
+        stored = {
+            o.field_name: o.value
+            for o in ParameterStore(params_db_path).read()
+        }
+        assert stored == {"mode": "slow"}
+
+    def test_typing_a_string_stages_it(
+        self, demo_catalog, params_db_path, missing_db_path
+    ):
+        at = _page(params_db_path, missing_db_path).run()
+        at.text_input(key=LABEL).set_value("beta").run()
+        at.button[0].click().run()
+
+        assert not at.exception
+        assert ParameterStore(params_db_path).read()[0].value == "beta"
+
+    def test_a_stored_value_outside_the_choices_does_not_break_the_page(
+        self, demo_catalog, params_db_path, missing_db_path
+    ):
+        ParameterStore(params_db_path).push(
+            [override_of("DemoParameters", "mode", "sideways")]
+        )
+        at = _page(params_db_path, missing_db_path).run()
+
+        assert not at.exception
+        assert at.selectbox(key=MODE).value == "fast"
+
+    def test_says_which_options_a_refused_value_should_have_been_one_of(
+        self, demo_catalog, params_db_path, missing_db_path
+    ):
+        ParameterStore(params_db_path).push(
+            [override_of("DemoParameters", "mode", "sideways")]
+        )
+        at = _page(params_db_path, missing_db_path).run()
+
+        captions = " ".join(caption.value for caption in at.caption)
+        assert "Stored as sideways" in captions
+        assert "Allowed: fast, slow." in captions
+
+
+class TestWhatTheEngineSaidItDid:
+    """
+    A pushed value is only half the story: the page has to say what the
+    engine reported back, or a stored value reads as one in force.
+    """
+
+    def _pushed(self, params_db_path):
+        ParameterStore(params_db_path).push(
+            [override_of("MarketMakingParameters", "quote_size", 0.02)]
+        )
+
+    @staticmethod
+    def _badges(at) -> str:
+        # st.badge reaches AppTest as markdown, as ":green-badge[applied]".
+        return " ".join(m.value for m in at.markdown if "-badge[" in m.value)
+
+    def test_a_value_the_engine_has_read_reports_as_applied(
+        self, params_db_path, tmp_path
+    ):
+        self._pushed(params_db_path)
+        at = _page(
+            params_db_path,
+            _applied_db(tmp_path, revision=3, observed_revision=3),
+        ).run()
+
+        assert not at.exception
+        assert "applied" in self._badges(at)
+
+    def test_a_value_no_component_has_looked_at_says_so(
+        self, params_db_path, tmp_path
+    ):
+        """
+        Stored and accepted, but the component that uses it has not read
+        since - what "takes effect on restart" looks like with nobody
+        having declared it.
+        """
+        self._pushed(params_db_path)
+        at = _page(
+            params_db_path,
+            _applied_db(tmp_path, revision=3, observed_revision=1),
+        ).run()
+
+        captions = " ".join(c.value for c in at.caption)
+        assert "has not looked since" in captions
+        assert "not read yet" in self._badges(at)
+
+    def test_a_refused_value_reports_the_engines_own_reason(
+        self, params_db_path, tmp_path
+    ):
+        self._pushed(params_db_path)
+        at = _page(
+            params_db_path,
+            _applied_db(
+                tmp_path, status=REJECTED, reason="must be at most 10.0"
+            ),
+        ).run()
+
+        captions = " ".join(c.value for c in at.caption)
+        assert "must be at most 10.0" in captions
+        assert "rejected" in self._badges(at)
+
+    def test_a_status_the_page_does_not_know_is_shown_as_it_came(
+        self, params_db_path, tmp_path
+    ):
+        """
+        The engine decides what statuses exist, so one this page has
+        never heard of is passed through rather than swallowed.
+        """
+        self._pushed(params_db_path)
+        at = _page(params_db_path, _applied_db(tmp_path, status=UNKNOWN)).run()
+
+        assert not at.exception
+        assert UNKNOWN in self._badges(at)
