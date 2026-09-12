@@ -25,9 +25,13 @@ def _adjustment_columns(adjustments: pd.DataFrame) -> list[str]:
 
 
 def _display_name(column: str) -> str:
+    """The label an adjustment is shown under. An adjustment's own `name`
+    is a database column name, so the formatting has to happen here
+    rather than by renaming the column and orphaning recorded data."""
     if column == TOTAL_ADJUSTMENT_COLUMN:
         return TOTAL_ADJUSTMENT_LABEL
-    return column.removeprefix("adjustments.")
+    slug = column.removeprefix("adjustments.")
+    return slug.replace("_", " ").capitalize()
 
 
 def _forward_mid(
