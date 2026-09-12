@@ -176,7 +176,7 @@ def render() -> None:
     groups = list(risk.groupby(["name", "symbol"]))
     window_seconds = st.session_state.chart_window_minutes * 60
 
-    for (name, symbol), history in card_grid(groups, columns=3):
+    for (name, symbol), history in card_grid(groups, key="risk-limit-cards"):
         latest = history.iloc[-1]
         maximum = latest["maximum"]
         utilization = (

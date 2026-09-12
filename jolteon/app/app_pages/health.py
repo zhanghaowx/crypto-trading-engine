@@ -116,7 +116,11 @@ def render() -> None:
     }
 
     for row in card_grid(
-        rows, columns=3, key_fn=lambda row: _tile_key(row.sender)
+        rows,
+        key="health-tiles",
+        columns=6,
+        min_width=240,
+        key_fn=lambda row: _tile_key(row.sender),
     ):
         down = _is_down(row.quiet_for)
         label, color = statuses[row.sender]
