@@ -124,13 +124,10 @@ def render() -> None:
     ):
         down = _is_down(row.quiet_for)
         label, color = statuses[row.sender]
-        with st.container(horizontal=True, vertical_alignment="center"):
-            st.markdown(f"**{row.sender}**")
-            with st.container(
-                horizontal=True, vertical_alignment="center", gap=0
-            ):
-                st.html(_status_dot(color), width="content")
-                st.badge(label, color=color)
+        st.markdown(f"**{row.sender}**")
+        with st.container(horizontal=True, vertical_alignment="center", gap=0):
+            st.html(_status_dot(color), width="content")
+            st.badge(label, color=color)
         parts = [row.message] if row.message else []
         if down:
             parts.append(f"No heartbeat for {_describe_age(row.quiet_for)}")
