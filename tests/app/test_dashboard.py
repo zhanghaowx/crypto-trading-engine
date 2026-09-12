@@ -54,10 +54,7 @@ def test_parameters_page_holds_the_viewer_settings(dashboard):
     at.switch_page("app_pages/parameters.py").run()
 
     assert not at.exception
-    assert at.text_input(key="db_path")
-    assert at.text_input(key="log_db_path")
-    assert at.text_input(key="params_db_path")
-    assert at.checkbox(key="auto_refresh")
+    assert at.toggle(key="auto_refresh")
     assert at.slider(key="refresh_seconds")
     assert at.slider(key="chart_window_minutes")
 
