@@ -2,15 +2,16 @@ from streamlit.testing.v1 import AppTest
 
 
 def _script():
-    from jolteon.app.app_pages import parameters
+    from jolteon.app.app_pages import viewer_settings
 
-    parameters.render()
+    viewer_settings.render()
 
 
 def test_shows_warning_when_db_missing(missing_db_path):
     at = AppTest.from_function(_script)
     at.session_state["db_path"] = missing_db_path
     at.session_state["log_db_path"] = missing_db_path
+    at.session_state["params_db_path"] = missing_db_path
     at.run()
 
     assert not at.exception
@@ -23,6 +24,7 @@ def test_shows_success_when_db_present(empty_db_path):
     at = AppTest.from_function(_script)
     at.session_state["db_path"] = empty_db_path
     at.session_state["log_db_path"] = empty_db_path
+    at.session_state["params_db_path"] = empty_db_path
     at.run()
 
     assert not at.exception
@@ -37,6 +39,7 @@ def test_widgets_are_seeded_from_and_write_back_to_session_state(
     at = AppTest.from_function(_script)
     at.session_state["db_path"] = empty_db_path
     at.session_state["log_db_path"] = empty_db_path
+    at.session_state["params_db_path"] = empty_db_path
     at.session_state["auto_refresh"] = True
     at.session_state["refresh_seconds"] = 5
     at.session_state["chart_window_minutes"] = 15
