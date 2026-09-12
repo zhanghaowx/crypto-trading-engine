@@ -1,8 +1,12 @@
+import logging
 from typing import Union
 
 from jolteon.engine.core.event.signal import signal, subscribe
 from jolteon.engine.core.event.signal_subscriber import SignalSubscriber
-from jolteon.engine.core.health_monitor.heartbeat import Heartbeater
+from jolteon.engine.core.health_monitor.heartbeat import (
+    Heartbeater,
+    HeartbeatLevel,
+)
 from jolteon.engine.core.id_generator import id_generator
 from jolteon.engine.core.parameter.parameter_service import (
     IParameterService,
@@ -12,6 +16,7 @@ from jolteon.engine.core.side import MarketSide
 from jolteon.engine.core.time.time_manager import time_manager
 from jolteon.engine.market_data.core.bbo import BBO
 from jolteon.engine.market_data.core.book_snapshot import BookSnapshot
+from jolteon.engine.market_data.core.instrument import InstrumentSpec
 from jolteon.engine.market_data.core.order import CancelOrder, Order, OrderType
 from jolteon.engine.market_data.core.order_book import OrderBook
 from jolteon.engine.market_data.core.trade import Trade
@@ -45,7 +50,11 @@ class MarketMakingStrategy(Heartbeater, SignalSubscriber):
     - Quote size, the inventory cap and the requote tolerance come from a
       pluggable IParameterService (fixed, conservative defaults if none is
       given), read on every tick so they can be retuned while running.
+    - Prices are rounded, and the configured size checked, against what
+      the venue says it accepts for this symbol.
     """
+
+    UNSENDABLE_QUOTE_SIZE = "Quote size is below what the venue accepts"
 
     def __init__(
         self,
@@ -69,6 +78,10 @@ class MarketMakingStrategy(Heartbeater, SignalSubscriber):
 
         self._live_orders: dict[MarketSide, Order] = {}
         self._order_book: OrderBook | None = None
+        # Unconstrained until the venue says otherwise, so a replay quotes
+        # the sizes it was configured with rather than none at all.
+        self._instrument = InstrumentSpec(symbol)
+        self._refusal: str | None = None
 
         self.order_event = signal("order")
         self.cancel_order_event = signal("cancel_order")
@@ -97,14 +110,45 @@ class MarketMakingStrategy(Heartbeater, SignalSubscriber):
     def on_order_book(self, _: str, order_book: OrderBook):
         self._order_book = order_book
 
+    @subscribe("instrument_feed")
+    def on_instrument(self, _: str, instrument: InstrumentSpec):
+        # The channel covers every pair the venue lists, not just ours.
+        if instrument.symbol == self._symbol:
+            self._instrument = instrument
+
     @subscribe("ticker_feed")
     def on_bbo(self, _: str, bbo: BBO):
         params = self._parameters()
+        if not self._is_size_sendable(params.quote_size, bbo):
+            return
         context = self._context(bbo, params.book_depth)
         fair_price = self._fair_price_model.calculate(context)
         offset = self._quote_offset_service.calculate(context)
         self._requote(MarketSide.BUY, fair_price.bid - offset.bid, params)
         self._requote(MarketSide.SELL, fair_price.ask + offset.ask, params)
+
+    def _is_size_sendable(self, quote_size: float, bbo: BBO) -> bool:
+        """
+        Returns: Whether the venue would accept a quote of this size.
+
+        Reported rather than corrected. The size is configured per symbol,
+        so quoting some other size would hide that the configuration does
+        not suit the symbol - and a venue that refuses an order leaves
+        nothing behind to notice, which is how a session tuned for one
+        symbol can appear healthy while placing nothing.
+        """
+        mid = (bbo.bid_price + bbo.ask_price) / 2
+        refusal = self._instrument.rejects(quote_size, mid)
+        if refusal != self._refusal:
+            self._refusal = refusal
+            if refusal is None:
+                self.remove_issue(self.UNSENDABLE_QUOTE_SIZE)
+            else:
+                logging.error(f"Not quoting {self._symbol}: {refusal}")
+                self.add_issue(
+                    HeartbeatLevel.ERROR, self.UNSENDABLE_QUOTE_SIZE
+                )
+        return refusal is None
 
     def _parameters(self) -> MarketMakingParameters:
         return self._parameter_service.get(
@@ -143,6 +187,10 @@ class MarketMakingStrategy(Heartbeater, SignalSubscriber):
             if live_order:
                 self._cancel(side)
             return
+
+        # Rounded before the tolerance check, or a move too small for the
+        # venue to express would cancel and replace on every tick.
+        desired_price = self._instrument.round_price(desired_price)
 
         tolerance = self._requote_tolerance
         if tolerance is None:

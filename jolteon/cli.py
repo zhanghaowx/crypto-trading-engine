@@ -72,6 +72,15 @@ async def main():
     parser.add_argument("--replay-end", help="End time in ISO format")
     parser.add_argument("--exchange", help="Name of the exchange")
     parser.add_argument(
+        "--symbol",
+        default="BTC-USD",
+        help=(
+            "Symbol to trade, written either BASE-QUOTE or BASE/QUOTE. "
+            "One engine trades one symbol, so run a process per symbol; "
+            "each writes its own database for the dashboard to read."
+        ),
+    )
+    parser.add_argument(
         "--params-db",
         default="/tmp/jolteon.params.sqlite",
         help=(
@@ -113,7 +122,10 @@ async def main():
             f"Application is not implemented for market {args.exchange}"
         )
 
-    symbol = "BTC-USD"
+    symbol = args.symbol
+    # Every file a session writes is named for its symbol, or a second
+    # engine would interleave its rows into the first one's database.
+    stem = symbol.replace("/", "-")
 
     if replay_start and replay_end and replay_db:
         assert False, (
@@ -139,8 +151,8 @@ async def main():
         app = Application(
             symbol,
             use_mock_execution=True,
-            database_name="/tmp/replay.sqlite",
-            logfile_name="/tmp/replay.log",
+            database_name=f"/tmp/replay-{stem}.sqlite",
+            logfile_name=f"/tmp/replay-{stem}.log",
         )
         _active_app = app
         profiler = cProfile.Profile()
@@ -197,8 +209,8 @@ async def main():
         app = Application(
             symbol,
             use_mock_execution=args.paper,
-            database_name="/tmp/jolteon.sqlite",
-            logfile_name="/tmp/jolteon.log",
+            database_name=f"/tmp/jolteon-{stem}.sqlite",
+            logfile_name=f"/tmp/jolteon-{stem}.log",
             strategy=strategy,
             fair_price_model=fair_price_model,
             parameter_service=parameter_service,
