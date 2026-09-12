@@ -3,9 +3,9 @@ forward move, at each markout horizon.
 
 Operates on the `fair_price_adjustment` and `fair_price` tables (read via
 `jolteon.app.data.read_table`) - nothing here writes back to the
-database. This is STRATEGY.md Part 3's evaluation step: a candidate
-adjustment can run in production at zero weight, fully recorded, and this
-module is what turns that recording into a weight worth trying.
+database. A candidate adjustment can run in production at zero weight,
+fully recorded, and this module is what turns that recording into a
+weight worth trying.
 """
 
 import pandas as pd
@@ -63,7 +63,7 @@ def _slope_and_correlation(
     is in the same price units as `signal` itself, so it reads directly as
     calibration: 1.0 means correctly scaled, a smaller magnitude means the
     adjustment is oversized, and a negative sign means it points the wrong
-    way (STRATEGY.md Part 3)."""
+    way."""
     paired = pd.DataFrame(
         {"signal": signal, "forward_return": forward_return}
     ).dropna()

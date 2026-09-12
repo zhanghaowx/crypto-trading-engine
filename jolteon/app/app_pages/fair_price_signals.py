@@ -1,6 +1,6 @@
-"""Fair Price Signals: how well each registered fair price adjustment
-(STRATEGY.md Part 3) has predicted the market's actual forward move, so
-far this session - the evidence a weight decision gets made from."""
+"""Fair Price Signals: how well each registered fair price adjustment has
+predicted the market's actual forward move, so far this session - the
+evidence a weight decision gets made from."""
 
 import pandas as pd
 import streamlit as st
@@ -45,10 +45,10 @@ def _render_slope(evaluation: pd.DataFrame) -> None:
         column: st.column_config.NumberColumn(
             help="Regression slope of the market's actual forward move "
             f"{_HORIZON_PHRASES[horizon]} later against this adjustment's "
-            "own value at the time - the suggested weight (STRATEGY.md "
-            "Part 3). 1.0 means correctly scaled, a smaller magnitude "
-            "means the adjustment is oversized, and a negative sign "
-            "means it points the wrong way."
+            "own value at the time - the suggested weight. 1.0 means "
+            "correctly scaled, a smaller magnitude means the adjustment "
+            "is oversized, and a negative sign means it points the "
+            "wrong way."
         )
         for column, horizon in zip(_HORIZON_COLUMNS, HORIZONS)
     }
