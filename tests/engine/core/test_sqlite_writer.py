@@ -52,14 +52,18 @@ class TestSQLiteWriter(unittest.TestCase):
     def writer_with(self, **tunables) -> SQLiteWriter:
         """A writer reading the given tunables instead of the declared
         defaults. SQLiteWriter reads them from the global service at
-        construction, so the service has to be in place first."""
+        construction, so the service has to be in place first.
+
+        It replaces this test's writer rather than joining it, since
+        tearDown removes the database and runs before any cleanup
+        registered here would have closed a second one."""
         use_parameter_service(
             StaticParameterService(SqliteWriterParameters(**tunables))
         )
         self.addCleanup(use_parameter_service, StaticParameterService())
-        writer = SQLiteWriter(self.database_filepath)
-        self.addCleanup(writer.close)
-        return writer
+        self.writer.close()
+        self.writer = SQLiteWriter(self.database_filepath)
+        return self.writer
 
     def create_table(self, ddl: str) -> None:
         with closing(sqlite3.connect(self.database_filepath)) as conn:
