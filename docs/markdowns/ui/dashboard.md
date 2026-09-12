@@ -35,8 +35,9 @@ and reach the engine only when committed, and each field reports what the engine
 applied, not read yet, not picked up, or rejected with a reason. The staged changes and the
 Commit/Revert buttons sit at the bottom of the tab, under the parameter cards.
 
-**Dashboard** holds the settings for this viewer alone: the database paths and the auto-refresh
-interval.
+**Dashboard** holds the settings for this viewer alone: auto-refresh and the chart window. The
+database paths are not editable there — they come from the launch flags above, so the page can
+never read a different file than the one it reports.
 
 This is the one part of the dashboard that writes, and it writes to a database of its own that the
 engine polls, so neither process ever writes the file the other owns. See
