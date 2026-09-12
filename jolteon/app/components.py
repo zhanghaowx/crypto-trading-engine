@@ -193,6 +193,23 @@ def animated_metric(
     )
 
 
+def card_surface_rule(keys) -> str:
+    """
+    Returns: A style block painting the given container keys as cards.
+
+    Streamlit has no container background option, so every page that
+    wants a card to read as a white surface above the canvas rather than
+    a flat patch of it needs this same scoped rule.
+    """
+    selector = ", ".join(f".st-key-{key}" for key in keys)
+    if not selector:
+        return ""
+    return (
+        f"<style>{selector} {{ background-color: {CARD_BACKGROUND};"
+        f" box-shadow: {CARD_SHADOW}; }}</style>"
+    )
+
+
 def card_grid(items, columns: int = 3, key_fn=None):
     """
     Lay `items` out as a responsive grid of bordered cards, up to `columns`
@@ -339,6 +356,6 @@ def warn_if_no_db(db_path: str | None = None) -> bool:
     st.warning(
         f"No database found at `{db_path}` yet. "
         f"Waiting for the engine to start recording... "
-        f"(check the Parameters tab if this looks wrong)"
+        f"(check the Parameters page if this looks wrong)"
     )
     return False
