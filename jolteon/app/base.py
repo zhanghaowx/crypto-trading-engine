@@ -8,6 +8,11 @@ import pytz
 from jolteon.engine.core.event.signal_manager import SignalManager
 from jolteon.engine.core.event.signal_recorder import SignalRecorder
 from jolteon.engine.core.logging.logger import setup_global_logger
+from jolteon.engine.core.parameter.parameter_service import (
+    IParameterService,
+    StaticParameterService,
+    use_parameter_service,
+)
 from jolteon.engine.market_data.book_feature_recorder import (
     BookFeatureRecorder,
 )
@@ -31,12 +36,19 @@ class ApplicationBase(SignalManager):
         logfile_name,
         strategy: object = None,
         fair_price_model: IFairPriceModel | None = None,
+        parameter_service: IParameterService | None = None,
     ):
         """
         Connects different components to build the trading engine. It supports
         one symbol and one strategy.
         """
         self._symbol = symbol
+
+        # Published before anything else is built: the layers underneath
+        # the wired components read their own tunables from here, and
+        # setup_global_logger below is already one of them.
+        self._parameter_service = parameter_service or StaticParameterService()
+        use_parameter_service(self._parameter_service)
 
         # Logs get their own file so their writer never contends with
         # `database_name`'s for its write lock.
@@ -83,25 +95,30 @@ class ApplicationBase(SignalManager):
     async def run_start(self, *args):
         assert self._md, "Please set a market data service before running"
         self._connect_signals()
+        self._parameter_service.start()
 
-        if ApplicationBase.THREAD_ENABLED:
-            md_thread, md_loop, md_task = self._start_thread(
-                "MD", self._md.connect(self._symbol, *args)
-            )
-            self._background_tasks["MD"] = (md_loop, md_task)
+        # stop() in a finally, or a feed that raises leaves the parameter
+        # poller and the recorder running behind it.
+        try:
+            if ApplicationBase.THREAD_ENABLED:
+                md_thread, md_loop, md_task = self._start_thread(
+                    "MD", self._md.connect(self._symbol, *args)
+                )
+                self._background_tasks["MD"] = (md_loop, md_task)
 
-            # join(), not a sleep loop, so shutdown isn't delayed by a poll
-            # interval once the thread actually finishes.
-            await asyncio.get_running_loop().run_in_executor(
-                None, md_thread.join
-            )
-        else:
-            await self._md.connect(self._symbol, *args)
+                # join(), not a sleep loop, so shutdown isn't delayed by a
+                # poll interval once the thread actually finishes.
+                await asyncio.get_running_loop().run_in_executor(
+                    None, md_thread.join
+                )
+            else:
+                await self._md.connect(self._symbol, *args)
 
-        for symbol, position in self._position_manager.positions.items():
-            print(f"{symbol}: {position.volume}")
+            for symbol, position in self._position_manager.positions.items():
+                print(f"{symbol}: {position.volume}")
+        finally:
+            self.stop()
 
-        self.stop()
         return self._position_manager.pnl
 
     def request_shutdown(self):
@@ -123,6 +140,9 @@ class ApplicationBase(SignalManager):
         return await self.run_start(start, min(now, end))
 
     def stop(self):
+        # Before the recorder is disconnected and flushed, so the last
+        # thing the poller published still reaches the database.
+        self._parameter_service.stop()
         self._disconnect_signals()
 
     def _connect_signals(self):

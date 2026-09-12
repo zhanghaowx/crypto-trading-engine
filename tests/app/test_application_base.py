@@ -6,6 +6,10 @@ from unittest.mock import patch
 from jolteon.app.base import ApplicationBase
 from jolteon.engine.core.event.signal import signal, subscribe
 from jolteon.engine.core.event.signal_subscriber import SignalSubscriber
+from jolteon.engine.core.parameter.parameter_service import (
+    StaticParameterService,
+    parameter_service,
+)
 from jolteon.engine.market_data.core.bbo import BBO
 from jolteon.engine.market_data.core.book_snapshot import BookSnapshot
 from jolteon.engine.strategy.market_making.fair_value.fair_price_model import (
@@ -116,3 +120,59 @@ class TestApplicationBaseRunStart(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestApplicationBaseParameterService(unittest.IsolatedAsyncioTestCase):
+    def _make_app(self, parameter_service=None):
+        return ApplicationBase(
+            symbol="BTC/USD",
+            database_name=f"{tempfile.gettempdir()}/test_parameters.sqlite",
+            logfile_name=f"{tempfile.gettempdir()}/test_parameters.log",
+            parameter_service=parameter_service,
+        )
+
+    def test_publishes_the_service_the_layers_underneath_read(self):
+        service = StaticParameterService()
+        self._make_app(service)
+        self.assertIs(service, parameter_service())
+
+    async def test_polls_only_while_the_engine_is_running(self):
+        service = _RecordingParameterService()
+        app = self._make_app(service)
+
+        async def connect(symbol, *args):
+            self.assertEqual(1, service.started)
+            self.assertEqual(0, service.stopped)
+
+        app.use_market_data_service(SimpleNamespace(connect=connect))
+        with patch.object(ApplicationBase, "THREAD_ENABLED", False):
+            await app.run_start()
+
+        self.assertEqual(1, service.stopped)
+
+    async def test_stops_polling_even_when_the_feed_fails(self):
+        service = _RecordingParameterService()
+        app = self._make_app(service)
+
+        async def connect(symbol, *args):
+            raise RuntimeError("feed blew up")
+
+        app.use_market_data_service(SimpleNamespace(connect=connect))
+        with patch.object(ApplicationBase, "THREAD_ENABLED", False):
+            with self.assertRaises(RuntimeError):
+                await app.run_start()
+
+        self.assertEqual(1, service.stopped)
+
+
+class _RecordingParameterService(StaticParameterService):
+    def __init__(self):
+        super().__init__()
+        self.started = 0
+        self.stopped = 0
+
+    def start(self) -> None:
+        self.started += 1
+
+    def stop(self) -> None:
+        self.stopped += 1
