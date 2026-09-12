@@ -12,6 +12,13 @@ from jolteon.engine.core.parameter.parameter_specification import (
 from jolteon.engine.core.parameter.poll_parameters import (
     ParameterPollParameters,
 )
+from jolteon.engine.strategy.market_making.fair_value.parameters import (
+    AdjustedFairPriceParameters,
+    InventoryAdjustmentParameters,
+    MicropriceParameters,
+    MomentumParameters,
+    OrderFlowImbalanceParameters,
+)
 from jolteon.engine.strategy.market_making.parameters import (
     MarketMakingParameters,
     QuoteOffsetParameters,
@@ -28,6 +35,11 @@ GROUPS: tuple[type[ParameterGroup], ...] = (
     MarketMakingParameters,
     QuoteOffsetParameters,
     FeeSchedule,
+    AdjustedFairPriceParameters,
+    MomentumParameters,
+    OrderFlowImbalanceParameters,
+    InventoryAdjustmentParameters,
+    MicropriceParameters,
     ParameterPollParameters,
 )
 

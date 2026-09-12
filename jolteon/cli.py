@@ -36,10 +36,6 @@ from jolteon.engine.strategy.market_making.fair_value.order_flow_imbalance impor
 from jolteon.engine.strategy.market_making.market_making_strategy import (
     MarketMakingStrategy,
 )
-from jolteon.engine.strategy.market_making.parameters import (
-    MarketMakingParameters,
-    QuoteOffsetParameters,
-)
 from jolteon.engine.strategy.market_making.quote_offset import (
     FeeAwareQuoteOffsetService,
 )
@@ -152,25 +148,18 @@ async def main():
             quote_offset_service = FeeAwareQuoteOffsetService(
                 parameter_service=parameter_service
             )
-            quote_edge = parameter_service.get(
-                QuoteOffsetParameters, strategy_symbol
-            ).edge
-            max_inventory = parameter_service.get(
-                MarketMakingParameters, strategy_symbol
-            ).max_inventory
-            skew_at_max_inventory = quote_edge
             # Shared with PostTradeService below, so decorated fills are
             # scored against the same fair price the strategy quotes off.
             fair_price_model = AdjustedFairPriceModel(
                 base=MidPriceFairPriceModel(),
                 adjustments=[
-                    MomentumAdjustment(),
-                    OrderFlowImbalanceAdjustment(),
-                    InventoryAdjustment(
-                        scale=skew_at_max_inventory / max_inventory
+                    MomentumAdjustment(parameter_service=parameter_service),
+                    OrderFlowImbalanceAdjustment(
+                        parameter_service=parameter_service
                     ),
+                    InventoryAdjustment(parameter_service=parameter_service),
                 ],
-                max_adjustment=quote_edge,
+                parameter_service=parameter_service,
             )
             strategy = MarketMakingStrategy(
                 symbol=strategy_symbol,

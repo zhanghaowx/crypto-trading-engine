@@ -24,6 +24,9 @@ from jolteon.engine.strategy.market_making.fair_value.momentum import (
 from jolteon.engine.strategy.market_making.fair_value.order_flow_imbalance import (  # noqa: E501
     OrderFlowImbalanceAdjustment,
 )
+from jolteon.engine.strategy.market_making.fair_value.parameters import (
+    AdjustedFairPriceParameters,
+)
 from jolteon.engine.strategy.market_making.market_making_strategy import (
     MarketMakingStrategy,
 )
@@ -198,15 +201,21 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
 
         offset_service = strategy._quote_offset_service
         self.assertIsInstance(offset_service, FeeAwareQuoteOffsetService)
-        edge = strategy._parameter_service.get(
-            QuoteOffsetParameters, strategy._symbol
-        ).edge
-        self.assertEqual(edge, fair_price_model._max_adjustment)
+
+        # Every component was handed the same service, so the edge a
+        # quote demands, the clamp on the adjustments and the skew at a
+        # full position stay one number rather than three that drift.
+        parameters = strategy._parameter_service
+        edge = parameters.get(QuoteOffsetParameters, strategy._symbol).edge
+        clamp = parameters.get(
+            AdjustedFairPriceParameters, strategy._symbol
+        ).max_adjustment
+        self.assertEqual(edge, clamp)
 
         max_inventory = strategy._inventory_limit.max_inventory
-        self.assertEqual(
-            fair_price_model._max_adjustment,
-            inventory_adjustment._scale * max_inventory,
+        self.assertAlmostEqual(
+            clamp,
+            inventory_adjustment._scale_for(strategy._symbol) * max_inventory,
         )
 
         self.assertEqual("", captured_output.getvalue().split("\n")[-1])

@@ -1,5 +1,12 @@
+from jolteon.engine.core.parameter.parameter_service import (
+    IParameterService,
+    StaticParameterService,
+)
 from jolteon.engine.market_data.core.book_features import imbalance
 from jolteon.engine.market_data.core.book_snapshot import BookSnapshot
+from jolteon.engine.strategy.market_making.fair_value.parameters import (
+    OrderFlowImbalanceParameters,
+)
 from jolteon.engine.strategy.market_making.fair_value.price_adjustment import (
     IFairPriceAdjustment,
 )
@@ -16,18 +23,27 @@ class OrderFlowImbalanceAdjustment(IFairPriceAdjustment):
     Returns 0.0 when no depth is available.
     """
 
-    def __init__(self, scale: float = 1.0, depth: int = 10):
-        assert depth > 0, "depth must be positive"
+    def __init__(
+        self,
+        scale: float | None = None,
+        depth: int | None = None,
+        parameter_service: IParameterService | None = None,
+    ):
+        assert depth is None or depth > 0, "depth must be positive"
         self._scale = scale
         self._depth = depth
+        self._parameter_service = parameter_service or StaticParameterService()
 
     @property
     def name(self) -> str:
         return "order_flow_imbalance"
 
     def adjustment(self, context: BookSnapshot) -> float:
-        skew = imbalance(
-            context.bids[: self._depth], context.asks[: self._depth]
+        params = self._parameter_service.get(
+            OrderFlowImbalanceParameters, context.bbo.symbol
         )
+        depth = self._depth if self._depth is not None else params.depth
+        scale = self._scale if self._scale is not None else params.scale
+        skew = imbalance(context.bids[:depth], context.asks[:depth])
         half_spread = (context.bbo.ask_price - context.bbo.bid_price) / 2
-        return self._scale * skew * half_spread
+        return scale * skew * half_spread

@@ -3,10 +3,16 @@ from dataclasses import dataclass, field
 
 from jolteon.engine.core.event.signal import signal
 from jolteon.engine.core.event.signal_subscriber import SignalSubscriber
+from jolteon.engine.core.parameter.parameter_service import (
+    IParameterService,
+)
 from jolteon.engine.market_data.core.book_snapshot import BookSnapshot
 from jolteon.engine.strategy.market_making.fair_value.fair_price_model import (
     FairPrice,
     IFairPriceModel,
+)
+from jolteon.engine.strategy.market_making.fair_value.parameters import (
+    AdjustedFairPriceParameters,
 )
 from jolteon.engine.strategy.market_making.fair_value.price_adjustment import (
     IFairPriceAdjustment,
@@ -37,11 +43,13 @@ class AdjustedFairPriceModel(IFairPriceModel, SignalSubscriber):
         base: IFairPriceModel,
         adjustments: Sequence[IFairPriceAdjustment],
         max_adjustment: float | None = None,
+        parameter_service: IParameterService | None = None,
     ):
         super().__init__()
         self._base = base
         self._adjustments = list(adjustments)
         self._max_adjustment = max_adjustment
+        self._parameter_service = parameter_service
         self.fair_price_adjustment_event = signal("fair_price_adjustment")
 
     def connect(self) -> None:
@@ -61,11 +69,15 @@ class AdjustedFairPriceModel(IFairPriceModel, SignalSubscriber):
         }
         total = sum(contributions.values())
 
+        limit = self._max_adjustment
+        if limit is None and self._parameter_service is not None:
+            limit = self._parameter_service.get(
+                AdjustedFairPriceParameters, context.bbo.symbol
+            ).max_adjustment
+
         clamped = False
-        if self._max_adjustment is not None:
-            bounded = max(
-                -self._max_adjustment, min(self._max_adjustment, total)
-            )
+        if limit is not None:
+            bounded = max(-limit, min(limit, total))
             clamped = bounded != total
             total = bounded
 

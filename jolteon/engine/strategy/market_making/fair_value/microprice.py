@@ -1,4 +1,11 @@
+from jolteon.engine.core.parameter.parameter_service import (
+    IParameterService,
+    StaticParameterService,
+)
 from jolteon.engine.market_data.core.book_snapshot import BookSnapshot
+from jolteon.engine.strategy.market_making.fair_value.parameters import (
+    MicropriceParameters,
+)
 from jolteon.engine.strategy.market_making.fair_value.price_adjustment import (
     IFairPriceAdjustment,
 )
@@ -12,8 +19,13 @@ class MicropriceAdjustment(IFairPriceAdjustment):
     carries no depth.
     """
 
-    def __init__(self, scale: float = 1.0):
+    def __init__(
+        self,
+        scale: float | None = None,
+        parameter_service: IParameterService | None = None,
+    ):
         self._scale = scale
+        self._parameter_service = parameter_service or StaticParameterService()
 
     @property
     def name(self) -> str:
@@ -29,4 +41,9 @@ class MicropriceAdjustment(IFairPriceAdjustment):
             bbo.bid_quantity * bbo.ask_price + bbo.ask_quantity * bbo.bid_price
         ) / total_quantity
         mid = (bbo.bid_price + bbo.ask_price) / 2
-        return self._scale * (microprice - mid)
+        scale = self._scale
+        if scale is None:
+            scale = self._parameter_service.get(
+                MicropriceParameters, bbo.symbol
+            ).scale
+        return scale * (microprice - mid)
