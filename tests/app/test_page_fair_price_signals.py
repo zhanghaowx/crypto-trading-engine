@@ -98,8 +98,8 @@ def test_renders_slope_and_correlation(tmp_path):
 
     assert not at.exception
     markdown_values = [m.value for m in at.markdown]
-    assert "**Calibration (slope)**" in markdown_values
-    assert "**Reliability (correlation)**" in markdown_values
+    assert "**Calibration (β)**" in markdown_values
+    assert "**Reliability (ρ)**" in markdown_values
 
     slope = at.dataframe[0].value.set_index("Adjustment")
     correlation = at.dataframe[1].value.set_index("Adjustment")

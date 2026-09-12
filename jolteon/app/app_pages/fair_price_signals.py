@@ -19,6 +19,22 @@ _HORIZON_PHRASES = {
 
 _HORIZON_COLUMNS = [f"+{horizon}" for horizon in HORIZONS]
 
+_SLOPE_HELP = (
+    r"$$\beta = \frac{\operatorname{Cov}(s,\ r)}{\operatorname{Var}(s)}$$"
+    "\n\n"
+    r"where $s$ is the adjustment's own value and $r$ is the market's"
+    r" actual forward move. Both are in price units, so $\beta$ reads"
+    r" directly as the weight the adjustment should carry."
+)
+
+_CORRELATION_HELP = (
+    r"$$\rho = \frac{\operatorname{Cov}(s,\ r)}{\sigma_s\ \sigma_r}$$"
+    "\n\n"
+    r"where $s$ is the adjustment's own value and $r$ is the market's"
+    r" actual forward move. Dividing by both spreads instead of only"
+    r" the adjustment's keeps $\rho$ between -1 and +1."
+)
+
 
 def _fmt_ratio(value: float) -> str:
     if pd.isna(value):
@@ -39,7 +55,7 @@ def _pivot(evaluation: pd.DataFrame, value_column: str) -> pd.DataFrame:
 
 
 def _render_slope(evaluation: pd.DataFrame) -> None:
-    st.markdown("**Calibration (slope)**")
+    st.markdown("**Calibration (β)**", help=_SLOPE_HELP)
     table = _pivot(evaluation, "slope")
     column_config = {
         column: st.column_config.NumberColumn(
@@ -59,7 +75,7 @@ def _render_slope(evaluation: pd.DataFrame) -> None:
 
 
 def _render_correlation(evaluation: pd.DataFrame) -> None:
-    st.markdown("**Reliability (correlation)**")
+    st.markdown("**Reliability (ρ)**", help=_CORRELATION_HELP)
     table = _pivot(evaluation, "correlation")
     column_config = {
         column: st.column_config.NumberColumn(
