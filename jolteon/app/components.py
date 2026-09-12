@@ -210,12 +210,49 @@ def card_surface_rule(keys) -> str:
     )
 
 
-def card_grid(items, columns: int = 3, key_fn=None):
+CARD_GRID_GAP = "1rem"
+
+
+def card_grid_rule(key: str, columns: int, min_width: int) -> str:
     """
-    Lay `items` out as a responsive grid of bordered cards, up to `columns`
-    per row. Yields each item with its own bordered container already
-    open, so the caller just renders content into it - handy for pages
-    (risk limits, health) where the number of cards grows over time.
+    Returns: A style block laying the cards inside the container keyed
+    `key` out as a masonry - at most `columns` across, none narrower than
+    `min_width`, and each only as tall as its own content.
+
+    `st.columns` fixes the number of cards per row whatever the window is
+    wide enough for, and pads every row out to its tallest card; a
+    multi-column layout has no rows to pad, so cards of uneven height
+    (parameter groups, say) pack flush under each other and the count per
+    row follows the available width.
+    """
+    return (
+        f"<style>"
+        f".st-key-{key} {{ display: block;"
+        f" columns: {columns} {min_width}px;"
+        f" column-gap: {CARD_GRID_GAP}; }}"
+        f".st-key-{key} > * {{ break-inside: avoid;"
+        f" margin-bottom: {CARD_GRID_GAP}; }}"
+        f"</style>"
+    )
+
+
+def card_grid(
+    items,
+    *,
+    key: str,
+    columns: int = 3,
+    min_width: int = 320,
+    key_fn=None,
+):
+    """
+    Lay `items` out as a responsive masonry of bordered cards (see
+    `card_grid_rule`), at most `columns` across. Yields each item with its
+    own bordered container already open, so the caller just renders
+    content into it - handy for pages (risk limits, health) where the
+    number of cards grows over time.
+
+    `key` keys the container the whole grid lives in, which is what the
+    layout rule is scoped to, so it has to be unique within a page.
 
     `key_fn`, if given, computes a stable container `key` from each item,
     letting the caller target individual cards with scoped CSS (e.g. via
@@ -224,13 +261,14 @@ def card_grid(items, columns: int = 3, key_fn=None):
     items = list(items)
     if not items:
         return
-    cols_per_row = min(columns, len(items))
-    for start in range(0, len(items), cols_per_row):
-        row_items = items[start : start + cols_per_row]
-        row_cols = st.columns(cols_per_row)
-        for col, item in zip(row_cols, row_items):
-            key = key_fn(item) if key_fn else None
-            with col, st.container(border=True, key=key):
+    # Ahead of the container: a rule arriving after the cards have reached
+    # the browser leaves them stacked in one column for a moment first.
+    st.html(card_grid_rule(key, min(columns, len(items)), min_width))
+    with st.container(key=key):
+        for item in items:
+            with st.container(
+                border=True, key=key_fn(item) if key_fn else None
+            ):
                 yield item
 
 

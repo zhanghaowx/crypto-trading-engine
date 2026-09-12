@@ -302,7 +302,7 @@ def render() -> None:
     # reached the browser shows the canvas through it for a moment first.
     st.html(card_surface_rule(_card_key(group) for group in GROUPS))
 
-    for group in card_grid(GROUPS, columns=3, key_fn=_card_key):
+    for group in card_grid(GROUPS, key="parameter-cards", key_fn=_card_key):
         st.markdown(f"**{_group_title(group.__name__)}**")
         for definition in definitions(group):
             usable, unusable = _presentable(

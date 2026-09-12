@@ -1,6 +1,6 @@
 from streamlit.testing.v1 import AppTest
 
-from jolteon.app.components import card_surface_rule
+from jolteon.app.components import card_grid_rule, card_surface_rule
 
 
 def paginate_script():
@@ -21,7 +21,7 @@ def card_grid_script():
 
     from jolteon.app.components import card_grid
 
-    for item in card_grid(["a", "b", "c"], columns=2):
+    for item in card_grid(["a", "b", "c"], key="demo-cards", columns=2):
         st.write(item)
 
 
@@ -30,7 +30,7 @@ def card_grid_empty_script():
 
     from jolteon.app.components import card_grid
 
-    st.write(list(card_grid([], columns=2)))
+    st.write(list(card_grid([], key="demo-cards", columns=2)))
 
 
 def warn_if_no_db_script():
@@ -46,8 +46,6 @@ def test_card_grid_renders_every_item_in_a_bordered_container():
 
     assert not at.exception
     assert [m.value for m in at.markdown] == ["a", "b", "c"]
-    # One bordered container per item, laid out inside column groups.
-    assert len(at.columns) > 0
 
 
 def test_card_grid_yields_nothing_for_an_empty_list():
@@ -55,6 +53,20 @@ def test_card_grid_yields_nothing_for_an_empty_list():
 
     assert not at.exception
     assert at.json[0].value == "[]"
+
+
+def test_card_grid_rule_caps_the_columns_and_their_minimum_width():
+    rule = card_grid_rule("cards", columns=3, min_width=240)
+
+    assert ".st-key-cards {" in rule
+    assert "columns: 3 240px" in rule
+
+
+def test_card_grid_rule_keeps_a_card_from_splitting_across_columns():
+    rule = card_grid_rule("cards", columns=3, min_width=240)
+
+    assert ".st-key-cards > * {" in rule
+    assert "break-inside: avoid" in rule
 
 
 def test_card_surface_rule_scopes_itself_to_the_keys_given():
