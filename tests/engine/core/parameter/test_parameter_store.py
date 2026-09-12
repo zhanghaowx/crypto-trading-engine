@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 
 from jolteon.engine.core.parameter.parameter_store import (
@@ -15,6 +16,9 @@ class TestParameterStore(unittest.TestCase):
         self.addCleanup(self.directory.cleanup)
         self.path = str(Path(self.directory.name) / "params.sqlite")
         self.store = ParameterStore(self.path)
+        # Before the directory goes, since Windows refuses to remove a
+        # file the store still holds a read-only connection to.
+        self.addCleanup(self.store.close)
 
     def test_a_store_nobody_has_pushed_to_reads_as_empty(self):
         self.assertFalse(Path(self.path).exists())
@@ -95,7 +99,7 @@ class TestParameterStore(unittest.TestCase):
 
     def test_never_writes_through_the_engines_connection(self):
         self.store.push([override_of("Quoting", "quote_size", 0.01)])
-        with self.store._read_only() as conn:
+        with closing(self.store._read_only()) as conn:
             with self.assertRaises(Exception):
                 conn.execute("DELETE FROM parameter_override")
                 conn.commit()

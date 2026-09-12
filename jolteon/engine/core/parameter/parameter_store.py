@@ -1,6 +1,7 @@
 import json
 import sqlite3
 import time
+from contextlib import closing
 from dataclasses import dataclass
 
 from jolteon.engine.core.parameter.parameter_service import ALL_SYMBOLS
@@ -103,7 +104,7 @@ class ParameterStore:
         so an engine polling mid-push sees all of them or none.
         """
         now = time.time()
-        with self._writable() as conn:
+        with closing(self._writable()) as conn:
             conn.executescript(_SCHEMA)
             with conn:
                 for override in overrides:
@@ -149,7 +150,7 @@ class ParameterStore:
         for one group or for everything.
         """
         now = time.time()
-        with self._writable() as conn:
+        with closing(self._writable()) as conn:
             conn.executescript(_SCHEMA)
             with conn:
                 where = ""

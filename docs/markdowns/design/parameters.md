@@ -95,6 +95,13 @@ the engine's logs a database of their own: neither process can take the
 lock the other one needs. The engine opens the parameter store read-only
 (`mode=ro`) so it cannot write to it even by accident.
 
+That read-only connection stays open for as long as the engine polls,
+since `data_version` only moves on a connection that does, and
+`StoredParameterService.stop()` closes it once the polling thread has
+joined. Holding it past that point costs nothing on POSIX, where a file
+can be unlinked while a handle is open, but on Windows it makes the file
+impossible to remove.
+
 The poller wakes on `ParameterPollParameters.interval_in_seconds` and
 issues one `PRAGMA data_version`, which costs about 17µs and moves only
 when another connection has committed. **`data_version` is only an
