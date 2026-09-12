@@ -104,7 +104,9 @@ def test_an_edit_shows_what_it_would_change(params_db_path, missing_db_path):
     at.number_input(key=QUOTE_SIZE).set_value(0.02).run()
 
     assert not at.exception
-    assert "Push 1 change" in at.button[0].label
+    assert not at.button[0].disabled
+    summary = at.markdown[-1].value
+    assert "| Market Making · Quote Size | default | 0.02 |" in summary
 
 
 def test_pushing_writes_every_staged_change(params_db_path, missing_db_path):
@@ -137,7 +139,8 @@ def test_pushing_clears_what_was_staged(params_db_path, missing_db_path):
 
     assert not at.exception
     assert at.session_state["_staged_parameters"] == {}
-    assert "Push 0 changes" in at.button[0].label
+    assert at.button[0].disabled
+    assert "| Market Making · Quote Size |" not in at.markdown[-1].value
 
 
 def test_reverting_drops_the_edit_and_writes_nothing(
@@ -149,20 +152,6 @@ def test_reverting_drops_the_edit_and_writes_nothing(
 
     assert not at.exception
     assert at.session_state["_staged_parameters"] == {}
-    assert ParameterStore(params_db_path).read() == []
-
-
-def test_resetting_drops_everything_already_pushed(
-    params_db_path, missing_db_path
-):
-    at = _page(params_db_path, missing_db_path).run()
-    at.number_input(key=QUOTE_SIZE).set_value(0.02).run()
-    at.button[0].click().run()
-    assert ParameterStore(params_db_path).read()
-
-    at.button[2].click().run()
-
-    assert not at.exception
     assert ParameterStore(params_db_path).read() == []
 
 
@@ -183,7 +172,7 @@ def test_says_nothing_about_a_parameter_left_at_its_default(
     at = _page(params_db_path, missing_db_path).run()
 
     assert not at.exception
-    assert not at.caption[1:]
+    assert not at.caption
 
 
 def test_reports_a_stored_value_no_engine_has_read(

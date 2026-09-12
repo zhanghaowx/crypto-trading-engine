@@ -82,7 +82,7 @@ dashboard process                        engine process
 ─────────────────                        ──────────────
 Parameters page                          StoredParameterService
   stage edits in session state             poller thread, every ~1s
-  [Push] ─write─> jolteon.params.sqlite ─read (mode=ro)─> rebuild on change
+  [Commit] ─write─> jolteon.params.sqlite ─read (mode=ro)─> rebuild on change
                   (dashboard = sole writer)                     │
                                                    parameter_applied
                                                                 │

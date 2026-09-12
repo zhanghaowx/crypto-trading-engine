@@ -132,8 +132,7 @@ def _card_key(group: type) -> str:
 
 def _group_title(group_name: str) -> str:
     bare = group_name.removesuffix("Parameters")
-    words = re.findall(r"[A-Z][a-z0-9]*", bare)
-    return " ".join(words[:1] + [w.lower() for w in words[1:]])
+    return " ".join(re.findall(r"[A-Z][a-z0-9]*", bare))
 
 
 def _field_label(definition: ParameterDefinition) -> str:
@@ -141,6 +140,39 @@ def _field_label(definition: ParameterDefinition) -> str:
     if definition.unit:
         label = f"{label} ({definition.unit})"
     return label
+
+
+def _staged_label(group_name: str, field_name: str) -> str:
+    return (
+        f"{_group_title(group_name)} · {field_name.replace('_', ' ')}"
+    ).title()
+
+
+_SUMMARY_KEY = "staged-summary"
+
+_SUMMARY_NAME_HEADROOM = 1.25
+
+
+def _summary_rule() -> str:
+    """
+    Widens the summary's name column, sized from the whole catalog rather
+    than from the rows on screen: a width taken from what happens to be
+    staged moves every time a row is added or dropped, and a table that
+    resizes under the reader as they work is harder to read.
+    """
+    longest = max(
+        len(_staged_label(group.__name__, definition.name))
+        for group in GROUPS
+        for definition in definitions(group)
+    )
+    characters = round(longest * _SUMMARY_NAME_HEADROOM)
+    return (
+        f"<style>"
+        f".st-key-{_SUMMARY_KEY} th:first-child,"
+        f" .st-key-{_SUMMARY_KEY} td:first-child"
+        f" {{ min-width: {characters}ch; }}"
+        f"</style>"
+    )
 
 
 def _widget(group_name: str, definition: ParameterDefinition, value) -> None:
@@ -256,47 +288,10 @@ def _revert() -> None:
     st.session_state[_STAGED] = {}
 
 
-def _reset() -> None:
-    ParameterStore(st.session_state.params_db_path).reset()
-    st.session_state[_STAGED] = {}
-
-
 def render() -> None:
-    st.caption(
-        "Changes are staged here and reach the engine only when you push "
-        "them. The engine picks them up within its poll interval."
-    )
-
     stored = _stored_values()
     st.session_state["_engine_parameter_state"] = _engine_state()
     staged = _staged()
-
-    with st.container(horizontal=True, vertical_alignment="center"):
-        st.button(
-            f"Push {len(staged)} change{'' if len(staged) == 1 else 's'}",
-            type="primary",
-            disabled=not staged,
-            on_click=_push,
-            icon=":material/upload:",
-        )
-        st.button("Revert", disabled=not staged, on_click=_revert)
-        st.button("Reset all to defaults", on_click=_reset)
-
-    if staged:
-        st.dataframe(
-            [
-                {
-                    "Parameter": f"{group_name}.{field_name}",
-                    "From": str(
-                        stored.get((group_name, field_name), "default")
-                    ),
-                    "To": str(value),
-                }
-                for (group_name, field_name), value in staged.items()
-            ],
-            hide_index=True,
-            width="stretch",
-        )
 
     # Before the cards themselves: a rule arriving after a container has
     # reached the browser shows the canvas through it for a moment first.
@@ -313,3 +308,30 @@ def render() -> None:
                 _state_badge(group.__name__, definition, stored)
             else:
                 _unusable_note(definition, unusable)
+
+    if staged:
+        # A markdown table, not `st.dataframe`: the data grid is a lazily
+        # loaded bundle the browser only fetches the first time a table is
+        # shown, so the summary of an edit arrives about half a second
+        # after the edit that staged it.
+        rows = "\n".join(
+            f"| {_staged_label(group_name, field_name)} "
+            f"| {stored.get((group_name, field_name), 'default')} "
+            f"| {value} |"
+            for (group_name, field_name), value in staged.items()
+        )
+        st.html(_summary_rule())
+        with st.container(key=_SUMMARY_KEY):
+            st.markdown(
+                f"| Parameter | From | To |\n| --- | --- | --- |\n{rows}"
+            )
+
+    with st.container(horizontal=True, vertical_alignment="center"):
+        st.button(
+            "Commit",
+            type="primary",
+            disabled=not staged,
+            on_click=_push,
+            icon=":material/upload:",
+        )
+        st.button("Revert", disabled=not staged, on_click=_revert)
