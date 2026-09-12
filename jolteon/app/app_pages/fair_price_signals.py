@@ -19,6 +19,12 @@ _HORIZON_PHRASES = {
 
 _HORIZON_COLUMNS = [f"+{horizon}" for horizon in HORIZONS]
 
+# Overlapping, autocorrelated tick pairs make the effective sample
+# far smaller than the raw count, so this floor is deliberately high.
+_MIN_SAMPLES = 30
+
+_COLLECTING = "Collecting…"
+
 _SLOPE_HELP = (
     r"$$\beta = \frac{\operatorname{Cov}(s,\ r)}{\operatorname{Var}(s)}$$"
     "\n\n"
@@ -38,15 +44,17 @@ _CORRELATION_HELP = (
 
 def _fmt_ratio(value: float) -> str:
     if pd.isna(value):
-        return "–"
+        return _COLLECTING
     sign = "+" if value >= 0 else "-"
     return f"{sign}{abs(value):.2f}"
 
 
 def _pivot(evaluation: pd.DataFrame, value_column: str) -> pd.DataFrame:
     """`evaluation`'s long (adjustment, horizon) rows as one row per
-    adjustment, one column per horizon."""
-    pivoted = evaluation.pivot(
+    adjustment, one column per horizon, with any figure resting on fewer
+    than `_MIN_SAMPLES` pairs blanked out."""
+    trusted = evaluation[value_column].where(evaluation["n"] >= _MIN_SAMPLES)
+    pivoted = evaluation.assign(**{value_column: trusted}).pivot(
         index="adjustment", columns="horizon", values=value_column
     )
     pivoted = pivoted.reindex(columns=list(HORIZONS))
@@ -107,6 +115,13 @@ def render() -> None:
     evaluation = evaluate_adjustments(adjustments, fair_price)
     if evaluation.empty:
         st.info("Waiting for fair price data to evaluate against.")
+        return
+
+    if (evaluation["n"] < _MIN_SAMPLES).all():
+        st.info(
+            "Collecting data - no horizon has enough samples to evaluate "
+            "against yet."
+        )
         return
 
     _render_slope(evaluation)
