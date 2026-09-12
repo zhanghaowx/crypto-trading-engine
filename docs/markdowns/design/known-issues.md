@@ -8,11 +8,15 @@ rather than in any one component's notes.
 
 Each entry states what is wrong, why it matters, and what would resolve
 it; the few marked fixed record what changed. Arithmetic assumes BTC
-around $100,000 and the defaults in `StaticParameterService`:
+around $100,000 and the declared defaults of `MarketMakingParameters`:
 `quote_size = 0.0005` and `max_inventory = 0.01`. Where a quote offset
 matters, the figure given is the one a paper session actually quotes:
-`FeeAwareQuoteOffsetService(edge = 5.0)`, which at that price asks
-$255 a side.
+`QuoteOffsetParameters.edge = 5.0`, which at that price asks $255 a side.
+
+Every figure below is now a declared parameter that the dashboard can
+change on a running engine, so these are the defaults an untuned session
+starts from rather than the only values it can hold. See
+[the parameters design note](parameters.md).
 
 ## Summary
 
@@ -89,12 +93,13 @@ the taker rate. `FeeAwareQuoteOffsetService` reads the same schedule, so
 the fee a quote is priced against and the fee a simulated fill is charged
 cannot drift apart.
 
-The rates sit on the schedule rather than in the parameter service as
-first proposed, because the mock execution service needs them too and
-should not have to reach into the strategy's parameters to get them.
-Running a replay at a chosen tier is now a matter of passing a different
-`FeeSchedule`; picking the tier up from the account automatically is not
-done.
+`FeeSchedule` is itself the parameter group for the rates, rather than
+having a second group describing it: its two fields are exactly the
+tunables, and its declared defaults are Kraken's base tier. That keeps
+the mock execution service's route to them a plain `FeeSchedule` it is
+handed, while the dashboard can still retune them. Running a replay at a
+chosen tier is a matter of passing a different schedule; picking the tier
+up from the account automatically is not done.
 
 ## 3. Simulated queue position is always zero
 
