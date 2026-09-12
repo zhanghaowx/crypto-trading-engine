@@ -55,7 +55,7 @@ class MarketMakingStrategy(Heartbeater, SignalSubscriber):
         parameter_service: Union[IParameterService, None] = None,
         quote_offset_service: Union[IQuoteOffsetService, None] = None,
     ):
-        super().__init__(type(self).__name__, interval_in_seconds=10)
+        super().__init__(type(self).__name__)
         self._symbol = symbol
         self._parameter_service = parameter_service or StaticParameterService()
         self._requote_tolerance = requote_tolerance

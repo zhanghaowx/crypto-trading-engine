@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import logging
 import os
 import sqlite3
@@ -17,6 +18,12 @@ from freezegun import freeze_time
 from jolteon.engine.core.logging.logger import (
     SQLiteHandler,
     setup_global_logger,
+)
+from jolteon.engine.core.logging.parameters import (
+    LoggingParameters,
+)
+from jolteon.engine.core.parameter.parameter_service import (
+    StaticParameterService,
 )
 
 
@@ -88,6 +95,9 @@ class TestLogging(unittest.IsolatedAsyncioTestCase):
         with self.assertLogs(level="DEBUG") as log_output:
             self.setup_logger(logging.DEBUG)
             logging.info("Info Message")
+            # Taken from the call above rather than written out, so an
+            # edit anywhere earlier in this file does not break the test.
+            logged_at = inspect.currentframe().f_lineno - 3
 
         # Make assertions on the log format
         self.assertEqual(
@@ -96,7 +106,7 @@ class TestLogging(unittest.IsolatedAsyncioTestCase):
                 "[2022-01-01 00:00:00]"
                 "[root][INFO]"
                 "[MainThread]"
-                "[test_logger.py:90] - "
+                f"[test_logger.py:{logged_at}] - "
                 "Info Message"
             ],
         )
@@ -229,10 +239,10 @@ class TestLogging(unittest.IsolatedAsyncioTestCase):
         grow for the life of the session.
         """
         with self.assertLogs(level="DEBUG"):
-            with (
-                patch("jolteon.engine.core.logging.logger._MAX_LOG_ROWS", 5),
-                patch(
-                    "jolteon.engine.core.logging.logger._PRUNE_INTERVAL", 10
+            with patch(
+                "jolteon.engine.core.parameter.parameter_service._service",
+                StaticParameterService(
+                    LoggingParameters(max_log_rows=5, prune_interval=10)
                 ),
             ):
                 self.setup_logger(

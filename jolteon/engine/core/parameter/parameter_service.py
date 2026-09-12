@@ -132,3 +132,25 @@ def assert_within_bounds(
         assert value <= definition.maximum, (
             f"{name} must be at most {definition.maximum}, got {value}"
         )
+
+
+_service: IParameterService = StaticParameterService()
+
+
+def parameter_service() -> IParameterService:
+    """
+    Returns: The service infrastructure reads its own tunables from.
+
+    Components the application wires by hand are handed a service and
+    should use that one. This exists for the layers underneath them -
+    logging, retries, the SQLite writer, heartbeats - which are reached
+    from everywhere and have nowhere to receive one, the same reason
+    time_manager() and id_generator() are accessors rather than
+    arguments.
+    """
+    return _service
+
+
+def use_parameter_service(service: IParameterService) -> None:
+    global _service
+    _service = service

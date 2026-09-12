@@ -2,8 +2,10 @@ from dataclasses import dataclass
 
 from jolteon.engine.core.event.signal import signal, subscribe
 from jolteon.engine.core.event.signal_subscriber import SignalSubscriber
+from jolteon.engine.core.parameter.parameter_service import parameter_service
 from jolteon.engine.market_data.core.book_features import imbalance, vwap
 from jolteon.engine.market_data.core.order_book import OrderBook, PriceLevel
+from jolteon.engine.market_data.parameters import BookFeatureParameters
 
 
 @dataclass
@@ -29,8 +31,6 @@ class BookFeatureRecorder(SignalSubscriber):
     a signal evaluation page can plot and what a future replay would need.
     """
 
-    DEPTH = 10
-
     def __init__(self):
         self.book_features_event = signal("book_features")
 
@@ -40,8 +40,11 @@ class BookFeatureRecorder(SignalSubscriber):
         if not bbo:
             return
 
-        bids = order_book.bids(BookFeatureRecorder.DEPTH)
-        asks = order_book.asks(BookFeatureRecorder.DEPTH)
+        depth = (
+            parameter_service().get(BookFeatureParameters, bbo.symbol).depth
+        )
+        bids = order_book.bids(depth)
+        asks = order_book.asks(depth)
 
         self.book_features_event.send(
             self.book_features_event,

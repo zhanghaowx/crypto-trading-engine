@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 
 from jolteon.engine.core.fee_schedule import FeeSchedule
+from jolteon.engine.core.health_monitor.parameters import HeartbeatParameters
+from jolteon.engine.core.logging.parameters import LoggingParameters
 from jolteon.engine.core.parameter.parameter_service import (
     ParameterValues,
     assert_within_bounds,
@@ -12,6 +14,13 @@ from jolteon.engine.core.parameter.parameter_specification import (
 from jolteon.engine.core.parameter.poll_parameters import (
     ParameterPollParameters,
 )
+from jolteon.engine.core.retry import RetryParameters
+from jolteon.engine.core.sqlite_writer import SqliteWriterParameters
+from jolteon.engine.execution.kraken.parameters import (
+    KrakenExecutionParameters,
+)
+from jolteon.engine.market_data.kraken.parameters import KrakenFeedParameters
+from jolteon.engine.market_data.parameters import BookFeatureParameters
 from jolteon.engine.strategy.market_making.fair_value.parameters import (
     AdjustedFairPriceParameters,
     InventoryAdjustmentParameters,
@@ -40,6 +49,13 @@ GROUPS: tuple[type[ParameterGroup], ...] = (
     OrderFlowImbalanceParameters,
     InventoryAdjustmentParameters,
     MicropriceParameters,
+    KrakenFeedParameters,
+    KrakenExecutionParameters,
+    BookFeatureParameters,
+    HeartbeatParameters,
+    RetryParameters,
+    SqliteWriterParameters,
+    LoggingParameters,
     ParameterPollParameters,
 )
 
@@ -63,7 +79,7 @@ def validate(values: ParameterValues) -> list[ParameterProblem]:
     Reports all of them rather than stopping at the first, so one push
     gets one complete answer.
     """
-    problems = []
+    problems = list(_cross_group_problems(values))
     for group in GROUPS:
         current = values.peek(group)
         for definition in definitions(group):
@@ -80,3 +96,20 @@ def validate(values: ParameterValues) -> list[ParameterProblem]:
                     )
                 )
     return problems
+
+
+def _cross_group_problems(values: ParameterValues):
+    """
+    Constraints that no single field can state, because they are about
+    how two of them sit together.
+    """
+    heartbeat = values.peek(HeartbeatParameters)
+    if heartbeat.timeout_in_seconds <= heartbeat.interval_in_seconds:
+        yield ParameterProblem(
+            group_name="HeartbeatParameters",
+            field_name="timeout_in_seconds",
+            message=(
+                "timeout_in_seconds must exceed interval_in_seconds, or a "
+                "component is a zombie before its next heartbeat is due"
+            ),
+        )

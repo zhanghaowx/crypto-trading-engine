@@ -49,7 +49,7 @@ class MockExecutionService(Heartbeater, SignalSubscriber):
         quantity at the touch when the order was placed - it is not a
         precise reconstruction of Kraken's real matching engine.
         """
-        super().__init__(type(self).__name__, interval_in_seconds=10)
+        super().__init__(type(self).__name__)
         self.order_history = dict[str, Order]()
         self.order_fill_event = signal("order_fill")
 

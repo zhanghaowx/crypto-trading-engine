@@ -1,6 +1,8 @@
 import asyncio
 
 from jolteon.engine.core.health_monitor.heartbeat import Heartbeat
+from jolteon.engine.core.health_monitor.parameters import HeartbeatParameters
+from jolteon.engine.core.parameter.parameter_service import parameter_service
 from jolteon.engine.core.time.time_manager import time_manager
 
 
@@ -24,7 +26,7 @@ class HeartbeatMonitor:
             ).total_seconds()
             self.zombie = seconds_since_creation > timeout_in_seconds
 
-    def __init__(self, timeout_in_seconds: float = 10):
+    def __init__(self, timeout_in_seconds: float | None = None):
         """
         Heartbeat Monitor oversees all heartbeats in the system and maintaining
         a record of the last heartbeat from each component. It decides the
@@ -37,7 +39,11 @@ class HeartbeatMonitor:
         self.all_heartbeats: dict[
             str, HeartbeatMonitor.DecoratedHeartbeat
         ] = {}
-        self._timeout_in_seconds: float = timeout_in_seconds
+        self._timeout_in_seconds: float = (
+            parameter_service().get(HeartbeatParameters).timeout_in_seconds
+            if timeout_in_seconds is None
+            else timeout_in_seconds
+        )
         self._heartbeat_monitor_task = asyncio.create_task(
             self._detect_zombies_periodically()
         )
