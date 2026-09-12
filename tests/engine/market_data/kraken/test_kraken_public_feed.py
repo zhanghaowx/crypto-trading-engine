@@ -6,8 +6,13 @@ from unittest.mock import AsyncMock, Mock, patch
 import websockets
 
 from jolteon.engine.core.health_monitor.heartbeat import HeartbeatLevel
+from jolteon.engine.core.parameter.parameter_service import (
+    StaticParameterService,
+    use_parameter_service,
+)
 from jolteon.engine.market_data.core.order_book import PriceLevel
 from jolteon.engine.market_data.feed import IMarketDataFeed
+from jolteon.engine.market_data.kraken.parameters import KrakenFeedParameters
 from jolteon.engine.market_data.kraken.public_feed import PublicFeed
 
 
@@ -260,6 +265,28 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
         await self.feed.connect("ETH-USD", max_retries=3)
 
         self.assertEqual(mock_connect.call_count, 4)
+
+    @patch("websockets.connect")
+    async def test_an_unstated_retry_budget_comes_from_parameters(
+        self, mock_connect
+    ):
+        """
+        The application passes neither, so leaving them out has to give
+        the declared budget rather than a single attempt.
+        """
+        use_parameter_service(
+            StaticParameterService(
+                KrakenFeedParameters(
+                    max_retries=2, retry_interval_in_seconds=0.1
+                )
+            )
+        )
+        self.addCleanup(use_parameter_service, StaticParameterService())
+        await self.create_mock_websocket(mock_connect, [])
+
+        await self.feed.connect("ETH-USD")
+
+        self.assertEqual(3, mock_connect.call_count)
 
     @patch("websockets.connect")
     async def test_heartbeat_feed(self, mock_connect):

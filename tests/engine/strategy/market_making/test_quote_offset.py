@@ -1,8 +1,14 @@
 import unittest
 
 from jolteon.engine.core.fee_schedule import FeeSchedule
+from jolteon.engine.core.parameter.parameter_service import (
+    StaticParameterService,
+)
 from jolteon.engine.market_data.core.bbo import BBO
 from jolteon.engine.market_data.core.book_snapshot import BookSnapshot
+from jolteon.engine.strategy.market_making.parameters import (
+    QuoteOffsetParameters,
+)
 from jolteon.engine.strategy.market_making.quote_offset import (
     FeeAwareQuoteOffsetService,
     IQuoteOffsetService,
@@ -34,6 +40,36 @@ class TestStaticQuoteOffsetService(unittest.TestCase):
     def test_rejects_a_non_positive_half_spread(self):
         with self.assertRaises(AssertionError):
             StaticQuoteOffsetService(half_spread=0.0)
+
+    def test_no_half_spread_takes_the_declared_default(self):
+        offset = StaticQuoteOffsetService().calculate(snapshot())
+
+        self.assertEqual(QuoteOffsetParameters().half_spread, offset.bid)
+
+    def test_no_half_spread_follows_a_retuned_parameter(self):
+        """
+        Passing one fixes it for the life of the service, so leaving it
+        out is the only way a dashboard can widen a running quote.
+        """
+        service = StaticQuoteOffsetService(
+            parameter_service=StaticParameterService(
+                QuoteOffsetParameters(half_spread=12.5)
+            )
+        )
+
+        self.assertEqual(
+            QuoteOffset(bid=12.5, ask=12.5), service.calculate(snapshot())
+        )
+
+    def test_a_passed_half_spread_ignores_the_parameter_service(self):
+        service = StaticQuoteOffsetService(
+            half_spread=25.0,
+            parameter_service=StaticParameterService(
+                QuoteOffsetParameters(half_spread=12.5)
+            ),
+        )
+
+        self.assertEqual(25.0, service.calculate(snapshot()).bid)
 
 
 class TestFeeAwareQuoteOffsetService(unittest.TestCase):
@@ -67,6 +103,42 @@ class TestFeeAwareQuoteOffsetService(unittest.TestCase):
     def test_rejects_a_non_positive_edge(self):
         with self.assertRaises(AssertionError):
             FeeAwareQuoteOffsetService(edge=0.0, fees=self.fees)
+
+    def test_no_edge_or_fees_takes_them_from_the_parameter_service(self):
+        service = FeeAwareQuoteOffsetService(
+            parameter_service=StaticParameterService(
+                QuoteOffsetParameters(edge=2.0),
+                FeeSchedule(maker_rate=0.001, taker_rate=0.002),
+            )
+        )
+
+        offset = service.calculate(snapshot(bid=1000.0, ask=1200.0))
+
+        self.assertAlmostEqual(3.0, offset.bid)
+        self.assertAlmostEqual(3.2, offset.ask)
+
+    def test_falls_back_to_the_declared_defaults(self):
+        offset = FeeAwareQuoteOffsetService().calculate(
+            snapshot(bid=1000.0, ask=1000.0)
+        )
+
+        declared = QuoteOffsetParameters().edge + FeeSchedule().maker_fee(
+            1000.0, 1.0
+        )
+        self.assertAlmostEqual(declared, offset.bid)
+
+    def test_passed_fees_are_kept_over_a_retuned_schedule(self):
+        service = FeeAwareQuoteOffsetService(
+            fees=self.fees,
+            parameter_service=StaticParameterService(
+                QuoteOffsetParameters(edge=2.0),
+                FeeSchedule(maker_rate=0.1, taker_rate=0.1),
+            ),
+        )
+
+        self.assertAlmostEqual(
+            3.0, service.calculate(snapshot(bid=1000.0, ask=1000.0)).bid
+        )
 
 
 class TestIQuoteOffsetService(unittest.TestCase):

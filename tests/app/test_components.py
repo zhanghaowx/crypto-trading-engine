@@ -1,5 +1,7 @@
 from streamlit.testing.v1 import AppTest
 
+from jolteon.app.components import card_surface_rule
+
 
 def paginate_script():
     import pandas as pd
@@ -53,6 +55,22 @@ def test_card_grid_yields_nothing_for_an_empty_list():
 
     assert not at.exception
     assert at.json[0].value == "[]"
+
+
+def test_card_surface_rule_scopes_itself_to_the_keys_given():
+    rule = card_surface_rule(["one", "two"])
+
+    assert ".st-key-one, .st-key-two {" in rule
+    assert rule.startswith("<style>")
+
+
+def test_card_surface_rule_is_empty_when_there_are_no_cards():
+    """
+    An empty selector would leave `{ ... }` on its own, which is not a
+    rule the browser can apply to anything, so a page with no cards has
+    to emit no style block at all.
+    """
+    assert card_surface_rule([]) == ""
 
 
 def test_warn_if_no_db_returns_false_and_warns_when_missing(missing_db_path):

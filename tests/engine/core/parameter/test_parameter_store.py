@@ -1,3 +1,4 @@
+import sqlite3
 import tempfile
 import unittest
 from contextlib import closing
@@ -91,6 +92,24 @@ class TestParameterStore(unittest.TestCase):
         self.store.push([override_of("Quoting", "quote_size", 0.01)])
         self.store.reset()
         self.assertEqual([], self.store.read())
+
+    def test_a_value_that_is_not_json_is_left_out(self):
+        """
+        Only the dashboard should be writing this file, but nothing stops
+        something else from doing so. One unreadable row must not cost
+        the engine the rows around it.
+        """
+        self.store.push([override_of("Quoting", "quote_size", 0.01)])
+        with closing(sqlite3.connect(self.path)) as conn:
+            conn.execute(
+                "INSERT INTO parameter_override VALUES "
+                "('Quoting', 'depth', '', 'not json', 0.0)"
+            )
+            conn.commit()
+
+        self.assertEqual(
+            ["quote_size"], [o.field_name for o in self.store.read()]
+        )
 
     def test_survives_a_file_that_is_not_a_database(self):
         Path(self.path).write_text("not a database")
