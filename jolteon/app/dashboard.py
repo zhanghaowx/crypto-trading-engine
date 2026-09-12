@@ -29,11 +29,16 @@ _LOGO_PATH = (
     Path(__file__).resolve().parents[2] / "docs" / "images" / "jolteon.png"
 )
 
+_FOCUS_CSS = (
+    Path(__file__).resolve().parent / "static" / "focus_visible.css"
+).read_text()
+
 
 def main() -> None:
     st.set_page_config(page_title="Jolteon Live", layout="wide")
     init_settings()
     st.logo(str(_LOGO_PATH), size="medium")
+    st.html(f"<style>{_FOCUS_CSS}</style>")
 
     st.navigation(
         [

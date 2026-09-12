@@ -1,0 +1,12 @@
+/*
+ * A clicked widget keeps the browser's focus after the click, and
+ * Streamlit paints its focus state from `:focus` - so a number input's
+ * step buttons stay filled long after the value has been applied, which
+ * reads as an edit still being processed. Keyboard focus still needs the
+ * ring to keep the page navigable, which is what `:focus-visible` marks.
+ */
+[data-testid="stNumberInputStepUp"]:focus:not(:focus-visible):not(:hover),
+[data-testid="stNumberInputStepDown"]:focus:not(:focus-visible):not(:hover) {
+  background-color: transparent;
+  color: inherit;
+}
