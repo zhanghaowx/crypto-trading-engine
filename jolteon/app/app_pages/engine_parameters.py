@@ -321,10 +321,11 @@ def render() -> None:
             for (group_name, field_name), value in staged.items()
         )
         st.html(_summary_rule())
-        with st.container(key=_SUMMARY_KEY):
-            st.markdown(
-                f"| Parameter | From | To |\n| --- | --- | --- |\n{rows}"
-            )
+        with st.container(horizontal=True, horizontal_alignment="center"):
+            with st.container(key=_SUMMARY_KEY, width="content"):
+                st.markdown(
+                    f"| Parameter | From | To |\n| --- | --- | --- |\n{rows}"
+                )
 
     with st.container(horizontal=True, vertical_alignment="center"):
         st.button(
