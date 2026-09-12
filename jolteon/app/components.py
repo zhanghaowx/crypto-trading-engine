@@ -230,7 +230,11 @@ def card_grid_rule(key: str, columns: int, min_width: int) -> str:
         f".st-key-{key} {{ display: block;"
         f" columns: {columns} {min_width}px;"
         f" column-gap: {CARD_GRID_GAP}; }}"
+        # `contain` keeps a card's own reflow out of the column balancing:
+        # without it, editing one widget relayouts every card in the grid,
+        # which is most of the latency behind a click on this page.
         f".st-key-{key} > * {{ break-inside: avoid;"
+        f" contain: layout style;"
         f" margin-bottom: {CARD_GRID_GAP}; }}"
         f"</style>"
     )
