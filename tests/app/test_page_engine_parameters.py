@@ -187,3 +187,87 @@ def test_reports_a_stored_value_no_engine_has_read(
     assert any(
         "no engine has reported" in caption.value for caption in at.caption
     )
+
+
+class TestAStoreThePageCannotRender:
+    """
+    A store can hold a value no widget will take: a field's bounds may
+    have been tightened after it was pushed, or something may have
+    written to the store directly. The engine refuses such a value and
+    keeps running, and the page has to stay up the same way - one bad
+    field used to raise and take every other field down with it.
+    """
+
+    def test_a_value_above_the_maximum_does_not_break_the_page(
+        self, params_db_path, missing_db_path
+    ):
+        ParameterStore(params_db_path).push(
+            [override_of("MarketMakingParameters", "quote_size", 99.0)]
+        )
+        at = _page(params_db_path, missing_db_path).run()
+
+        assert not at.exception
+        assert at.number_input(key=QUOTE_SIZE).value == 10.0
+
+    def test_a_value_below_the_minimum_does_not_break_the_page(
+        self, params_db_path, missing_db_path
+    ):
+        ParameterStore(params_db_path).push(
+            [override_of("MarketMakingParameters", "quote_size", -5.0)]
+        )
+        at = _page(params_db_path, missing_db_path).run()
+
+        assert not at.exception
+        assert at.number_input(key=QUOTE_SIZE).value == 0.00001
+
+    def test_a_value_of_the_wrong_type_does_not_break_the_page(
+        self, params_db_path, missing_db_path
+    ):
+        ParameterStore(params_db_path).push(
+            [override_of("MarketMakingParameters", "book_depth", "ten")]
+        )
+        at = _page(params_db_path, missing_db_path).run()
+
+        assert not at.exception
+        assert at.number_input(key=BOOK_DEPTH).value == 10
+
+    def test_says_what_is_really_stored_and_that_it_is_refused(
+        self, params_db_path, missing_db_path
+    ):
+        ParameterStore(params_db_path).push(
+            [override_of("MarketMakingParameters", "quote_size", 99.0)]
+        )
+        at = _page(params_db_path, missing_db_path).run()
+
+        captions = " ".join(caption.value for caption in at.caption)
+        assert "Stored as 99.0" in captions
+        assert "refuses it" in captions
+        # Its declared minimum is 0.00001, which str() renders as 1e-05.
+        assert "Allowed: 0.00001 to 10.00000." in captions
+
+    def test_every_other_field_still_renders(
+        self, params_db_path, missing_db_path
+    ):
+        ParameterStore(params_db_path).push(
+            [override_of("MarketMakingParameters", "quote_size", 99.0)]
+        )
+        at = _page(params_db_path, missing_db_path).run()
+
+        assert not at.exception
+        expected = sum(len(definitions(group)) for group in GROUPS)
+        kinds = (at.number_input, at.checkbox, at.selectbox, at.text_input)
+        assert sum(len(kind) for kind in kinds) == expected
+
+    def test_it_is_not_quietly_corrected_on_the_users_behalf(
+        self, params_db_path, missing_db_path
+    ):
+        """
+        Showing a clamped value must not stage or push one. The bad value
+        stays in the store until someone decides what it should be.
+        """
+        store = ParameterStore(params_db_path)
+        store.push([override_of("MarketMakingParameters", "quote_size", 99.0)])
+        at = _page(params_db_path, missing_db_path).run()
+
+        assert at.session_state["_staged_parameters"] == {}
+        assert store.read()[0].value == 99.0
