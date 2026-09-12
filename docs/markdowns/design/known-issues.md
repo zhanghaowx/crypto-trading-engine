@@ -41,21 +41,22 @@ default that is a flat `half_spread` on each side, and
 fill is `half_spread * quote_size` = $0.025 at `half_spread = 50.0`, or
 5 bps of notional.
 
-Kraken's base-tier maker fee is 0.25%, which is 25 bps, or $0.13 on the
-same $50 notional. Every fill loses about $0.105 before adverse selection
+Kraken's base-tier maker fee is 0.40%, which is 40 bps, or $0.20 on the
+same $50 notional. Every fill loses about $0.175 before adverse selection
 is counted. Break-even `half_spread` is `maker_rate * price`:
 
 | 30-day volume | Maker fee | Break-even `half_spread` |
 |---|---|---|
-| < $10k | 0.25% | $250 |
-| $10k+ | 0.20% | $200 |
+| < $2.5k | 0.40% | $400 |
+| $2.5k+ | 0.30% | $300 |
+| $10k+ | 0.22% | $220 |
 | $250k+ | 0.10% | $100 |
 | $10M+ | 0.00% | $0 |
 
 Widening the spread does not rescue this. Kraken's BTC-USD touch is a few
-dollars wide, so a break-even quote would sit 50 to 100 times further from
-mid than the actual market and would only ever be reached when price moves
-$250 through the level. That is not market making, it is buying
+dollars wide, so a break-even quote would sit a hundred times or more
+further from mid than the actual market and would only ever be reached when
+price moves $400 through the level. That is not market making, it is buying
 dislocations, and it has worse selection.
 
 The market's own quoted spread reveals what the winning makers pay. A pair
@@ -81,8 +82,8 @@ above made visible rather than a regression, and it is why this issue
 stays open.
 
 Skewing the fair price cannot rescue it either. The inventory skew is
-capped at the quoted edge of $5 while the offset itself is around $255,
-so even a position at its cap moves the quote by about 2% of its
+capped at the quoted edge of $5 while the offset itself is around $405,
+so even a position at its cap moves the quote by about 1% of its
 distance from mid. The fee term dominates the quote, so no fair price
 signal can steer it much until the fee tier or the pair changes.
 
