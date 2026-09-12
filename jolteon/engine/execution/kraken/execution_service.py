@@ -14,7 +14,11 @@ from jolteon.engine.core.health_monitor.heartbeat import (
     Heartbeater,
     HeartbeatLevel,
 )
+from jolteon.engine.core.parameter.parameter_service import parameter_service
 from jolteon.engine.core.retry import Retry
+from jolteon.engine.execution.kraken.parameters import (
+    KrakenExecutionParameters,
+)
 from jolteon.engine.execution.kraken.rest_client import KrakenRESTClient
 from jolteon.engine.market_data.core.order import CancelOrder, Order
 from jolteon.engine.market_data.core.trade import Trade
@@ -27,7 +31,7 @@ class ExecutionService(Heartbeater, SignalSubscriber):
         GET_TRADE_FAILURE = "GET_TRADE_FAILURE"
         CANCEL_ORDER_FAILURE = "CANCEL_ORDER_FAILURE"
 
-    def __init__(self, dry_run=False, poll_interval=1):
+    def __init__(self, dry_run=None, poll_interval=None):
         """
         Creates an execution service to act as the exchange. It will
         respond to requests such as buy and sell.
@@ -39,10 +43,14 @@ class ExecutionService(Heartbeater, SignalSubscriber):
                            the just sent orders
 
         """
-        super().__init__(type(self).__name__, interval_in_seconds=10)
-        self._dry_run = dry_run
+        super().__init__(type(self).__name__)
+        params = parameter_service().get(KrakenExecutionParameters)
+        self._dry_run = params.dry_run if dry_run is None else dry_run
         self._client = KrakenRESTClient()
-        self._poll_interval = poll_interval
+        self._poll_interval = (
+            params.poll_interval if poll_interval is None else poll_interval
+        )
+        self._fill_retries = params.max_retries
 
         self.order_history = dict[str, Order]()
         self.order_fill_event = signal("order_fill")
@@ -192,7 +200,7 @@ class ExecutionService(Heartbeater, SignalSubscriber):
             return
 
         async with Retry(
-            max_retries=5, delay_seconds=self._poll_interval
+            max_retries=self._fill_retries, delay_seconds=self._poll_interval
         ) as retry:
             await retry.execute(
                 self._get_fills, transaction_ids=transaction_ids, order=order

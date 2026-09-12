@@ -22,7 +22,7 @@ class HistoricalFeed(IMarketDataFeed):
     """
 
     def __init__(self, data_source: IDataSource):
-        super().__init__(type(self).__name__, interval_in_seconds=10)
+        super().__init__(type(self).__name__)
         self._data_source = data_source
 
     @property

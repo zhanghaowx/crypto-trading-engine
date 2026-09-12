@@ -14,6 +14,7 @@ from jolteon.engine.core.health_monitor.heartbeat import (
     starts_heartbeating,
 )
 from jolteon.engine.core.id_generator import id_generator
+from jolteon.engine.core.parameter.parameter_service import parameter_service
 from jolteon.engine.core.side import MarketSide
 from jolteon.engine.core.time.time_manager import time_manager
 from jolteon.engine.market_data.core.bbo import BBO
@@ -24,6 +25,7 @@ from jolteon.engine.market_data.core.order_book import (
 )
 from jolteon.engine.market_data.core.trade import Trade
 from jolteon.engine.market_data.feed import Channel, IMarketDataFeed
+from jolteon.engine.market_data.kraken.parameters import KrakenFeedParameters
 
 
 class PublicFeed(IMarketDataFeed):
@@ -35,10 +37,8 @@ class PublicFeed(IMarketDataFeed):
     """
 
     PRODUCTION_URI = "wss://ws.kraken.com/v2"
-    MIN_HEALTHY_CONNECTION_SECONDS = 60
-    BOOK_DEPTH = 10
     # Kraken always checksums ten levels a side, whatever depth is
-    # subscribed to.
+    # subscribed to, so this one is the venue's and not ours to tune.
     CHECKSUM_DEPTH = 10
 
     class ErrorCode(Enum):
@@ -46,7 +46,7 @@ class PublicFeed(IMarketDataFeed):
         MALFORMAT_RESPONSE = "Malformatted Response from Kraken"
 
     def __init__(self):
-        super().__init__(type(self).__name__, interval_in_seconds=10)
+        super().__init__(type(self).__name__)
         self._last_received_trade_id = -math.inf
         self._clock = time.monotonic
         self._order_book = OrderBook("")
@@ -54,6 +54,7 @@ class PublicFeed(IMarketDataFeed):
         self._price_precision: dict[str, int] = {}
         self._qty_precision: dict[str, int] = {}
         self._websocket: websockets.WebSocketClientProtocol | None = None
+        self._book_depth = 0
 
     @property
     def channels(self) -> frozenset[Channel]:
@@ -65,9 +66,14 @@ class PublicFeed(IMarketDataFeed):
     async def connect(
         self,
         symbol: str,
-        max_retries: int = 3,
-        retry_interval_in_seconds: int = 5,
+        max_retries: int | None = None,
+        retry_interval_in_seconds: float | None = None,
     ):
+        params = parameter_service().get(KrakenFeedParameters, symbol)
+        if max_retries is None:
+            max_retries = params.max_retries
+        if retry_interval_in_seconds is None:
+            retry_interval_in_seconds = params.retry_interval_in_seconds
         n_retries = 0
         while n_retries <= max_retries:
             connected_at = self._clock()
@@ -86,10 +92,12 @@ class PublicFeed(IMarketDataFeed):
                 n_retries += 1
 
     def _was_connection_healthy(self, connected_at: float) -> bool:
-        return (
-            self._clock() - connected_at
-            >= PublicFeed.MIN_HEALTHY_CONNECTION_SECONDS
+        minimum = (
+            parameter_service()
+            .get(KrakenFeedParameters)
+            .min_healthy_connection_seconds
         )
+        return self._clock() - connected_at >= minimum
 
     async def connect_once(self, symbol: str):
         """Establish a connection to the remote service and subscribe to the
@@ -99,7 +107,13 @@ class PublicFeed(IMarketDataFeed):
             An asyncio task to be waiting for incoming messages
         """
 
-        self._order_book = OrderBook(symbol, depth=PublicFeed.BOOK_DEPTH)
+        # Read once per connection, not per message, so a change reaches
+        # the feed when it next reconnects.
+        book_depth = (
+            parameter_service().get(KrakenFeedParameters, symbol).book_depth
+        )
+        self._book_depth = book_depth
+        self._order_book = OrderBook(symbol, depth=book_depth)
         self._last_bbo = None
 
         async with websockets.connect(PublicFeed.PRODUCTION_URI) as websocket:
@@ -119,9 +133,7 @@ class PublicFeed(IMarketDataFeed):
             await self._subscribe("instrument")
             # Book channel pushes one snapshot followed by incremental
             # updates to the levels behind the touch.
-            await self._subscribe(
-                "book", symbol=[symbol], depth=PublicFeed.BOOK_DEPTH
-            )
+            await self._subscribe("book", symbol=[symbol], depth=book_depth)
 
             while True:
                 try:
@@ -195,11 +207,9 @@ class PublicFeed(IMarketDataFeed):
         # Kraken rejects a repeat subscribe to a live channel, so the old
         # subscription has to go before a fresh snapshot can be asked for.
         await self._unsubscribe(
-            "book", symbol=[symbol], depth=PublicFeed.BOOK_DEPTH
+            "book", symbol=[symbol], depth=self._book_depth
         )
-        await self._subscribe(
-            "book", symbol=[symbol], depth=PublicFeed.BOOK_DEPTH
-        )
+        await self._subscribe("book", symbol=[symbol], depth=self._book_depth)
 
     def _is_book_in_sync(self, checksum: int | None) -> bool:
         """

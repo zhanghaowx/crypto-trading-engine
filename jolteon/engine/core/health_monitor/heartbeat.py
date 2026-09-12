@@ -6,6 +6,8 @@ from enum import Enum
 from typing import Union
 
 from jolteon.engine.core.event.signal import signal
+from jolteon.engine.core.health_monitor.parameters import HeartbeatParameters
+from jolteon.engine.core.parameter.parameter_service import parameter_service
 from jolteon.engine.core.time.time_manager import time_manager
 
 
@@ -75,7 +77,9 @@ class Heartbeat:
 
 class Heartbeater:
     def __init__(
-        self, name: str = "anonymous", interval_in_seconds: float = 5
+        self,
+        name: str = "anonymous",
+        interval_in_seconds: float | None = None,
     ):
         """
         *Heartbeater* is the component that sends *Heartbeat* messages to
@@ -95,10 +99,14 @@ class Heartbeater:
             name: Name of the component who sends heartbeats
             interval_in_seconds: Interval in seconds to send heartbeats
             periodically. Use 0 to disable the schedule and send heartbeats
-            manually.
+            manually, or leave it unset to take the configured interval.
         """
         self._name = name
-        self._interval_in_seconds = interval_in_seconds
+        self._interval_in_seconds = (
+            parameter_service().get(HeartbeatParameters).interval_in_seconds
+            if interval_in_seconds is None
+            else interval_in_seconds
+        )
         self._heartbeat_signal = signal("heartbeat")
         self._issues = [
             Heartbeat(level=HeartbeatLevel.NORMAL, sender=self._name)

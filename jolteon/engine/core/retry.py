@@ -1,15 +1,54 @@
 import asyncio
 import inspect
 import logging
+from dataclasses import dataclass
 from typing import Callable
+
+from jolteon.engine.core.parameter.parameter_service import parameter_service
+from jolteon.engine.core.parameter.parameter_specification import (
+    ParameterGroup,
+    parameter,
+)
+
+
+@dataclass(frozen=True)
+class RetryParameters(ParameterGroup):
+    max_retries: int = parameter(
+        3,
+        minimum=0,
+        maximum=100,
+        step=1,
+        unit="attempts",
+        description="How many times to retry before giving up.",
+    )
+    delay_seconds: float = parameter(
+        1.0,
+        minimum=0.0,
+        maximum=300.0,
+        step=0.5,
+        number_format="%.1f",
+        unit="s",
+        description=(
+            "How long to wait between attempts. The delay is flat, not "
+            "backed off, so a long one holds up whatever is retrying."
+        ),
+    )
 
 
 class Retry:
     def __init__(
-        self, max_retries=3, delay_seconds=1, retry_exceptions=(Exception,)
+        self,
+        max_retries=None,
+        delay_seconds=None,
+        retry_exceptions=(Exception,),
     ):
-        self.max_retries = max_retries
-        self.delay_seconds = delay_seconds
+        params = parameter_service().get(RetryParameters)
+        self.max_retries = (
+            params.max_retries if max_retries is None else max_retries
+        )
+        self.delay_seconds = (
+            params.delay_seconds if delay_seconds is None else delay_seconds
+        )
         self.retry_exceptions = retry_exceptions
         self.retries = 0
 

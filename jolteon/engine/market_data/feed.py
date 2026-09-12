@@ -26,7 +26,7 @@ class IMarketDataFeed(Heartbeater, ABC):
     class ErrorCode(StrEnum):
         ORDER_BOOK_OUT_OF_SYNC = auto()
 
-    def __init__(self, name: str, interval_in_seconds: float):
+    def __init__(self, name: str, interval_in_seconds: float | None = None):
         super().__init__(name, interval_in_seconds)
         self.events = Events()
 

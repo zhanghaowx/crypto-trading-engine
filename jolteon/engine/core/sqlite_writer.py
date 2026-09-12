@@ -14,12 +14,48 @@ import queue
 import sqlite3
 import sys
 import threading
+from dataclasses import dataclass
 from typing import Any
 
-# Upper bound on how many rows one transaction may cover. The writer drains
-# whatever is queued, so this only matters when producers outrun the disk;
-# it caps how long a single commit can hold the write lock.
-_MAX_BATCH = 5000
+from jolteon.engine.core.parameter.parameter_service import parameter_service
+from jolteon.engine.core.parameter.parameter_specification import (
+    ParameterGroup,
+    parameter,
+)
+
+
+@dataclass(frozen=True)
+class SqliteWriterParameters(ParameterGroup):
+    max_batch: int = parameter(
+        5000,
+        minimum=1,
+        maximum=1_000_000,
+        step=100,
+        unit="rows",
+        description=(
+            "Upper bound on how many rows one transaction may cover. The "
+            "writer drains whatever is queued, so this only matters when "
+            "producers outrun the disk; it caps how long a single commit "
+            "can hold the write lock."
+        ),
+    )
+    shutdown_timeout: float = parameter(
+        30.0,
+        minimum=1.0,
+        maximum=600.0,
+        step=5.0,
+        number_format="%.1f",
+        unit="s",
+        description="How long to wait for queued rows to reach the disk.",
+    )
+    busy_timeout_ms: int = parameter(
+        30000,
+        minimum=100,
+        maximum=600000,
+        step=1000,
+        unit="ms",
+        description="How long SQLite waits for another writer's lock.",
+    )
 
 
 class _Flush:
@@ -71,6 +107,7 @@ class SQLiteWriter:
 
     def __init__(self, database_name: str):
         self._database_name = database_name
+        self._params = parameter_service().get(SqliteWriterParameters)
         self._queue: queue.SimpleQueue[Any] = queue.SimpleQueue()
         self._schema = dict[str, _Table]()
         # Writes happen off the caller's thread, so a failure has no call
@@ -145,7 +182,7 @@ class SQLiteWriter:
         self._closed = True
         if self._thread.is_alive():
             self._queue.put(_Stop())
-            self._thread.join(timeout=30)
+            self._thread.join(timeout=self._params.shutdown_timeout)
         self._raise_pending_error()
 
     def _close_quietly(self) -> None:
@@ -179,7 +216,7 @@ class SQLiteWriter:
         conn = sqlite3.connect(self._database_name)
         # Set first, so the journal mode switch below gets the same retry
         # window as every other statement.
-        conn.execute("PRAGMA busy_timeout=30000")
+        conn.execute(f"PRAGMA busy_timeout={self._params.busy_timeout_ms}")
         try:
             # WAL lets the dashboard read while the engine writes; without
             # it a write takes an exclusive lock on the whole file and
@@ -247,7 +284,7 @@ class SQLiteWriter:
                 batch.setdefault(table, []).append(row)
                 primary_keys.setdefault(table, primary_key)
                 rows += 1
-                if rows >= _MAX_BATCH:
+                if rows >= self._params.max_batch:
                     break
             try:
                 item = self._queue.get_nowait()

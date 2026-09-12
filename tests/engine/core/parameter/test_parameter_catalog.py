@@ -58,6 +58,13 @@ class TestCatalogedGroupsAreWellFormed(unittest.TestCase):
                             definition.default, definition.maximum
                         )
 
+    def test_the_declared_defaults_pass_their_own_validation(self):
+        """
+        An engine nobody has tuned runs on exactly these, so a default
+        that breaks a constraint would reject every later push too.
+        """
+        self.assertEqual([], validate(StaticParameterService().values()))
+
     def test_every_group_constructs_from_its_defaults(self):
         for group in GROUPS:
             with self.subTest(group=group.__name__):

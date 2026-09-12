@@ -3,13 +3,9 @@ import logging
 import logging.handlers
 from datetime import datetime
 
+from jolteon.engine.core.logging.parameters import LoggingParameters
+from jolteon.engine.core.parameter.parameter_service import parameter_service
 from jolteon.engine.core.sqlite_writer import SQLiteWriter
-
-_MAX_LOGFILE_BYTES = 10 * 1024 * 1024
-_LOGFILE_BACKUP_COUNT = 5
-
-_MAX_LOG_ROWS = 200_000
-_PRUNE_INTERVAL = 1_000
 
 
 class SQLiteHandler(logging.Handler):
@@ -34,6 +30,7 @@ class SQLiteHandler(logging.Handler):
         self._writer = SQLiteWriter(db_path)
         self._table_name = "logs"
         self._emitted = 0
+        self._params = parameter_service().get(LoggingParameters)
 
     def emit(self, record):
         # Values are stringified because a LogRecord carries arbitrary
@@ -44,8 +41,8 @@ class SQLiteHandler(logging.Handler):
         )
 
         self._emitted += 1
-        if self._emitted % _PRUNE_INTERVAL == 0:
-            self._writer.prune(self._table_name, _MAX_LOG_ROWS)
+        if self._emitted % self._params.prune_interval == 0:
+            self._writer.prune(self._table_name, self._params.max_log_rows)
 
     def flush(self):
         """Block until every record emitted so far is in the database."""
@@ -72,13 +69,14 @@ class SmartFormatter(logging.Formatter):
 def setup_global_logger(
     log_level, logfile_name: str = "", logfile_db: str = ""
 ):
+    params = parameter_service().get(LoggingParameters)
     handlers = list[logging.Handler]()
     if logfile_name:
         handlers.append(
             logging.handlers.RotatingFileHandler(
                 logfile_name,
-                maxBytes=_MAX_LOGFILE_BYTES,
-                backupCount=_LOGFILE_BACKUP_COUNT,
+                maxBytes=params.max_logfile_bytes,
+                backupCount=params.logfile_backup_count,
             )
         )
     else:
