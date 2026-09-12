@@ -9,11 +9,12 @@ import requests
 
 from jolteon.engine.core.event.signal import signal, subscribe
 from jolteon.engine.core.event.signal_subscriber import SignalSubscriber
-from jolteon.engine.core.fee_schedule import KRAKEN
 from jolteon.engine.core.health_monitor.heartbeat import Heartbeater
 from jolteon.engine.core.id_generator import id_generator
+from jolteon.engine.core.parameter.parameter_service import parameter_service
 from jolteon.engine.core.side import MarketSide
 from jolteon.engine.core.time.time_manager import time_manager
+from jolteon.engine.execution.kraken.fee_schedule import KrakenFeeSchedule
 from jolteon.engine.market_data.core.bbo import BBO
 from jolteon.engine.market_data.core.order import CancelOrder, Order, OrderType
 from jolteon.engine.market_data.core.trade import Trade
@@ -214,7 +215,8 @@ class MockExecutionService(Heartbeater, SignalSubscriber):
         quantity: Union[float, None] = None,
     ):
         filled_quantity = order.quantity if quantity is None else quantity
-        fee = KRAKEN.maker_fee if maker else KRAKEN.taker_fee
+        fees = parameter_service().get(KrakenFeeSchedule, order.symbol)
+        fee = fees.maker_fee if maker else fees.taker_fee
         trade = Trade(
             trade_id=id_generator().next(),
             client_order_id=order.client_order_id,

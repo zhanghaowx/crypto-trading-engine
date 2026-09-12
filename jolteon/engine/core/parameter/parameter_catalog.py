@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 
-from jolteon.engine.core.fee_schedule import FeeSchedule
 from jolteon.engine.core.health_monitor.parameters import HeartbeatParameters
 from jolteon.engine.core.logging.parameters import LoggingParameters
 from jolteon.engine.core.parameter.parameter_service import (
@@ -16,6 +15,7 @@ from jolteon.engine.core.parameter.poll_parameters import (
 )
 from jolteon.engine.core.retry import RetryParameters
 from jolteon.engine.core.sqlite_writer import SqliteWriterParameters
+from jolteon.engine.execution.kraken.fee_schedule import KrakenFeeSchedule
 from jolteon.engine.execution.kraken.parameters import (
     KrakenExecutionParameters,
 )
@@ -43,7 +43,6 @@ from jolteon.engine.strategy.market_making.parameters import (
 GROUPS: tuple[type[ParameterGroup], ...] = (
     MarketMakingParameters,
     QuoteOffsetParameters,
-    FeeSchedule,
     AdjustedFairPriceParameters,
     MomentumParameters,
     OrderFlowImbalanceParameters,
@@ -51,6 +50,7 @@ GROUPS: tuple[type[ParameterGroup], ...] = (
     MicropriceParameters,
     KrakenFeedParameters,
     KrakenExecutionParameters,
+    KrakenFeeSchedule,
     BookFeatureParameters,
     HeartbeatParameters,
     RetryParameters,
