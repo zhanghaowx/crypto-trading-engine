@@ -17,6 +17,9 @@ from jolteon.engine.core.market import Market
 from jolteon.engine.core.parameter.parameter_service import (
     StaticParameterService,
 )
+from jolteon.engine.core.parameter.stored_parameter_service import (
+    StoredParameterService,
+)
 from jolteon.engine.market_data.data_source import DatabaseDataSource
 from jolteon.engine.strategy.market_making.fair_value.adjusted_model import (
     AdjustedFairPriceModel,
@@ -68,6 +71,15 @@ async def main():
     parser.add_argument("--replay-start", help="Start time in ISO format")
     parser.add_argument("--replay-end", help="End time in ISO format")
     parser.add_argument("--exchange", help="Name of the exchange")
+    parser.add_argument(
+        "--params-db",
+        default="/tmp/jolteon.params.sqlite",
+        help=(
+            "Path to the SQLite database the dashboard pushes parameter "
+            "changes into. Pass an empty string to run on the declared "
+            "defaults and ignore anything pushed."
+        ),
+    )
     parser.add_argument(
         "--paper",
         action="store_true",
@@ -142,9 +154,16 @@ async def main():
     else:
         strategy = None
         fair_price_model = None
+        # Only a live session polls. A replay installs fake time and has
+        # to produce the same result twice, which it cannot if a
+        # dashboard can retune it halfway through.
+        parameter_service = (
+            StoredParameterService(args.params_db)
+            if args.params_db
+            else StaticParameterService()
+        )
         if args.paper:
             strategy_symbol = symbol.replace("-", "/")
-            parameter_service = StaticParameterService()
             quote_offset_service = FeeAwareQuoteOffsetService(
                 parameter_service=parameter_service
             )
@@ -175,6 +194,7 @@ async def main():
             logfile_name="/tmp/jolteon.log",
             strategy=strategy,
             fair_price_model=fair_price_model,
+            parameter_service=parameter_service,
         )
         _active_app = app
         pnl = await app.start()

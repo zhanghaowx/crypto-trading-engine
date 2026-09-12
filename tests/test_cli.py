@@ -131,6 +131,7 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
             replay_db="",
             exchange="Kraken",
             paper=False,
+            params_db="",
         ),
     )
     async def test_main_run_kraken_live(self, mock_args, MockApplication):
@@ -163,6 +164,7 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
             replay_db="",
             exchange="Kraken",
             paper=True,
+            params_db="",
         ),
     )
     async def test_main_run_kraken_paper(self, mock_args, MockApplication):

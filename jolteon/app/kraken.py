@@ -8,6 +8,7 @@ from datetime import datetime
 import pytz
 
 from jolteon.app.base import ApplicationBase
+from jolteon.engine.core.parameter.parameter_service import IParameterService
 from jolteon.engine.execution.kraken.execution_service import ExecutionService
 from jolteon.engine.execution.kraken.mock_execution_service import (
     MockExecutionService,
@@ -31,6 +32,7 @@ class KrakenApplication(ApplicationBase):
         logfile_name="/tmp/jolteon.log",
         strategy: object = None,
         fair_price_model: IFairPriceModel | None = None,
+        parameter_service: IParameterService | None = None,
     ):
         print(f"Using {type(self).__name__}")
         super().__init__(
@@ -39,6 +41,7 @@ class KrakenApplication(ApplicationBase):
             logfile_name=logfile_name,
             strategy=strategy,
             fair_price_model=fair_price_model,
+            parameter_service=parameter_service,
         )
         if use_mock_execution:
             super().use_execution_service(MockExecutionService())
