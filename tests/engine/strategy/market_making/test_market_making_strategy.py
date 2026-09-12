@@ -10,6 +10,7 @@ from jolteon.engine.core.parameter.parameter_service import (
 from jolteon.engine.core.side import MarketSide
 from jolteon.engine.market_data.core.bbo import BBO
 from jolteon.engine.market_data.core.book_snapshot import BookSnapshot
+from jolteon.engine.market_data.core.instrument import InstrumentSpec
 from jolteon.engine.market_data.core.order import CancelOrder, Order, OrderType
 from jolteon.engine.market_data.core.order_book import (
     BookUpdate,
@@ -272,3 +273,122 @@ class TestRetuningWhileRunning(unittest.IsolatedAsyncioTestCase):
 class _RetunableParameterService(StaticParameterService):
     def retune(self, group: MarketMakingParameters) -> None:
         self._values = StaticParameterService(group).values()
+
+
+class TestQuotingWithinTheVenuesLimits(unittest.IsolatedAsyncioTestCase):
+    """
+    Kraken refuses an order below its minimum size outright, leaving
+    nothing behind for the engine to notice. A strategy carrying another
+    symbol's quote size would therefore look healthy while placing
+    nothing at all, which is what happened the first time a BTC-tuned
+    session was pointed at ETH/USD.
+    """
+
+    ETH = InstrumentSpec(
+        symbol="ETH/USD",
+        base="ETH",
+        quote="USD",
+        price_precision=2,
+        qty_precision=8,
+        price_increment=0.01,
+        qty_min=0.001,
+        cost_min=0.5,
+    )
+
+    async def asyncSetUp(self):
+        self.orders = list[Order]()
+        self.strategy = MarketMakingStrategy(
+            symbol="ETH/USD",
+            requote_tolerance=0.0,
+            parameter_service=StaticParameterService(
+                MarketMakingParameters(quote_size=0.0005, max_inventory=0.02)
+            ),
+            quote_offset_service=StaticQuoteOffsetService(half_spread=1.0),
+        )
+        # A bound method, not a lambda: blinker holds receivers weakly, so
+        # a lambda with no other reference is collected before it fires.
+        self.strategy.order_event.connect(self._on_order)
+
+    def _on_order(self, _, order: Order):
+        self.orders.append(order)
+
+    def bbo(self, bid_price=2513.0, ask_price=2513.1):
+        return BBO(
+            symbol="ETH/USD",
+            bid_price=bid_price,
+            bid_quantity=1.0,
+            ask_price=ask_price,
+            ask_quantity=1.0,
+        )
+
+    def issues(self):
+        return [issue.message for issue in self.strategy._issues]
+
+    async def test_quotes_the_configured_size_until_told_otherwise(self):
+        """
+        A replay publishes no instrument channel, so an unconstrained
+        symbol has to quote rather than refuse.
+        """
+        self.strategy.on_bbo("", self.bbo())
+        self.assertEqual(2, len(self.orders))
+
+    async def test_stops_quoting_a_size_the_venue_would_refuse(self):
+        self.strategy.on_instrument("", self.ETH)
+        self.strategy.on_bbo("", self.bbo())
+        self.assertEqual([], self.orders)
+
+    async def test_reports_a_size_the_venue_would_refuse(self):
+        with self.assertLogs(level="ERROR") as logs:
+            self.strategy.on_instrument("", self.ETH)
+            self.strategy.on_bbo("", self.bbo())
+
+        self.assertIn(
+            MarketMakingStrategy.UNSENDABLE_QUOTE_SIZE, self.issues()
+        )
+        self.assertIn("0.001", "".join(logs.output))
+
+    async def test_says_it_once_however_many_ticks_arrive(self):
+        self.strategy.on_instrument("", self.ETH)
+        with self.assertLogs(level="ERROR") as logs:
+            for _ in range(10):
+                self.strategy.on_bbo("", self.bbo())
+        self.assertEqual(1, len(logs.output))
+
+    async def test_resumes_once_the_size_is_raised(self):
+        self.strategy.on_instrument("", self.ETH)
+        self.strategy.on_bbo("", self.bbo())
+
+        self.strategy._parameter_service = StaticParameterService(
+            MarketMakingParameters(quote_size=0.01, max_inventory=0.02)
+        )
+        self.strategy.on_bbo("", self.bbo())
+
+        self.assertEqual(2, len(self.orders))
+        self.assertNotIn(
+            MarketMakingStrategy.UNSENDABLE_QUOTE_SIZE, self.issues()
+        )
+
+    async def test_ignores_the_limits_of_every_other_pair(self):
+        """
+        The instrument channel covers everything the venue lists, so a
+        strategy has to pick its own symbol out of it.
+        """
+        self.strategy.on_instrument(
+            "", InstrumentSpec(symbol="SOL/USD", qty_min=1000.0)
+        )
+        self.strategy.on_bbo("", self.bbo())
+        self.assertEqual(2, len(self.orders))
+
+    async def test_rounds_a_quote_to_a_price_the_venue_quotes_at(self):
+        self.strategy._parameter_service = StaticParameterService(
+            MarketMakingParameters(quote_size=0.01, max_inventory=0.02)
+        )
+        self.strategy.on_instrument("", self.ETH)
+        self.strategy.on_bbo(
+            "", self.bbo(bid_price=2513.004, ask_price=2513.1)
+        )
+
+        # Mid sits at 2513.052, so an unrounded quote would ask for a
+        # third decimal place ETH/USD is not quoted in.
+        prices = sorted(order.price for order in self.orders)
+        self.assertEqual([2512.05, 2514.05], prices)

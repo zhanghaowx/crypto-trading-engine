@@ -47,6 +47,7 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
             replay_end="2024-01-02T00:00:00",
             replay_db="",
             exchange="Kraken",
+            symbol="BTC-USD",
         ),
     )
     async def test_main_run_kraken_replay(self, mock_args, MockApplication):
@@ -75,6 +76,7 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
             replay_end="",
             replay_db="/tmp/unittest.sqlite",
             exchange="Kraken",
+            symbol="BTC-USD",
         ),
     )
     async def test_main_run_kraken_replay_2(
@@ -130,6 +132,7 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
             replay_end="",
             replay_db="",
             exchange="Kraken",
+            symbol="BTC-USD",
             paper=False,
             params_db="",
         ),
@@ -163,6 +166,7 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
             replay_end="",
             replay_db="",
             exchange="Kraken",
+            symbol="BTC-USD",
             paper=True,
             params_db="",
         ),
@@ -229,6 +233,7 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
             replay_end="2024-01-02T00:00:00",
             replay_db="/tmp/unittest.sqlite",
             exchange="Kraken",
+            symbol="BTC-USD",
         ),
     )
     async def test_main_rejects_a_replay_range_and_a_database(self, mock_args):
