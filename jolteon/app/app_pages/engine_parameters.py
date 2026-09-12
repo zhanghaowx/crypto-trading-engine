@@ -67,6 +67,58 @@ def _current(group_name: str, definition: ParameterDefinition, stored):
     return stored.get(key, definition.default)
 
 
+def _presentable(
+    definition: ParameterDefinition, value: Any
+) -> tuple[Any, Any]:
+    """
+    Returns: A value the widget will accept, and whatever had to be set
+    aside to get there.
+
+    A store can hold a value this page cannot render - a field's bounds
+    may have been tightened after it was pushed, or something may have
+    written to the store directly. The engine answers that by refusing
+    the value and carrying on, and so does this: the widget shows the
+    nearest value it can take and the field says what is really stored,
+    rather than the whole page failing over one field.
+    """
+    try:
+        coerced = definition.value_type(value)
+    except (TypeError, ValueError):
+        return definition.default, value
+
+    if definition.choices and coerced not in definition.choices:
+        return definition.default, value
+    if definition.minimum is not None and coerced < definition.minimum:
+        return definition.value_type(definition.minimum), value
+    if definition.maximum is not None and coerced > definition.maximum:
+        return definition.value_type(definition.maximum), value
+    return coerced, None
+
+
+def _shown(definition: ParameterDefinition, value: Any) -> str:
+    # Its own format, or a tight bound like 0.00001 reads as 1e-05.
+    if definition.number_format and isinstance(value, float):
+        return definition.number_format % value
+    return str(value)
+
+
+def _unusable_note(definition: ParameterDefinition, stored: Any) -> None:
+    st.badge("not usable", color="red", icon=":material/error:")
+    allowed = ""
+    if definition.minimum is not None and definition.maximum is not None:
+        allowed = (
+            f" Allowed: {_shown(definition, definition.minimum)}"
+            f" to {_shown(definition, definition.maximum)}."
+        )
+    elif definition.choices:
+        allowed = f" Allowed: {', '.join(map(str, definition.choices))}."
+    st.caption(
+        f"Stored as {stored}, which this parameter cannot take.{allowed} "
+        f"An engine reading this store refuses it and keeps the value it "
+        f"already had."
+    )
+
+
 def _on_change(group_name: str, definition: ParameterDefinition) -> None:
     value = st.session_state[_widget_key(group_name, definition.name)]
     _staged()[(group_name, definition.name)] = definition.value_type(value)
@@ -253,9 +305,11 @@ def render() -> None:
     for group in card_grid(GROUPS, columns=3, key_fn=_card_key):
         st.markdown(f"**{_group_title(group.__name__)}**")
         for definition in definitions(group):
-            _widget(
-                group.__name__,
-                definition,
-                _current(group.__name__, definition, stored),
+            usable, unusable = _presentable(
+                definition, _current(group.__name__, definition, stored)
             )
-            _state_badge(group.__name__, definition, stored)
+            _widget(group.__name__, definition, usable)
+            if unusable is None:
+                _state_badge(group.__name__, definition, stored)
+            else:
+                _unusable_note(definition, unusable)
