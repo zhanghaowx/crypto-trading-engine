@@ -56,3 +56,39 @@ def test_widgets_are_seeded_from_and_write_back_to_session_state(
 
     assert not at.exception
     assert at.session_state["auto_refresh"] is False
+
+
+# Read by the Live page, which renders none of the widgets that hold them.
+LIVE_PAGE_SETTINGS = (
+    "db_path",
+    "log_db_path",
+    "auto_refresh",
+    "refresh_seconds",
+    "chart_window_minutes",
+)
+
+
+def test_every_setting_the_live_page_reads_survives_a_page_switch(
+    empty_db_path,
+):
+    """
+    Streamlit drops a keyed widget's value once the widget stops being
+    rendered, unless it asks to persist for the session. These settings
+    are read on the Live page and edited on the Parameters page, so
+    without that the Live page fails on a setting that was there a
+    moment ago - which is what it did.
+    """
+    at = AppTest.from_function(_script)
+    for key in ("db_path", "log_db_path", "params_db_path"):
+        at.session_state[key] = empty_db_path
+    at.session_state["auto_refresh"] = True
+    at.session_state["refresh_seconds"] = 5
+    at.session_state["chart_window_minutes"] = 15
+    at.run()
+
+    assert not at.exception
+    state = at.session_state._state
+    for key in LIVE_PAGE_SETTINGS + ("params_db_path",):
+        widget_id = state._key_id_mapper.get_id_from_key(key)
+        scope = state._persist_tracker.scope_of(widget_id)
+        assert scope == "session", f"{key} would be dropped on a switch"
