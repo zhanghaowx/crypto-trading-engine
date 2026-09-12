@@ -122,8 +122,8 @@ def test_renders_slope_and_correlation(tmp_path):
     slope = at.dataframe[0].value.set_index("Adjustment")
     correlation = at.dataframe[1].value.set_index("Adjustment")
 
-    assert slope.loc["momentum", "+1s"] == pytest.approx(1.0)
-    assert correlation.loc["momentum", "+1s"] == pytest.approx(1.0)
+    assert slope.loc["Momentum", "+1s"] == pytest.approx(1.0)
+    assert correlation.loc["Momentum", "+1s"] == pytest.approx(1.0)
     assert slope.loc["Total", "+1s"] == pytest.approx(1.0)
 
 
@@ -155,5 +155,5 @@ def test_blanks_only_the_undersampled_horizons(tmp_path):
 
     assert not at.exception
     slope = at.dataframe[0].value.set_index("Adjustment")
-    assert pd.notna(slope.loc["momentum", "+1s"])
-    assert pd.isna(slope.loc["momentum", "+30s"])
+    assert pd.notna(slope.loc["Momentum", "+1s"])
+    assert pd.isna(slope.loc["Momentum", "+30s"])

@@ -64,7 +64,7 @@ def test_perfectly_calibrated_signal_scores_slope_and_correlation_of_one():
     result = evaluate_adjustments(adjustments, fair_price)
 
     one_second = result[
-        (result["horizon"] == "1s") & (result["adjustment"] == "momentum")
+        (result["horizon"] == "1s") & (result["adjustment"] == "Momentum")
     ].iloc[0]
     assert one_second["n"] == 2
     assert one_second["slope"] == pytest.approx(1.0)
@@ -92,7 +92,7 @@ def test_horizon_with_no_recorded_mid_yet_is_nan():
     result = evaluate_adjustments(adjustments, fair_price)
 
     thirty_second = result[
-        (result["horizon"] == "30s") & (result["adjustment"] == "momentum")
+        (result["horizon"] == "30s") & (result["adjustment"] == "Momentum")
     ].iloc[0]
     assert thirty_second["n"] == 0
     assert math.isnan(thirty_second["slope"])
@@ -106,7 +106,7 @@ def test_a_different_symbols_mid_is_never_matched():
     result = evaluate_adjustments(adjustments, fair_price)
 
     one_second = result[
-        (result["horizon"] == "1s") & (result["adjustment"] == "momentum")
+        (result["horizon"] == "1s") & (result["adjustment"] == "Momentum")
     ].iloc[0]
     assert one_second["n"] == 0
 
@@ -120,7 +120,7 @@ def test_a_constant_signal_has_no_defined_slope():
     result = evaluate_adjustments(adjustments, fair_price)
 
     one_second = result[
-        (result["horizon"] == "1s") & (result["adjustment"] == "momentum")
+        (result["horizon"] == "1s") & (result["adjustment"] == "Momentum")
     ].iloc[0]
     assert math.isnan(one_second["slope"])
     assert math.isnan(one_second["correlation"])
