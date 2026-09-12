@@ -82,5 +82,6 @@ class TestValidate(unittest.TestCase):
 
         problems = validate(values)
         self.assertEqual(1, len(problems))
-        self.assertIn("BoundedParameters.ratio", problems[0])
-        self.assertIn("at most 1.0", problems[0])
+        self.assertEqual("BoundedParameters", problems[0].group_name)
+        self.assertEqual("ratio", problems[0].field_name)
+        self.assertIn("at most 1.0", problems[0].message)

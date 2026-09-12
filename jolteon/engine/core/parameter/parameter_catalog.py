@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 from jolteon.engine.core.parameter.parameter_service import (
     ParameterValues,
     assert_within_bounds,
@@ -13,25 +15,39 @@ from jolteon.engine.core.parameter.parameter_specification import (
 GROUPS: tuple[type[ParameterGroup], ...] = ()
 
 
+@dataclass(frozen=True)
+class ParameterProblem:
+    group_name: str
+    field_name: str
+    message: str
+
+
 def group_by_name() -> dict[str, type[ParameterGroup]]:
     return {group.__name__: group for group in GROUPS}
 
 
-def validate(values: ParameterValues) -> list[str]:
+def validate(values: ParameterValues) -> list[ParameterProblem]:
     """
-    Returns: A message for every constraint the given values break.
+    Returns: A problem for every field whose value breaks its own
+    declared bounds.
 
-    Field bounds are checked here too so one pass reports everything
-    wrong with a pushed revision, rather than stopping at the first.
+    Reports all of them rather than stopping at the first, so one push
+    gets one complete answer.
     """
     problems = []
     for group in GROUPS:
-        current = values.get(group)
+        current = values.peek(group)
         for definition in definitions(group):
             try:
                 assert_within_bounds(
                     group, definition, getattr(current, definition.name)
                 )
             except AssertionError as error:
-                problems.append(str(error))
+                problems.append(
+                    ParameterProblem(
+                        group_name=group.__name__,
+                        field_name=definition.name,
+                        message=str(error),
+                    )
+                )
     return problems

@@ -39,7 +39,20 @@ class ParameterValues:
         self.observed = dict(observed or {})
 
     def get(self, group: type[P], symbol: str = ALL_SYMBOLS) -> P:
+        """
+        Returns: One group's values, recording that a component has now
+        read this revision of it.
+        """
         self.observed[group] = self.revision
+        return self.peek(group, symbol)
+
+    def peek(self, group: type[P], symbol: str = ALL_SYMBOLS) -> P:
+        """
+        Returns: The same values as get(), without counting as a read.
+
+        Validating or reporting on a revision must not make it look as
+        though the component that uses it has picked it up.
+        """
         values = self._by_symbol.get(symbol, self._defaults)
         found = values.get(group)
         if found is None:
