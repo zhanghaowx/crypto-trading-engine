@@ -87,8 +87,9 @@ async def main():
             "Live mode only: consume the exchange's real market data feed "
             "but send orders to a mock execution service instead of the "
             "real exchange (paper trading). Runs a market making strategy, "
-            "tuned by IParameterService's defaults, so there is order/"
-            "fill/risk-limit activity to watch on the dashboard."
+            "tuned by the declared parameter defaults, or by whatever "
+            "the dashboard has pushed into --params-db, so there is "
+            "order/fill/risk-limit activity to watch on the dashboard."
         ),
     )
 
