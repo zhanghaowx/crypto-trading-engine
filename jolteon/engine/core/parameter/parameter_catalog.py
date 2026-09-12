@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from jolteon.engine.core.health_monitor.parameters import HeartbeatParameters
 from jolteon.engine.core.logging.parameters import LoggingParameters
 from jolteon.engine.core.parameter.parameter_service import (
+    ALL_SYMBOLS,
     ParameterValues,
     assert_within_bounds,
 )
@@ -64,6 +65,7 @@ GROUPS: tuple[type[ParameterGroup], ...] = (
 class ParameterProblem:
     group_name: str
     field_name: str
+    symbol: str
     message: str
 
 
@@ -74,27 +76,31 @@ def group_by_name() -> dict[str, type[ParameterGroup]]:
 def validate(values: ParameterValues) -> list[ParameterProblem]:
     """
     Returns: A problem for every field whose value breaks its own
-    declared bounds.
+    declared bounds, in each scope these values carry.
 
     Reports all of them rather than stopping at the first, so one push
-    gets one complete answer.
+    gets one complete answer. A symbol is checked as the engine would
+    resolve it, so a symbol inheriting a bad value is reported against
+    the symbol as well as against the scope the value was pushed for.
     """
     problems = list(_cross_group_problems(values))
-    for group in GROUPS:
-        current = values.peek(group)
-        for definition in definitions(group):
-            try:
-                assert_within_bounds(
-                    group, definition, getattr(current, definition.name)
-                )
-            except AssertionError as error:
-                problems.append(
-                    ParameterProblem(
-                        group_name=group.__name__,
-                        field_name=definition.name,
-                        message=str(error),
+    for symbol in (ALL_SYMBOLS, *values.symbols):
+        for group in GROUPS:
+            current = values.peek(group, symbol)
+            for definition in definitions(group):
+                try:
+                    assert_within_bounds(
+                        group, definition, getattr(current, definition.name)
                     )
-                )
+                except AssertionError as error:
+                    problems.append(
+                        ParameterProblem(
+                            group_name=group.__name__,
+                            field_name=definition.name,
+                            symbol=symbol,
+                            message=str(error),
+                        )
+                    )
     return problems
 
 
@@ -108,6 +114,7 @@ def _cross_group_problems(values: ParameterValues):
         yield ParameterProblem(
             group_name="HeartbeatParameters",
             field_name="timeout_in_seconds",
+            symbol=ALL_SYMBOLS,
             message=(
                 "timeout_in_seconds must exceed interval_in_seconds, or a "
                 "component is a zombie before its next heartbeat is due"

@@ -59,6 +59,14 @@ class ParameterValues:
             found = self._defaults.setdefault(group, group())  # type: ignore[call-arg]
         return found  # type: ignore[return-value]
 
+    @property
+    def symbols(self) -> tuple[str, ...]:
+        """
+        Returns: Every symbol carrying values of its own, not counting
+        the values that apply to all of them.
+        """
+        return tuple(self._by_symbol)
+
 
 class IParameterService(ABC):
     """
