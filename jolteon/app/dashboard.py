@@ -33,7 +33,7 @@ _LOGO_PATH = (
 def main() -> None:
     st.set_page_config(page_title="Jolteon Live", layout="wide")
     init_settings()
-    st.logo(str(_LOGO_PATH), size="large")
+    st.logo(str(_LOGO_PATH), size="medium")
 
     st.navigation(
         [
