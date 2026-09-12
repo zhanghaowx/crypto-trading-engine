@@ -14,6 +14,7 @@ class Channel(StrEnum):
     MARKET_TRADE = "market_trade"
     TICKER = "ticker"
     ORDER_BOOK = "order_book"
+    INSTRUMENT = "instrument"
 
 
 class IMarketDataFeed(Heartbeater, ABC):

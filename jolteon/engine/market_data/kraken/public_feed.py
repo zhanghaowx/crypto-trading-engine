@@ -18,6 +18,7 @@ from jolteon.engine.core.parameter.parameter_service import parameter_service
 from jolteon.engine.core.side import MarketSide
 from jolteon.engine.core.time.time_manager import time_manager
 from jolteon.engine.market_data.core.bbo import BBO
+from jolteon.engine.market_data.core.instrument import InstrumentSpec
 from jolteon.engine.market_data.core.order_book import (
     BookUpdate,
     OrderBook,
@@ -51,15 +52,19 @@ class PublicFeed(IMarketDataFeed):
         self._clock = time.monotonic
         self._order_book = OrderBook("")
         self._last_bbo: BBO | None = None
-        self._price_precision: dict[str, int] = {}
-        self._qty_precision: dict[str, int] = {}
+        self._instruments: dict[str, InstrumentSpec] = {}
         self._websocket: websockets.WebSocketClientProtocol | None = None
         self._book_depth = 0
 
     @property
     def channels(self) -> frozenset[Channel]:
         return frozenset(
-            {Channel.MARKET_TRADE, Channel.TICKER, Channel.ORDER_BOOK}
+            {
+                Channel.MARKET_TRADE,
+                Channel.TICKER,
+                Channel.ORDER_BOOK,
+                Channel.INSTRUMENT,
+            }
         )
 
     @starts_heartbeating
@@ -213,6 +218,22 @@ class PublicFeed(IMarketDataFeed):
         )
         await self._subscribe("book", symbol=[symbol], depth=self._book_depth)
 
+    @staticmethod
+    def _decode_instrument(pair_json: dict) -> InstrumentSpec:
+        # Kraken states every limit for every listed pair, but a field it
+        # has never sent for one of them would take the engine down on a
+        # KeyError, so an absent limit reads as unstated instead.
+        return InstrumentSpec(
+            symbol=pair_json["symbol"],
+            base=pair_json.get("base", ""),
+            quote=pair_json.get("quote", ""),
+            price_precision=pair_json.get("price_precision", 0),
+            qty_precision=pair_json.get("qty_precision", 0),
+            price_increment=pair_json.get("price_increment", 0.0),
+            qty_min=pair_json.get("qty_min", 0.0),
+            cost_min=pair_json.get("cost_min", 0.0),
+        )
+
     def _is_book_in_sync(self, checksum: int | None) -> bool:
         """
         Returns: Whether the book still matches Kraken's, which can only
@@ -220,16 +241,17 @@ class PublicFeed(IMarketDataFeed):
         this pair renders at.
         """
         symbol = self._order_book.symbol
-        if checksum is None or symbol not in self._price_precision:
+        if checksum is None or symbol not in self._instruments:
             return True
 
         return self._book_checksum(symbol) == checksum
 
     def _book_checksum(self, symbol: str) -> int:
         depth = PublicFeed.CHECKSUM_DEPTH
+        instrument = self._instruments[symbol]
         payload = "".join(
-            self._render(level.price, self._price_precision[symbol])
-            + self._render(level.quantity, self._qty_precision[symbol])
+            self._render(level.price, instrument.price_precision)
+            + self._render(level.quantity, instrument.qty_precision)
             for level in self._order_book.asks(depth)
             + self._order_book.bids(depth)
         )
@@ -365,8 +387,11 @@ class PublicFeed(IMarketDataFeed):
                 )
         elif message_type == "instrument":
             """
-            The instrument channel carries the decimal precision each pair
-            is quoted at, which a book checksum has to be rendered at:
+            The instrument channel states what each pair may be traded
+            at: the precision a book checksum has to be rendered at, and
+            the limits an order has to clear to be accepted at all. It
+            covers every pair the venue lists, not just the subscribed
+            one:
             {
               "channel": "instrument",
               "data": {
@@ -374,8 +399,13 @@ class PublicFeed(IMarketDataFeed):
                 "pairs": [
                   {
                     "symbol": "BTC/USD",
+                    "base": "BTC",
+                    "quote": "USD",
                     "price_precision": 1,
-                    "qty_precision": 8
+                    "qty_precision": 8,
+                    "price_increment": 0.1,
+                    "qty_min": 0.00005,
+                    "cost_min": 0.5
                   }
                 ]
               },
@@ -383,9 +413,11 @@ class PublicFeed(IMarketDataFeed):
             }
             """
             for pair_json in response["data"].get("pairs", []):
-                symbol = pair_json["symbol"]
-                self._price_precision[symbol] = pair_json["price_precision"]
-                self._qty_precision[symbol] = pair_json["qty_precision"]
+                instrument = self._decode_instrument(pair_json)
+                self._instruments[instrument.symbol] = instrument
+                self._dispatch_isolating_receiver_errors(
+                    self.events.instrument, instrument=instrument
+                )
         elif message_type == "book":
             """
             Below is an example of a book message from Kraken. A snapshot

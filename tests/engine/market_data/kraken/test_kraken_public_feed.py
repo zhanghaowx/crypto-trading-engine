@@ -11,7 +11,7 @@ from jolteon.engine.core.parameter.parameter_service import (
     use_parameter_service,
 )
 from jolteon.engine.market_data.core.order_book import PriceLevel
-from jolteon.engine.market_data.feed import IMarketDataFeed
+from jolteon.engine.market_data.feed import Channel, IMarketDataFeed
 from jolteon.engine.market_data.kraken.parameters import KrakenFeedParameters
 from jolteon.engine.market_data.kraken.public_feed import PublicFeed
 
@@ -627,6 +627,107 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertEqual(2, mock_connect.call_count)
+
+
+class TestInstrumentChannel(unittest.IsolatedAsyncioTestCase):
+    """
+    Kraken states every listed pair's trading limits on this channel, so
+    the engine learns what an order has to clear without asking.
+    """
+
+    FEED = json.dumps(
+        {
+            "channel": "instrument",
+            "type": "snapshot",
+            "data": {
+                "assets": [],
+                "pairs": [
+                    {
+                        "symbol": "ETH/USD",
+                        "base": "ETH",
+                        "quote": "USD",
+                        "price_precision": 2,
+                        "qty_precision": 8,
+                        "price_increment": 0.01,
+                        "qty_min": 0.001,
+                        "cost_min": 0.5,
+                    },
+                    {
+                        "symbol": "SOL/USD",
+                        "base": "SOL",
+                        "quote": "USD",
+                        "price_precision": 2,
+                        "qty_precision": 8,
+                        "price_increment": 0.01,
+                        "qty_min": 0.06,
+                        "cost_min": 0.5,
+                    },
+                ],
+            },
+        }
+    )
+
+    async def asyncSetUp(self):
+        self.feed = PublicFeed()
+        self.feed.events = Mock()
+
+    async def run_feed(self, mock_connect, feeds):
+        await TestPublicFeed.create_mock_websocket(mock_connect, feeds)
+        await self.feed.connect("ETH/USD", max_retries=0)
+
+    @patch("websockets.connect")
+    async def test_publishes_every_pair_the_venue_states(self, mock_connect):
+        await self.run_feed(mock_connect, [self.FEED])
+
+        published = [
+            call.kwargs["instrument"]
+            for call in self.feed.events.instrument.send.call_args_list
+        ]
+        self.assertEqual(
+            ["ETH/USD", "SOL/USD"], [spec.symbol for spec in published]
+        )
+
+    @patch("websockets.connect")
+    async def test_carries_the_limits_an_order_has_to_clear(
+        self, mock_connect
+    ):
+        await self.run_feed(mock_connect, [self.FEED])
+
+        eth = self.feed._instruments["ETH/USD"]
+        self.assertEqual("ETH", eth.base)
+        self.assertEqual("USD", eth.quote)
+        self.assertEqual(0.001, eth.qty_min)
+        self.assertEqual(0.5, eth.cost_min)
+        self.assertEqual(0.01, eth.price_increment)
+
+    @patch("websockets.connect")
+    async def test_a_pair_stating_no_limits_is_left_unconstrained(
+        self, mock_connect
+    ):
+        """
+        Kraken states these for everything it lists, but a missing field
+        must not take the feed down mid-session over a KeyError.
+        """
+        await self.run_feed(
+            mock_connect,
+            [
+                json.dumps(
+                    {
+                        "channel": "instrument",
+                        "type": "snapshot",
+                        "data": {"pairs": [{"symbol": "ETH/USD"}]},
+                    }
+                )
+            ],
+        )
+
+        eth = self.feed._instruments["ETH/USD"]
+        self.assertEqual(0.0, eth.qty_min)
+        self.assertIsNone(eth.rejects(0.0005, 2513.0))
+
+    @patch("websockets.connect")
+    async def test_announces_the_channel_it_publishes(self, mock_connect):
+        self.assertIn(Channel.INSTRUMENT, self.feed.channels)
 
 
 class TestBookChecksum(unittest.IsolatedAsyncioTestCase):
