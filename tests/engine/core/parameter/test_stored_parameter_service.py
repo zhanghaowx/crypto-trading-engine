@@ -39,6 +39,7 @@ class StoredParameterServiceTestCase(unittest.TestCase):
         self.addCleanup(self.directory.cleanup)
         self.path = str(Path(self.directory.name) / "params.sqlite")
         self.store = ParameterStore(self.path)
+        self.addCleanup(self.store.close)
 
         patcher = patch.object(
             parameter_catalog,
@@ -303,6 +304,18 @@ class TestPollingThread(StoredParameterServiceTestCase):
         service.stop()
         self.assertFalse(thread.is_alive())
         self.assertIsNone(service._thread)
+
+    def test_stop_hands_back_the_store_file(self):
+        """
+        The store keeps one read-only connection open for as long as it
+        is polled. Windows refuses to remove a file another handle still
+        holds, so a session that stopped but never let go took out the
+        temporary directory of whichever test ran next.
+        """
+        service = self.service()
+        service.start()
+        service.stop()
+        self.assertIsNone(service._store._reader)
 
     def test_the_poll_interval_is_itself_a_parameter(self):
         self.store.push(

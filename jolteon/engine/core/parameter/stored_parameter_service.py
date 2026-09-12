@@ -90,6 +90,9 @@ class StoredParameterService(IParameterService, Heartbeater):
         if self._thread is not None:
             self._thread.join(timeout=5)
             self._thread = None
+        # The store holds one read-only connection open for as long as it
+        # is polled, and Windows refuses to remove a file still open.
+        self._store.close()
 
     def _poll(self) -> None:
         while not self._stopping.is_set():
