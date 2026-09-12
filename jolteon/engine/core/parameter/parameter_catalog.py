@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+from jolteon.engine.core.fee_schedule import FeeSchedule
 from jolteon.engine.core.parameter.parameter_service import (
     ParameterValues,
     assert_within_bounds,
@@ -8,11 +9,27 @@ from jolteon.engine.core.parameter.parameter_specification import (
     ParameterGroup,
     definitions,
 )
+from jolteon.engine.core.parameter.poll_parameters import (
+    ParameterPollParameters,
+)
+from jolteon.engine.strategy.market_making.parameters import (
+    MarketMakingParameters,
+    QuoteOffsetParameters,
+)
 
 # Every group the engine reads and the dashboard offers for editing.
 # A group listed here needs nothing else to appear on the Parameters
 # page: it is rendered from what its fields declare.
-GROUPS: tuple[type[ParameterGroup], ...] = ()
+#
+# Each import above must stay cheap. The dashboard imports this to draw
+# its editor, and it runs in a process with no market data feed or
+# exchange client to load.
+GROUPS: tuple[type[ParameterGroup], ...] = (
+    MarketMakingParameters,
+    QuoteOffsetParameters,
+    FeeSchedule,
+    ParameterPollParameters,
+)
 
 
 @dataclass(frozen=True)

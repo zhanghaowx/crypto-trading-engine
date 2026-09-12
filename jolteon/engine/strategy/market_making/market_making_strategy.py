@@ -4,6 +4,10 @@ from jolteon.engine.core.event.signal import signal, subscribe
 from jolteon.engine.core.event.signal_subscriber import SignalSubscriber
 from jolteon.engine.core.health_monitor.heartbeat import Heartbeater
 from jolteon.engine.core.id_generator import id_generator
+from jolteon.engine.core.parameter.parameter_service import (
+    IParameterService,
+    StaticParameterService,
+)
 from jolteon.engine.core.side import MarketSide
 from jolteon.engine.core.time.time_manager import time_manager
 from jolteon.engine.market_data.core.bbo import BBO
@@ -20,8 +24,7 @@ from jolteon.engine.strategy.market_making.fair_value.mid_price_model import (
     MidPriceFairPriceModel,
 )
 from jolteon.engine.strategy.market_making.parameters import (
-    IParameterService,
-    StaticParameterService,
+    MarketMakingParameters,
 )
 from jolteon.engine.strategy.market_making.quote_offset import (
     IQuoteOffsetService,
@@ -39,33 +42,30 @@ class MarketMakingStrategy(Heartbeater, SignalSubscriber):
     - Inventory is capped by a hard limit: once the cap is hit on one side,
       that side stops quoting until fills bring the position back within
       bounds.
-    - Quote size and the inventory cap come from a pluggable
-      IParameterService (fixed, conservative defaults if none is given),
-      so callers such as the CLI don't need to know or pass tuning values.
+    - Quote size, the inventory cap and the requote tolerance come from a
+      pluggable IParameterService (fixed, conservative defaults if none is
+      given), read on every tick so they can be retuned while running.
     """
-
-    BOOK_DEPTH = 10
 
     def __init__(
         self,
         symbol: str,
-        requote_tolerance: float = 0.0,
+        requote_tolerance: float | None = None,
         fair_price_model: Union[IFairPriceModel, None] = None,
         parameter_service: Union[IParameterService, None] = None,
         quote_offset_service: Union[IQuoteOffsetService, None] = None,
     ):
         super().__init__(type(self).__name__, interval_in_seconds=10)
-        params = (parameter_service or StaticParameterService()).get(symbol)
-        assert params.quote_size > 0, "quote_size must be positive"
-
         self._symbol = symbol
-        self._quote_size = params.quote_size
+        self._parameter_service = parameter_service or StaticParameterService()
         self._requote_tolerance = requote_tolerance
         self._quote_offset_service = (
             quote_offset_service or StaticQuoteOffsetService()
         )
         self._fair_price_model = fair_price_model or MidPriceFairPriceModel()
-        self._inventory_limit = InventoryLimit(params.max_inventory)
+        self._inventory_limit = InventoryLimit(
+            parameter_service=self._parameter_service, symbol=symbol
+        )
 
         self._live_orders: dict[MarketSide, Order] = {}
         self._order_book: OrderBook | None = None
@@ -99,18 +99,23 @@ class MarketMakingStrategy(Heartbeater, SignalSubscriber):
 
     @subscribe("ticker_feed")
     def on_bbo(self, _: str, bbo: BBO):
-        context = self._context(bbo)
+        params = self._parameters()
+        context = self._context(bbo, params.book_depth)
         fair_price = self._fair_price_model.calculate(context)
         offset = self._quote_offset_service.calculate(context)
-        self._requote(MarketSide.BUY, fair_price.bid - offset.bid)
-        self._requote(MarketSide.SELL, fair_price.ask + offset.ask)
+        self._requote(MarketSide.BUY, fair_price.bid - offset.bid, params)
+        self._requote(MarketSide.SELL, fair_price.ask + offset.ask, params)
 
-    def _context(self, bbo: BBO) -> BookSnapshot:
+    def _parameters(self) -> MarketMakingParameters:
+        return self._parameter_service.get(
+            MarketMakingParameters, self._symbol
+        )
+
+    def _context(self, bbo: BBO, depth: int) -> BookSnapshot:
         book = self._order_book
         if not book:
             return BookSnapshot(bbo=bbo)
 
-        depth = MarketMakingStrategy.BOOK_DEPTH
         return BookSnapshot(
             bbo=bbo, bids=tuple(book.bids(depth)), asks=tuple(book.asks(depth))
         )
@@ -126,7 +131,12 @@ class MarketMakingStrategy(Heartbeater, SignalSubscriber):
             # it and let the next requote place a fresh, full-size quote.
             self._cancel(trade.side)
 
-    def _requote(self, side: MarketSide, desired_price: float):
+    def _requote(
+        self,
+        side: MarketSide,
+        desired_price: float,
+        params: MarketMakingParameters,
+    ):
         live_order = self._live_orders.get(side)
 
         if not self._inventory_limit.can_quote(side):
@@ -134,12 +144,12 @@ class MarketMakingStrategy(Heartbeater, SignalSubscriber):
                 self._cancel(side)
             return
 
+        tolerance = self._requote_tolerance
+        if tolerance is None:
+            tolerance = params.requote_tolerance
         if live_order:
             assert live_order.price is not None
-            if (
-                abs(live_order.price - desired_price)
-                <= self._requote_tolerance
-            ):
+            if abs(live_order.price - desired_price) <= tolerance:
                 return
 
         if live_order:
@@ -150,7 +160,7 @@ class MarketMakingStrategy(Heartbeater, SignalSubscriber):
             order_type=OrderType.LIMIT_ORDER,
             symbol=self._symbol,
             price=desired_price,
-            quantity=self._quote_size,
+            quantity=params.quote_size,
             side=side,
             creation_time=time_manager().now(),
         )
