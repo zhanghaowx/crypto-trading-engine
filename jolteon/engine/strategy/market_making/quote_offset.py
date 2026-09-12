@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from jolteon.engine.core.event.signal import signal
 from jolteon.engine.core.fee_schedule import FeeSchedule
 from jolteon.engine.core.parameter.parameter_service import (
-    ALL_SYMBOLS,
     IParameterService,
     StaticParameterService,
 )
@@ -115,14 +114,14 @@ class FeeAwareQuoteOffsetService(IQuoteOffsetService):
 
     def __init__(
         self,
+        fee_schedule: type[FeeSchedule],
         edge: float | None = None,
-        fees: FeeSchedule | None = None,
         parameter_service: IParameterService | None = None,
     ):
         super().__init__()
         assert edge is None or edge > 0, "edge must be positive"
+        self._fee_schedule = fee_schedule
         self._edge = edge
-        self._fees = fees
         self._parameter_service = parameter_service or StaticParameterService()
 
     def _calculate(self, context: BookSnapshot) -> QuoteOffset:
@@ -132,9 +131,7 @@ class FeeAwareQuoteOffsetService(IQuoteOffsetService):
             edge = self._parameter_service.get(
                 QuoteOffsetParameters, symbol
             ).edge
-        fees = self._fees or self._parameter_service.get(
-            FeeSchedule, ALL_SYMBOLS
-        )
+        fees = self._parameter_service.get(self._fee_schedule, symbol)
         return QuoteOffset(
             bid=edge + fees.maker_fee(context.bbo.bid_price, 1.0),
             ask=edge + fees.maker_fee(context.bbo.ask_price, 1.0),

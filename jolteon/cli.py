@@ -103,6 +103,11 @@ async def main():
     market = Market.parse(args.exchange)
     if market == Market.KRAKEN:
         from jolteon.app.kraken import KrakenApplication as Application
+        from jolteon.engine.execution.kraken.fee_schedule import (
+            KrakenFeeSchedule,
+        )
+
+        fee_schedule = KrakenFeeSchedule
     else:
         raise NotImplementedError(
             f"Application is not implemented for market {args.exchange}"
@@ -166,7 +171,8 @@ async def main():
         if args.paper:
             strategy_symbol = symbol.replace("-", "/")
             quote_offset_service = FeeAwareQuoteOffsetService(
-                parameter_service=parameter_service
+                fee_schedule=fee_schedule,
+                parameter_service=parameter_service,
             )
             # Shared with PostTradeService below, so decorated fills are
             # scored against the same fair price the strategy quotes off.

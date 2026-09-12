@@ -1,8 +1,13 @@
 import unittest
+from dataclasses import dataclass
 
 from jolteon.engine.core.fee_schedule import FeeSchedule
 from jolteon.engine.core.parameter.parameter_service import (
     StaticParameterService,
+)
+from jolteon.engine.core.parameter.parameter_specification import (
+    ParameterGroup,
+    parameter,
 )
 from jolteon.engine.market_data.core.bbo import BBO
 from jolteon.engine.market_data.core.book_snapshot import BookSnapshot
@@ -72,20 +77,43 @@ class TestStaticQuoteOffsetService(unittest.TestCase):
         self.assertEqual(25.0, service.calculate(snapshot()).bid)
 
 
+@dataclass(frozen=True)
+class FlatFeeSchedule(FeeSchedule):
+    maker: float = parameter(0.001, minimum=0.0, maximum=0.1)
+    taker: float = parameter(0.002, minimum=0.0, maximum=0.1)
+
+    @property
+    def maker_rate(self) -> float:
+        return self.maker
+
+    @property
+    def taker_rate(self) -> float:
+        return self.taker
+
+
 class TestFeeAwareQuoteOffsetService(unittest.TestCase):
     def setUp(self):
-        self.fees = FeeSchedule(maker_rate=0.001, taker_rate=0.002)
+        self.fees = FlatFeeSchedule()
+
+    def service(
+        self, *groups: ParameterGroup, edge: float | None = None
+    ) -> FeeAwareQuoteOffsetService:
+        return FeeAwareQuoteOffsetService(
+            fee_schedule=FlatFeeSchedule,
+            edge=edge,
+            parameter_service=StaticParameterService(*groups),
+        )
 
     def test_charges_the_edge_on_top_of_the_maker_fee(self):
-        service = FeeAwareQuoteOffsetService(edge=5.0, fees=self.fees)
-
-        offset = service.calculate(snapshot(bid=1000.0, ask=1200.0))
+        offset = self.service(edge=5.0).calculate(
+            snapshot(bid=1000.0, ask=1200.0)
+        )
 
         self.assertAlmostEqual(6.0, offset.bid)
         self.assertAlmostEqual(6.2, offset.ask)
 
     def test_widens_as_the_price_rises(self):
-        service = FeeAwareQuoteOffsetService(edge=5.0, fees=self.fees)
+        service = self.service(edge=5.0)
 
         cheap = service.calculate(snapshot(bid=1000.0, ask=1000.0))
         rich = service.calculate(snapshot(bid=100000.0, ask=100000.0))
@@ -94,51 +122,42 @@ class TestFeeAwareQuoteOffsetService(unittest.TestCase):
         self.assertAlmostEqual(105.0, rich.bid)
 
     def test_never_quotes_inside_the_fee(self):
-        service = FeeAwareQuoteOffsetService(edge=0.01, fees=self.fees)
-
-        offset = service.calculate(snapshot(bid=50000.0, ask=50000.0))
+        offset = self.service(edge=0.01).calculate(
+            snapshot(bid=50000.0, ask=50000.0)
+        )
 
         self.assertGreater(offset.bid, self.fees.maker_fee(50000.0, 1.0))
 
     def test_rejects_a_non_positive_edge(self):
         with self.assertRaises(AssertionError):
-            FeeAwareQuoteOffsetService(edge=0.0, fees=self.fees)
+            self.service(edge=0.0)
 
-    def test_no_edge_or_fees_takes_them_from_the_parameter_service(self):
-        service = FeeAwareQuoteOffsetService(
-            parameter_service=StaticParameterService(
-                QuoteOffsetParameters(edge=2.0),
-                FeeSchedule(maker_rate=0.001, taker_rate=0.002),
-            )
-        )
+    def test_no_edge_takes_it_from_the_parameter_service(self):
+        service = self.service(QuoteOffsetParameters(edge=2.0))
 
         offset = service.calculate(snapshot(bid=1000.0, ask=1200.0))
 
         self.assertAlmostEqual(3.0, offset.bid)
         self.assertAlmostEqual(3.2, offset.ask)
 
-    def test_falls_back_to_the_declared_defaults(self):
-        offset = FeeAwareQuoteOffsetService().calculate(
-            snapshot(bid=1000.0, ask=1000.0)
+    def test_follows_a_retuned_fee_schedule(self):
+        """
+        The schedule is read on every quote, so an account that reaches a
+        cheaper tier mid session stops charging for fees it no longer pays.
+        """
+        service = self.service(FlatFeeSchedule(maker=0.0, taker=0.0), edge=2.0)
+
+        self.assertAlmostEqual(
+            2.0, service.calculate(snapshot(bid=1000.0, ask=1000.0)).bid
         )
 
-        declared = QuoteOffsetParameters().edge + FeeSchedule().maker_fee(
+    def test_falls_back_to_the_declared_defaults(self):
+        offset = self.service().calculate(snapshot(bid=1000.0, ask=1000.0))
+
+        declared = QuoteOffsetParameters().edge + FlatFeeSchedule().maker_fee(
             1000.0, 1.0
         )
         self.assertAlmostEqual(declared, offset.bid)
-
-    def test_passed_fees_are_kept_over_a_retuned_schedule(self):
-        service = FeeAwareQuoteOffsetService(
-            fees=self.fees,
-            parameter_service=StaticParameterService(
-                QuoteOffsetParameters(edge=2.0),
-                FeeSchedule(maker_rate=0.1, taker_rate=0.1),
-            ),
-        )
-
-        self.assertAlmostEqual(
-            3.0, service.calculate(snapshot(bid=1000.0, ask=1000.0)).bid
-        )
 
 
 class TestIQuoteOffsetService(unittest.TestCase):
