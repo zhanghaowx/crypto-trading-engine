@@ -224,7 +224,9 @@ def _build_checked(
 
     problems = parameter_catalog.validate(rebuilt)
     for problem in problems:
-        key = applied_key(problem.group_name, problem.field_name, ALL_SYMBOLS)
+        key = applied_key(
+            problem.group_name, problem.field_name, problem.symbol
+        )
         rejected[key] = (REJECTED, problem.message)
     if problems:
         return None, rejected
@@ -254,11 +256,16 @@ def _build(
         for group in parameter_catalog.GROUPS
     }
     # A symbol's map has to hold every group, not just the overridden
-    # ones, so a lookup that falls to it does not miss the rest.
+    # ones, so a lookup that falls to it does not miss the rest. Its own
+    # fields sit on top of those that apply to every symbol, or setting
+    # one field for a symbol would return the rest of that group to the
+    # declared defaults.
     by_symbol = {
         symbol: {
             group: (
-                _construct(group, overridden)
+                _construct(
+                    group, by_group.get(group.__name__, {}) | overridden
+                )
                 if (overridden := fields.get(group.__name__))
                 else defaults[group]
             )

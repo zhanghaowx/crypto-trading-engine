@@ -86,15 +86,17 @@ class PublicFeed(IMarketDataFeed):
                 )
                 await asyncio.sleep(retry_interval_in_seconds)
 
-            if self._was_connection_healthy(connected_at):
+            if self._was_connection_healthy(connected_at, symbol):
                 n_retries = 0
             else:
                 n_retries += 1
 
-    def _was_connection_healthy(self, connected_at: float) -> bool:
+    def _was_connection_healthy(
+        self, connected_at: float, symbol: str
+    ) -> bool:
         minimum = (
             parameter_service()
-            .get(KrakenFeedParameters)
+            .get(KrakenFeedParameters, symbol)
             .min_healthy_connection_seconds
         )
         return self._clock() - connected_at >= minimum

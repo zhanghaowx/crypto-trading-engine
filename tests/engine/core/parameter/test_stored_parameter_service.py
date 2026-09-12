@@ -108,6 +108,39 @@ class TestReadingStoredValues(StoredParameterServiceTestCase):
         )
         self.assertEqual(0.01, service.get(QuotingParameters).quote_size)
 
+    def test_a_symbols_own_value_sits_on_top_of_the_shared_ones(self):
+        """
+        Setting one field for one symbol must not quietly return the rest
+        of that group to its declared defaults, which is what the symbol
+        map used to do: it was built from the symbol's fields alone.
+        """
+        self.store.push(
+            [
+                override_of("QuotingParameters", "depth", 25),
+                ParameterOverride(
+                    "QuotingParameters", "quote_size", "BTC/USD", 0.05
+                ),
+            ]
+        )
+        service = self.service()
+        service.start()
+
+        btc = service.get(QuotingParameters, "BTC/USD")
+        self.assertEqual(0.05, btc.quote_size)
+        self.assertEqual(25, btc.depth)
+
+    def test_a_symbol_keeps_the_declared_default_nobody_overrode(self):
+        self.store.push(
+            [
+                ParameterOverride(
+                    "QuotingParameters", "quote_size", "BTC/USD", 0.05
+                )
+            ]
+        )
+        service = self.service()
+        service.start()
+        self.assertEqual(10, service.get(QuotingParameters, "BTC/USD").depth)
+
     def test_a_symbol_falls_back_to_the_default_for_other_groups(self):
         self.store.push(
             [
@@ -212,6 +245,44 @@ class TestRefusingABadPush(StoredParameterServiceTestCase):
         refused = [a for a in self.applied if a.status == REJECTED]
         self.assertEqual(1, len(refused))
         self.assertEqual("quote_size", refused[0].field_name)
+        self.assertIn("at most 1.0", refused[0].reason)
+
+    def test_keeps_the_running_values_when_a_symbols_value_is_out_of_bounds(
+        self,
+    ):
+        service = self.service()
+        service.start()
+
+        self.store.push(
+            [
+                ParameterOverride(
+                    "QuotingParameters", "quote_size", "BTC/USD", 9.0
+                )
+            ]
+        )
+        service._refresh()
+
+        self.assertEqual(
+            0.0005, service.get(QuotingParameters, "BTC/USD").quote_size
+        )
+
+    def test_reports_a_refused_symbol_value_against_that_symbol(self):
+        service = self.service()
+        service.start()
+        self.applied.clear()
+
+        self.store.push(
+            [
+                ParameterOverride(
+                    "QuotingParameters", "quote_size", "BTC/USD", 9.0
+                )
+            ]
+        )
+        service._refresh()
+
+        refused = [a for a in self.applied if a.status == REJECTED]
+        self.assertEqual(1, len(refused))
+        self.assertEqual("BTC/USD", refused[0].symbol)
         self.assertIn("at most 1.0", refused[0].reason)
 
     def test_reports_a_parameter_this_engine_does_not_have(self):

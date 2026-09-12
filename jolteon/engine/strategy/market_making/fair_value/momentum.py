@@ -36,15 +36,15 @@ class MomentumAdjustment(IFairPriceAdjustment):
         self._flow = 0.0
         self._trades_seen = 0
 
-    def _parameters(self) -> MomentumParameters:
-        return self._parameter_service.get(MomentumParameters)
+    def _parameters(self, symbol: str) -> MomentumParameters:
+        return self._parameter_service.get(MomentumParameters, symbol)
 
     @property
     def name(self) -> str:
         return "momentum"
 
     def adjustment(self, context: BookSnapshot) -> float:
-        params = self._parameters()
+        params = self._parameters(context.bbo.symbol)
         min_trades = (
             self._min_trades
             if self._min_trades is not None
@@ -65,7 +65,7 @@ class MomentumAdjustment(IFairPriceAdjustment):
         decay = (
             self._decay
             if self._decay is not None
-            else self._parameters().decay
+            else self._parameters(market_trade.symbol).decay
         )
         self._flow = decay * self._flow + (1 - decay) * signed_quantity
         self._trades_seen += 1
