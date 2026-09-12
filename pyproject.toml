@@ -77,20 +77,20 @@ exclude_also = [
 [tool.poe.tasks]
 
 [tool.poe.tasks.fmt-imports]
-cmd = "ruff check --select I --fix jolteon tests integration-tests"
+cmd = "ruff check --select I --fix jolteon tests"
 
 [tool.poe.tasks.fmt-format]
-cmd = "ruff format jolteon tests integration-tests"
+cmd = "ruff format jolteon tests"
 
 [tool.poe.tasks.fmt]
 help = "Format code with ruff"
 sequence = ["fmt-imports", "fmt-format"]
 
 [tool.poe.tasks.lint-check]
-cmd = "ruff check jolteon"
+cmd = "ruff check jolteon tests"
 
 [tool.poe.tasks.lint-format]
-cmd = "ruff format --check jolteon"
+cmd = "ruff format --check jolteon tests"
 
 [tool.poe.tasks.lint-types]
 cmd = "mypy jolteon"
