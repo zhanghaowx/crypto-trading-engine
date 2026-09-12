@@ -31,9 +31,12 @@ flag of the same name. It defaults to `/tmp/jolteon.params.sqlite` on both sides
 
 Two tabs. **Engine** edits every tunable the engine reads; it is generated from what each parameter
 group declares, so a tunable added to the engine appears here on its own. Edits are staged locally
-and reach the engine only when pushed, and each field reports what the engine did with it — applied,
-not read yet, not picked up, or rejected with a reason. **Dashboard** holds the settings for this
-viewer alone: the database paths and the auto-refresh interval.
+and reach the engine only when committed, and each field reports what the engine did with it —
+applied, not read yet, not picked up, or rejected with a reason. The staged changes and the
+Commit/Revert buttons sit at the bottom of the tab, under the parameter cards.
+
+**Dashboard** holds the settings for this viewer alone: the database paths and the auto-refresh
+interval.
 
 This is the one part of the dashboard that writes, and it writes to a database of its own that the
 engine polls, so neither process ever writes the file the other owns. See
