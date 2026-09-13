@@ -18,6 +18,7 @@ from jolteon.engine.core.parameter.parameter_service import (
 from jolteon.engine.core.sqlite_writer import (
     SQLiteWriter,
     SqliteWriterParameters,
+    _Flush,
 )
 
 
@@ -198,6 +199,27 @@ class TestSQLiteWriter(unittest.TestCase):
         with self.assertRaises(sqlite3.OperationalError):
             writer.flush()
         writer.close()
+
+    def test_open_failure_releases_queued_flush_markers(self):
+        self.writer.close()
+        markers = [_Flush(), _Flush()]
+        self.writer.put("t", {"a": 1})
+        for marker in markers:
+            self.writer._queue.put(marker)
+
+        with patch.object(
+            self.writer,
+            "_connect",
+            side_effect=sqlite3.OperationalError("cannot open database"),
+        ):
+            self.writer._run()
+
+        self.assertTrue(all(marker.event.is_set() for marker in markers))
+        self.assertTrue(self.writer._queue.empty())
+        with self.assertRaisesRegex(
+            sqlite3.OperationalError, "cannot open database"
+        ):
+            self.writer.flush()
 
     def test_close_is_idempotent(self):
         self.writer.put("t", {"a": 1})
