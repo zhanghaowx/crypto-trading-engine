@@ -98,7 +98,25 @@ def test_takes_its_bounds_from_the_declaration(
     assert quote_size.min == declared["quote_size"].minimum
     assert quote_size.max == declared["quote_size"].maximum
     assert quote_size.step == declared["quote_size"].step
-    assert quote_size.help == declared["quote_size"].description
+
+
+def test_a_field_explains_itself_where_its_name_is(
+    params_db_path, missing_db_path
+):
+    """
+    The tooltip belongs to the label, and the label is on a row of its
+    own now so the field's state can sit beside it.
+    """
+    at = _page(params_db_path, missing_db_path).run()
+
+    declared = {d.name: d for d in definitions(MarketMakingParameters)}
+    quote_size = declared["quote_size"]
+    labels = {m.proto.body: m.proto.help for m in at.markdown}
+
+    assert (
+        labels[engine_parameters._field_label(quote_size)]
+        == quote_size.description
+    )
 
 
 def test_an_edit_reaches_no_file_until_it_is_pushed(
@@ -207,6 +225,26 @@ def test_reports_a_stored_value_no_engine_has_read(
     assert any(
         "no engine has reported" in caption.value for caption in at.caption
     )
+
+
+def test_a_fields_state_sits_on_the_row_with_its_name(
+    params_db_path, missing_db_path
+):
+    """
+    Under the widget, a badge reads as though it belonged to whatever
+    came next; beside the name it is about, it reads as part of the
+    field.
+    """
+    ParameterStore(params_db_path).push(
+        [override_of("MarketMakingParameters", "quote_size", 0.02)]
+    )
+    at = _page(params_db_path, missing_db_path).run()
+
+    declared = {d.name: d for d in definitions(MarketMakingParameters)}
+    label = engine_parameters._field_label(declared["quote_size"])
+    bodies = [m.proto.body for m in at.markdown]
+
+    assert bodies[bodies.index(label) + 1].endswith("-badge[Not picked up]")
 
 
 class TestAStoreThePageCannotRender:
@@ -436,9 +474,14 @@ class TestWhatTheEngineSaidItDid:
         # st.badge reaches AppTest as markdown, as ":green-badge[applied]".
         return " ".join(m.value for m in at.markdown if "-badge[" in m.value)
 
-    def test_a_value_the_engine_has_read_reports_as_applied(
+    def test_a_value_the_engine_is_quoting_on_says_nothing(
         self, params_db_path, missing_db_path, tmp_path
     ):
+        """
+        Silence is the signal: a value the engine has read is the number
+        it is running on, and a badge on every tuned field would leave
+        nothing for the fields that are not.
+        """
         self._pushed(params_db_path)
         at = _page(
             params_db_path,
@@ -447,7 +490,7 @@ class TestWhatTheEngineSaidItDid:
         ).run()
 
         assert not at.exception
-        assert "applied" in self._badges(at)
+        assert not self._badges(at)
 
     def test_a_value_no_component_has_looked_at_says_so(
         self, params_db_path, missing_db_path, tmp_path
@@ -466,7 +509,7 @@ class TestWhatTheEngineSaidItDid:
 
         captions = " ".join(c.value for c in at.caption)
         assert "has not looked since" in captions
-        assert "not read yet" in self._badges(at)
+        assert "Not read yet" in self._badges(at)
 
     def test_a_refused_value_reports_the_engines_own_reason(
         self, params_db_path, missing_db_path, tmp_path
@@ -482,7 +525,7 @@ class TestWhatTheEngineSaidItDid:
 
         captions = " ".join(c.value for c in at.caption)
         assert "must be at most 10.0" in captions
-        assert "rejected" in self._badges(at)
+        assert "Rejected" in self._badges(at)
 
     def test_a_status_the_page_does_not_know_is_shown_as_it_came(
         self, params_db_path, missing_db_path, tmp_path
@@ -527,7 +570,9 @@ class TestWhatTheEngineSaidItDid:
         at.run()
 
         assert not at.exception
-        assert "applied" in self._badges(at)
+        # Read by the engine trading it, so there is nothing to report -
+        # which is exactly what "not picked up" would have contradicted.
+        assert not self._badges(at)
 
     def test_one_engine_refusing_a_shared_value_is_what_is_shown(
         self, params_db_path, missing_db_path, tmp_path
@@ -549,7 +594,7 @@ class TestWhatTheEngineSaidItDid:
 
         at = _page(params_db_path, missing_db_path, root).run()
 
-        assert "rejected" in self._badges(at)
+        assert "Rejected" in self._badges(at)
         assert "must be at most 10.0" in " ".join(c.value for c in at.caption)
 
     def test_a_status_the_page_does_not_know_outranks_a_settled_one(
@@ -583,7 +628,7 @@ class TestWhatTheEngineSaidItDid:
 
         at = _page(params_db_path, missing_db_path, root).run()
 
-        assert "rejected" in self._badges(at)
+        assert "Rejected" in self._badges(at)
 
 
 class TestTuningOneSymbol:
@@ -711,7 +756,7 @@ class TestTuningOneSymbol:
         at = self._page_for(params_db_path, missing_db_path, self.ETH)
 
         badges = " ".join(m.value for m in at.markdown if "-badge[" in m.value)
-        assert "from all symbols" in badges
+        assert "Inherited" in badges
 
     def test_an_edit_is_stored_against_the_symbol_chosen(
         self, params_db_path, missing_db_path

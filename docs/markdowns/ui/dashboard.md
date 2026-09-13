@@ -1,69 +1,173 @@
-# Dashboard
+# Parameters
 
-Jolteon ships a [Streamlit](https://streamlit.io/) dashboard with three pages: **Live**, for
-watching one symbol's market data, risk limits, and orders/PnL, **Health**, for watching every
-engine at once, and **Parameters**, for retuning the engine while it runs.
+Every tunable the engine reads is declared in one form, read through one
+service, and editable from the dashboard while the engine is running.
+Before this, the numbers lived as default arguments and class constants
+across roughly twenty-five files, with `cli.py` acting as the de-facto
+config file; changing any of them meant editing source and restarting.
 
-The Live page is a read-only viewer: it never talks to the running engine directly, and instead
-polls the SQLite database that `SignalRecorder` already writes every recorded signal into (in WAL
-mode, so the reads never block the engine's own writes). This means it runs as a completely separate
-process from the engine and can be pointed at either a live run's database or a replay's.
+## Declaring a tunable
 
-## Running it
+A component owns a `ParameterGroup` — a frozen dataclass whose fields are
+declared with `parameter()`, which records the default alongside the
+bounds, step, display format, unit and description:
 
-```bash
-uv run poe dashboard                                     # reads /tmp/jolteon by default
-streamlit run jolteon/app/dashboard.py -- --root /tmp/jolteon   # point at another root
+```python
+@dataclass(frozen=True)
+class MarketMakingParameters(ParameterGroup):
+    quote_size: float = parameter(
+        0.0005,
+        minimum=0.00001,
+        maximum=10.0,
+        step=0.0001,
+        number_format="%.5f",
+        unit="BTC",
+        description="How much base currency each resting quote offers.",
+    )
 ```
 
-`--root` is the directory every engine writes under, matching the engine's own flag of the
-same name. Each symbol traded has a directory there, and those directories are the symbols
-the dashboard offers: pick one and every section of the Live page reads that engine's recording
-and its logs. The symbol is in the URL (`?symbol=ETH/USD`), so it survives a page switch and a
-refresh, and a link opens on the symbol it was copied from.
+That declaration is the only place the value is described. The dashboard
+builds its editor from it — widget type from the field's type, bounds and
+step from the declaration, the tooltip from the description — so adding a
+tunable is one line in the component's `parameters.py` and needs no
+change to the dashboard at all. A brand new group needs one further line,
+its class added to `GROUPS` in `parameter_catalog.py`.
 
-`--params-db` points at the database the Parameters page pushes into. It defaults to
-`parameters.sqlite` at the root of `--root`, which one store serves every engine from.
+Two constraints are worth knowing before adding one:
 
-## Live page
+* **Every field must have a default.** `parameter()` has to be annotated
+  `-> Any`, because mypy only treats a literal `dataclasses.field()` call
+  as supplying a default and cannot follow a wrapper around one. That
+  also means mypy cannot catch a field declared without a default, so
+  `test_parameter_catalog` asserts it instead.
+* **Groups live in a leaf `parameters.py`** importing nothing but
+  `parameter_specification`. The dashboard imports the catalog to draw
+  its editor, in a process with no market data feed or exchange client to
+  load, so a group declared inside `public_feed.py` would drag
+  `websockets` in with it.
 
-Everything here reads the one engine whose symbol is selected above the cards.
+### What a group deliberately does not say
 
-* **Market Data** — recent mid price and BBO for the traded symbol.
-* **Risk Limits** — current state of the configured risk limits (order frequency, inventory, ...).
-* **Orders & PnL** — recorded orders, fills, and running PnL.
+A group says nothing about when a change to it takes effect. Where a
+component reads a value is a property of that component's code and
+changes with it, so a declared claim would go stale silently and nobody
+would know to update it. The question is answered from what actually
+happened at runtime instead — see *Observation* below — which stays true
+on its own and also catches a case no declaration could: a parameter
+nothing reads at all.
 
-## Health page
+## Reading a tunable
 
-One engine trades one symbol, so a component's health is only half a fact: the other half is which
-engine's it was. This page reads every engine under `--root` rather than the selected one, so an
-engine that has gone quiet is visible whichever symbol is on screen.
+`IParameterService.get(Group, symbol)` is what almost every caller uses.
+`values()` returns every group at one revision, and exists only for a
+caller that needs two groups to agree with each other:
+`InventoryAdjustment` divides one group's field by another's, and two
+separate `get()` calls could fall either side of a background refresh and
+pair a new skew with an old cap.
 
-* **Health** — heartbeat status for each component, grouped by the symbol its engine trades. A
-  sender that has not been heard from for 30 seconds reads as DOWN however cheerful its last
-  heartbeat was: a process that dies never reports its own death.
-* **Errors** — every engine's ERROR and CRITICAL log lines in one list, newest first, each naming
-  the symbol whose engine logged it.
+Components the application wires by hand are handed a service. The layers
+underneath them — logging, retries, the SQLite writer, heartbeats — are
+reached from everywhere and have nowhere to receive one, so they read the
+module-level `parameter_service()` accessor, the same shape
+`time_manager()` and `id_generator()` already use here.
 
-The navigation item counts both — `Health (3)` under a warning icon rather than a heart — so a
-reader watching another page still sees that something needs looking at. A page refreshing on a
-timer asks for one full rerun when that count changes, since navigation is drawn once per run.
+Every component keeps its own constructor argument as an explicit
+override, which wins over anything stored. A caller that wants one fixed
+number says so, and a test reads as it always did.
 
-## Parameters page
+## Pushing a change
 
-Two tabs. **Engine** edits every tunable the engine reads; it is generated from what each parameter
-group declares, so a tunable added to the engine appears here on its own. Edits are staged locally
-and reach the engine only when committed, and each field reports what the engine did with it —
-applied, not read yet, not picked up, or rejected with a reason. The staged changes and the
-Commit/Revert buttons sit at the bottom of the tab, under the parameter cards.
+```
+dashboard process                        engine process
+─────────────────                        ──────────────
+Parameters page                          StoredParameterService
+  stage edits in session state             poller thread, every ~1s
+  [Commit] ─write─> <root>/parameters.sqlite ─read (mode=ro)─> rebuild on change
+                  (dashboard = sole writer)                        │
+                                                      parameter_applied
+                                                                   │
+  page reads what the engines ran <─read─ <root>/<SYMBOL>/live.sqlite ┘
+                                         (engine = sole writer)
+```
 
-The tab a reader is on is in the URL (`?tab=Dashboard`), so a refresh comes back to it and a
-link points at it. Only the open tab is built.
+One engine trades one symbol, so the page reads every recording under
+the root rather than the one the Live page happens to be showing: a value
+set for a symbol is read by the engine trading it and by no other, and
+one set for every symbol is read by all of them.
 
-**Dashboard** holds the settings for this viewer alone: auto-refresh and the chart window. The
-database paths are not editable there — they come from the launch flags above, so the page can
-never read a different file than the one it reports.
+Each file has exactly one writer, which is the same reasoning that gives
+the engine's logs a database of their own: neither process can take the
+lock the other one needs. The engine opens the parameter store read-only
+(`mode=ro`) so it cannot write to it even by accident.
 
-This is the one part of the dashboard that writes, and it writes to a database of its own that the
-engine polls, so neither process ever writes the file the other owns. See
-[the parameters design note](../design/parameters.md) for how that loop works.
+That read-only connection stays open for as long as the engine polls,
+since `data_version` only moves on a connection that does, and
+`StoredParameterService.stop()` closes it once the polling thread has
+joined. Holding it past that point costs nothing on POSIX, where a file
+can be unlinked while a handle is open, but on Windows it makes the file
+impossible to remove.
+
+The poller wakes on `ParameterPollParameters.interval_in_seconds` and
+issues one `PRAGMA data_version`, which costs about 17µs and moves only
+when another connection has committed. **`data_version` is only an
+optimisation**: what the rows say decides a rebuild. It reports nothing
+at all until the dashboard has created the file, which is the normal
+state of an engine nobody is tuning, and treating that as a change
+advanced the revision on every tick.
+
+The engine's own threads never touch the store. The quoting path reads an
+already-built immutable object: two dictionary lookups, no allocation, no
+I/O. The poller builds a wholly new set of values and rebinds one
+attribute, so readers need no lock — build then rebind, and never mutate
+what has been published.
+
+### Refusing a push
+
+Validation happens on the poller thread, not at a read site: a bad value
+must never raise where the strategy quotes. A push that breaks a field's
+declared bounds, or a constraint that spans two fields, leaves the engine
+on the values it was already running, raises a WARN heartbeat, and comes
+back as a rejected status with a reason.
+
+`parameter_catalog.validate()` also carries the constraints no single
+field can state, because they are about how two sit together — the
+heartbeat monitor's staleness timeout has to exceed the heartbeat
+interval, or any jitter marks a healthy component a zombie.
+
+### Observation
+
+`ParameterValues` carries a `revision` and an `observed` map. Reading a
+group through `get()` records `observed[group] = revision`; `peek()` is
+the same read without recording, for validating and reporting, which must
+not make a revision look picked up. Each new set of values inherits the
+previous map, so it holds the last revision at which each group was
+genuinely read.
+
+That is the whole mechanism behind what the page shows, and the page
+shows it only where it is worth saying. A group read every tick
+converges in milliseconds and then says nothing at all: silence on a
+field means the engine is quoting on that number. One read only at
+construction stays behind and reads *Not read yet* until the engine
+restarts; a stored value no engine has echoed at all reads *Not picked
+up*; and a refused one reads *Rejected* with the engine's reason.
+
+Where several engines answer for the same value, the least settled of
+their answers is the one shown, since a value one engine refused is not
+in force however the others took it.
+
+## What is not a parameter
+
+* `database_name`, `logfile_name` and `symbol` stay CLI arguments.
+  Repointing the engine's output database from the dashboard while the
+  dashboard is reading it is a footgun, not a tunable.
+* `PostTradeService._HORIZONS` derives the column names
+  `fair_price_100ms/1s/5s/30s`, which are written out again in
+  `decorated_order_fill.py`, `app/analytics.py` and
+  `app/signal_evaluation.py`. Changing it live desyncs two processes'
+  schemas.
+* `PublicFeed.CHECKSUM_DEPTH` is fixed by Kraken at ten levels whatever
+  depth is subscribed to.
+
+A replay does not poll either. It installs fake time and has to produce
+the same result twice, which it cannot if a dashboard can retune it
+halfway through, so only a live session is given a store.
