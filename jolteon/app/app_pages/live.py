@@ -12,6 +12,36 @@ from jolteon.app.app_pages import (
     risk_limits,
 )
 from jolteon.app.components import card_surface_rule
+from jolteon.app.data import engine_databases
+from jolteon.app.settings import use_engine
+
+_ENGINE_KEY = "live-engine-symbol"
+
+
+def _select_engine() -> None:
+    """
+    Which engine's recording the sections below read.
+
+    One engine trades one symbol and records to its own file, so choosing
+    a symbol is choosing a database. Nothing is offered while only one
+    engine has been running, since there is nothing to choose between.
+    """
+    engines = engine_databases(st.session_state.db_glob)
+    if len(engines) < 2:
+        return
+
+    by_symbol = {engine.symbol: engine for engine in engines}
+    symbol = st.segmented_control(
+        "Symbol",
+        options=list(by_symbol),
+        default=next(iter(by_symbol)),
+        key=_ENGINE_KEY,
+        label_visibility="collapsed",
+    )
+    # A segmented control lets the reader clear their own selection.
+    if symbol in by_symbol:
+        use_engine(by_symbol[symbol])
+
 
 Section = tuple[
     str,
@@ -135,6 +165,11 @@ st.html(
     f" box-shadow 300ms ease; }}"
     f"</style>"
 )
+
+# Outside the refreshing fragment: the sections below read whichever
+# engine this picks, so it has to be settled before they run, and a
+# selector redrawn on every refresh would fight the reader for it.
+_select_engine()
 
 # `run_every` reruns just this fragment on a timer without blocking the
 # session - the previous `time.sleep` + `st.rerun()` loop did block it,

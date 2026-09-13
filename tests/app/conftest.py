@@ -11,13 +11,16 @@ _DASHBOARD_PATH = str(
 
 
 @pytest.fixture
-def dashboard(missing_db_path) -> AppTest:
+def dashboard(tmp_path, missing_db_path) -> AppTest:
     """A ready-to-run AppTest for the dashboard entrypoint, with
     auto-refresh disabled (it would otherwise sleep and rerun forever)
     and a placeholder db_path callers can override before calling
     `.run()`."""
     at = AppTest.from_file(_DASHBOARD_PATH)
     at.session_state["auto_refresh"] = False
+    # Kept inside the test's own directory: left at its default this
+    # would discover whatever engines the machine really has running.
+    at.session_state["db_glob"] = str(tmp_path / "no-engine-*.sqlite")
     at.session_state["db_path"] = missing_db_path
     at.session_state["log_db_path"] = missing_db_path
     at.session_state["params_db_path"] = missing_db_path
@@ -153,3 +156,28 @@ def populated_db_path(tmp_path) -> str:
     finally:
         conn.close()
     return db_path
+
+
+@pytest.fixture
+def recordings(tmp_path):
+    """Two engines' recordings, as two engines running two symbols would
+    leave behind: one file each, named for the symbol it traded."""
+
+    def write(symbol: str) -> str:
+        path = tmp_path / f"jolteon-{symbol.replace('/', '-')}.sqlite"
+        conn = sqlite3.connect(path)
+        try:
+            conn.execute(
+                "CREATE TABLE ticker_feed "
+                "(timestamp REAL, symbol TEXT, bid_price REAL, ask_price REAL)"
+            )
+            conn.execute(
+                "INSERT INTO ticker_feed VALUES (1700000000, ?, 100.0, 101.0)",
+                (symbol,),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        return str(path)
+
+    return {symbol: write(symbol) for symbol in ("BTC/USD", "ETH/USD")}

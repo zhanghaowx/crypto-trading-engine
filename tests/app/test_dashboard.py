@@ -65,3 +65,45 @@ def test_parameters_page_does_not_render_the_live_sections(dashboard):
 
     assert not at.exception
     assert "Health" not in [s.value for s in at.subheader]
+
+
+def test_offers_no_symbol_to_choose_while_one_engine_is_running(dashboard):
+    at = dashboard.run()
+
+    assert not at.exception
+    assert len(at.segmented_control) == 0
+
+
+def test_offers_every_symbol_being_traded(dashboard, tmp_path, recordings):
+    dashboard.session_state["db_glob"] = str(tmp_path / "jolteon-*.sqlite")
+    at = dashboard.run()
+
+    assert not at.exception
+    assert ["BTC/USD", "ETH/USD"] == at.segmented_control[0].options
+
+
+def test_reads_the_first_engine_until_another_is_chosen(
+    dashboard, tmp_path, recordings
+):
+    dashboard.session_state["db_glob"] = str(tmp_path / "jolteon-*.sqlite")
+    del dashboard.session_state["db_path"]
+    at = dashboard.run()
+
+    assert not at.exception
+    assert at.session_state["db_path"] == recordings["BTC/USD"]
+
+
+def test_choosing_a_symbol_reads_that_engines_recording(
+    dashboard, tmp_path, recordings
+):
+    """
+    One engine records to one file, so picking a symbol has to repoint
+    every section at that engine's database and its logs.
+    """
+    dashboard.session_state["db_glob"] = str(tmp_path / "jolteon-*.sqlite")
+    at = dashboard.run()
+    at.segmented_control[0].set_value("ETH/USD").run()
+
+    assert not at.exception
+    assert at.session_state["db_path"] == recordings["ETH/USD"]
+    assert at.session_state["log_db_path"].endswith("ETH-USD.log.sqlite")
