@@ -101,6 +101,11 @@ def read_table(db_path: str, table: str) -> pd.DataFrame:
     return frame.copy(deep=False)
 
 
+# What the engine appends to a session's log file name, which is itself
+# the recording's name with its suffix replaced.
+_LOG_SUFFIX = ".log.sqlite"
+
+
 @dataclass(frozen=True)
 class EngineDatabase:
     """One engine's recording, and the symbol that engine was trading."""
@@ -116,7 +121,7 @@ class EngineDatabase:
         recorder's for a write lock, and the engine names it after the
         same session rather than recording where it went.
         """
-        return str(Path(self.path).with_suffix(".log.sqlite"))
+        return str(Path(self.path).with_suffix(_LOG_SUFFIX))
 
 
 def engine_databases(pattern: str) -> list[EngineDatabase]:
@@ -128,10 +133,16 @@ def engine_databases(pattern: str) -> list[EngineDatabase]:
     watching several engines reads several files. A pattern naming a
     single path matches only itself, so pointing at one database still
     works.
+
+    An engine's log database sits beside its recording and is named after
+    it, so any pattern matching the one matches the other. Logs are not a
+    recording of anything traded, and left in they appear as a symbol of
+    their own with nothing behind it.
     """
     return [
         EngineDatabase(path=path, symbol=_recorded_symbol(path))
         for path in sorted(glob(pattern))
+        if not path.endswith(_LOG_SUFFIX)
     ]
 
 
