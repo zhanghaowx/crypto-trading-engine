@@ -39,12 +39,17 @@ _FOCUS_CSS = (
     Path(__file__).resolve().parent / "static" / "focus_visible.css"
 ).read_text()
 
+_TOP_PADDING_CSS = (
+    Path(__file__).resolve().parent / "static" / "page_top_padding.css"
+).read_text()
+
 
 def main() -> None:
     st.set_page_config(page_title="Jolteon Live", layout="wide")
     init_settings()
     st.logo(str(_LOGO_PATH), size="medium")
     st.html(f"<style>{_FOCUS_CSS}</style>")
+    st.html(f"<style>{_TOP_PADDING_CSS}</style>")
 
     health = summary(st.session_state.root)
     nav_drawn(health)

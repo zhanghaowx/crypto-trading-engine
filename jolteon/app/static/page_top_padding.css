@@ -1,0 +1,11 @@
+/* Streamlit pads the main container by 8rem whenever the navigation is
+   along the top, enough room for a header and a nav bar stacked. This
+   app's nav sits inside the header, so the second allowance is a band of
+   empty canvas nothing is under. The header overlays the container
+   rather than pushing it down, so its own height has to stay in the
+   padding; 6rem is the header plus the 2.25rem Streamlit leaves when it
+   prints a page and has no header to clear, and is what it pads by when
+   nothing is along the top at all. */
+.stMainBlockContainer {
+  padding-top: 6rem;
+}
