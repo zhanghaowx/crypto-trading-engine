@@ -59,11 +59,33 @@ uv run jolteon --exchange Kraken --replay-start 2024-01-01T00:00:00 --replay-end
 **Replay a recording** from an earlier run:
 
 ```bash
-uv run jolteon --exchange Kraken --replay-db /tmp/jolteon.sqlite
+uv run jolteon --exchange Kraken --replay-db /tmp/jolteon/BTC-USD/live.sqlite
 ```
 
-Live and paper runs write to `/tmp/jolteon.log` and `/tmp/jolteon.sqlite`; replays
-write to `/tmp/replay.log`, `/tmp/replay.sqlite`, and a profiler trace at `/tmp/jolteon.stat`.
+**Another symbol** — `--symbol` takes any pair the venue lists. One engine trades one
+symbol, so trading two means running two engines:
+
+```bash
+uv run jolteon --exchange Kraken --paper --symbol ETH/USD
+```
+
+### Where a session writes
+
+Everything a session writes goes under a directory named after the symbol it traded,
+so a second engine never lands on top of the first:
+
+```
+/tmp/jolteon/
+  parameters.sqlite       # tuning, shared by every engine
+  BTC-USD/
+    live.sqlite           # every signal the session recorded
+    live.log              # and its log, mirrored into live.log.sqlite
+  ETH-USD/
+    ...
+```
+
+`--root` moves all of it somewhere else. A replay writes `replay.sqlite` beside the
+live recording for the same symbol, plus a profiler trace at `/tmp/jolteon.stat`.
 
 ### Dashboard
 

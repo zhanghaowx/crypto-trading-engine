@@ -27,9 +27,9 @@ class KrakenApplication(ApplicationBase):
     def __init__(
         self,
         symbol: str,
+        database_name: str,
+        logfile_name: str,
         use_mock_execution: bool = True,
-        database_name="/tmp/jolteon.sqlite",
-        logfile_name="/tmp/jolteon.log",
         strategy: object = None,
         fair_price_model: IFairPriceModel | None = None,
         parameter_service: IParameterService | None = None,

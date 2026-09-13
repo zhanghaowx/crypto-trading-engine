@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 
 import pytz
 
+from jolteon import paths
 from jolteon.app.progress_bar import ProgressBar
 from jolteon.engine.core.market import Market
 from jolteon.engine.core.parameter.parameter_service import (
@@ -81,12 +82,22 @@ async def main():
         ),
     )
     parser.add_argument(
+        "--root",
+        default=paths.DEFAULT_ROOT,
+        help=(
+            "Directory every session writes under. Each symbol gets a "
+            "directory of its own inside it, holding that session's "
+            "recording and its log."
+        ),
+    )
+    parser.add_argument(
         "--params-db",
-        default="/tmp/jolteon.params.sqlite",
+        default=None,
         help=(
             "Path to the SQLite database the dashboard pushes parameter "
-            "changes into. Pass an empty string to run on the declared "
-            "defaults and ignore anything pushed."
+            "changes into. Defaults to one store at the root of --root, "
+            "shared by every symbol. Pass an empty string to run on the "
+            "declared defaults and ignore anything pushed."
         ),
     )
     parser.add_argument(
@@ -123,9 +134,14 @@ async def main():
         )
 
     symbol = args.symbol
-    # Every file a session writes is named for its symbol, or a second
-    # engine would interleave its rows into the first one's database.
-    stem = symbol.replace("/", "-")
+    # Every file a session writes goes under its own symbol's directory,
+    # or a second engine would interleave its rows into the first one's
+    # database.
+    params_db = (
+        paths.parameter_store(args.root)
+        if args.params_db is None
+        else args.params_db
+    )
 
     if replay_start and replay_end and replay_db:
         assert False, (
@@ -151,8 +167,8 @@ async def main():
         app = Application(
             symbol,
             use_mock_execution=True,
-            database_name=f"/tmp/replay-{stem}.sqlite",
-            logfile_name=f"/tmp/replay-{stem}.log",
+            database_name=paths.recording(args.root, symbol, paths.REPLAY),
+            logfile_name=paths.log_file(args.root, symbol, paths.REPLAY),
         )
         _active_app = app
         profiler = cProfile.Profile()
@@ -176,8 +192,8 @@ async def main():
         # to produce the same result twice, which it cannot if a
         # dashboard can retune it halfway through.
         parameter_service = (
-            StoredParameterService(args.params_db)
-            if args.params_db
+            StoredParameterService(params_db)
+            if params_db
             else StaticParameterService()
         )
         if args.paper:
@@ -209,8 +225,8 @@ async def main():
         app = Application(
             symbol,
             use_mock_execution=args.paper,
-            database_name=f"/tmp/jolteon-{stem}.sqlite",
-            logfile_name=f"/tmp/jolteon-{stem}.log",
+            database_name=paths.recording(args.root, symbol),
+            logfile_name=paths.log_file(args.root, symbol),
             strategy=strategy,
             fair_price_model=fair_price_model,
             parameter_service=parameter_service,

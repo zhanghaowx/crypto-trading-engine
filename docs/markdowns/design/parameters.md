@@ -82,12 +82,12 @@ dashboard process                        engine process
 ─────────────────                        ──────────────
 Parameters page                          StoredParameterService
   stage edits in session state             poller thread, every ~1s
-  [Commit] ─write─> jolteon.params.sqlite ─read (mode=ro)─> rebuild on change
-                  (dashboard = sole writer)                     │
-                                                   parameter_applied
-                                                                │
-  page reads what the engine ran <─read─ jolteon.sqlite <────────┘
-                                         (engine = sole writer)
+  [Commit] ─write─> <root>/parameters.sqlite ─read (mode=ro)─> rebuild on change
+                  (dashboard = sole writer)                        │
+                                                      parameter_applied
+                                                                   │
+  page reads what the engine ran <─read─ <root>/<SYMBOL>/live.sqlite ┘
+                                        (engine = sole writer)
 ```
 
 Each file has exactly one writer, which is the same reasoning that gives

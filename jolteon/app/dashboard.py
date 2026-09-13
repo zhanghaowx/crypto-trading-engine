@@ -7,7 +7,10 @@ jolteon/core/event/signal_recorder.py) already writes every recorded signal
 into, so it can run as a completely separate process from the engine itself.
 
 Usage:
-    streamlit run jolteon/app/dashboard.py -- --db /tmp/jolteon.sqlite
+    streamlit run jolteon/app/dashboard.py -- --root /tmp/jolteon
+
+Every engine writes under a directory of that root named after the symbol
+it trades, so the symbols this can show are the directories it finds.
 
 The engine records every signal as it happens (see
 jolteon/core/sqlite_writer.py), and the database is in WAL mode, so these

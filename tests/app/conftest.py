@@ -5,6 +5,8 @@ from pathlib import Path
 import pytest
 from streamlit.testing.v1 import AppTest
 
+from jolteon import paths
+
 _DASHBOARD_PATH = str(
     Path(__file__).resolve().parents[2] / "jolteon" / "app" / "dashboard.py"
 )
@@ -20,7 +22,7 @@ def dashboard(tmp_path, missing_db_path) -> AppTest:
     at.session_state["auto_refresh"] = False
     # Kept inside the test's own directory: left at its default this
     # would discover whatever engines the machine really has running.
-    at.session_state["db_glob"] = str(tmp_path / "no-engine-*.sqlite")
+    at.session_state["root"] = str(tmp_path / "no-engine")
     at.session_state["db_path"] = missing_db_path
     at.session_state["log_db_path"] = missing_db_path
     at.session_state["params_db_path"] = missing_db_path
@@ -164,7 +166,8 @@ def recordings(tmp_path):
     leave behind: one file each, named for the symbol it traded."""
 
     def write(symbol: str) -> str:
-        path = tmp_path / f"jolteon-{symbol.replace('/', '-')}.sqlite"
+        path = paths.recording(str(tmp_path), symbol)
+        paths.prepare(path)
         conn = sqlite3.connect(path)
         try:
             conn.execute(
@@ -178,9 +181,8 @@ def recordings(tmp_path):
             conn.commit()
         finally:
             conn.close()
-        # An engine writes its logs to a database beside its recording,
-        # and any pattern matching the one matches the other.
-        sqlite3.connect(str(path).replace(".sqlite", ".log.sqlite")).close()
-        return str(path)
+        # An engine's log database sits in its own symbol's directory.
+        sqlite3.connect(f"{paths.log_file(str(tmp_path), symbol)}.sqlite")
+        return path
 
     return {symbol: write(symbol) for symbol in ("BTC/USD", "ETH/USD")}

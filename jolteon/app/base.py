@@ -5,6 +5,7 @@ from datetime import datetime
 
 import pytz
 
+from jolteon import paths
 from jolteon.engine.core.event.signal_manager import SignalManager
 from jolteon.engine.core.event.signal_recorder import SignalRecorder
 from jolteon.engine.core.logging.logger import setup_global_logger
@@ -49,6 +50,11 @@ class ApplicationBase(SignalManager):
         # setup_global_logger below is already one of them.
         self._parameter_service = parameter_service or StaticParameterService()
         use_parameter_service(self._parameter_service)
+
+        # Made here rather than by whoever picked the paths, so the
+        # first session on a new symbol writes into a directory that
+        # exists whatever built it.
+        paths.prepare(database_name, logfile_name)
 
         # Logs get their own file so their writer never contends with
         # `database_name`'s for its write lock.

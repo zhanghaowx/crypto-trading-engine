@@ -22,7 +22,7 @@ class SignalRecorder:
     `SQLiteWriter`, which does the SQL on a thread of its own.
     """
 
-    def __init__(self, database_name="/tmp/jolteon.sqlite"):
+    def __init__(self, database_name: str):
         self._database_name = database_name
         self._writer = SQLiteWriter(database_name)
 

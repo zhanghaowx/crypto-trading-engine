@@ -4,6 +4,7 @@ import argparse
 
 import streamlit as st
 
+from jolteon import paths
 from jolteon.app.data import engine_databases
 
 # Whether db_path is still whichever engine was found first, rather than
@@ -13,16 +14,15 @@ _AUTO = "_engine_chosen_automatically"
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    # Matches the engine's own naming, which puts the symbol it trades in
-    # the file name. A pattern rather than one path because one engine
-    # trades one symbol: watching two symbols means reading two files.
-    parser.add_argument("--db", default="/tmp/jolteon-*.sqlite")
-    # Left unset, each engine's log database is found next to its
-    # recording; give this to pin every page to one log file instead.
+    # The engine's own default. Every symbol traded under it has a
+    # directory there, which is how the symbols on offer are found.
+    parser.add_argument("--root", default=paths.DEFAULT_ROOT)
+    # Left unset, each engine's log database is found in that engine's own
+    # directory; give this to pin every page to one log file instead.
     parser.add_argument("--log-db", default="")
-    # Matches the engine's own --params-db default. The dashboard is the
-    # only writer of this file; the engine only ever reads it.
-    parser.add_argument("--params-db", default="/tmp/jolteon.params.sqlite")
+    # Defaults to the one store at the root of --root, shared by every
+    # symbol. The dashboard is the only writer of it; the engine reads.
+    parser.add_argument("--params-db", default="")
     # streamlit forwards its own args when not separated by "--"; ignore them.
     args, _ = parser.parse_known_args()
     return args
@@ -30,23 +30,24 @@ def parse_args() -> argparse.Namespace:
 
 def init_settings() -> None:
     args = parse_args()
-    st.session_state.setdefault("db_glob", args.db)
+    st.session_state.setdefault("root", args.root)
     st.session_state.setdefault("log_db_override", args.log_db)
 
     # Re-resolved every run until someone picks an engine, so a dashboard
     # opened before the engine starts finds it on a later refresh rather
     # than staying pinned to a file that did not exist at the time.
     if "db_path" not in st.session_state or st.session_state.get(_AUTO):
-        engines = engine_databases(st.session_state.db_glob)
+        engines = engine_databases(st.session_state.root)
         first = engines[0] if engines else None
-        st.session_state.db_path = (
-            first.path if first else st.session_state.db_glob
-        )
+        st.session_state.db_path = first.path if first else ""
         st.session_state.log_db_path = args.log_db or (
             first.log_path if first else ""
         )
         st.session_state[_AUTO] = True
-    st.session_state.setdefault("params_db_path", args.params_db)
+    st.session_state.setdefault(
+        "params_db_path",
+        args.params_db or paths.parameter_store(st.session_state.root),
+    )
     st.session_state.setdefault("auto_refresh", True)
     st.session_state.setdefault("refresh_seconds", 5)
     # Shared by Market Data's price chart and Risk Limits' sparklines, so

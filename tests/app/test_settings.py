@@ -3,6 +3,7 @@ import sys
 
 from streamlit.testing.v1 import AppTest
 
+from jolteon import paths
 from jolteon.app.data import engine_databases
 from jolteon.app.settings import parse_args
 
@@ -18,7 +19,7 @@ def test_parse_args_defaults_db_path(monkeypatch):
 
     args = parse_args()
 
-    assert args.db == "/tmp/jolteon-*.sqlite"
+    assert args.root == "/tmp/jolteon"
     assert args.log_db == ""
 
 
@@ -28,8 +29,8 @@ def test_parse_args_reads_custom_db_path(monkeypatch):
         "argv",
         [
             "prog",
-            "--db",
-            "/custom/path.sqlite",
+            "--root",
+            "/custom/root",
             "--log-db",
             "/custom/log.sqlite",
         ],
@@ -37,7 +38,7 @@ def test_parse_args_reads_custom_db_path(monkeypatch):
 
     args = parse_args()
 
-    assert args.db == "/custom/path.sqlite"
+    assert args.root == "/custom/root"
     assert args.log_db == "/custom/log.sqlite"
 
 
@@ -45,7 +46,7 @@ def test_init_settings_sets_session_state_defaults():
     at = AppTest.from_function(script).run()
 
     assert not at.exception
-    assert at.session_state["db_glob"] == "/tmp/jolteon-*.sqlite"
+    assert at.session_state["root"] == "/tmp/jolteon"
     assert at.session_state["auto_refresh"] is True
     assert at.session_state["refresh_seconds"] == 5
     assert at.session_state["chart_window_minutes"] == 15
@@ -62,10 +63,10 @@ def test_init_settings_does_not_override_existing_session_state():
     assert at.session_state["auto_refresh"] is False
 
 
-def _recording(tmp_path, symbol: str) -> str:
-    """An engine recording with one tick in it, named as the engine
-    names its own."""
-    path = tmp_path / f"jolteon-{symbol.replace('/', '-')}.sqlite"
+def _recording(root, symbol: str) -> str:
+    """One engine's recording, laid out where an engine would lay it."""
+    path = paths.recording(str(root), symbol)
+    paths.prepare(path)
     conn = sqlite3.connect(path)
     try:
         conn.execute("CREATE TABLE ticker_feed (timestamp REAL, symbol TEXT)")
@@ -75,60 +76,75 @@ def _recording(tmp_path, symbol: str) -> str:
         conn.commit()
     finally:
         conn.close()
-    return str(path)
+    return path
 
 
-def test_finds_every_engine_recording_and_names_it_by_its_symbol(tmp_path):
+def test_finds_every_symbol_that_has_been_traded(tmp_path):
     _recording(tmp_path, "ETH/USD")
     _recording(tmp_path, "BTC/USD")
 
-    found = engine_databases(str(tmp_path / "jolteon-*.sqlite"))
+    found = engine_databases(str(tmp_path))
 
     assert ["BTC/USD", "ETH/USD"] == [e.symbol for e in found]
 
 
-def test_a_recording_with_no_ticks_is_named_after_its_file(tmp_path):
+def test_a_symbol_directory_holds_its_own_recording_and_log(tmp_path):
+    path = _recording(tmp_path, "ETH/USD")
+
+    found = engine_databases(str(tmp_path))
+
+    assert found[0].path == path
+    assert found[0].path.endswith("ETH-USD/live.sqlite")
+    assert found[0].log_path.endswith("ETH-USD/live.log.sqlite")
+
+
+def test_a_symbol_with_no_ticks_is_named_after_its_directory(tmp_path):
     """
     An engine that has only just started has recorded nothing to take a
     symbol from, and still has to be nameable.
     """
-    path = tmp_path / "jolteon-SOL-USD.sqlite"
-    sqlite3.connect(path).close()
+    paths.symbol_directory(str(tmp_path), "SOL/USD").mkdir(parents=True)
 
-    found = engine_databases(str(path))
+    found = engine_databases(str(tmp_path))
 
-    assert ["jolteon-SOL-USD"] == [e.symbol for e in found]
-
-
-def test_an_engines_logs_sit_beside_its_recording(tmp_path):
-    path = _recording(tmp_path, "ETH/USD")
-    found = engine_databases(path)
-
-    assert found[0].log_path == path.replace(".sqlite", ".log.sqlite")
+    assert ["SOL/USD"] == [e.symbol for e in found]
 
 
-def test_starts_on_the_first_engine_it_finds(tmp_path):
+def test_the_tuning_store_is_not_a_symbol(tmp_path):
+    """
+    One store serves every engine, so it sits at the root beside the
+    symbols rather than inside any one of them.
+    """
+    _recording(tmp_path, "ETH/USD")
+    sqlite3.connect(paths.parameter_store(str(tmp_path))).close()
+
+    found = engine_databases(str(tmp_path))
+
+    assert ["ETH/USD"] == [e.symbol for e in found]
+
+
+def test_starts_on_the_first_symbol_it_finds(tmp_path):
     _recording(tmp_path, "ETH/USD")
     btc = _recording(tmp_path, "BTC/USD")
 
     at = AppTest.from_function(script)
-    at.session_state["db_glob"] = str(tmp_path / "jolteon-*.sqlite")
+    at.session_state["root"] = str(tmp_path)
     at.run()
 
     assert not at.exception
     assert at.session_state["db_path"] == btc
-    assert at.session_state["log_db_path"].endswith("BTC-USD.log.sqlite")
+    assert at.session_state["log_db_path"].endswith("BTC-USD/live.log.sqlite")
 
 
-def test_finds_an_engine_that_started_after_the_dashboard(tmp_path):
+def test_finds_a_symbol_that_started_after_the_dashboard(tmp_path):
     """
     A dashboard opened first must not stay pinned to a database that did
     not exist when it looked.
     """
     at = AppTest.from_function(script)
-    at.session_state["db_glob"] = str(tmp_path / "jolteon-*.sqlite")
+    at.session_state["root"] = str(tmp_path)
     at.run()
-    assert at.session_state["db_path"] == str(tmp_path / "jolteon-*.sqlite")
+    assert at.session_state["db_path"] == ""
 
     eth = _recording(tmp_path, "ETH/USD")
     at.run()
@@ -136,7 +152,17 @@ def test_finds_an_engine_that_started_after_the_dashboard(tmp_path):
     assert at.session_state["db_path"] == eth
 
 
-def test_keeps_the_engine_the_reader_chose(tmp_path):
+def test_the_tuning_store_sits_at_the_root(tmp_path):
+    at = AppTest.from_function(script)
+    at.session_state["root"] = str(tmp_path)
+    at.run()
+
+    assert at.session_state["params_db_path"] == str(
+        tmp_path / "parameters.sqlite"
+    )
+
+
+def test_keeps_the_symbol_the_reader_chose(tmp_path):
     eth = _recording(tmp_path, "ETH/USD")
     _recording(tmp_path, "BTC/USD")
 
@@ -149,7 +175,7 @@ def test_keeps_the_engine_the_reader_chose(tmp_path):
         init_settings()
         chosen = [
             e
-            for e in engine_databases(st.session_state.db_glob)
+            for e in engine_databases(st.session_state.root)
             if e.symbol == "ETH/USD"
         ]
         if chosen and st.session_state.get("_choose"):
@@ -157,7 +183,7 @@ def test_keeps_the_engine_the_reader_chose(tmp_path):
         st.session_state["_choose"] = True
 
     at = AppTest.from_function(choose)
-    at.session_state["db_glob"] = str(tmp_path / "jolteon-*.sqlite")
+    at.session_state["root"] = str(tmp_path)
     at.session_state["_choose"] = True
     at.run()
     assert at.session_state["db_path"] == eth
@@ -165,18 +191,3 @@ def test_keeps_the_engine_the_reader_chose(tmp_path):
     at.run()
 
     assert at.session_state["db_path"] == eth
-
-
-def test_an_engines_log_database_is_not_an_engine(tmp_path):
-    """
-    Logs sit beside the recording and are named after it, so any pattern
-    matching the one matches the other. Left in, a log database shows up
-    as a symbol of its own with nothing behind it - and being first
-    alphabetically, it is the one the dashboard opens on.
-    """
-    _recording(tmp_path, "ETH/USD")
-    sqlite3.connect(tmp_path / "jolteon-ETH-USD.log.sqlite").close()
-
-    found = engine_databases(str(tmp_path / "jolteon-*.sqlite"))
-
-    assert ["ETH/USD"] == [e.symbol for e in found]

@@ -12,12 +12,16 @@ process from the engine and can be pointed at either a live run's database or a 
 ## Running it
 
 ```bash
-uv run poe dashboard                                   # reads /tmp/jolteon.sqlite by default
-streamlit run jolteon/app/dashboard.py -- --db /tmp/replay.sqlite   # point at a specific database
+uv run poe dashboard                                     # reads /tmp/jolteon by default
+streamlit run jolteon/app/dashboard.py -- --root /tmp/jolteon   # point at another root
 ```
 
-`--params-db` points at the database the Parameters page pushes into, matching the engine's own
-flag of the same name. It defaults to `/tmp/jolteon.params.sqlite` on both sides.
+`--root` is the directory every engine writes under, matching the engine's own flag of the
+same name. Each symbol traded has a directory there, and those directories are the symbols
+the dashboard offers: pick one and every section reads that engine's recording and its logs.
+
+`--params-db` points at the database the Parameters page pushes into. It defaults to
+`parameters.sqlite` at the root of `--root`, which one store serves every engine from.
 
 ## Live page
 

@@ -75,7 +75,7 @@ def test_offers_no_symbol_to_choose_while_one_engine_is_running(dashboard):
 
 
 def test_offers_every_symbol_being_traded(dashboard, tmp_path, recordings):
-    dashboard.session_state["db_glob"] = str(tmp_path / "jolteon-*.sqlite")
+    dashboard.session_state["root"] = str(tmp_path)
     at = dashboard.run()
 
     assert not at.exception
@@ -85,7 +85,7 @@ def test_offers_every_symbol_being_traded(dashboard, tmp_path, recordings):
 def test_reads_the_first_engine_until_another_is_chosen(
     dashboard, tmp_path, recordings
 ):
-    dashboard.session_state["db_glob"] = str(tmp_path / "jolteon-*.sqlite")
+    dashboard.session_state["root"] = str(tmp_path)
     del dashboard.session_state["db_path"]
     at = dashboard.run()
 
@@ -100,10 +100,10 @@ def test_choosing_a_symbol_reads_that_engines_recording(
     One engine records to one file, so picking a symbol has to repoint
     every section at that engine's database and its logs.
     """
-    dashboard.session_state["db_glob"] = str(tmp_path / "jolteon-*.sqlite")
+    dashboard.session_state["root"] = str(tmp_path)
     at = dashboard.run()
     at.segmented_control[0].set_value("ETH/USD").run()
 
     assert not at.exception
     assert at.session_state["db_path"] == recordings["ETH/USD"]
-    assert at.session_state["log_db_path"].endswith("ETH-USD.log.sqlite")
+    assert at.session_state["log_db_path"].endswith("ETH-USD/live.log.sqlite")
