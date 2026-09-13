@@ -43,6 +43,10 @@ engine that has gone quiet is visible whichever symbol is on screen.
 * **Errors** — every engine's ERROR and CRITICAL log lines in one list, newest first, each naming
   the symbol whose engine logged it.
 
+The navigation item counts both — `Health (3)` under a warning icon rather than a heart — so a
+reader watching another page still sees that something needs looking at. A page refreshing on a
+timer asks for one full rerun when that count changes, since navigation is drawn once per run.
+
 ## Parameters page
 
 Two tabs. **Engine** edits every tunable the engine reads; it is generated from what each parameter

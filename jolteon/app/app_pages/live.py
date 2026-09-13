@@ -12,6 +12,7 @@ from jolteon.app.components import (
     section_surface_rule,
 )
 from jolteon.app.data import engine_databases
+from jolteon.app.health_summary import redraw_nav_if_stale
 from jolteon.app.settings import use_engine
 
 _ENGINE_KEY = "live-engine-symbol"
@@ -81,4 +82,11 @@ _select_engine()
 _refresh_seconds = (
     st.session_state.refresh_seconds if st.session_state.auto_refresh else None
 )
-st.fragment(render_sections, run_every=_refresh_seconds)(sections)
+
+
+def _refresh(sections: list[Section]) -> None:
+    render_sections(sections)
+    redraw_nav_if_stale(st.session_state.root)
+
+
+st.fragment(_refresh, run_every=_refresh_seconds)(sections)
