@@ -18,7 +18,7 @@ from typing import Any
 import streamlit as st
 
 from jolteon.app.components import card_grid, card_surface_rule
-from jolteon.app.data import read_latest_per_group, read_table
+from jolteon.app.data import engine_databases, read_table
 from jolteon.engine.core.parameter.parameter_applied import (
     REJECTED,
     TAKEN,
@@ -69,18 +69,20 @@ def _scope_label(symbol: str) -> str:
 def _scopes(stored: dict[Field, Any]) -> list[str]:
     """
     Returns: Every scope worth offering - all symbols first, then each
-    symbol either the store or the recorded session has seen.
+    symbol the store or any engine under the root has seen.
 
     Taken from what has been run and what has been set, rather than from
     a list to maintain, so pointing an engine at a new symbol is enough
     to make that symbol tunable here.
+
+    Every engine, not just the one whose recording the rest of the
+    dashboard is reading: a symbol is tunable while its own engine runs,
+    whichever engine the reader happens to be looking at.
     """
     symbols = {symbol for symbol, _, _ in stored if symbol != ALL_SYMBOLS}
-    ticks = read_latest_per_group(
-        st.session_state.db_path, "ticker_feed", "symbol"
+    symbols.update(
+        engine.symbol for engine in engine_databases(st.session_state.root)
     )
-    if not ticks.empty and "symbol" in ticks.columns:
-        symbols.update(ticks["symbol"].dropna())
     return [ALL_SYMBOLS, *sorted(symbols)]
 
 
