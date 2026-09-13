@@ -44,10 +44,16 @@ def _script():
     engine_parameters.render()
 
 
-def _page(params_db_path, missing_db_path) -> AppTest:
+def _page(params_db_path, missing_db_path, root=None) -> AppTest:
     at = AppTest.from_function(_script)
     at.session_state["params_db_path"] = params_db_path
     at.session_state["db_path"] = missing_db_path
+    # A root nothing has run under, so no symbol is on offer unless the
+    # test points the page at engines of its own. Left at its default it
+    # would find whatever engines the machine really has running.
+    at.session_state["root"] = root or str(
+        Path(missing_db_path).parent / "no-engine"
+    )
     return at
 
 
@@ -531,16 +537,33 @@ class TestTuningOneSymbol:
         assert ["All symbols", self.ETH] == at.segmented_control[0].options
 
     def test_offers_a_symbol_an_engine_has_actually_traded(
-        self, params_db_path, populated_db_path
+        self, params_db_path, missing_db_path, tmp_path, recordings
     ):
         """
         The usual way a symbol becomes tunable: an engine ran on it and
         recorded its ticks, so nobody has to register it here first.
         """
-        at = _page(params_db_path, populated_db_path).run()
+        at = _page(params_db_path, missing_db_path, str(tmp_path)).run()
 
         assert not at.exception
-        assert ["All symbols", "BTC-USD"] == at.segmented_control[0].options
+        assert [
+            "All symbols",
+            "BTC/USD",
+            "ETH/USD",
+        ] == at.segmented_control[0].options
+
+    def test_offers_every_running_engines_symbol_not_just_the_one_shown(
+        self, params_db_path, recordings, tmp_path
+    ):
+        """
+        Tuning a symbol must not wait on the Live page being switched to
+        it: the page reads one engine's recording, but a value pushed for
+        any symbol is read by the engine trading it.
+        """
+        at = _page(params_db_path, recordings["BTC/USD"], str(tmp_path)).run()
+
+        assert not at.exception
+        assert "ETH/USD" in at.segmented_control[0].options
 
     def test_a_symbol_shows_what_it_would_inherit(
         self, params_db_path, missing_db_path
