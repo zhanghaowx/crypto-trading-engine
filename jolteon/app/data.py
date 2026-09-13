@@ -6,11 +6,12 @@ talks to the running engine directly.
 
 import sqlite3
 from dataclasses import dataclass
-from glob import glob
 from pathlib import Path
 
 import pandas as pd
 import streamlit as st
+
+from jolteon import paths
 
 # Rows already fetched, keyed by (database, table), for as long as this
 # viewer's session lasts.
@@ -101,64 +102,48 @@ def read_table(db_path: str, table: str) -> pd.DataFrame:
     return frame.copy(deep=False)
 
 
-# What the engine appends to a session's log file name, which is itself
-# the recording's name with its suffix replaced.
-_LOG_SUFFIX = ".log.sqlite"
-
-
 @dataclass(frozen=True)
 class EngineDatabase:
     """One engine's recording, and the symbol that engine was trading."""
 
     path: str
     symbol: str
-
-    @property
-    def log_path(self) -> str:
-        """
-        Where the engine that wrote `path` puts its logs. Logs live in a
-        database of their own so their writer never contends with the
-        recorder's for a write lock, and the engine names it after the
-        same session rather than recording where it went.
-        """
-        return str(Path(self.path).with_suffix(_LOG_SUFFIX))
+    log_path: str
 
 
-def engine_databases(pattern: str) -> list[EngineDatabase]:
+def engine_databases(root: str) -> list[EngineDatabase]:
     """
-    Returns: Every engine recording `pattern` matches, each labelled with
-    the symbol that engine traded.
+    Returns: One entry per symbol something has been recorded for under
+    `root`, each naming that session's recording and its log database.
 
-    One engine trades one symbol and writes its own file, so a dashboard
-    watching several engines reads several files. A pattern naming a
-    single path matches only itself, so pointing at one database still
-    works.
-
-    An engine's log database sits beside its recording and is named after
-    it, so any pattern matching the one matches the other. Logs are not a
-    recording of anything traded, and left in they appear as a symbol of
-    their own with nothing behind it.
+    Every engine writes under a directory named after the symbol it
+    trades, so the symbols on offer are the directories present. Reading
+    the directory rather than matching file names against a pattern is
+    also what keeps a log database from being taken for a recording of
+    its own: it is a file inside a symbol's directory, not another one
+    beside it.
     """
     return [
-        EngineDatabase(path=path, symbol=_recorded_symbol(path))
-        for path in sorted(glob(pattern))
-        if not path.endswith(_LOG_SUFFIX)
+        EngineDatabase(
+            path=paths.recording(root, symbol),
+            symbol=_recorded_symbol(paths.recording(root, symbol), symbol),
+            log_path=f"{paths.log_file(root, symbol)}.sqlite",
+        )
+        for symbol in paths.traded_symbols(root)
     ]
 
 
-def _recorded_symbol(db_path: str) -> str:
+def _recorded_symbol(db_path: str, directory_symbol: str) -> str:
     """
-    Returns: The symbol this recording is of, taken from the recording
-    itself rather than from the file name - the name is a convention the
-    engine happens to follow, while a recorded tick is what happened.
-
-    Falls back to the file name for a recording with no ticks in it yet,
-    so an engine that has just started still has something to be called.
+    Returns: The symbol this recording is of, preferring what was
+    recorded over the directory it was recorded in - the directory name
+    is a spelling the engine chose, while a recorded tick names the pair
+    as the venue does.
     """
     latest = read_latest_row(db_path, "ticker_feed")
     if latest is not None and latest.get("symbol"):
         return str(latest["symbol"])
-    return Path(db_path).stem
+    return directory_symbol
 
 
 def as_datetime(column: pd.Series) -> pd.Series:

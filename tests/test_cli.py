@@ -37,6 +37,11 @@ from jolteon.engine.strategy.market_making.quote_offset import (
     FeeAwareQuoteOffsetService,
 )
 
+# Sessions write under a directory of their own. These tests never let
+# one run far enough to create it, but main() still builds every path
+# from it.
+ROOT = "/tmp/jolteon-cli-test"
+
 
 class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
     @patch("jolteon.app.kraken.KrakenApplication")
@@ -48,6 +53,8 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
             replay_db="",
             exchange="Kraken",
             symbol="BTC-USD",
+            root=str(ROOT),
+            params_db=None,
         ),
     )
     async def test_main_run_kraken_replay(self, mock_args, MockApplication):
@@ -77,6 +84,8 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
             replay_db="/tmp/unittest.sqlite",
             exchange="Kraken",
             symbol="BTC-USD",
+            root=str(ROOT),
+            params_db=None,
         ),
     )
     async def test_main_run_kraken_replay_2(
@@ -133,8 +142,9 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
             replay_db="",
             exchange="Kraken",
             symbol="BTC-USD",
-            paper=False,
+            root=str(ROOT),
             params_db="",
+            paper=False,
         ),
     )
     async def test_main_run_kraken_live(self, mock_args, MockApplication):
@@ -167,8 +177,9 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
             replay_db="",
             exchange="Kraken",
             symbol="BTC-USD",
-            paper=True,
+            root=str(ROOT),
             params_db="",
+            paper=True,
         ),
     )
     async def test_main_run_kraken_paper(self, mock_args, MockApplication):
@@ -234,6 +245,8 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
             replay_db="/tmp/unittest.sqlite",
             exchange="Kraken",
             symbol="BTC-USD",
+            root=str(ROOT),
+            params_db=None,
         ),
     )
     async def test_main_rejects_a_replay_range_and_a_database(self, mock_args):

@@ -26,7 +26,7 @@ def _select_engine() -> None:
     a symbol is choosing a database. Nothing is offered while only one
     engine has been running, since there is nothing to choose between.
     """
-    engines = engine_databases(st.session_state.db_glob)
+    engines = engine_databases(st.session_state.root)
     if len(engines) < 2:
         return
 
