@@ -13,11 +13,17 @@ so what is shown here is what the engine will read.
 """
 
 import re
+from dataclasses import dataclass
 from typing import Any
 
 import streamlit as st
 
-from jolteon.app.components import card_grid, card_surface_rule, slug
+from jolteon.app.components import (
+    BadgeColor,
+    card_grid,
+    card_surface_rule,
+    slug,
+)
 from jolteon.app.data import engine_databases, read_table
 from jolteon.engine.core.parameter.parameter_applied import (
     REJECTED,
@@ -176,8 +182,17 @@ def _shown(definition: ParameterDefinition, value: Any) -> str:
     return str(value)
 
 
-def _unusable_note(definition: ParameterDefinition, stored: Any) -> None:
-    st.badge("not usable", color="red", icon=":material/error:")
+@dataclass(frozen=True)
+class _Note:
+    """What a field has to say about itself beyond its value."""
+
+    label: str
+    color: BadgeColor
+    icon: str | None = None
+    caption: str | None = None
+
+
+def _unusable_note(definition: ParameterDefinition, stored: Any) -> _Note:
     allowed = ""
     if definition.minimum is not None and definition.maximum is not None:
         allowed = (
@@ -186,10 +201,15 @@ def _unusable_note(definition: ParameterDefinition, stored: Any) -> None:
         )
     elif definition.choices:
         allowed = f" Allowed: {', '.join(map(str, definition.choices))}."
-    st.caption(
-        f"Stored as {stored}, which this parameter cannot take.{allowed} "
-        f"An engine reading this store refuses it and keeps the value it "
-        f"already had."
+    return _Note(
+        "Not usable",
+        "red",
+        ":material/error:",
+        caption=(
+            f"Stored as {stored}, which this parameter cannot take."
+            f"{allowed} An engine reading this store refuses it and keeps "
+            f"the value it already had."
+        ),
     )
 
 
@@ -248,9 +268,10 @@ def _summary_rule() -> str:
 
 
 def _widget(field: Field, definition: ParameterDefinition, value) -> None:
+    # The label and its tooltip are on the row above, where the field's
+    # state sits beside them.
     label = _field_label(definition)
     key = _widget_key(field)
-    described = definition.description or None
     args = (field, definition)
 
     if definition.choices:
@@ -260,7 +281,7 @@ def _widget(field: Field, definition: ParameterDefinition, value) -> None:
             options=options,
             index=options.index(value),
             key=key,
-            help=described,
+            label_visibility="collapsed",
             on_change=_on_change,
             args=args,
         )
@@ -269,7 +290,7 @@ def _widget(field: Field, definition: ParameterDefinition, value) -> None:
             label,
             value=bool(value),
             key=key,
-            help=described,
+            label_visibility="collapsed",
             on_change=_on_change,
             args=args,
         )
@@ -281,7 +302,7 @@ def _widget(field: Field, definition: ParameterDefinition, value) -> None:
             max_value=_as_int(definition.maximum),
             step=int(definition.step or 1),
             key=key,
-            help=described,
+            label_visibility="collapsed",
             on_change=_on_change,
             args=args,
         )
@@ -295,7 +316,7 @@ def _widget(field: Field, definition: ParameterDefinition, value) -> None:
             # Without a format a value like 0.0005 renders as float noise.
             format=definition.number_format,
             key=key,
-            help=described,
+            label_visibility="collapsed",
             on_change=_on_change,
             args=args,
         )
@@ -304,7 +325,7 @@ def _widget(field: Field, definition: ParameterDefinition, value) -> None:
             label,
             value=str(value),
             key=key,
-            help=described,
+            label_visibility="collapsed",
             on_change=_on_change,
             args=args,
         )
@@ -314,40 +335,89 @@ def _as_int(bound: float | None) -> int | None:
     return None if bound is None else int(bound)
 
 
-def _state_badge(
+def _state_note(
     field: Field,
     definition: ParameterDefinition,
     stored: dict[Field, Any],
-) -> None:
+) -> _Note | None:
     """
-    What the engine did with this field, as it reported it. Nothing is
-    shown for a field left at its declared default, since there is
-    nothing to have picked up.
+    Returns: What this field has to say about what the engine did with
+    it, or nothing when it has nothing to say.
+
+    Silence is the ordinary state, and it means two different things
+    either side of a push: a field left at its declared default has
+    nothing to have been picked up, and a field the engine has read is
+    already the number it is quoting on. Neither is worth a badge; the
+    ones worth interrupting a reader for are the ones where what is
+    stored is not what is running.
     """
     symbol, group_name, _ = field
     if field not in stored:
-        if symbol != ALL_SYMBOLS and (
-            (ALL_SYMBOLS, group_name, definition.name) in stored
-        ):
-            st.badge(f"from {_ALL_SYMBOLS_LABEL.lower()}", color="grey")
-        return
+        inherited = (ALL_SYMBOLS, group_name, definition.name) in stored
+        if symbol != ALL_SYMBOLS and inherited:
+            return _Note("Inherited", "grey")
+        return None
 
     reports = st.session_state.get(_REPORTS, {})
     row = reports.get(applied_key(group_name, definition.name, symbol))
     if row is None:
-        st.badge("not picked up", color="yellow")
-        st.caption("Stored, but no engine has reported reading it.")
-        return
+        return _Note(
+            "Not picked up",
+            "yellow",
+            caption="Stored, but no engine has reported reading it.",
+        )
     if row.status == REJECTED:
-        st.badge("rejected", color="red", icon=":material/error:")
-        st.caption(row.reason)
-    elif row.status != TAKEN:
-        st.badge(row.status, color="orange")
-    elif row.observed_revision >= row.revision:
-        st.badge("applied", color="green", icon=":material/check:")
-    else:
-        st.badge("not read yet", color="yellow")
-        st.caption("Stored, but the component has not looked since.")
+        return _Note("Rejected", "red", ":material/error:", row.reason)
+    if row.status != TAKEN:
+        # The engine decides what statuses exist, so one this page has
+        # never heard of is passed through as it came.
+        return _Note(row.status, "orange")
+    if row.observed_revision >= row.revision:
+        return None
+    return _Note(
+        "Not read yet",
+        "yellow",
+        caption="Stored, but the component has not looked since.",
+    )
+
+
+def _field(
+    field: Field,
+    definition: ParameterDefinition,
+    stored: dict[Field, Any],
+) -> None:
+    usable, unusable = _presentable(
+        definition, _current(field, definition, stored)
+    )
+    note = (
+        _state_note(field, definition, stored)
+        if unusable is None
+        else _unusable_note(definition, unusable)
+    )
+    _label_row(definition, note)
+    _widget(field, definition, usable)
+    if note is not None and note.caption:
+        st.caption(note.caption)
+
+
+def _label_row(definition: ParameterDefinition, note: _Note | None) -> None:
+    """
+    The field's name, and what it has to say about itself beside it.
+
+    A horizontal container rather than columns: a parameter card is
+    narrow, and a fixed split would squeeze the name to make room for a
+    badge that is usually not there at all.
+    """
+    with st.container(
+        horizontal=True, vertical_alignment="center", gap="small"
+    ):
+        st.markdown(
+            f"{_field_label(definition)}",
+            help=definition.description or None,
+            width="content",
+        )
+        if note is not None:
+            st.badge(note.label, color=note.color, icon=note.icon)
 
 
 def _push() -> None:
@@ -397,15 +467,9 @@ def render() -> None:
     for group in card_grid(GROUPS, key="parameter-cards", key_fn=_card_key):
         st.markdown(f"**{_group_title(group.__name__)}**")
         for definition in definitions(group):
-            field = (symbol, group.__name__, definition.name)
-            usable, unusable = _presentable(
-                definition, _current(field, definition, stored)
+            _field(
+                (symbol, group.__name__, definition.name), definition, stored
             )
-            _widget(field, definition, usable)
-            if unusable is None:
-                _state_badge(field, definition, stored)
-            else:
-                _unusable_note(definition, unusable)
 
     if staged:
         # A markdown table, not `st.dataframe`: the data grid is a lazily
