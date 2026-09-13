@@ -17,7 +17,7 @@ from typing import Any
 
 import streamlit as st
 
-from jolteon.app.components import card_grid, card_surface_rule
+from jolteon.app.components import card_grid, card_surface_rule, slug
 from jolteon.app.data import engine_databases, read_table
 from jolteon.engine.core.parameter.parameter_applied import (
     REJECTED,
@@ -199,9 +199,7 @@ def _on_change(field: Field, definition: ParameterDefinition) -> None:
 
 
 def _card_key(group: type) -> str:
-    return "param-card-" + re.sub(
-        r"[^a-z0-9]+", "-", group.__name__.lower()
-    ).strip("-")
+    return f"param-card-{slug(group.__name__)}"
 
 
 def _group_title(group_name: str) -> str:

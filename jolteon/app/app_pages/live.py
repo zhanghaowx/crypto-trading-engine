@@ -1,6 +1,3 @@
-import re
-from typing import Callable
-
 import streamlit as st
 
 from jolteon.app.app_pages import (
@@ -11,7 +8,11 @@ from jolteon.app.app_pages import (
     orders_pnl,
     risk_limits,
 )
-from jolteon.app.components import card_surface_rule
+from jolteon.app.components import (
+    Section,
+    render_sections,
+    section_surface_rule,
+)
 from jolteon.app.data import engine_databases
 from jolteon.app.settings import use_engine
 
@@ -41,52 +42,6 @@ def _select_engine() -> None:
     # A segmented control lets the reader clear their own selection.
     if symbol in by_symbol:
         use_engine(by_symbol[symbol])
-
-
-Section = tuple[
-    str,
-    str,
-    Callable[[], None],
-    Callable[[], None] | None,
-    Callable[[], bool] | None,
-]
-
-
-# Section cards are keyed so scoped CSS can style them (see `CARD_BACKGROUND`
-# and `CARD_SHADOW`); without it they'd be flat and transparent against the
-# grey canvas, and the page would read as one continuous sheet.
-def _section_key(title: str) -> str:
-    return "card-" + re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
-
-
-def _section(
-    title: str,
-    icon: str,
-    render_fn: Callable[[], None],
-    actions: Callable[[], None] | None = None,
-    visible: Callable[[], bool] | None = None,
-) -> None:
-    if visible is not None and not visible():
-        return
-    with st.container(border=True, key=_section_key(title)):
-        if actions is None:
-            st.subheader(title, icon=icon)
-        else:
-            # A section's own action sits on the title's row instead of
-            # pushing the section's content down to make room for it.
-            title_col, actions_col = st.columns(
-                [8, 1], vertical_alignment="center"
-            )
-            with title_col:
-                st.subheader(title, icon=icon)
-            with actions_col:
-                actions()
-        render_fn()
-
-
-def _render_sections(sections: list[Section]) -> None:
-    for title, icon, render_fn, actions, visible in sections:
-        _section(title, icon, render_fn, actions, visible)
 
 
 sections: list[Section] = [
@@ -137,34 +92,7 @@ sections: list[Section] = [
     ),
 ]
 
-# Emitted before any card renders, not after: Streamlit streams
-# elements to the browser as the script runs rather than painting the
-# whole page at once, so a card's own container can reach the DOM
-# several beats before the rule painting it white would - showing the
-# grey canvas underneath for a moment before it snaps to white. Cards
-# are keyed off the (static) titles above, so this needs nothing the
-# sections loop itself produces.
-_card_keys = [_section_key(title) for title, *_ in sections]
-_selector = ", ".join(f".st-key-{key}" for key in _card_keys)
-
-# Emitted before any card renders, not after: Streamlit streams
-# elements to the browser as the script runs rather than painting the
-# whole page at once, so a card's own container can reach the DOM
-# several beats before the rule painting it white would - showing the
-# grey canvas underneath for a moment before it snaps to white. Cards
-# are keyed off the (static) titles above, so this needs nothing the
-# sections loop itself produces.
-st.html(card_surface_rule(_card_keys))
-st.html(
-    f"<style>"
-    f"html {{ interpolate-size: allow-keywords; }}"
-    # `interpolate-size` (Chromium) is what lets a height transition
-    # animate to/from `auto` at all; elsewhere this is simply a no-op
-    # and a card's height still changes, just without the animation.
-    f"{_selector} {{ transition: height 300ms ease,"
-    f" box-shadow 300ms ease; }}"
-    f"</style>"
-)
+st.html(section_surface_rule(title for title, *_ in sections))
 
 # Outside the refreshing fragment: the sections below read whichever
 # engine this picks, so it has to be settled before they run, and a
@@ -180,4 +108,4 @@ _select_engine()
 _refresh_seconds = (
     st.session_state.refresh_seconds if st.session_state.auto_refresh else None
 )
-st.fragment(_render_sections, run_every=_refresh_seconds)(sections)
+st.fragment(render_sections, run_every=_refresh_seconds)(sections)

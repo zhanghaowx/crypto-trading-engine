@@ -123,6 +123,11 @@ _ROW_ANIMATIONS_CSS = (
 ).read_text()
 
 
+def slug(text: str) -> str:
+    """`text` as a CSS-safe fragment of a container key."""
+    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+
+
 def row_key(prefix: str, identity: str) -> str:
     """
     A container `key` for a row/entry, stable for as long as its own
@@ -135,8 +140,7 @@ def row_key(prefix: str, identity: str) -> str:
     mounts fresh - which is what `row_add_rule` needs to play once, only
     for the row that's actually new.
     """
-    slug = re.sub(r"[^a-z0-9]+", "-", identity.lower()).strip("-")
-    return f"row-{prefix}-{slug}"
+    return f"row-{prefix}-{slug(identity)}"
 
 
 def row_add_rule(prefix: str) -> str:
@@ -208,6 +212,73 @@ def card_surface_rule(keys) -> str:
         f"<style>{selector} {{ background-color: {CARD_BACKGROUND};"
         f" box-shadow: {CARD_SHADOW}; }}</style>"
     )
+
+
+Section = tuple[
+    str,
+    str,
+    Callable[[], None],
+    Callable[[], None] | None,
+    Callable[[], bool] | None,
+]
+
+_SECTION_CARDS_CSS = (
+    Path(__file__).resolve().parent / "static" / "section_cards.css"
+).read_text()
+
+
+def section_key(title: str) -> str:
+    return f"card-{slug(title)}"
+
+
+def section_surface_rule(titles) -> str:
+    """
+    Returns: A style block painting each section titled in `titles` as a
+    card and animating the height it settles at.
+
+    Emitted before any section renders, not after: Streamlit streams
+    elements to the browser as the script runs rather than painting the
+    whole page at once, so a card's own container can reach the DOM
+    several beats before the rule painting it white would, showing the
+    canvas underneath for a moment before it snaps to white.
+    """
+    keys = [section_key(title) for title in titles]
+    if not keys:
+        return ""
+    selector = ", ".join(f".st-key-{key}" for key in keys)
+    return card_surface_rule(keys) + (
+        f"<style>{_SECTION_CARDS_CSS % {'selector': selector}}</style>"
+    )
+
+
+def section(
+    title: str,
+    icon: str,
+    render_fn: Callable[[], None],
+    actions: Callable[[], None] | None = None,
+    visible: Callable[[], bool] | None = None,
+) -> None:
+    if visible is not None and not visible():
+        return
+    with st.container(border=True, key=section_key(title)):
+        if actions is None:
+            st.subheader(title, icon=icon)
+        else:
+            # A section's own action sits on the title's row instead of
+            # pushing the section's content down to make room for it.
+            title_col, actions_col = st.columns(
+                [8, 1], vertical_alignment="center"
+            )
+            with title_col:
+                st.subheader(title, icon=icon)
+            with actions_col:
+                actions()
+        render_fn()
+
+
+def render_sections(sections: list[Section]) -> None:
+    for title, icon, render_fn, actions, visible in sections:
+        section(title, icon, render_fn, actions, visible)
 
 
 CARD_GRID_GAP = "1rem"
