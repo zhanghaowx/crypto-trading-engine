@@ -2,8 +2,6 @@ import streamlit as st
 
 from jolteon.app.app_pages import (
     fair_price_signals,
-    health,
-    logs,
     market_data,
     orders_pnl,
     risk_limits,
@@ -45,35 +43,18 @@ def _select_engine() -> None:
 
 
 sections: list[Section] = [
-    # Health leads: if a component has gone quiet, everything below it
-    # is stale data and the reader needs to know that first.
-    ("Health", ":material/monitor_heart:", health.render, None, None),
-    (
-        "Market Data",
-        ":material/show_chart:",
-        market_data.render,
-        None,
-        None,
-    ),
-    (
-        "Risk Limits",
-        ":material/earthquake:",
-        risk_limits.render,
-        None,
-        None,
-    ),
+    ("Market Data", ":material/show_chart:", market_data.render, None),
+    ("Risk Limits", ":material/earthquake:", risk_limits.render, None),
     (
         "Orders & PnL",
         ":material/currency_bitcoin:",
         orders_pnl.render,
         orders_pnl.render_header_actions,
-        None,
     ),
     (
         "Trade Quality",
         ":material/target:",
         orders_pnl.render_trade_quality,
-        None,
         None,
     ),
     (
@@ -81,14 +62,6 @@ sections: list[Section] = [
         ":material/insights:",
         fair_price_signals.render,
         None,
-        None,
-    ),
-    (
-        "Errors",
-        ":material/error:",
-        logs.render,
-        None,
-        logs.has_errors,
     ),
 ]
 

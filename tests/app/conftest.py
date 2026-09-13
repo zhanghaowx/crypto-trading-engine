@@ -174,6 +174,58 @@ def populated_db_path(tmp_path) -> str:
     return db_path
 
 
+class _Engines:
+    """Engines as they leave themselves on disk: a directory per symbol,
+    holding that engine's recording and its own log database."""
+
+    def __init__(self, root: str) -> None:
+        self.root = root
+
+    def add(self, symbol: str, *, heartbeats=(), logs=()) -> str:
+        recording = paths.recording(self.root, symbol)
+        paths.prepare(recording)
+        conn = sqlite3.connect(recording)
+        try:
+            conn.execute(
+                "CREATE TABLE ticker_feed "
+                "(timestamp REAL, symbol TEXT, bid_price REAL, ask_price REAL)"
+            )
+            conn.execute(
+                "INSERT INTO ticker_feed VALUES (1700000000, ?, 100.0, 101.0)",
+                (symbol,),
+            )
+            conn.execute(
+                "CREATE TABLE heartbeat "
+                "(timestamp REAL, sender TEXT, level INTEGER, message TEXT)"
+            )
+            conn.executemany(
+                "INSERT INTO heartbeat VALUES (?, ?, ?, ?)", heartbeats
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        conn = sqlite3.connect(paths.log_database(self.root, symbol))
+        try:
+            conn.execute(
+                "CREATE TABLE logs (created TEXT, name TEXT, levelname TEXT, "
+                "filename TEXT, lineno TEXT, msg TEXT)"
+            )
+            conn.executemany(
+                "INSERT INTO logs VALUES (?, ?, ?, ?, ?, ?)", logs
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        return recording
+
+
+@pytest.fixture
+def engines(tmp_path) -> _Engines:
+    """A root to start engines under, one symbol at a time."""
+    return _Engines(str(tmp_path / "engines"))
+
+
 @pytest.fixture
 def recordings(tmp_path):
     """Two engines' recordings, as two engines running two symbols would

@@ -1,3 +1,5 @@
+import time
+
 from jolteon import paths
 
 
@@ -6,25 +8,6 @@ def test_dashboard_renders_every_section_on_one_page(dashboard):
 
     assert not at.exception
     assert [s.value for s in at.subheader] == [
-        "Health",
-        "Market Data",
-        "Risk Limits",
-        "Orders & PnL",
-        "Trade Quality",
-        "Fair Price Signals",
-        "Errors",
-    ]
-
-
-def test_dashboard_hides_errors_section_once_confirmed_empty(
-    dashboard, empty_db_path
-):
-    dashboard.session_state["log_db_path"] = empty_db_path
-    at = dashboard.run()
-
-    assert not at.exception
-    assert [s.value for s in at.subheader] == [
-        "Health",
         "Market Data",
         "Risk Limits",
         "Orders & PnL",
@@ -37,10 +20,10 @@ def test_dashboard_warns_in_every_section_when_db_missing(dashboard):
     at = dashboard.run()
 
     assert not at.exception
-    # One warning per section: health, market data, risk limits, orders &
-    # pnl, trade quality, fair price signals, errors. The viewer settings
-    # that used to warn here alongside them are on the Parameters page now.
-    assert len(at.warning) == 7
+    # One warning per section: market data, risk limits, orders & pnl,
+    # trade quality, fair price signals. Health and errors are on a page
+    # of their own, and the viewer settings on the Parameters page.
+    assert len(at.warning) == 5
 
 
 def test_dashboard_opens_on_the_live_page(dashboard):
@@ -67,7 +50,51 @@ def test_parameters_page_does_not_render_the_live_sections(dashboard):
     at.switch_page("app_pages/parameters.py").run()
 
     assert not at.exception
+    assert "Market Data" not in [s.value for s in at.subheader]
+
+
+def test_health_has_a_page_of_its_own(dashboard):
+    at = dashboard.run()
+    at.switch_page("app_pages/health.py").run()
+
+    assert not at.exception
+    assert [s.value for s in at.subheader] == ["Health", "Errors"]
+
+
+def test_the_live_page_no_longer_reports_health(dashboard):
+    """
+    Health belongs to every engine at once, and the Live page reads one
+    engine at a time.
+    """
+    at = dashboard.run()
+
     assert "Health" not in [s.value for s in at.subheader]
+    assert "Errors" not in [s.value for s in at.subheader]
+
+
+def test_the_health_page_watches_every_engine(dashboard, engines):
+    engines.add("BTC/USD", heartbeats=[(time.time(), "MD", 1, "Streaming")])
+    engines.add(
+        "ETH/USD",
+        logs=[
+            (
+                "1700000000.0",
+                "jolteon",
+                "ERROR",
+                "feed.py",
+                "42",
+                "connection dropped",
+            )
+        ],
+    )
+    dashboard.session_state["root"] = engines.root
+
+    at = dashboard.run()
+    at.switch_page("app_pages/health.py").run()
+
+    assert not at.exception
+    assert "**MD**" in [m.value for m in at.markdown]
+    assert "connection dropped" in at.status[0].label
 
 
 def test_offers_no_symbol_to_choose_while_one_engine_is_running(dashboard):
