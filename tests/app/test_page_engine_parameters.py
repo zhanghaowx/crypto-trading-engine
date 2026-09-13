@@ -21,6 +21,7 @@ from jolteon.engine.core.parameter.parameter_specification import (
     parameter,
 )
 from jolteon.engine.core.parameter.parameter_store import (
+    ParameterOverride,
     ParameterStore,
     override_of,
 )
@@ -28,8 +29,13 @@ from jolteon.engine.strategy.market_making.parameters import (
     MarketMakingParameters,
 )
 
-QUOTE_SIZE = "param.MarketMakingParameters.quote_size"
-BOOK_DEPTH = "param.MarketMakingParameters.book_depth"
+
+def _key(group_name: str, field_name: str, symbol: str = ALL_SYMBOLS) -> str:
+    return engine_parameters._widget_key((symbol, group_name, field_name))
+
+
+QUOTE_SIZE = _key("MarketMakingParameters", "quote_size")
+BOOK_DEPTH = _key("MarketMakingParameters", "book_depth")
 
 
 def _script():
@@ -59,7 +65,7 @@ def test_renders_a_widget_for_every_declared_parameter(
     kinds = (at.number_input, at.checkbox, at.selectbox, at.text_input)
     rendered = {widget.key for kind in kinds for widget in kind}
     expected = {
-        f"param.{group.__name__}.{definition.name}"
+        _key(group.__name__, definition.name)
         for group in GROUPS
         for definition in definitions(group)
     }
@@ -106,7 +112,10 @@ def test_an_edit_shows_what_it_would_change(params_db_path, missing_db_path):
     assert not at.exception
     assert not at.button[0].disabled
     summary = at.markdown[-1].value
-    assert "| Market Making · Quote Size | default | 0.02 |" in summary
+    assert (
+        "| Market Making · Quote Size | All symbols | default | 0.02 |"
+        in summary
+    )
 
 
 def test_pushing_writes_every_staged_change(params_db_path, missing_db_path):
@@ -289,8 +298,8 @@ class DemoParameters(ParameterGroup):
     label: str = parameter("alpha")
 
 
-MODE = "param.DemoParameters.mode"
-LABEL = "param.DemoParameters.label"
+MODE = _key("DemoParameters", "mode")
+LABEL = _key("DemoParameters", "label")
 
 
 @pytest.fixture
@@ -473,3 +482,218 @@ class TestWhatTheEngineSaidItDid:
 
         assert not at.exception
         assert UNKNOWN in self._badges(at)
+
+
+class TestTuningOneSymbol:
+    """
+    A size or an edge that suits one instrument suits no other, so a
+    value can be set for one symbol without disturbing the rest. The page
+    has to resolve a symbol exactly as the engine does, or it shows a
+    number the engine is not running on.
+    """
+
+    ETH = "ETH/USD"
+
+    def _eth_quote_size(self) -> str:
+        return _key("MarketMakingParameters", "quote_size", self.ETH)
+
+    def _seeded(self, params_db_path, overrides):
+        ParameterStore(params_db_path).push(overrides)
+
+    def _page_for(self, params_db_path, missing_db_path, symbol=None):
+        at = _page(params_db_path, missing_db_path)
+        if symbol is not None:
+            at.session_state[engine_parameters._SCOPE] = symbol
+        return at.run()
+
+    def test_offers_no_choice_until_a_symbol_is_known(
+        self, params_db_path, missing_db_path
+    ):
+        at = _page(params_db_path, missing_db_path).run()
+        assert not at.exception
+        assert len(at.segmented_control) == 0
+
+    def test_offers_every_symbol_the_store_has_heard_of(
+        self, params_db_path, missing_db_path
+    ):
+        self._seeded(
+            params_db_path,
+            [
+                ParameterOverride(
+                    "MarketMakingParameters", "quote_size", self.ETH, 0.01
+                )
+            ],
+        )
+        at = self._page_for(params_db_path, missing_db_path)
+
+        assert not at.exception
+        # AppTest reports the labels, not the values behind them.
+        assert ["All symbols", self.ETH] == at.segmented_control[0].options
+
+    def test_offers_a_symbol_an_engine_has_actually_traded(
+        self, params_db_path, populated_db_path
+    ):
+        """
+        The usual way a symbol becomes tunable: an engine ran on it and
+        recorded its ticks, so nobody has to register it here first.
+        """
+        at = _page(params_db_path, populated_db_path).run()
+
+        assert not at.exception
+        assert ["All symbols", "BTC-USD"] == at.segmented_control[0].options
+
+    def test_a_symbol_shows_what_it_would_inherit(
+        self, params_db_path, missing_db_path
+    ):
+        """
+        A field a symbol has no value for is not on its declared default:
+        it is on whatever every symbol uses.
+        """
+        self._seeded(
+            params_db_path,
+            [
+                override_of("MarketMakingParameters", "quote_size", 0.02),
+                ParameterOverride(
+                    "MarketMakingParameters", "book_depth", self.ETH, 4
+                ),
+            ],
+        )
+        at = self._page_for(params_db_path, missing_db_path, self.ETH)
+
+        assert not at.exception
+        assert 0.02 == at.number_input(key=self._eth_quote_size()).value
+
+    def test_a_symbols_own_value_wins(self, params_db_path, missing_db_path):
+        self._seeded(
+            params_db_path,
+            [
+                override_of("MarketMakingParameters", "quote_size", 0.02),
+                ParameterOverride(
+                    "MarketMakingParameters", "quote_size", self.ETH, 0.01
+                ),
+            ],
+        )
+        at = self._page_for(params_db_path, missing_db_path, self.ETH)
+
+        assert 0.01 == at.number_input(key=self._eth_quote_size()).value
+
+    def test_says_which_values_a_symbol_is_only_inheriting(
+        self, params_db_path, missing_db_path
+    ):
+        self._seeded(
+            params_db_path,
+            [
+                override_of("MarketMakingParameters", "quote_size", 0.02),
+                ParameterOverride(
+                    "MarketMakingParameters", "book_depth", self.ETH, 4
+                ),
+            ],
+        )
+        at = self._page_for(params_db_path, missing_db_path, self.ETH)
+
+        badges = " ".join(m.value for m in at.markdown if "-badge[" in m.value)
+        assert "from all symbols" in badges
+
+    def test_an_edit_is_stored_against_the_symbol_chosen(
+        self, params_db_path, missing_db_path
+    ):
+        self._seeded(
+            params_db_path,
+            [
+                ParameterOverride(
+                    "MarketMakingParameters", "book_depth", self.ETH, 4
+                )
+            ],
+        )
+        at = self._page_for(params_db_path, missing_db_path, self.ETH)
+        at.number_input(key=self._eth_quote_size()).set_value(0.01).run()
+        at.button[0].click().run()
+
+        assert not at.exception
+        stored = {
+            (o.symbol, o.field_name): o.value
+            for o in ParameterStore(params_db_path).read()
+        }
+        assert 0.01 == stored[(self.ETH, "quote_size")]
+
+    def test_editing_a_symbol_leaves_every_other_symbol_alone(
+        self, params_db_path, missing_db_path
+    ):
+        self._seeded(
+            params_db_path,
+            [
+                override_of("MarketMakingParameters", "quote_size", 0.02),
+                ParameterOverride(
+                    "MarketMakingParameters", "book_depth", self.ETH, 4
+                ),
+            ],
+        )
+        at = self._page_for(params_db_path, missing_db_path, self.ETH)
+        at.number_input(key=self._eth_quote_size()).set_value(0.01).run()
+        at.button[0].click().run()
+
+        shared = _page(params_db_path, missing_db_path).run()
+        assert 0.02 == shared.number_input(key=QUOTE_SIZE).value
+
+    def test_a_staged_edit_names_the_symbol_it_applies_to(
+        self, params_db_path, missing_db_path
+    ):
+        self._seeded(
+            params_db_path,
+            [
+                ParameterOverride(
+                    "MarketMakingParameters", "book_depth", self.ETH, 4
+                )
+            ],
+        )
+        at = self._page_for(params_db_path, missing_db_path, self.ETH)
+        at.number_input(key=self._eth_quote_size()).set_value(0.01).run()
+
+        assert f"| {self.ETH} |" in at.markdown[-1].value
+
+    def test_each_symbol_keeps_its_own_widget(
+        self, params_db_path, missing_db_path
+    ):
+        """
+        Widgets are keyed by scope as well as by name. Keyed by name
+        alone, Streamlit would carry one symbol's edit over to the next
+        symbol selected.
+        """
+        self._seeded(
+            params_db_path,
+            [
+                ParameterOverride(
+                    "MarketMakingParameters", "quote_size", self.ETH, 0.01
+                )
+            ],
+        )
+        at = self._page_for(params_db_path, missing_db_path, self.ETH)
+
+        assert self._eth_quote_size() in {
+            widget.key for widget in at.number_input
+        }
+        assert QUOTE_SIZE not in {widget.key for widget in at.number_input}
+
+    def test_a_symbol_follows_a_shared_edit_before_it_is_committed(
+        self, params_db_path, missing_db_path
+    ):
+        """
+        Staging a change for every symbol and then looking at one of them
+        has to show the change, not the value it is about to replace.
+        """
+        self._seeded(
+            params_db_path,
+            [
+                ParameterOverride(
+                    "MarketMakingParameters", "book_depth", self.ETH, 4
+                )
+            ],
+        )
+        at = self._page_for(params_db_path, missing_db_path)
+        at.number_input(key=QUOTE_SIZE).set_value(0.02).run()
+
+        at.session_state[engine_parameters._SCOPE] = self.ETH
+        at.run()
+
+        assert not at.exception
+        assert 0.02 == at.number_input(key=self._eth_quote_size()).value

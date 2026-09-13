@@ -4,6 +4,12 @@ Editor for the tunables the trading engine reads.
 Every widget on this page is built from what a parameter group declares,
 so adding a tunable to the engine needs no change here: the new field
 arrives with its own bounds, units and description already attached.
+
+A value can be set for every symbol or for one of them, which is how a
+size or an edge suited to one instrument is kept away from another. The
+page resolves a symbol's value the way the engine does - the symbol's own
+value, else the one set for every symbol, else what the field declares -
+so what is shown here is what the engine will read.
 """
 
 import re
@@ -12,7 +18,7 @@ from typing import Any
 import streamlit as st
 
 from jolteon.app.components import card_grid, card_surface_rule
-from jolteon.app.data import read_table
+from jolteon.app.data import read_latest_per_group, read_table
 from jolteon.engine.core.parameter.parameter_applied import (
     REJECTED,
     TAKEN,
@@ -30,23 +36,52 @@ from jolteon.engine.core.parameter.parameter_store import (
 )
 
 _STAGED = "_staged_parameters"
+_SCOPE = "parameter-scope"
+_ALL_SYMBOLS_LABEL = "All symbols"
+
+# A field identified by the scope it is set for as well as by its name.
+Field = tuple[str, str, str]
 
 
-def _staged() -> dict[tuple[str, str], Any]:
+def _staged() -> dict[Field, Any]:
     return st.session_state.setdefault(_STAGED, {})
 
 
-def _widget_key(group_name: str, field_name: str) -> str:
-    return f"param.{group_name}.{field_name}"
+def _widget_key(field: Field) -> str:
+    # The scope belongs in the key: a widget keyed by name alone would
+    # carry one symbol's value over to the next symbol selected, since
+    # Streamlit keeps whatever the key already held.
+    symbol, group_name, field_name = field
+    return f"param.{symbol or 'all'}.{group_name}.{field_name}"
 
 
-def _stored_values() -> dict[tuple[str, str], Any]:
+def _stored_values() -> dict[Field, Any]:
     store = ParameterStore(st.session_state.params_db_path)
     return {
-        (o.group_name, o.field_name): o.value
-        for o in store.read()
-        if o.symbol == ALL_SYMBOLS
+        (o.symbol, o.group_name, o.field_name): o.value for o in store.read()
     }
+
+
+def _scope_label(symbol: str) -> str:
+    return symbol or _ALL_SYMBOLS_LABEL
+
+
+def _scopes(stored: dict[Field, Any]) -> list[str]:
+    """
+    Returns: Every scope worth offering - all symbols first, then each
+    symbol either the store or the recorded session has seen.
+
+    Taken from what has been run and what has been set, rather than from
+    a list to maintain, so pointing an engine at a new symbol is enough
+    to make that symbol tunable here.
+    """
+    symbols = {symbol for symbol, _, _ in stored if symbol != ALL_SYMBOLS}
+    ticks = read_latest_per_group(
+        st.session_state.db_path, "ticker_feed", "symbol"
+    )
+    if not ticks.empty and "symbol" in ticks.columns:
+        symbols.update(ticks["symbol"].dropna())
+    return [ALL_SYMBOLS, *sorted(symbols)]
 
 
 def _engine_state() -> dict[str, Any]:
@@ -60,11 +95,20 @@ def _engine_state() -> dict[str, Any]:
     return {row.key: row for row in applied.itertuples()}
 
 
-def _current(group_name: str, definition: ParameterDefinition, stored):
-    key = (group_name, definition.name)
-    if key in _staged():
-        return _staged()[key]
-    return stored.get(key, definition.default)
+def _current(field: Field, definition: ParameterDefinition, stored):
+    if field in _staged():
+        return _staged()[field]
+    if field in stored:
+        return stored[field]
+    return _inherited(field, definition, stored)
+
+
+def _inherited(field: Field, definition: ParameterDefinition, stored):
+    _, group_name, field_name = field
+    shared = (ALL_SYMBOLS, group_name, field_name)
+    if shared in _staged():
+        return _staged()[shared]
+    return stored.get(shared, definition.default)
 
 
 def _presentable(
@@ -119,9 +163,9 @@ def _unusable_note(definition: ParameterDefinition, stored: Any) -> None:
     )
 
 
-def _on_change(group_name: str, definition: ParameterDefinition) -> None:
-    value = st.session_state[_widget_key(group_name, definition.name)]
-    _staged()[(group_name, definition.name)] = definition.value_type(value)
+def _on_change(field: Field, definition: ParameterDefinition) -> None:
+    value = st.session_state[_widget_key(field)]
+    _staged()[field] = definition.value_type(value)
 
 
 def _card_key(group: type) -> str:
@@ -175,11 +219,11 @@ def _summary_rule() -> str:
     )
 
 
-def _widget(group_name: str, definition: ParameterDefinition, value) -> None:
+def _widget(field: Field, definition: ParameterDefinition, value) -> None:
     label = _field_label(definition)
-    key = _widget_key(group_name, definition.name)
+    key = _widget_key(field)
     described = definition.description or None
-    args = (group_name, definition)
+    args = (field, definition)
 
     if definition.choices:
         options = list(definition.choices)
@@ -243,20 +287,25 @@ def _as_int(bound: float | None) -> int | None:
 
 
 def _state_badge(
-    group_name: str,
+    field: Field,
     definition: ParameterDefinition,
-    stored: dict[tuple[str, str], Any],
+    stored: dict[Field, Any],
 ) -> None:
     """
     What the engine did with this field, as it reported it. Nothing is
     shown for a field left at its declared default, since there is
     nothing to have picked up.
     """
-    if (group_name, definition.name) not in stored:
+    symbol, group_name, _ = field
+    if field not in stored:
+        if symbol != ALL_SYMBOLS and (
+            (ALL_SYMBOLS, group_name, definition.name) in stored
+        ):
+            st.badge(f"from {_ALL_SYMBOLS_LABEL.lower()}", color="grey")
         return
 
     engine = st.session_state.get("_engine_parameter_state", {})
-    row = engine.get(applied_key(group_name, definition.name, ALL_SYMBOLS))
+    row = engine.get(applied_key(group_name, definition.name, symbol))
     if row is None:
         st.badge("not picked up", color="yellow")
         st.caption("Stored, but no engine has reported reading it.")
@@ -277,8 +326,8 @@ def _push() -> None:
     store = ParameterStore(st.session_state.params_db_path)
     store.push(
         [
-            ParameterOverride(group_name, field_name, ALL_SYMBOLS, value)
-            for (group_name, field_name), value in _staged().items()
+            ParameterOverride(group_name, field_name, symbol, value)
+            for (symbol, group_name, field_name), value in _staged().items()
         ]
     )
     st.session_state[_STAGED] = {}
@@ -288,10 +337,30 @@ def _revert() -> None:
     st.session_state[_STAGED] = {}
 
 
+def _selected_scope(scopes: list[str]) -> str:
+    if len(scopes) == 1:
+        return ALL_SYMBOLS
+    scope = st.segmented_control(
+        "Applies to",
+        options=scopes,
+        format_func=_scope_label,
+        default=ALL_SYMBOLS,
+        key=_SCOPE,
+        help=(
+            "Edit the values every symbol uses, or just one symbol's. A "
+            "symbol takes its own value where it has one and the shared "
+            "value everywhere else."
+        ),
+    )
+    # A segmented control lets the reader clear their own selection.
+    return ALL_SYMBOLS if scope is None else scope
+
+
 def render() -> None:
     stored = _stored_values()
     st.session_state["_engine_parameter_state"] = _engine_state()
     staged = _staged()
+    symbol = _selected_scope(_scopes(stored))
 
     # Before the cards themselves: a rule arriving after a container has
     # reached the browser shows the canvas through it for a moment first.
@@ -300,12 +369,13 @@ def render() -> None:
     for group in card_grid(GROUPS, key="parameter-cards", key_fn=_card_key):
         st.markdown(f"**{_group_title(group.__name__)}**")
         for definition in definitions(group):
+            field = (symbol, group.__name__, definition.name)
             usable, unusable = _presentable(
-                definition, _current(group.__name__, definition, stored)
+                definition, _current(field, definition, stored)
             )
-            _widget(group.__name__, definition, usable)
+            _widget(field, definition, usable)
             if unusable is None:
-                _state_badge(group.__name__, definition, stored)
+                _state_badge(field, definition, stored)
             else:
                 _unusable_note(definition, unusable)
 
@@ -316,15 +386,17 @@ def render() -> None:
         # after the edit that staged it.
         rows = "\n".join(
             f"| {_staged_label(group_name, field_name)} "
-            f"| {stored.get((group_name, field_name), 'default')} "
+            f"| {_scope_label(scope)} "
+            f"| {stored.get((scope, group_name, field_name), 'default')} "
             f"| {value} |"
-            for (group_name, field_name), value in staged.items()
+            for (scope, group_name, field_name), value in staged.items()
         )
         st.html(_summary_rule())
         with st.container(horizontal=True, horizontal_alignment="center"):
             with st.container(key=_SUMMARY_KEY, width="content"):
                 st.markdown(
-                    f"| Parameter | From | To |\n| --- | --- | --- |\n{rows}"
+                    f"| Parameter | Applies to | From | To |\n"
+                    f"| --- | --- | --- | --- |\n{rows}"
                 )
 
     with st.container(horizontal=True, vertical_alignment="center"):
