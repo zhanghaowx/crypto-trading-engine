@@ -78,6 +78,11 @@ def log_file(root: str, symbol: str, session: str = LIVE) -> str:
     return str(symbol_directory(root, symbol) / f"{session}.log")
 
 
+def log_database(root: str, symbol: str, session: str = LIVE) -> str:
+    """Where a session's log is mirrored, beside the log itself."""
+    return f"{log_file(root, symbol, session)}.sqlite"
+
+
 def parameter_store(root: str) -> str:
     return str(Path(root) / _PARAMETERS)
 
