@@ -1,0 +1,8 @@
+/* `interpolate-size` (Chromium) is what lets a height transition animate
+   to or from `auto` at all; elsewhere this is a no-op and a card's height
+   still changes, just without the animation. */
+html { interpolate-size: allow-keywords; }
+
+%(selector)s {
+  transition: height 300ms ease, box-shadow 300ms ease;
+}

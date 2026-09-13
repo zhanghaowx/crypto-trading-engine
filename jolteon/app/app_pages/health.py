@@ -1,10 +1,14 @@
-import re
 from datetime import datetime
 
 import pandas as pd
 import streamlit as st
 
-from jolteon.app.components import BadgeColor, card_grid, warn_if_no_db
+from jolteon.app.components import (
+    BadgeColor,
+    card_grid,
+    slug,
+    warn_if_no_db,
+)
 from jolteon.app.data import as_datetime, read_latest_per_group
 from jolteon.engine.core.health_monitor.heartbeat import HeartbeatLevel
 
@@ -80,9 +84,7 @@ def _describe_age(seconds: float) -> str:
 
 
 def _tile_key(sender: str) -> str:
-    return "health-tile-" + re.sub(r"[^a-z0-9]+", "-", sender.lower()).strip(
-        "-"
-    )
+    return f"health-tile-{slug(sender)}"
 
 
 def render() -> None:

@@ -1,6 +1,12 @@
 from streamlit.testing.v1 import AppTest
 
-from jolteon.app.components import card_grid_rule, card_surface_rule
+from jolteon.app.components import (
+    card_grid_rule,
+    card_surface_rule,
+    section_key,
+    section_surface_rule,
+    slug,
+)
 
 
 def paginate_script():
@@ -207,3 +213,82 @@ def test_paginate_previous_returns_to_the_first_page():
     assert at.json[0].value == str(list(range(10)))
     assert at.button(key="demo-page-0").disabled
     assert at.button(key="demo-prev-page").disabled
+
+
+def sections_script():
+    import streamlit as st
+
+    from jolteon.app.components import render_sections
+
+    render_sections(
+        [
+            (
+                "Market Data",
+                ":material/show_chart:",
+                lambda: st.write("md"),
+                None,
+                None,
+            ),
+            (
+                "Orders & PnL",
+                ":material/currency_bitcoin:",
+                lambda: st.write("pnl"),
+                lambda: st.button("Download"),
+                None,
+            ),
+            (
+                "Errors",
+                ":material/error:",
+                lambda: st.write("errors"),
+                None,
+                lambda: False,
+            ),
+        ]
+    )
+
+
+def test_slug_keeps_only_what_a_css_class_can_carry():
+    assert slug("Orders & PnL") == "orders-pnl"
+    assert slug("BTC/USD") == "btc-usd"
+
+
+def test_section_key_is_derived_from_the_title():
+    assert section_key("Fair Price Signals") == "card-fair-price-signals"
+
+
+def test_section_surface_rule_names_every_section():
+    rule = section_surface_rule(["Health", "Errors"])
+
+    assert ".st-key-card-health, .st-key-card-errors {" in rule
+    assert "transition: height" in rule
+
+
+def test_section_surface_rule_is_empty_without_sections():
+    assert section_surface_rule([]) == ""
+
+
+def test_every_section_renders_under_its_own_title():
+    at = AppTest.from_function(sections_script).run()
+
+    assert not at.exception
+    assert [s.value for s in at.subheader] == ["Market Data", "Orders & PnL"]
+    assert [m.value for m in at.markdown if m.value in ("md", "pnl")] == [
+        "md",
+        "pnl",
+    ]
+
+
+def test_a_sections_own_action_renders_beside_its_title():
+    at = AppTest.from_function(sections_script).run()
+
+    assert [b.label for b in at.button] == ["Download"]
+
+
+def test_a_section_that_says_it_is_not_worth_showing_is_skipped():
+    """
+    The Errors section asks not to be rendered when there is nothing to
+    report, and an empty card is worse than no card.
+    """
+    at = AppTest.from_function(sections_script).run()
+
+    assert "Errors" not in [s.value for s in at.subheader]
