@@ -138,8 +138,29 @@ def test_an_edit_shows_what_it_would_change(params_db_path, missing_db_path):
     assert not at.button[0].disabled
     summary = at.markdown[-1].value
     assert (
-        "| Market Making · Quote Size | All Symbols | default | 0.02 |"
+        "| Market Making · Quote Size | All Symbols | 0.00050 | 0.02000 |"
         in summary
+    )
+
+
+def test_an_edit_shows_the_value_it_is_replacing(
+    params_db_path, missing_db_path
+):
+    """
+    What a field is changing from is what an engine reads today, which is
+    the stored value once one has been pushed rather than the value the
+    parameter declares.
+    """
+    ParameterStore(params_db_path).push(
+        [override_of("MarketMakingParameters", "quote_size", 0.01)]
+    )
+    at = _page(params_db_path, missing_db_path).run()
+    at.number_input(key=QUOTE_SIZE).set_value(0.02).run()
+
+    assert not at.exception
+    assert (
+        "| Market Making · Quote Size | All Symbols | 0.01000 | 0.02000 |"
+        in at.markdown[-1].value
     )
 
 

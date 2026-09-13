@@ -182,6 +182,30 @@ def _shown(definition: ParameterDefinition, value: Any) -> str:
     return str(value)
 
 
+def _definition(group_name: str, field_name: str) -> ParameterDefinition:
+    return next(
+        definition
+        for group in GROUPS
+        if group.__name__ == group_name
+        for definition in definitions(group)
+        if definition.name == field_name
+    )
+
+
+def _replaced(field: Field, stored: dict[Field, Any]) -> str:
+    """
+    The value an edit is leaving behind: what an engine reads for this
+    field while the edit is still staged, which is the field's own stored
+    value, else the one set for every symbol, else what it declares.
+    """
+    _, group_name, field_name = field
+    definition = _definition(group_name, field_name)
+    if field in stored:
+        return _shown(definition, stored[field])
+    shared = (ALL_SYMBOLS, group_name, field_name)
+    return _shown(definition, stored.get(shared, definition.default))
+
+
 @dataclass(frozen=True)
 class _Note:
     """What a field has to say about itself beyond its value."""
@@ -475,8 +499,8 @@ def render() -> None:
         rows = "\n".join(
             f"| {_staged_label(group_name, field_name)} "
             f"| {_scope_label(scope)} "
-            f"| {stored.get((scope, group_name, field_name), 'default')} "
-            f"| {value} |"
+            f"| {_replaced((scope, group_name, field_name), stored)} "
+            f"| {_shown(_definition(group_name, field_name), value)} |"
             for (scope, group_name, field_name), value in staged.items()
         )
         st.html(_summary_rule())
