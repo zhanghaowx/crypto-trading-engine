@@ -119,7 +119,6 @@ def test_reads_the_first_engine_until_another_is_chosen(
     dashboard, tmp_path, recordings
 ):
     dashboard.session_state["root"] = str(tmp_path)
-    del dashboard.session_state["db_path"]
     at = dashboard.run()
 
     assert not at.exception
@@ -142,3 +141,46 @@ def test_choosing_a_symbol_reads_that_engines_recording(
     assert at.session_state["log_db_path"] == paths.log_database(
         str(tmp_path), "ETH/USD"
     )
+
+
+def test_the_symbol_survives_a_page_switch(dashboard, tmp_path, recordings):
+    """
+    A widget's value is dropped while the widget is not rendered, and the
+    picker is drawn on the Live page alone - so leaving the page and
+    coming back used to hand the reader the first engine again, with the
+    picker showing it as though they had chosen it.
+    """
+    dashboard.session_state["root"] = str(tmp_path)
+    at = dashboard.run()
+    at.segmented_control[0].set_value("ETH/USD").run()
+
+    at.switch_page("app_pages/parameters.py").run()
+    at.switch_page("app_pages/live.py").run()
+
+    assert not at.exception
+    assert at.session_state["db_path"] == recordings["ETH/USD"]
+    assert at.segmented_control[0].value == "ETH/USD"
+
+
+def test_the_symbol_a_link_names_is_the_symbol_it_opens_on(
+    dashboard, tmp_path, recordings
+):
+    dashboard.session_state["root"] = str(tmp_path)
+    dashboard.query_params["symbol"] = "ETH/USD"
+    at = dashboard.run()
+
+    assert not at.exception
+    assert at.session_state["db_path"] == recordings["ETH/USD"]
+
+
+def test_the_reader_cannot_choose_no_symbol_at_all(
+    dashboard, tmp_path, recordings
+):
+    """
+    Cleared, every section would go on reading the engine the reader had
+    just stopped asking for.
+    """
+    dashboard.session_state["root"] = str(tmp_path)
+    at = dashboard.run()
+
+    assert at.segmented_control[0].proto.required

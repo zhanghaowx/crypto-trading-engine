@@ -30,15 +30,13 @@ def fresh_scan():
 def dashboard(tmp_path, missing_db_path) -> AppTest:
     """A ready-to-run AppTest for the dashboard entrypoint, with
     auto-refresh disabled (it would otherwise sleep and rerun forever)
-    and a placeholder db_path callers can override before calling
-    `.run()`."""
+    and a root callers can repoint before calling `.run()`. The databases
+    every page reads follow from that root, so they are not set here."""
     at = AppTest.from_file(_DASHBOARD_PATH)
     at.session_state["auto_refresh"] = False
     # Kept inside the test's own directory: left at its default this
     # would discover whatever engines the machine really has running.
     at.session_state["root"] = str(tmp_path / "no-engine")
-    at.session_state["db_path"] = missing_db_path
-    at.session_state["log_db_path"] = missing_db_path
     at.session_state["params_db_path"] = missing_db_path
     return at
 

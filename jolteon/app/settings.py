@@ -5,11 +5,12 @@ import argparse
 import streamlit as st
 
 from jolteon import paths
-from jolteon.app.data import engine_databases
+from jolteon.app.data import EngineDatabase, engine_databases
 
-# Whether db_path is still whichever engine was found first, rather than
-# one the reader chose.
-_AUTO = "_engine_chosen_automatically"
+# Which symbol's engine every page that reads one engine is reading.
+# Named for the query parameter it is bound to, since the widget holding
+# it puts it in the URL.
+SYMBOL = "symbol"
 
 
 def parse_args() -> argparse.Namespace:
@@ -31,19 +32,17 @@ def parse_args() -> argparse.Namespace:
 def init_settings() -> None:
     args = parse_args()
     st.session_state.setdefault("root", args.root)
-    st.session_state.setdefault("log_db_override", args.log_db)
 
-    # Re-resolved every run until someone picks an engine, so a dashboard
-    # opened before the engine starts finds it on a later refresh rather
-    # than staying pinned to a file that did not exist at the time.
-    if "db_path" not in st.session_state or st.session_state.get(_AUTO):
-        engines = engine_databases(st.session_state.root)
-        first = engines[0] if engines else None
-        st.session_state.db_path = first.path if first else ""
-        st.session_state.log_db_path = args.log_db or (
-            first.log_path if first else ""
-        )
-        st.session_state[_AUTO] = True
+    # Resolved on every run rather than remembered: engines start and
+    # stop while a dashboard is open, and a reader who picked one that
+    # has since gone would otherwise be left reading a file that is no
+    # longer there.
+    engine = _chosen_engine(st.session_state.root)
+    st.session_state.db_path = engine.path if engine else ""
+    st.session_state.log_db_path = args.log_db or (
+        engine.log_path if engine else ""
+    )
+
     st.session_state.setdefault(
         "params_db_path",
         args.params_db or paths.parameter_store(st.session_state.root),
@@ -55,15 +54,20 @@ def init_settings() -> None:
     st.session_state.setdefault("chart_window_minutes", 15)
 
 
-def use_engine(engine) -> None:
+def _chosen_engine(root: str) -> EngineDatabase | None:
     """
-    Points every page that reads one engine's recording at this one.
+    Returns: The engine whose symbol is selected, the first one found
+    while nothing is, and nothing at all under a root no engine has run
+    under yet.
 
-    Each engine records to its own file, so choosing a symbol is choosing
-    a database, and the log database that goes with it.
+    Session state carries the symbol from this run's click. The URL is
+    what seeds the first run, where the picker has not registered its
+    value yet - and the run after a page that does not draw the picker
+    at all.
     """
-    st.session_state.db_path = engine.path
-    st.session_state.log_db_path = (
-        st.session_state.log_db_override or engine.log_path
+    engines = engine_databases(root)
+    chosen = st.session_state.get(SYMBOL) or st.query_params.get(SYMBOL)
+    return next(
+        (engine for engine in engines if engine.symbol == chosen),
+        engines[0] if engines else None,
     )
-    st.session_state[_AUTO] = False

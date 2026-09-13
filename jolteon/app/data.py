@@ -32,6 +32,18 @@ def reset_table_cache() -> None:
     st.session_state.pop(_CACHE_KEY, None)
 
 
+def database_exists(db_path: str) -> bool:
+    """
+    Whether there is a database at `db_path` to read.
+
+    An empty path is not one: `Path("")` is the directory the dashboard
+    was started in, which exists, and every reader here would take that
+    for a recording with nothing in it rather than for the engine that
+    has not started.
+    """
+    return bool(db_path) and Path(db_path).exists()
+
+
 def _has_primary_key(conn: sqlite3.Connection, table: str) -> bool:
     return any(row[5] for row in conn.execute(f'PRAGMA table_info("{table}")'))
 
@@ -51,7 +63,7 @@ def read_table(db_path: str, table: str) -> pd.DataFrame:
     session's recording every few seconds, on the same machine the engine
     is trading from, and the cost would climb all day.
     """
-    if not Path(db_path).exists():
+    if not database_exists(db_path):
         return pd.DataFrame()
 
     cache = st.session_state.setdefault(_CACHE_KEY, {})
@@ -172,7 +184,7 @@ def read_latest_row(db_path: str, table: str) -> pd.Series | None:
     for callers that only ever look at the tail - `read_table` would hold
     every row the session has seen just to answer that.
     """
-    if not Path(db_path).exists():
+    if not database_exists(db_path):
         return None
 
     conn = sqlite3.connect(db_path)
@@ -198,7 +210,7 @@ def count_matching(
     that needs this wants a number for every engine at once, and the
     table it asks about is the log, which is the largest one recorded.
     """
-    if not Path(db_path).exists():
+    if not database_exists(db_path):
         return 0
 
     conn = sqlite3.connect(db_path)
@@ -224,7 +236,7 @@ def read_latest_per_group(
     `group_column` - the last heartbeat per sender, the last order per
     side, and so on - without reading every row to find it.
     """
-    if not Path(db_path).exists():
+    if not database_exists(db_path):
         return pd.DataFrame()
 
     conn = sqlite3.connect(db_path)

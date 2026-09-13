@@ -18,7 +18,9 @@ streamlit run jolteon/app/dashboard.py -- --root /tmp/jolteon   # point at anoth
 
 `--root` is the directory every engine writes under, matching the engine's own flag of the
 same name. Each symbol traded has a directory there, and those directories are the symbols
-the dashboard offers: pick one and every section reads that engine's recording and its logs.
+the dashboard offers: pick one and every section of the Live page reads that engine's recording
+and its logs. The symbol is in the URL (`?symbol=ETH/USD`), so it survives a page switch and a
+refresh, and a link opens on the symbol it was copied from.
 
 `--params-db` points at the database the Parameters page pushes into. It defaults to
 `parameters.sqlite` at the root of `--root`, which one store serves every engine from.

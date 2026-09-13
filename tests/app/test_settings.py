@@ -1,3 +1,4 @@
+import shutil
 import sqlite3
 import sys
 
@@ -6,7 +7,7 @@ from streamlit.testing.v1 import AppTest
 from jolteon import paths
 from jolteon.app import data
 from jolteon.app.data import engine_databases
-from jolteon.app.settings import parse_args
+from jolteon.app.settings import SYMBOL, parse_args
 
 
 def script():
@@ -53,15 +54,15 @@ def test_init_settings_sets_session_state_defaults():
     assert at.session_state["chart_window_minutes"] == 15
 
 
-def test_init_settings_does_not_override_existing_session_state():
+def test_init_settings_does_not_override_a_readers_own_settings():
     at = AppTest.from_function(script)
-    at.session_state["db_path"] = "/already/set.sqlite"
     at.session_state["auto_refresh"] = False
+    at.session_state["refresh_seconds"] = 30
     at.run()
 
     assert not at.exception
-    assert at.session_state["db_path"] == "/already/set.sqlite"
     assert at.session_state["auto_refresh"] is False
+    assert at.session_state["refresh_seconds"] == 30
 
 
 def _recording(root, symbol: str) -> str:
@@ -197,28 +198,64 @@ def test_keeps_the_symbol_the_reader_chose(tmp_path):
     eth = _recording(tmp_path, "ETH/USD")
     _recording(tmp_path, "BTC/USD")
 
-    def choose():
-        import streamlit as st
-
-        from jolteon.app.data import engine_databases
-        from jolteon.app.settings import init_settings, use_engine
-
-        init_settings()
-        chosen = [
-            e
-            for e in engine_databases(st.session_state.root)
-            if e.symbol == "ETH/USD"
-        ]
-        if chosen and st.session_state.get("_choose"):
-            use_engine(chosen[0])
-        st.session_state["_choose"] = True
-
-    at = AppTest.from_function(choose)
+    at = AppTest.from_function(script)
     at.session_state["root"] = str(tmp_path)
-    at.session_state["_choose"] = True
-    at.run()
-    assert at.session_state["db_path"] == eth
-
+    at.session_state[SYMBOL] = "ETH/USD"
     at.run()
 
+    assert not at.exception
     assert at.session_state["db_path"] == eth
+    assert at.session_state["log_db_path"] == paths.log_database(
+        str(tmp_path), "ETH/USD"
+    )
+
+
+def test_reads_the_symbol_a_link_names(tmp_path):
+    """
+    A link to one symbol has to open on it, and the page that draws the
+    picker has not registered its value yet when this runs.
+    """
+    eth = _recording(tmp_path, "ETH/USD")
+    _recording(tmp_path, "BTC/USD")
+
+    at = AppTest.from_function(script)
+    at.session_state["root"] = str(tmp_path)
+    at.query_params[SYMBOL] = "ETH/USD"
+    at.run()
+
+    assert not at.exception
+    assert at.session_state["db_path"] == eth
+
+
+def test_falls_back_when_the_url_names_a_symbol_nothing_trades(tmp_path):
+    btc = _recording(tmp_path, "BTC/USD")
+
+    at = AppTest.from_function(script)
+    at.session_state["root"] = str(tmp_path)
+    at.query_params[SYMBOL] = "SOL/USD"
+    at.run()
+
+    assert not at.exception
+    assert at.session_state["db_path"] == btc
+
+
+def test_lets_go_of_an_engine_that_has_stopped(tmp_path):
+    """
+    Engines start and stop while a dashboard is open. Pinned to the
+    symbol it was told about, the page would go on pointing at a file
+    that is no longer there and warn in every section forever.
+    """
+    _recording(tmp_path, "ETH/USD")
+    btc = _recording(tmp_path, "BTC/USD")
+
+    at = AppTest.from_function(script)
+    at.session_state["root"] = str(tmp_path)
+    at.session_state[SYMBOL] = "ETH/USD"
+    at.run()
+
+    shutil.rmtree(paths.symbol_directory(str(tmp_path), "ETH/USD"))
+    engine_databases.clear()
+    at.run()
+
+    assert not at.exception
+    assert at.session_state["db_path"] == btc
