@@ -6,6 +6,7 @@ from unittest.mock import patch
 import pytest
 from streamlit.testing.v1 import AppTest
 
+from jolteon import paths
 from jolteon.app.app_pages import engine_parameters
 from jolteon.engine.core.parameter.parameter_applied import (
     REJECTED,
@@ -316,13 +317,15 @@ def demo_catalog():
         yield
 
 
-def _applied_db(tmp_path, **row) -> str:
-    """A database holding the one report an engine made about a pushed
-    parameter, as SQLiteWriter would have recorded it."""
-    db_path = str(tmp_path / "applied.sqlite")
+def _reported(root, traded="BTC/USD", **row) -> str:
+    """One engine's recording, holding the report it made about a pushed
+    parameter, as SQLiteWriter would have recorded it. Returns the root
+    the engine trading `traded` recorded under."""
     columns = {
         "key": applied_key(
-            "MarketMakingParameters", "quote_size", ALL_SYMBOLS
+            "MarketMakingParameters",
+            "quote_size",
+            row.get("symbol", ALL_SYMBOLS),
         ),
         "group_name": "MarketMakingParameters",
         "field_name": "quote_size",
@@ -334,9 +337,11 @@ def _applied_db(tmp_path, **row) -> str:
         "reason": "",
         **row,
     }
+    db_path = paths.recording(root, traded)
+    paths.prepare(db_path)
     with sqlite3.connect(db_path) as conn:
         conn.execute(
-            "CREATE TABLE parameter_applied ("
+            "CREATE TABLE IF NOT EXISTS parameter_applied ("
             "key TEXT PRIMARY KEY, group_name TEXT, field_name TEXT, "
             "symbol TEXT, stored_value TEXT, revision INTEGER, "
             "observed_revision INTEGER, status TEXT, reason TEXT)"
@@ -346,7 +351,7 @@ def _applied_db(tmp_path, **row) -> str:
             tuple(columns.values()),
         )
     conn.close()
-    return db_path
+    return root
 
 
 class TestFieldKindsBeyondNumbers:
@@ -432,19 +437,20 @@ class TestWhatTheEngineSaidItDid:
         return " ".join(m.value for m in at.markdown if "-badge[" in m.value)
 
     def test_a_value_the_engine_has_read_reports_as_applied(
-        self, params_db_path, tmp_path
+        self, params_db_path, missing_db_path, tmp_path
     ):
         self._pushed(params_db_path)
         at = _page(
             params_db_path,
-            _applied_db(tmp_path, revision=3, observed_revision=3),
+            missing_db_path,
+            _reported(str(tmp_path), revision=3, observed_revision=3),
         ).run()
 
         assert not at.exception
         assert "applied" in self._badges(at)
 
     def test_a_value_no_component_has_looked_at_says_so(
-        self, params_db_path, tmp_path
+        self, params_db_path, missing_db_path, tmp_path
     ):
         """
         Stored and accepted, but the component that uses it has not read
@@ -454,7 +460,8 @@ class TestWhatTheEngineSaidItDid:
         self._pushed(params_db_path)
         at = _page(
             params_db_path,
-            _applied_db(tmp_path, revision=3, observed_revision=1),
+            missing_db_path,
+            _reported(str(tmp_path), revision=3, observed_revision=1),
         ).run()
 
         captions = " ".join(c.value for c in at.caption)
@@ -462,13 +469,14 @@ class TestWhatTheEngineSaidItDid:
         assert "not read yet" in self._badges(at)
 
     def test_a_refused_value_reports_the_engines_own_reason(
-        self, params_db_path, tmp_path
+        self, params_db_path, missing_db_path, tmp_path
     ):
         self._pushed(params_db_path)
         at = _page(
             params_db_path,
-            _applied_db(
-                tmp_path, status=REJECTED, reason="must be at most 10.0"
+            missing_db_path,
+            _reported(
+                str(tmp_path), status=REJECTED, reason="must be at most 10.0"
             ),
         ).run()
 
@@ -477,17 +485,105 @@ class TestWhatTheEngineSaidItDid:
         assert "rejected" in self._badges(at)
 
     def test_a_status_the_page_does_not_know_is_shown_as_it_came(
-        self, params_db_path, tmp_path
+        self, params_db_path, missing_db_path, tmp_path
     ):
         """
         The engine decides what statuses exist, so one this page has
         never heard of is passed through rather than swallowed.
         """
         self._pushed(params_db_path)
-        at = _page(params_db_path, _applied_db(tmp_path, status=UNKNOWN)).run()
+        at = _page(
+            params_db_path,
+            missing_db_path,
+            _reported(str(tmp_path), status=UNKNOWN),
+        ).run()
 
         assert not at.exception
         assert UNKNOWN in self._badges(at)
+
+    def test_the_engine_trading_a_symbol_is_the_one_asked_about_it(
+        self, params_db_path, tmp_path
+    ):
+        """
+        A value set for one symbol is read by the engine trading that
+        symbol and by no other, so asking whichever recording happens to
+        be on screen reported on the wrong process - a value ETH had
+        picked up read as "not picked up" while BTC was being viewed.
+        """
+        eth = "ETH/USD"
+        ParameterStore(params_db_path).push(
+            [
+                ParameterOverride(
+                    "MarketMakingParameters", "quote_size", eth, 0.01
+                )
+            ]
+        )
+        root = str(tmp_path)
+        paths.prepare(paths.recording(root, "BTC/USD"))
+        _reported(root, traded=eth, symbol=eth)
+
+        at = _page(params_db_path, paths.recording(root, "BTC/USD"), root)
+        at.session_state[engine_parameters._SCOPE] = eth
+        at.run()
+
+        assert not at.exception
+        assert "applied" in self._badges(at)
+
+    def test_one_engine_refusing_a_shared_value_is_what_is_shown(
+        self, params_db_path, missing_db_path, tmp_path
+    ):
+        """
+        A value set for every symbol is read by every engine, and it is
+        not in force while any one of them refuses it - so the least
+        settled of their answers is the one that gets shown.
+        """
+        self._pushed(params_db_path)
+        root = str(tmp_path)
+        _reported(root, traded="BTC/USD")
+        _reported(
+            root,
+            traded="ETH/USD",
+            status=REJECTED,
+            reason="must be at most 10.0",
+        )
+
+        at = _page(params_db_path, missing_db_path, root).run()
+
+        assert "rejected" in self._badges(at)
+        assert "must be at most 10.0" in " ".join(c.value for c in at.caption)
+
+    def test_a_status_the_page_does_not_know_outranks_a_settled_one(
+        self, params_db_path, missing_db_path, tmp_path
+    ):
+        """
+        The engine decides what statuses exist, so one this page has
+        never heard of cannot be assumed to mean the value is running -
+        it has to survive being read alongside an engine that took it.
+        """
+        self._pushed(params_db_path)
+        root = str(tmp_path)
+        _reported(root, traded="BTC/USD")
+        _reported(root, traded="ETH/USD", status=UNKNOWN)
+
+        at = _page(params_db_path, missing_db_path, root).run()
+
+        assert UNKNOWN in self._badges(at)
+
+    def test_a_settled_answer_does_not_displace_an_unsettled_one(
+        self, params_db_path, missing_db_path, tmp_path
+    ):
+        """
+        The same as above with the engines the other way round, since
+        they are read in the order their symbols sort in.
+        """
+        self._pushed(params_db_path)
+        root = str(tmp_path)
+        _reported(root, traded="BTC/USD", status=REJECTED, reason="too big")
+        _reported(root, traded="ETH/USD")
+
+        at = _page(params_db_path, missing_db_path, root).run()
+
+        assert "rejected" in self._badges(at)
 
 
 class TestTuningOneSymbol:

@@ -37,6 +37,7 @@ from jolteon.engine.core.parameter.parameter_store import (
 
 _STAGED = "_staged_parameters"
 _SCOPE = "parameter-scope"
+_REPORTS = "_engine_parameter_reports"
 _ALL_SYMBOLS_LABEL = "All symbols"
 
 # A field identified by the scope it is set for as well as by its name.
@@ -86,15 +87,42 @@ def _scopes(stored: dict[Field, Any]) -> list[str]:
     return [ALL_SYMBOLS, *sorted(symbols)]
 
 
-def _engine_state() -> dict[str, Any]:
+def _unsettled(report: Any) -> int:
     """
-    What the engine last said it did with each pushed parameter. Absent
-    until an engine has run against this store.
+    How far a report is from a value an engine is quoting on, so that the
+    least settled of several answers is the one shown.
     """
-    applied = read_table(st.session_state.db_path, "parameter_applied")
-    if applied.empty or "key" not in applied.columns:
-        return {}
-    return {row.key: row for row in applied.itertuples()}
+    if report.status == REJECTED:
+        return 3
+    if report.status != TAKEN:
+        return 2
+    return 0 if report.observed_revision >= report.revision else 1
+
+
+def _engine_reports() -> dict[str, Any]:
+    """
+    What the engines last said they did with each pushed parameter, keyed
+    by the parameter it is about. Absent until an engine has run against
+    this store.
+
+    Every engine under the root is asked, not only the one whose
+    recording the rest of the dashboard is reading: a value set for one
+    symbol is read by the engine trading that symbol and by no other, so
+    reading a single recording answered for the wrong process. A value
+    set for every symbol is read by all of them, and there the least
+    settled answer wins - one engine refusing a value means it is not in
+    force, whatever the others made of it.
+    """
+    reports: dict[str, Any] = {}
+    for engine in engine_databases(st.session_state.root):
+        applied = read_table(engine.path, "parameter_applied")
+        if applied.empty or "key" not in applied.columns:
+            continue
+        for report in applied.itertuples():
+            seen = reports.get(report.key)
+            if seen is None or _unsettled(report) > _unsettled(seen):
+                reports[report.key] = report
+    return reports
 
 
 def _current(field: Field, definition: ParameterDefinition, stored):
@@ -306,8 +334,8 @@ def _state_badge(
             st.badge(f"from {_ALL_SYMBOLS_LABEL.lower()}", color="grey")
         return
 
-    engine = st.session_state.get("_engine_parameter_state", {})
-    row = engine.get(applied_key(group_name, definition.name, symbol))
+    reports = st.session_state.get(_REPORTS, {})
+    row = reports.get(applied_key(group_name, definition.name, symbol))
     if row is None:
         st.badge("not picked up", color="yellow")
         st.caption("Stored, but no engine has reported reading it.")
@@ -360,7 +388,7 @@ def _selected_scope(scopes: list[str]) -> str:
 
 def render() -> None:
     stored = _stored_values()
-    st.session_state["_engine_parameter_state"] = _engine_state()
+    st.session_state[_REPORTS] = _engine_reports()
     staged = _staged()
     symbol = _selected_scope(_scopes(stored))
 
