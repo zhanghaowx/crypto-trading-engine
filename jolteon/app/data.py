@@ -127,7 +127,7 @@ def engine_databases(root: str) -> list[EngineDatabase]:
         EngineDatabase(
             path=paths.recording(root, symbol),
             symbol=_recorded_symbol(paths.recording(root, symbol), symbol),
-            log_path=f"{paths.log_file(root, symbol)}.sqlite",
+            log_path=paths.log_database(root, symbol),
         )
         for symbol in paths.traded_symbols(root)
     ]

@@ -94,8 +94,8 @@ def test_a_symbol_directory_holds_its_own_recording_and_log(tmp_path):
     found = engine_databases(str(tmp_path))
 
     assert found[0].path == path
-    assert found[0].path.endswith("ETH-USD/live.sqlite")
-    assert found[0].log_path.endswith("ETH-USD/live.log.sqlite")
+    assert found[0].path == paths.recording(str(tmp_path), "ETH/USD")
+    assert found[0].log_path == paths.log_database(str(tmp_path), "ETH/USD")
 
 
 def test_a_symbol_with_no_ticks_is_named_after_its_directory(tmp_path):
@@ -133,7 +133,9 @@ def test_starts_on_the_first_symbol_it_finds(tmp_path):
 
     assert not at.exception
     assert at.session_state["db_path"] == btc
-    assert at.session_state["log_db_path"].endswith("BTC-USD/live.log.sqlite")
+    assert at.session_state["log_db_path"] == paths.log_database(
+        str(tmp_path), "BTC/USD"
+    )
 
 
 def test_finds_a_symbol_that_started_after_the_dashboard(tmp_path):

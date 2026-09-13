@@ -1,3 +1,6 @@
+from jolteon import paths
+
+
 def test_dashboard_renders_every_section_on_one_page(dashboard):
     at = dashboard.run()
 
@@ -106,4 +109,6 @@ def test_choosing_a_symbol_reads_that_engines_recording(
 
     assert not at.exception
     assert at.session_state["db_path"] == recordings["ETH/USD"]
-    assert at.session_state["log_db_path"].endswith("ETH-USD/live.log.sqlite")
+    assert at.session_state["log_db_path"] == paths.log_database(
+        str(tmp_path), "ETH/USD"
+    )

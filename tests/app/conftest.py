@@ -182,7 +182,7 @@ def recordings(tmp_path):
         finally:
             conn.close()
         # An engine's log database sits in its own symbol's directory.
-        sqlite3.connect(f"{paths.log_file(str(tmp_path), symbol)}.sqlite")
+        sqlite3.connect(paths.log_database(str(tmp_path), symbol)).close()
         return path
 
     return {symbol: write(symbol) for symbol in ("BTC/USD", "ETH/USD")}
