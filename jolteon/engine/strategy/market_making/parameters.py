@@ -22,7 +22,7 @@ class MarketMakingParameters(ParameterGroup):
         maximum=10.0,
         step=0.0001,
         number_format="%.5f",
-        unit="BTC",
+        unit="QTY",
         description="How much base currency each resting quote offers.",
     )
     max_inventory: float = parameter(
@@ -31,7 +31,7 @@ class MarketMakingParameters(ParameterGroup):
         maximum=100.0,
         step=0.001,
         number_format="%.5f",
-        unit="BTC",
+        unit="QTY",
         description=(
             "The position at which quoting stops on the side that would "
             "grow it further. Fills on the other side reopen it."

@@ -66,6 +66,18 @@ class TestCatalogedGroupsAreWellFormed(unittest.TestCase):
         """
         self.assertEqual([], validate(StaticParameterService().values()))
 
+    def test_no_field_names_one_asset_as_its_unit(self):
+        """
+        A unit naming one asset is wrong the moment the engine is pointed
+        at another symbol, and the Parameters page renders it verbatim
+        into the field's label.
+        """
+        assets = {"BTC", "XBT", "ETH", "SOL", "USDT", "USDC"}
+        for group in GROUPS:
+            for definition in definitions(group):
+                with self.subTest(group=group.__name__, field=definition.name):
+                    self.assertNotIn(definition.unit.upper(), assets)
+
     def test_every_group_constructs_from_its_defaults(self):
         for group in GROUPS:
             with self.subTest(group=group.__name__):
