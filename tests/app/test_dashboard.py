@@ -37,7 +37,10 @@ def test_dashboard_opens_on_the_live_page(dashboard):
 
 def test_parameters_page_holds_the_viewer_settings(dashboard):
     at = dashboard.run()
-    at.switch_page("app_pages/parameters.py").run()
+    at.switch_page("app_pages/parameters.py")
+    # The tab the settings live on, named the way a link to them names it.
+    at.query_params["tab"] = "Dashboard"
+    at.run()
 
     assert not at.exception
     assert at.toggle(key="auto_refresh")
