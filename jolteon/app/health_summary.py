@@ -9,6 +9,7 @@ symbol along.
 
 import time
 from dataclasses import dataclass
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
@@ -140,18 +141,25 @@ def _error_count(root: str) -> int:
     )
 
 
-def nav_label(current: HealthSummary) -> tuple[str, str]:
-    """
-    Returns: What the Health navigation item should call itself, and the
-    icon it should carry.
+NAV_TITLE = "Health"
+NAV_ICON = ":material/monitor_heart:"
 
-    A navigation item has no badge to raise - the icon and the title are
-    the whole of what it can say - so the icon changes shape rather than
-    color, and the title carries how much there is to look at.
+_ALERT_DOT_CSS = (
+    Path(__file__).resolve().parent / "static" / "nav_alert_dot.css"
+).read_text()
+
+
+def nav_alert_rule(current: HealthSummary) -> str:
     """
-    if not current.alerts:
-        return "Health", ":material/monitor_heart:"
-    return f"Health ({current.alerts})", ":material/warning:"
+    Returns: The style that marks the Health navigation item as wanting
+    attention, empty of rules when there is none to want.
+
+    A count in the title read as part of the page's name and moved the
+    item's width every time an error was logged, and an icon that changed
+    shape changed what the item looked like it was for, so what there is
+    to look at is said with a dot beside a name that stays put.
+    """
+    return f"<style>{_ALERT_DOT_CSS if current.alerts else ''}</style>"
 
 
 _NAV_SUMMARY = "_health_summary_the_nav_drew"
