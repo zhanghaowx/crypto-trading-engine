@@ -10,7 +10,9 @@ Usage:
     streamlit run jolteon/app/dashboard.py -- --root /tmp/jolteon
 
 Every engine writes under a directory of that root named after the symbol
-it trades, so the symbols this can show are the directories it finds.
+it trades, so the symbols this can show are the directories it finds. The
+Live page reads one of them at a time; the Health page reads them all, so
+an engine that has gone quiet is visible whichever symbol is on screen.
 
 The engine records every signal as it happens (see
 jolteon/core/sqlite_writer.py), and the database is in WAL mode, so these
@@ -52,9 +54,16 @@ def main() -> None:
                 default=True,
             ),
             st.Page(
+                "app_pages/health.py",
+                title="Health",
+                icon=":material/monitor_heart:",
+                url_path="health",
+            ),
+            st.Page(
                 "app_pages/parameters.py",
                 title="Parameters",
                 icon=":material/tune:",
+                url_path="parameters",
             ),
         ],
         position="top",

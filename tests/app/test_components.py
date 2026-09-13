@@ -227,21 +227,12 @@ def sections_script():
                 ":material/show_chart:",
                 lambda: st.write("md"),
                 None,
-                None,
             ),
             (
                 "Orders & PnL",
                 ":material/currency_bitcoin:",
                 lambda: st.write("pnl"),
                 lambda: st.button("Download"),
-                None,
-            ),
-            (
-                "Errors",
-                ":material/error:",
-                lambda: st.write("errors"),
-                None,
-                lambda: False,
             ),
         ]
     )
@@ -282,13 +273,3 @@ def test_a_sections_own_action_renders_beside_its_title():
     at = AppTest.from_function(sections_script).run()
 
     assert [b.label for b in at.button] == ["Download"]
-
-
-def test_a_section_that_says_it_is_not_worth_showing_is_skipped():
-    """
-    The Errors section asks not to be rendered when there is nothing to
-    report, and an empty card is worse than no card.
-    """
-    at = AppTest.from_function(sections_script).run()
-
-    assert "Errors" not in [s.value for s in at.subheader]

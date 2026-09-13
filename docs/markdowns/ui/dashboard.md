@@ -1,8 +1,8 @@
 # Dashboard
 
-Jolteon ships a [Streamlit](https://streamlit.io/) dashboard with two pages: **Live**, for watching
-a run's health, market data, risk limits, and orders/PnL, and **Parameters**, for retuning the
-engine while it runs.
+Jolteon ships a [Streamlit](https://streamlit.io/) dashboard with three pages: **Live**, for
+watching one symbol's market data, risk limits, and orders/PnL, **Health**, for watching every
+engine at once, and **Parameters**, for retuning the engine while it runs.
 
 The Live page is a read-only viewer: it never talks to the running engine directly, and instead
 polls the SQLite database that `SignalRecorder` already writes every recorded signal into (in WAL
@@ -25,11 +25,23 @@ the dashboard offers: pick one and every section reads that engine's recording a
 
 ## Live page
 
-* **Health** — heartbeat status for each monitored component, shown first since a stale component
-  makes everything below it stale too.
+Everything here reads the one engine whose symbol is selected above the cards.
+
 * **Market Data** — recent mid price and BBO for the traded symbol.
 * **Risk Limits** — current state of the configured risk limits (order frequency, inventory, ...).
 * **Orders & PnL** — recorded orders, fills, and running PnL.
+
+## Health page
+
+One engine trades one symbol, so a component's health is only half a fact: the other half is which
+engine's it was. This page reads every engine under `--root` rather than the selected one, so an
+engine that has gone quiet is visible whichever symbol is on screen.
+
+* **Health** — heartbeat status for each component, grouped by the symbol its engine trades. A
+  sender that has not been heard from for 30 seconds reads as DOWN however cheerful its last
+  heartbeat was: a process that dies never reports its own death.
+* **Errors** — every engine's ERROR and CRITICAL log lines in one list, newest first, each naming
+  the symbol whose engine logged it.
 
 ## Parameters page
 

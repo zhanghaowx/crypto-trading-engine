@@ -219,7 +219,6 @@ Section = tuple[
     str,
     Callable[[], None],
     Callable[[], None] | None,
-    Callable[[], bool] | None,
 ]
 
 _SECTION_CARDS_CSS = (
@@ -256,10 +255,7 @@ def section(
     icon: str,
     render_fn: Callable[[], None],
     actions: Callable[[], None] | None = None,
-    visible: Callable[[], bool] | None = None,
 ) -> None:
-    if visible is not None and not visible():
-        return
     with st.container(border=True, key=section_key(title)):
         if actions is None:
             st.subheader(title, icon=icon)
@@ -277,8 +273,8 @@ def section(
 
 
 def render_sections(sections: list[Section]) -> None:
-    for title, icon, render_fn, actions, visible in sections:
-        section(title, icon, render_fn, actions, visible)
+    for title, icon, render_fn, actions in sections:
+        section(title, icon, render_fn, actions)
 
 
 CARD_GRID_GAP = "1rem"
