@@ -86,9 +86,14 @@ Parameters page                          StoredParameterService
                   (dashboard = sole writer)                        │
                                                       parameter_applied
                                                                    │
-  page reads what the engine ran <─read─ <root>/<SYMBOL>/live.sqlite ┘
-                                        (engine = sole writer)
+  page reads what the engines ran <─read─ <root>/<SYMBOL>/live.sqlite ┘
+                                         (engine = sole writer)
 ```
+
+One engine trades one symbol, so the page reads every recording under
+the root rather than the one the Live page happens to be showing: a value
+set for a symbol is read by the engine trading it and by no other, and
+one set for every symbol is read by all of them.
 
 Each file has exactly one writer, which is the same reasoning that gives
 the engine's logs a database of their own: neither process can take the
@@ -143,6 +148,10 @@ every tick converges in milliseconds and reads *applied*; one read only
 at construction stays behind and reads *not read yet* until the engine
 restarts; a stored value no engine has echoed at all reads *not picked
 up*; and a refused one reads *rejected* with the engine's reason.
+
+Where several engines answer for the same value, the least settled of
+their answers is the one shown, since a value one engine refused is not
+in force however the others took it.
 
 ## What is not a parameter
 
