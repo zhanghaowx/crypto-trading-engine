@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest import mock
 
 from jolteon.app.data import (
+    count_matching,
     read_latest_per_group,
     read_latest_row,
     read_table,
@@ -238,3 +239,58 @@ class TestReadLatestPerGroup(unittest.TestCase):
         self.assertEqual(
             {"BUY": 2.0, "SELL": 3.0}, dict(zip(df["side"], df["price"]))
         )
+
+
+class TestCountMatching(unittest.TestCase):
+    """
+    The navigation asks every engine how many errors it has logged, and
+    the log is the largest table recorded, so it is counted in the
+    database rather than read out of it.
+    """
+
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self.db_path = str(Path(self._tmpdir.name) / "logs.sqlite")
+
+    def tearDown(self):
+        self._tmpdir.cleanup()
+
+    def write(self, *statements: str) -> None:
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            for statement in statements:
+                conn.execute(statement)
+            conn.commit()
+
+    def test_counts_only_the_levels_asked_about(self):
+        self.write(
+            "CREATE TABLE logs (levelname TEXT)",
+            "INSERT INTO logs VALUES ('ERROR')",
+            "INSERT INTO logs VALUES ('CRITICAL')",
+            "INSERT INTO logs VALUES ('INFO')",
+        )
+
+        found = count_matching(
+            self.db_path, "logs", "levelname", ("ERROR", "CRITICAL")
+        )
+
+        self.assertEqual(2, found)
+
+    def test_a_log_nothing_has_written_yet_counts_nothing(self):
+        """
+        The dashboard is often open before the first engine starts, which
+        is an ordinary state rather than a failure.
+        """
+        found = count_matching(
+            self.db_path, "logs", "levelname", ("ERROR", "CRITICAL")
+        )
+
+        self.assertEqual(0, found)
+
+    def test_a_database_without_the_table_counts_nothing(self):
+        self.write("CREATE TABLE other (a INTEGER)")
+
+        found = count_matching(
+            self.db_path, "logs", "levelname", ("ERROR", "CRITICAL")
+        )
+
+        self.assertEqual(0, found)

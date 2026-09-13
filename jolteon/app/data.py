@@ -188,6 +188,34 @@ def read_latest_row(db_path: str, table: str) -> pd.Series | None:
     return None if frame.empty else frame.iloc[0]
 
 
+def count_matching(
+    db_path: str, table: str, column: str, values: tuple[str, ...]
+) -> int:
+    """
+    How many rows of `table` carry one of `values` in `column`.
+
+    Counted in the database rather than by reading the rows: the caller
+    that needs this wants a number for every engine at once, and the
+    table it asks about is the log, which is the largest one recorded.
+    """
+    if not Path(db_path).exists():
+        return 0
+
+    conn = sqlite3.connect(db_path)
+    try:
+        placeholders = ", ".join("?" * len(values))
+        found = conn.execute(
+            f'SELECT COUNT(*) FROM "{table}" '
+            f'WHERE "{column}" IN ({placeholders})',
+            values,
+        ).fetchone()
+        return int(found[0])
+    except sqlite3.OperationalError:
+        return 0
+    finally:
+        conn.close()
+
+
 def read_latest_per_group(
     db_path: str, table: str, group_column: str
 ) -> pd.DataFrame:

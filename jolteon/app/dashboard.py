@@ -28,6 +28,7 @@ from pathlib import Path
 
 import streamlit as st
 
+from jolteon.app.health_summary import nav_drawn, nav_label, summary
 from jolteon.app.settings import init_settings
 
 _LOGO_PATH = (
@@ -45,6 +46,10 @@ def main() -> None:
     st.logo(str(_LOGO_PATH), size="medium")
     st.html(f"<style>{_FOCUS_CSS}</style>")
 
+    health = summary(st.session_state.root)
+    nav_drawn(health)
+    health_title, health_icon = nav_label(health)
+
     st.navigation(
         [
             st.Page(
@@ -55,8 +60,8 @@ def main() -> None:
             ),
             st.Page(
                 "app_pages/health.py",
-                title="Health",
-                icon=":material/monitor_heart:",
+                title=health_title,
+                icon=health_icon,
                 url_path="health",
             ),
             st.Page(

@@ -7,12 +7,16 @@ engine's it was. Everything here reads every engine and carries that
 symbol along.
 """
 
+import time
+from dataclasses import dataclass
+
 import pandas as pd
 import streamlit as st
 
 from jolteon.app.data import (
     SCAN_SECONDS,
     EngineDatabase,
+    count_matching,
     engine_databases,
     read_latest_per_group,
     read_table,
@@ -89,3 +93,91 @@ def _error_lines(log_db_path: str) -> pd.DataFrame:
         if "levelname" in logs.columns
         else logs.iloc[0:0]
     )
+
+
+@dataclass(frozen=True)
+class HealthSummary:
+    """What the navigation says about the engines, in as few facts as it
+    can be said in."""
+
+    down: tuple[str, ...]
+    errors: int
+
+    @property
+    def alerts(self) -> int:
+        return len(self.down) + self.errors
+
+
+def summary(root: str) -> HealthSummary:
+    """
+    Everything under `root` that is worth interrupting a reader for: a
+    component nothing has heard from, and a line an engine logged as an
+    error.
+
+    A sender that has never heartbeat at all is not down - there is
+    nothing to have stopped - and reads as an engine still starting up
+    where its own tiles are shown.
+    """
+    latest = heartbeats(root)
+    now = time.time()
+    down = (
+        tuple(
+            f"{row.symbol} · {row.sender}"
+            for row in latest.itertuples()
+            if is_down(now - row.timestamp)
+        )
+        if not latest.empty
+        else ()
+    )
+    return HealthSummary(down=down, errors=_error_count(root))
+
+
+@st.cache_data(ttl=SCAN_SECONDS, show_spinner=False)
+def _error_count(root: str) -> int:
+    return sum(
+        count_matching(engine.log_path, "logs", "levelname", ERROR_LEVELS)
+        for engine in engine_databases(root)
+    )
+
+
+def nav_label(current: HealthSummary) -> tuple[str, str]:
+    """
+    Returns: What the Health navigation item should call itself, and the
+    icon it should carry.
+
+    A navigation item has no badge to raise - the icon and the title are
+    the whole of what it can say - so the icon changes shape rather than
+    color, and the title carries how much there is to look at.
+    """
+    if not current.alerts:
+        return "Health", ":material/monitor_heart:"
+    return f"Health ({current.alerts})", ":material/warning:"
+
+
+_NAV_SUMMARY = "_health_summary_the_nav_drew"
+
+
+def nav_drawn(current: HealthSummary) -> None:
+    st.session_state[_NAV_SUMMARY] = current
+
+
+def redraw_nav_if_stale(root: str) -> None:
+    """
+    Asks for a full rerun when what the navigation says has gone out of
+    date.
+
+    Navigation is built by the entrypoint, and a fragment rerunning on
+    its own timer never re-runs that, so a page refreshing itself would
+    otherwise leave the Health item reading whatever it said when the
+    reader arrived.
+
+    What was found is recorded as drawn before the rerun rather than
+    after it: the entrypoint stores the same summary again a moment
+    later, and recording it here is what makes this one rerun per change
+    instead of one per refresh.
+    """
+    current = summary(root)
+    drawn = st.session_state.get(_NAV_SUMMARY)
+    nav_drawn(current)
+    if drawn is not None and drawn != current:
+        st.rerun(scope="app")
