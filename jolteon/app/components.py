@@ -10,6 +10,8 @@ import streamlit as st
 import streamlit.components.v1 as components
 from pandas.io.formats.style import Styler
 
+from jolteon.app.data import database_exists
+
 # Cards (the bordered section containers) sit on the page's grey canvas
 # (`backgroundColor` in .streamlit/config.toml) and would otherwise be
 # transparent, leaving the whole page one flat sheet. There is no native
@@ -460,7 +462,7 @@ def paginate(
 def warn_if_no_db(db_path: str | None = None) -> bool:
     """Returns whether `db_path` (the main database by default) exists."""
     db_path = db_path or st.session_state.db_path
-    if Path(db_path).exists():
+    if database_exists(db_path):
         return True
     st.warning(
         f"No database found at `{db_path}` yet. "

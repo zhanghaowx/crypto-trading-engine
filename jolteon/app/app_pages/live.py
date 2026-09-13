@@ -13,9 +13,7 @@ from jolteon.app.components import (
 )
 from jolteon.app.data import engine_databases
 from jolteon.app.health_summary import redraw_nav_if_stale
-from jolteon.app.settings import use_engine
-
-_ENGINE_KEY = "live-engine-symbol"
+from jolteon.app.settings import SYMBOL
 
 
 def _select_engine() -> None:
@@ -23,24 +21,31 @@ def _select_engine() -> None:
     Which engine's recording the sections below read.
 
     One engine trades one symbol and records to its own file, so choosing
-    a symbol is choosing a database. Nothing is offered while only one
+    a symbol is choosing a database - which `init_settings` resolves from
+    the choice this leaves behind. Nothing is offered while only one
     engine has been running, since there is nothing to choose between.
     """
     engines = engine_databases(st.session_state.root)
     if len(engines) < 2:
         return
 
-    by_symbol = {engine.symbol: engine for engine in engines}
-    symbol = st.segmented_control(
+    st.segmented_control(
         "Symbol",
-        options=list(by_symbol),
-        default=next(iter(by_symbol)),
-        key=_ENGINE_KEY,
+        options=[engine.symbol for engine in engines],
+        default=engines[0].symbol,
+        # A page that reads one engine has to be reading one: cleared,
+        # every section below would go on showing the engine the reader
+        # had just stopped asking for.
+        required=True,
+        key=SYMBOL,
+        # The binding carries the symbol in the URL, so a link names the
+        # symbol it was copied from. `persist_state` is what carries it
+        # across a page switch: a bound value belongs to the page that
+        # bound it, and is dropped from the URL on the way to another.
+        bind="query-params",
+        persist_state="session",
         label_visibility="collapsed",
     )
-    # A segmented control lets the reader clear their own selection.
-    if symbol in by_symbol:
-        use_engine(by_symbol[symbol])
 
 
 sections: list[Section] = [
