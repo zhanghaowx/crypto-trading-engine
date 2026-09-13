@@ -138,7 +138,7 @@ def test_an_edit_shows_what_it_would_change(params_db_path, missing_db_path):
     assert not at.button[0].disabled
     summary = at.markdown[-1].value
     assert (
-        "| Market Making · Quote Size | All symbols | default | 0.02 |"
+        "| Market Making · Quote Size | All Symbols | default | 0.02 |"
         in summary
     )
 
@@ -675,7 +675,7 @@ class TestTuningOneSymbol:
 
         assert not at.exception
         # AppTest reports the labels, not the values behind them.
-        assert ["All symbols", self.ETH] == at.segmented_control[0].options
+        assert ["All Symbols", self.ETH] == at.segmented_control[0].options
 
     def test_offers_a_symbol_an_engine_has_actually_traded(
         self, params_db_path, missing_db_path, tmp_path, recordings
@@ -688,7 +688,7 @@ class TestTuningOneSymbol:
 
         assert not at.exception
         assert [
-            "All symbols",
+            "All Symbols",
             "BTC/USD",
             "ETH/USD",
         ] == at.segmented_control[0].options

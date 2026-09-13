@@ -44,7 +44,7 @@ from jolteon.engine.core.parameter.parameter_store import (
 _STAGED = "_staged_parameters"
 _SCOPE = "parameter-scope"
 _REPORTS = "_engine_parameter_reports"
-_ALL_SYMBOLS_LABEL = "All symbols"
+_ALL_SYMBOLS_LABEL = "All Symbols"
 
 # A field identified by the scope it is set for as well as by its name.
 Field = tuple[str, str, str]
@@ -444,11 +444,7 @@ def _selected_scope(scopes: list[str]) -> str:
         format_func=_scope_label,
         default=ALL_SYMBOLS,
         key=_SCOPE,
-        help=(
-            "Edit the values every symbol uses, or just one symbol's. A "
-            "symbol takes its own value where it has one and the shared "
-            "value everywhere else."
-        ),
+        label_visibility="collapsed",
     )
     # A segmented control lets the reader clear their own selection.
     return ALL_SYMBOLS if scope is None else scope
