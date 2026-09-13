@@ -5,6 +5,8 @@ talks to the running engine directly.
 """
 
 import sqlite3
+from dataclasses import dataclass
+from glob import glob
 from pathlib import Path
 
 import pandas as pd
@@ -97,6 +99,55 @@ def read_table(db_path: str, table: str) -> pd.DataFrame:
     # not pile up on the frame kept for the next refresh. It copies the
     # column index, not the rows.
     return frame.copy(deep=False)
+
+
+@dataclass(frozen=True)
+class EngineDatabase:
+    """One engine's recording, and the symbol that engine was trading."""
+
+    path: str
+    symbol: str
+
+    @property
+    def log_path(self) -> str:
+        """
+        Where the engine that wrote `path` puts its logs. Logs live in a
+        database of their own so their writer never contends with the
+        recorder's for a write lock, and the engine names it after the
+        same session rather than recording where it went.
+        """
+        return str(Path(self.path).with_suffix(".log.sqlite"))
+
+
+def engine_databases(pattern: str) -> list[EngineDatabase]:
+    """
+    Returns: Every engine recording `pattern` matches, each labelled with
+    the symbol that engine traded.
+
+    One engine trades one symbol and writes its own file, so a dashboard
+    watching several engines reads several files. A pattern naming a
+    single path matches only itself, so pointing at one database still
+    works.
+    """
+    return [
+        EngineDatabase(path=path, symbol=_recorded_symbol(path))
+        for path in sorted(glob(pattern))
+    ]
+
+
+def _recorded_symbol(db_path: str) -> str:
+    """
+    Returns: The symbol this recording is of, taken from the recording
+    itself rather than from the file name - the name is a convention the
+    engine happens to follow, while a recorded tick is what happened.
+
+    Falls back to the file name for a recording with no ticks in it yet,
+    so an engine that has just started still has something to be called.
+    """
+    latest = read_latest_row(db_path, "ticker_feed")
+    if latest is not None and latest.get("symbol"):
+        return str(latest["symbol"])
+    return Path(db_path).stem
 
 
 def as_datetime(column: pd.Series) -> pd.Series:
