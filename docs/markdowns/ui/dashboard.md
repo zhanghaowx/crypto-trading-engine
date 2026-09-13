@@ -55,6 +55,9 @@ and reach the engine only when committed, and each field reports what the engine
 applied, not read yet, not picked up, or rejected with a reason. The staged changes and the
 Commit/Revert buttons sit at the bottom of the tab, under the parameter cards.
 
+The tab a reader is on is in the URL (`?tab=Dashboard`), so a refresh comes back to it and a
+link points at it. Only the open tab is built.
+
 **Dashboard** holds the settings for this viewer alone: auto-refresh and the chart window. The
 database paths are not editable there — they come from the launch flags above, so the page can
 never read a different file than the one it reports.
