@@ -178,6 +178,9 @@ def recordings(tmp_path):
             conn.commit()
         finally:
             conn.close()
+        # An engine writes its logs to a database beside its recording,
+        # and any pattern matching the one matches the other.
+        sqlite3.connect(str(path).replace(".sqlite", ".log.sqlite")).close()
         return str(path)
 
     return {symbol: write(symbol) for symbol in ("BTC/USD", "ETH/USD")}

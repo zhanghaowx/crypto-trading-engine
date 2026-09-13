@@ -165,3 +165,18 @@ def test_keeps_the_engine_the_reader_chose(tmp_path):
     at.run()
 
     assert at.session_state["db_path"] == eth
+
+
+def test_an_engines_log_database_is_not_an_engine(tmp_path):
+    """
+    Logs sit beside the recording and are named after it, so any pattern
+    matching the one matches the other. Left in, a log database shows up
+    as a symbol of its own with nothing behind it - and being first
+    alphabetically, it is the one the dashboard opens on.
+    """
+    _recording(tmp_path, "ETH/USD")
+    sqlite3.connect(tmp_path / "jolteon-ETH-USD.log.sqlite").close()
+
+    found = engine_databases(str(tmp_path / "jolteon-*.sqlite"))
+
+    assert ["ETH/USD"] == [e.symbol for e in found]
