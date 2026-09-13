@@ -31,6 +31,7 @@ starts from rather than the only values it can hold. See
 | 4 | No latency model | Queue position optimistic |
 | 5 | Simulated book never reacts to our orders | Inherent to replay |
 | 6 | A better fill model would be live-only | Cannot be backtested |
+| 7 | Quoting starts before the venue's limits arrive | Sends orders the venue refuses |
 
 ## 1. Fees exceed the quoted edge
 
@@ -154,6 +155,35 @@ sample. If fill realism is the goal rather than better signals, a compact
 book writer belongs on the critical path. Nothing wires the book into the
 Kraken mock either, whose fill model imports no `OrderBook` at all and
 whose resting-order logic is untouched by the depth work.
+
+## 7. Quoting starts before the venue's limits arrive
+
+A symbol's minimum order size and price increment come from Kraken's
+`instrument` channel. Until that snapshot arrives the strategy treats the
+symbol as unconstrained, which it has to: a replay never receives one, and
+refusing to quote without it would mean refusing to quote at all.
+
+The ticker channel can arrive first. In a live paper session on ETH/USD,
+two orders were sent at `...597.4335` and the instrument snapshot landed
+at `...597.4521`, 19ms later. Both carried unrounded prices
+(`2508.25690924981`, against a pair quoted in hundredths) and the
+configured quote size, unchecked. On a symbol whose minimum that size does
+not clear, those are orders the venue refuses outright - the exact failure
+the check exists to prevent.
+
+It is bounded and self-correcting: once the snapshot lands, the check
+holds for the rest of the session, so this is a startup window rather than
+an ongoing condition. It is also timing-dependent - a BTC/USD and an
+ETH/USD session started together produced two such orders and none
+respectively - so it cannot be relied on to appear in testing.
+
+What would fix it is the strategy holding its first quote until it has a
+spec, but only where one is actually coming. `IMarketDataFeed.channels`
+already declares whether a feed publishes `Channel.INSTRUMENT`, so the
+fact needed exists; what is missing is a route from the feed's declaration
+to the strategy that does not tie `ApplicationBase`'s wiring to today's
+particular components. That is a design question of its own rather than a
+patch, which is why it is recorded here instead of fixed in passing.
 
 ## Reading results while these stand
 
