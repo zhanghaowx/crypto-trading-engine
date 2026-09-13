@@ -111,6 +111,20 @@ class EngineDatabase:
     log_path: str
 
 
+# How long a scan of the root is reused for. Below the shortest refresh
+# interval the Live page offers, so an auto-refresh still picks up an
+# engine that has just started, and above a burst of widget clicks, so
+# working through a page does not reopen every engine's recording on each
+# one. Nothing else invalidates this: a directory appearing on disk is
+# not observable without looking for it.
+#
+# A caller that compares one scan against another within a single run
+# also depends on the reuse: read live, the two would disagree by however
+# long the first took.
+SCAN_SECONDS = 2.0
+
+
+@st.cache_data(ttl=SCAN_SECONDS, show_spinner=False)
 def engine_databases(root: str) -> list[EngineDatabase]:
     """
     Returns: One entry per symbol something has been recorded for under

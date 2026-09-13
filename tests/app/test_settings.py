@@ -4,6 +4,7 @@ import sys
 from streamlit.testing.v1 import AppTest
 
 from jolteon import paths
+from jolteon.app import data
 from jolteon.app.data import engine_databases
 from jolteon.app.settings import parse_args
 
@@ -123,6 +124,31 @@ def test_the_tuning_store_is_not_a_symbol(tmp_path):
     assert ["ETH/USD"] == [e.symbol for e in found]
 
 
+def test_the_root_is_scanned_once_for_every_reader_of_it(
+    tmp_path, monkeypatch
+):
+    """
+    Every page asks which engines are running, and naming one means
+    opening its recording to read the symbol back. Asked afresh each
+    time, a page with several such readers reopens every engine's file on
+    every rerun.
+    """
+    _recording(tmp_path, "ETH/USD")
+    _recording(tmp_path, "BTC/USD")
+    opened = []
+    real = data.read_latest_row
+    monkeypatch.setattr(
+        data,
+        "read_latest_row",
+        lambda db_path, table: opened.append(db_path) or real(db_path, table),
+    )
+
+    engine_databases(str(tmp_path))
+    engine_databases(str(tmp_path))
+
+    assert len(opened) == 2
+
+
 def test_starts_on_the_first_symbol_it_finds(tmp_path):
     _recording(tmp_path, "ETH/USD")
     btc = _recording(tmp_path, "BTC/USD")
@@ -149,6 +175,9 @@ def test_finds_a_symbol_that_started_after_the_dashboard(tmp_path):
     assert at.session_state["db_path"] == ""
 
     eth = _recording(tmp_path, "ETH/USD")
+    # What a real dashboard waits out: the root is scanned at most once
+    # every `SCAN_SECONDS`, and this engine started inside that window.
+    engine_databases.clear()
     at.run()
 
     assert at.session_state["db_path"] == eth

@@ -3,6 +3,7 @@ import time
 from pathlib import Path
 
 import pytest
+import streamlit as st
 from streamlit.testing.v1 import AppTest
 
 from jolteon import paths
@@ -10,6 +11,19 @@ from jolteon import paths
 _DASHBOARD_PATH = str(
     Path(__file__).resolve().parents[2] / "jolteon" / "app" / "dashboard.py"
 )
+
+
+@pytest.fixture(autouse=True)
+def fresh_scan():
+    """
+    `engine_databases` is cached for `SCAN_SECONDS`, and that cache is
+    process-global rather than per-session, so a test that writes a
+    recording would otherwise be answered with whatever the previous
+    test's directory held.
+    """
+    st.cache_data.clear()
+    yield
+    st.cache_data.clear()
 
 
 @pytest.fixture
