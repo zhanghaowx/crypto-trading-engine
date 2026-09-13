@@ -1,0 +1,26 @@
+/* A navigation item has no badge to raise and no markup of its own to
+   hang one on, so the dot is drawn after the item's own label. */
+[data-testid="stTopNavLink"] span[label="Health"] > * {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+[data-testid="stTopNavLink"] span[label="Health"] > *::after {
+  content: "";
+  flex: none;
+  /* The glow reaches past the dot itself, so the next item is held off
+     by the room it needs rather than by the dot's own width. */
+  margin-right: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  color: #DC2626;
+  background: #DC2626;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-testid="stTopNavLink"] span[label="Health"] > *::after {
+    animation: jolteon-glow 1.8s ease-in-out infinite;
+  }
+}

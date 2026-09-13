@@ -28,7 +28,13 @@ from pathlib import Path
 
 import streamlit as st
 
-from jolteon.app.health_summary import nav_drawn, nav_label, summary
+from jolteon.app.health_summary import (
+    NAV_ICON,
+    NAV_TITLE,
+    nav_alert_rule,
+    nav_drawn,
+    summary,
+)
 from jolteon.app.settings import init_settings
 
 _LOGO_PATH = (
@@ -43,6 +49,10 @@ _TOP_PADDING_CSS = (
     Path(__file__).resolve().parent / "static" / "page_top_padding.css"
 ).read_text()
 
+_DOT_CSS = (
+    Path(__file__).resolve().parent / "static" / "status_dot.css"
+).read_text()
+
 
 def main() -> None:
     st.set_page_config(page_title="Jolteon Live", layout="wide")
@@ -50,10 +60,11 @@ def main() -> None:
     st.logo(str(_LOGO_PATH), size="medium")
     st.html(f"<style>{_FOCUS_CSS}</style>")
     st.html(f"<style>{_TOP_PADDING_CSS}</style>")
+    st.html(f"<style>{_DOT_CSS}</style>")
 
     health = summary(st.session_state.root)
     nav_drawn(health)
-    health_title, health_icon = nav_label(health)
+    st.html(nav_alert_rule(health))
 
     st.navigation(
         [
@@ -65,8 +76,8 @@ def main() -> None:
             ),
             st.Page(
                 "app_pages/health.py",
-                title=health_title,
-                icon=health_icon,
+                title=NAV_TITLE,
+                icon=NAV_ICON,
                 url_path="health",
             ),
             st.Page(

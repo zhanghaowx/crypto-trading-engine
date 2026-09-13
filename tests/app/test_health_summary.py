@@ -6,7 +6,7 @@ from jolteon.app.health_summary import (
     HEARTBEAT_TIMEOUT_SECONDS,
     HealthSummary,
     is_down,
-    nav_label,
+    nav_alert_rule,
 )
 
 
@@ -174,22 +174,20 @@ def test_lines_below_error_are_not_counted(engines):
     assert at.session_state["found"].errors == 0
 
 
-def test_a_quiet_nav_item_is_just_the_page_name():
-    assert nav_label(HealthSummary(down=(), errors=0)) == (
-        "Health",
-        ":material/monitor_heart:",
-    )
+def test_a_quiet_nav_item_is_left_unmarked():
+    quiet = HealthSummary(down=(), errors=0)
+
+    assert 'span[label="Health"]' not in nav_alert_rule(quiet)
 
 
-def test_an_alarmed_nav_item_says_how_much_there_is_to_look_at():
+def test_an_alarmed_nav_item_is_marked_for_the_reader():
     """
-    A navigation item has no badge to raise, so the icon changes shape
-    where a badge would have changed color.
+    A navigation item has no badge to raise, so a dot is drawn after the
+    item's own name.
     """
-    label, icon = nav_label(HealthSummary(down=("BTC/USD · MD",), errors=2))
+    alarmed = HealthSummary(down=("BTC/USD · MD",), errors=2)
 
-    assert label == "Health (3)"
-    assert icon == ":material/warning:"
+    assert 'span[label="Health"]' in nav_alert_rule(alarmed)
 
 
 def nav_script():

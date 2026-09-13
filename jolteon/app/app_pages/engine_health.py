@@ -1,7 +1,6 @@
 """Every engine's components, and how recently each one was heard from."""
 
 from datetime import datetime
-from pathlib import Path
 
 import pandas as pd
 import streamlit as st
@@ -29,10 +28,6 @@ _DOT_HEX: dict[BadgeColor, str] = {
     "red": "#DC2626",
     "gray": "#8A8D91",
 }
-
-_DOT_CSS = (
-    Path(__file__).resolve().parents[1] / "static" / "status_dot.css"
-).read_text()
 
 
 def _status_dot(color: BadgeColor) -> str:
@@ -121,5 +116,3 @@ def render() -> None:
             st.info("No heartbeats recorded yet.")
         else:
             _tiles(engine.symbol, found)
-
-    st.html(f"<style>{_DOT_CSS}</style>")
