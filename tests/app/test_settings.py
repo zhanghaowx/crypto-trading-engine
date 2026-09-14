@@ -81,6 +81,33 @@ def _recording(root, symbol: str) -> str:
     return path
 
 
+def _exchange_recording(root, exchange: str, symbol: str) -> str:
+    path = paths.recording(str(root), exchange, symbol)
+    paths.prepare(path)
+    conn = sqlite3.connect(path)
+    try:
+        conn.execute("CREATE TABLE ticker_feed (timestamp REAL, symbol TEXT)")
+        conn.execute(
+            "INSERT INTO ticker_feed VALUES (1700000000, ?)", (symbol,)
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return path
+
+
+def test_same_symbol_on_two_exchanges_has_two_dashboard_identities(tmp_path):
+    kraken = _exchange_recording(tmp_path, "Kraken", "BTC/USD")
+    binance = _exchange_recording(tmp_path, "Binance.US", "BTC/USD")
+
+    found = engine_databases(str(tmp_path))
+
+    assert [(engine.key, engine.path) for engine in found] == [
+        ("binance-us:BTC/USD", binance),
+        ("kraken:BTC/USD", kraken),
+    ]
+
+
 def test_finds_every_symbol_that_has_been_traded(tmp_path):
     _recording(tmp_path, "ETH/USD")
     _recording(tmp_path, "BTC/USD")
@@ -118,7 +145,9 @@ def test_the_tuning_store_is_not_a_symbol(tmp_path):
     symbols rather than inside any one of them.
     """
     _recording(tmp_path, "ETH/USD")
-    sqlite3.connect(paths.parameter_store(str(tmp_path))).close()
+    parameter_store = paths.parameter_store(str(tmp_path))
+    paths.prepare(parameter_store)
+    sqlite3.connect(parameter_store).close()
 
     found = engine_databases(str(tmp_path))
 
@@ -190,7 +219,7 @@ def test_the_tuning_store_sits_at_the_root(tmp_path):
     at.run()
 
     assert at.session_state["params_db_path"] == str(
-        tmp_path / "parameters.sqlite"
+        tmp_path / "kraken" / "parameters.sqlite"
     )
 
 

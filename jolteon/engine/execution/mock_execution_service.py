@@ -1,20 +1,15 @@
-import logging
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
 from typing import Union
-
-import pytz
-import requests
 
 from jolteon.engine.core.event.signal import signal, subscribe
 from jolteon.engine.core.event.signal_subscriber import SignalSubscriber
+from jolteon.engine.core.fee_schedule import FeeSchedule
 from jolteon.engine.core.health_monitor.heartbeat import Heartbeater
 from jolteon.engine.core.id_generator import id_generator
 from jolteon.engine.core.parameter.parameter_service import parameter_service
 from jolteon.engine.core.side import MarketSide
 from jolteon.engine.core.time.time_manager import time_manager
-from jolteon.engine.execution.kraken.fee_schedule import KrakenFeeSchedule
 from jolteon.engine.market_data.core.bbo import BBO
 from jolteon.engine.market_data.core.order import CancelOrder, Order, OrderType
 from jolteon.engine.market_data.core.trade import Trade
@@ -33,7 +28,7 @@ class _RestingOrder:
 
 
 class MockExecutionService(Heartbeater, SignalSubscriber):
-    def __init__(self):
+    def __init__(self, fee_schedule: type[FeeSchedule]):
         """
         Creates a mock execution service to act as the exchange.
 
@@ -51,6 +46,7 @@ class MockExecutionService(Heartbeater, SignalSubscriber):
         precise reconstruction of Kraken's real matching engine.
         """
         super().__init__(type(self).__name__)
+        self._fee_schedule = fee_schedule
         self.order_history = dict[str, Order]()
         self.order_fill_event = signal("order_fill")
 
@@ -181,33 +177,6 @@ class MockExecutionService(Heartbeater, SignalSubscriber):
                 if 0 <= time_difference <= 60:
                     return trade.price
 
-        logging.warning(
-            f"Fail to generate a trade from "
-            f"{sum([len(trade_list) for trade_list in cached_trades])} "
-            f"cached trades"
-        )
-
-        # Second search using Kraken's API
-        response = requests.get(
-            f"https://api.kraken.com/0/public/Trades?"
-            f"pair={order.symbol}&"
-            f"since={int(order.creation_time.timestamp())}&"
-            f"limit=10"
-        )
-        assert response.status_code == 200, response
-
-        json_resp = response.json()
-        assert json_resp["error"] == [], json_resp
-        assert json_resp["result"] is not None, json_resp
-
-        json_trades = json_resp["result"][order.symbol]
-        for json_trade in json_trades:
-            transaction_time = datetime.fromtimestamp(
-                json_trade[2], tz=pytz.utc
-            )
-            if transaction_time >= order.creation_time:
-                return float(json_trade[0])
-
         return 0.0
 
     def _generate_order_fill(
@@ -218,7 +187,7 @@ class MockExecutionService(Heartbeater, SignalSubscriber):
         quantity: Union[float, None] = None,
     ):
         filled_quantity = order.quantity if quantity is None else quantity
-        fees = parameter_service().get(KrakenFeeSchedule, order.symbol)
+        fees = parameter_service().get(self._fee_schedule, order.symbol)
         fee = fees.maker_fee if maker else fees.taker_fee
         trade = Trade(
             trade_id=id_generator().next(),

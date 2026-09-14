@@ -82,7 +82,7 @@ dashboard process                        engine process
 ─────────────────                        ──────────────
 Parameters page                          StoredParameterService
   stage edits in session state             poller thread, every ~1s
-  [Commit] ─write─> <root>/parameters.sqlite ─read (mode=ro)─> rebuild on change
+  [Commit] ─write─> <root>/<exchange>/parameters.sqlite ─read (mode=ro)─> rebuild on change
                   (dashboard = sole writer)                        │
                                                       parameter_applied
                                                                    │

@@ -10,7 +10,8 @@ import pytz
 from jolteon.app.base import ApplicationBase
 from jolteon.engine.core.parameter.parameter_service import IParameterService
 from jolteon.engine.execution.kraken.execution_service import ExecutionService
-from jolteon.engine.execution.kraken.mock_execution_service import (
+from jolteon.engine.execution.kraken.fee_schedule import KrakenFeeSchedule
+from jolteon.engine.execution.mock_execution_service import (
     MockExecutionService,
 )
 from jolteon.engine.market_data.historical_feed import HistoricalFeed
@@ -37,6 +38,7 @@ class KrakenApplication(ApplicationBase):
         print(f"Using {type(self).__name__}")
         super().__init__(
             symbol=symbol.replace("-", "/"),
+            exchange="Kraken",
             database_name=database_name,
             logfile_name=logfile_name,
             strategy=strategy,
@@ -44,7 +46,9 @@ class KrakenApplication(ApplicationBase):
             parameter_service=parameter_service,
         )
         if use_mock_execution:
-            super().use_execution_service(MockExecutionService())
+            super().use_execution_service(
+                MockExecutionService(KrakenFeeSchedule)
+            )
         else:
             super().use_execution_service(ExecutionService())
 

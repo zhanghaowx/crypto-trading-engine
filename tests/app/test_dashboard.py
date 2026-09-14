@@ -1,3 +1,4 @@
+import sqlite3
 import time
 
 from jolteon import paths
@@ -112,7 +113,49 @@ def test_offers_every_symbol_being_traded(dashboard, tmp_path, recordings):
     at = dashboard.run()
 
     assert not at.exception
-    assert ["BTC/USD", "ETH/USD"] == at.segmented_control[0].options
+    assert ["Kraken · BTC/USD", "Kraken · ETH/USD"] == at.segmented_control[
+        0
+    ].options
+
+
+def test_selects_same_symbol_on_two_exchanges(dashboard, tmp_path):
+    recordings = {}
+    for exchange in ("Kraken", "Binance.US"):
+        path = paths.recording(str(tmp_path), exchange, "BTC/USD")
+        paths.prepare(path)
+        conn = sqlite3.connect(path)
+        try:
+            conn.execute(
+                "CREATE TABLE ticker_feed "
+                "(timestamp REAL, symbol TEXT, bid_price REAL, ask_price REAL)"
+            )
+            conn.execute(
+                "INSERT INTO ticker_feed VALUES (1, 'BTC/USD', 100, 101)"
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        recordings[exchange] = path
+
+    dashboard.session_state["root"] = str(tmp_path)
+    del dashboard.session_state["params_db_path"]
+    at = dashboard.run()
+
+    assert at.segmented_control[0].options == [
+        "Binance.US · BTC/USD",
+        "Kraken · BTC/USD",
+    ]
+    at.segmented_control[0].set_value("kraken:BTC/USD").run()
+    assert at.session_state["db_path"] == recordings["Kraken"]
+    assert at.session_state["params_db_path"] == paths.parameter_store(
+        str(tmp_path), "Kraken"
+    )
+
+    at.segmented_control[0].set_value("binance-us:BTC/USD").run()
+    assert at.session_state["db_path"] == recordings["Binance.US"]
+    assert at.session_state["params_db_path"] == paths.parameter_store(
+        str(tmp_path), "Binance.US"
+    )
 
 
 def test_reads_the_first_engine_until_another_is_chosen(
@@ -134,7 +177,7 @@ def test_choosing_a_symbol_reads_that_engines_recording(
     """
     dashboard.session_state["root"] = str(tmp_path)
     at = dashboard.run()
-    at.segmented_control[0].set_value("ETH/USD").run()
+    at.segmented_control[0].set_value("kraken:ETH/USD").run()
 
     assert not at.exception
     assert at.session_state["db_path"] == recordings["ETH/USD"]
@@ -152,21 +195,21 @@ def test_the_symbol_survives_a_page_switch(dashboard, tmp_path, recordings):
     """
     dashboard.session_state["root"] = str(tmp_path)
     at = dashboard.run()
-    at.segmented_control[0].set_value("ETH/USD").run()
+    at.segmented_control[0].set_value("kraken:ETH/USD").run()
 
     at.switch_page("app_pages/parameters.py").run()
     at.switch_page("app_pages/live.py").run()
 
     assert not at.exception
     assert at.session_state["db_path"] == recordings["ETH/USD"]
-    assert at.segmented_control[0].value == "ETH/USD"
+    assert at.segmented_control[0].value == "kraken:ETH/USD"
 
 
 def test_the_symbol_a_link_names_is_the_symbol_it_opens_on(
     dashboard, tmp_path, recordings
 ):
     dashboard.session_state["root"] = str(tmp_path)
-    dashboard.query_params["symbol"] = "ETH/USD"
+    dashboard.query_params["engine"] = "kraken:ETH/USD"
     at = dashboard.run()
 
     assert not at.exception

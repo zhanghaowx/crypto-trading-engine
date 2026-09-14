@@ -106,13 +106,13 @@ def render() -> None:
         # and saying so is what keeps it from looking like one that never
         # started at all.
         if len(engines) > 1:
-            st.markdown(f"**{engine.symbol}**")
+            st.markdown(f"**{engine.label}**")
         found = (
-            latest[latest["symbol"] == engine.symbol]
+            latest[latest["engine_key"] == engine.key]
             if not latest.empty
             else latest
         )
         if found.empty:
             st.info("No heartbeats recorded yet.")
         else:
-            _tiles(engine.symbol, found)
+            _tiles(engine.key, found)

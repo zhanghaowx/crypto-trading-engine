@@ -75,7 +75,7 @@ def test_renders_only_error_rows_as_expandable_entries(engines):
     assert "connection dropped" in entry.label
     assert (
         entry.caption[0].value
-        == "BTC/USD · jolteon.engine.market_data · feed.py:42"
+        == "Kraken · BTC/USD · jolteon.engine.market_data · feed.py:42"
     )
 
 
@@ -121,7 +121,7 @@ def test_an_entry_names_the_symbol_whose_engine_logged_it(engines):
 
     at = _page(engines).run()
 
-    assert at.status[0].label.startswith("`ETH/USD`")
+    assert at.status[0].label.startswith("`Kraken · ETH/USD`")
 
 
 def test_entries_from_every_engine_share_one_order(engines):

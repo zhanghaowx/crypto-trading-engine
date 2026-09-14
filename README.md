@@ -64,7 +64,7 @@ uv run jolteon --exchange Kraken --replay-start 2024-01-01T00:00:00 --replay-end
 **Replay a recording** from an earlier run:
 
 ```bash
-uv run jolteon --exchange Kraken --replay-db /tmp/jolteon/BTC-USD/live.sqlite
+uv run jolteon --exchange Kraken --replay-db /tmp/jolteon/kraken/BTC-USD/live.sqlite
 ```
 
 **Another symbol** — `--symbol` takes any pair the venue lists. One engine trades one
@@ -76,21 +76,29 @@ uv run jolteon --exchange Kraken --paper --symbol ETH/USD
 
 ### Where a session writes
 
-Everything a session writes goes under a directory named after the symbol it traded,
-so a second engine never lands on top of the first:
+Everything a session writes is scoped first by exchange and then by canonical
+symbol. Two venues trading BTC/USD therefore never share a database or parameter
+store:
 
 ```
 /tmp/jolteon/
-  parameters.sqlite       # tuning, shared by every engine
-  BTC-USD/
-    live.sqlite           # every signal the session recorded
-    live.log              # and its log, mirrored into live.log.sqlite
-  ETH-USD/
-    ...
+  kraken/
+    parameters.sqlite     # tuning shared by Kraken engines
+    BTC-USD/
+      live.sqlite         # every signal the session recorded
+      live.log            # and its log, mirrored into live.log.sqlite
+  binance-us/
+    parameters.sqlite     # separate venue-specific tuning
+    BTC-USD/
+      live.sqlite
+      live.log
 ```
 
 `--root` moves all of it somewhere else. A replay writes `replay.sqlite` beside the
-live recording for the same symbol, plus a profiler trace at `/tmp/jolteon.stat`.
+live recording for the same exchange and symbol, plus a profiler trace at
+`/tmp/jolteon.stat`. The dashboard still reads recordings written under the old
+`<root>/<symbol>/` layout as legacy Kraken sessions; new runs always use the
+exchange-first layout.
 
 ### Dashboard
 

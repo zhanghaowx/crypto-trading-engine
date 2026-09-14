@@ -139,7 +139,9 @@ def test_a_silent_component_is_named_with_its_symbol(engines):
 
     at = _read(engines, summary_script)
 
-    assert at.session_state["found"].down == ("ETH/USD · MarketMaking",)
+    assert at.session_state["found"].down == (
+        "Kraken · ETH/USD · MarketMaking",
+    )
 
 
 def test_an_engine_yet_to_heartbeat_is_not_called_down(engines):

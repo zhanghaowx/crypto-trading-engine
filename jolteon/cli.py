@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 import pytz
 
 from jolteon import monitoring, paths
+from jolteon.app.exchanges import exchange_definition
 from jolteon.app.progress_bar import ProgressBar
 from jolteon.engine.core.market import Market
 from jolteon.engine.core.parameter.parameter_service import (
@@ -134,23 +135,19 @@ async def main():
 
     # Instantiate the correct market's application instance
     market = Market.parse(args.exchange)
-    if market == Market.KRAKEN:
-        from jolteon.app.kraken import KrakenApplication as Application
-        from jolteon.engine.execution.kraken.fee_schedule import (
-            KrakenFeeSchedule,
-        )
-
-        fee_schedule = KrakenFeeSchedule
-    else:
+    exchange = exchange_definition(market)
+    if exchange.application is None or exchange.fee_schedule is None:
         raise NotImplementedError(
             f"Application is not implemented for market {args.exchange}"
         )
+    Application = exchange.application
+    fee_schedule = exchange.fee_schedule
 
     # Every file a session writes goes under its own symbol's directory,
     # or a second engine would interleave its rows into the first one's
     # database.
     params_db = (
-        paths.parameter_store(args.root)
+        paths.parameter_store(args.root, exchange.name)
         if args.params_db is None
         else args.params_db
     )
@@ -179,8 +176,12 @@ async def main():
         app = Application(
             symbol,
             use_mock_execution=True,
-            database_name=paths.recording(args.root, symbol, paths.REPLAY),
-            logfile_name=paths.log_file(args.root, symbol, paths.REPLAY),
+            database_name=paths.recording(
+                args.root, exchange.name, symbol, paths.REPLAY
+            ),
+            logfile_name=paths.log_file(
+                args.root, exchange.name, symbol, paths.REPLAY
+            ),
         )
         _active_app = app
         profiler = cProfile.Profile()
@@ -237,8 +238,8 @@ async def main():
         app = Application(
             symbol,
             use_mock_execution=args.paper,
-            database_name=paths.recording(args.root, symbol),
-            logfile_name=paths.log_file(args.root, symbol),
+            database_name=paths.recording(args.root, exchange.name, symbol),
+            logfile_name=paths.log_file(args.root, exchange.name, symbol),
             strategy=strategy,
             fair_price_model=fair_price_model,
             parameter_service=parameter_service,
