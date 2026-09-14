@@ -135,6 +135,19 @@ Selecting the live services as above does not start the paper engine. See the
 [local stack runbook](docs/markdowns/operations/local-stack.md) for logs,
 updates, and data cleanup.
 
+### Error reporting
+
+Jolteon keeps operational data in local SQLite files. For unattended runs, you
+can additionally set `SENTRY_DSN` in `.env` or the process environment to send
+terminal exceptions to Sentry. Leaving it unset sends nothing.
+
+Reports identify the exchange, canonical symbol, run mode, process component,
+release, and Compose service. Request data, user data, credentials, signed
+values, and stack-frame local variables are removed before an event is sent.
+Normal ticks, trades, orders, fills, and heartbeats are never sent. Set
+`JOLTEON_RELEASE` to the deployed commit SHA and `JOLTEON_ENVIRONMENT` to a name
+such as `paper-us` when running outside local development.
+
 ## Development
 
 Tasks run through [poe](https://poethepoet.natn.io/):

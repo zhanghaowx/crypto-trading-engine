@@ -7,6 +7,11 @@ services:
       dockerfile: Containerfile
       target: engine
     command: ["--exchange", "Kraken", "--paper", "--symbol", "BTC/USD", "--root", "/data"]
+    environment:
+      JOLTEON_ENVIRONMENT: "${JOLTEON_ENVIRONMENT:-development}"
+      JOLTEON_RELEASE: "${JOLTEON_RELEASE:-}"
+      JOLTEON_SERVICE: engine-kraken-btc-usd
+      SENTRY_DSN: "${SENTRY_DSN:-}"
     init: true
     restart: unless-stopped
     volumes:
@@ -17,6 +22,11 @@ services:
       context: .
       dockerfile: Containerfile
       target: dashboard
+    environment:
+      JOLTEON_ENVIRONMENT: "${JOLTEON_ENVIRONMENT:-development}"
+      JOLTEON_RELEASE: "${JOLTEON_RELEASE:-}"
+      JOLTEON_SERVICE: dashboard
+      SENTRY_DSN: "${SENTRY_DSN:-}"
     init: true
     restart: unless-stopped
     ports:
@@ -32,8 +42,12 @@ services:
       target: engine
     command: ["--exchange", "Kraken", "--symbol", "BTC/USD", "--root", "/data"]
     environment:
+      JOLTEON_ENVIRONMENT: "${JOLTEON_ENVIRONMENT:-development}"
+      JOLTEON_RELEASE: "${JOLTEON_RELEASE:-}"
+      JOLTEON_SERVICE: engine-kraken-btc-usd-live
       KRAKEN_API_KEY: "${KRAKEN_API_KEY:-}"
       KRAKEN_API_SECRET: "${KRAKEN_API_SECRET:-}"
+      SENTRY_DSN: "${SENTRY_DSN:-}"
     init: true
     restart: "no"
     volumes:

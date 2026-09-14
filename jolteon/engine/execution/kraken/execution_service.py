@@ -22,6 +22,7 @@ from jolteon.engine.execution.kraken.parameters import (
 from jolteon.engine.execution.kraken.rest_client import KrakenRESTClient
 from jolteon.engine.market_data.core.order import CancelOrder, Order
 from jolteon.engine.market_data.core.trade import Trade
+from jolteon.monitoring import capture_operational_exception
 
 
 class ExecutionService(Heartbeater, SignalSubscriber):
@@ -88,6 +89,7 @@ class ExecutionService(Heartbeater, SignalSubscriber):
 
         except Exception as e:
             logging.error(f"Fail to send order: {e}", exc_info=True)
+            capture_operational_exception(e, operation="submit_order")
 
             self.add_issue(
                 HeartbeatLevel.ERROR, self.ErrorCode.CREATE_ORDER_FAILURE.name
@@ -114,6 +116,7 @@ class ExecutionService(Heartbeater, SignalSubscriber):
             self.send_cancel_order(cancel_order)
         except Exception as e:
             logging.error(f"Fail to cancel order: {e}", exc_info=True)
+            capture_operational_exception(e, operation="cancel_order")
 
             self.add_issue(
                 HeartbeatLevel.ERROR, self.ErrorCode.CANCEL_ORDER_FAILURE.name
