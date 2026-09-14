@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 
 import pytz
 
-from jolteon import paths
+from jolteon import monitoring, paths
 from jolteon.app.progress_bar import ProgressBar
 from jolteon.engine.core.market import Market
 from jolteon.engine.core.parameter.parameter_service import (
@@ -118,6 +118,19 @@ async def main():
     replay_start = args.replay_start
     replay_end = args.replay_end
     replay_db = args.replay_db
+    symbol = getattr(args, "symbol", "BTC-USD")
+
+    mode = (
+        "replay"
+        if (replay_start and replay_end) or replay_db
+        else ("paper" if getattr(args, "paper", False) else "live")
+    )
+    monitoring.configure(
+        exchange=args.exchange,
+        symbol=symbol,
+        mode=mode,
+        component="engine",
+    )
 
     # Instantiate the correct market's application instance
     market = Market.parse(args.exchange)
@@ -133,7 +146,6 @@ async def main():
             f"Application is not implemented for market {args.exchange}"
         )
 
-    symbol = args.symbol
     # Every file a session writes goes under its own symbol's directory,
     # or a second engine would interleave its rows into the first one's
     # database.

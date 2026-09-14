@@ -60,3 +60,16 @@ engine if it is already running:
 ```bash
 docker compose stop engine-kraken-btc-usd
 ```
+
+## Optional Sentry reporting
+
+Set `SENTRY_DSN` in `.env` to report uncaught process failures and handled order
+submission or cancellation failures. Leave it blank to disable the SDK without
+network traffic. `JOLTEON_ENVIRONMENT` distinguishes deployments, and
+`JOLTEON_RELEASE` should contain the deployed commit SHA.
+
+Events carry exchange, symbol, mode, component, release, and service identity.
+The client disables traces and PII collection and removes request data, user
+data, credentials, signed values, and stack-frame locals. It does not submit
+ticks, trades, order or fill payloads, balances, API responses, or heartbeats.
+The local SQLite recording and logs remain the authoritative operational record.

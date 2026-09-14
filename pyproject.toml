@@ -25,6 +25,7 @@ dependencies = [
     "pandas",
     # Needed by exchanges who use websockets to disseminate market data
     "websockets",
+    "sentry-sdk>=2.69.1",
 ]
 
 [project.urls]

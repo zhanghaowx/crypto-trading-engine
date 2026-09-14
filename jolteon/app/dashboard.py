@@ -36,6 +36,14 @@ from jolteon.app.health_summary import (
     summary,
 )
 from jolteon.app.settings import init_settings
+from jolteon.monitoring import configure
+
+configure(
+    exchange="all",
+    symbol="all",
+    mode="dashboard",
+    component="dashboard",
+)
 
 _LOGO_PATH = (
     Path(__file__).resolve().parents[2] / "docs" / "images" / "jolteon.png"
