@@ -2,7 +2,6 @@ import uuid
 from dataclasses import replace
 from datetime import datetime
 from unittest import IsolatedAsyncioTestCase
-from unittest.mock import MagicMock, patch
 
 import pytz
 
@@ -10,7 +9,7 @@ from jolteon.engine.core.side import MarketSide
 from jolteon.engine.execution.kraken.fee_schedule import (
     KrakenFeeSchedule,
 )
-from jolteon.engine.execution.kraken.mock_execution_service import (
+from jolteon.engine.execution.mock_execution_service import (
     MockExecutionService,
 )
 from jolteon.engine.market_data.core.bbo import BBO
@@ -22,7 +21,7 @@ from jolteon.engine.market_data.data_source import IDataSource
 class TestMockExecutionService(IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.fills = list[Trade]()
-        self.execution_service = MockExecutionService()
+        self.execution_service = MockExecutionService(KrakenFeeSchedule)
         self.execution_service.order_fill_event.connect(self.on_fill)
         self.mock_order = Order(
             client_order_id="123",
@@ -40,37 +39,12 @@ class TestMockExecutionService(IsolatedAsyncioTestCase):
     def on_fill(self, _: str, trade: Trade):
         self.fills.append(trade)
 
-    async def test_on_order(self):
-        # Set up test parameters
-        symbol = "BTC/USD"
-        timestamp = self.mock_order.creation_time.timestamp()
-
-        # Mock the requests.get method to return a custom JSON response
-        mock_response = {
-            "error": [],
-            "result": {
-                symbol: [
-                    [50000.0, 1.0, timestamp, "b", "m", "", 1],
-                    [51000.0, 1.0, timestamp, "s", "l", "", 2],
-                    # Add more simulated trades as needed
-                ],
-                "last": timestamp,  # Mock the last timestamp
-            },
-        }
-
-        with patch("requests.get", new_callable=MagicMock) as mock_get:
-            # Set the return value of the mock to the custom JSON response
-            mock_get.return_value = MagicMock()
-            mock_get.return_value.status_code = 200
-            mock_get.return_value.json.return_value = mock_response
-
-            # Connect and simulate the asynchronous event loop
-            self.execution_service.on_order(self, self.mock_order)
+    async def test_market_order_without_recorded_trade_uses_zero_price(self):
+        self.execution_service.on_order(self, self.mock_order)
 
         self.assertEqual(len(self.fills), 1)
-        self.assertAlmostEqual(
-            KrakenFeeSchedule().taker_fee(50000, 0.0001), self.fills[0].fee
-        )
+        self.assertEqual(0.0, self.fills[0].price)
+        self.assertEqual(0.0, self.fills[0].fee)
 
     @staticmethod
     def create_market_trade(side: MarketSide, price: float, quantity: float):
@@ -304,27 +278,7 @@ class TestMockExecutionService(IsolatedAsyncioTestCase):
         self.assertEqual(0.01, self.fills[0].quantity)
 
     async def test_market_order_fills_at_zero_without_a_recent_trade(self):
-        """
-        Kraken only returns trades from before the order was placed, so
-        there is no price to match against.
-        """
-        symbol = "BTC/USD"
-        stale = self.mock_order.creation_time.timestamp() - 60
-
-        mock_response = {
-            "error": [],
-            "result": {
-                symbol: [[50000.0, 1.0, stale, "b", "m", "", 1]],
-                "last": stale,
-            },
-        }
-
-        with patch("requests.get", new_callable=MagicMock) as mock_get:
-            mock_get.return_value = MagicMock()
-            mock_get.return_value.status_code = 200
-            mock_get.return_value.json.return_value = mock_response
-
-            self.execution_service.on_order(self, self.mock_order)
+        self.execution_service.on_order(self, self.mock_order)
 
         self.assertEqual(1, len(self.fills))
         self.assertEqual(0.0, self.fills[0].price)

@@ -1,11 +1,13 @@
 import asyncio
 import logging
 import threading
+from dataclasses import dataclass
 from datetime import datetime
 
 import pytz
 
 from jolteon import paths
+from jolteon.engine.core.event.signal import signal
 from jolteon.engine.core.event.signal_manager import SignalManager
 from jolteon.engine.core.event.signal_recorder import SignalRecorder
 from jolteon.engine.core.logging.logger import setup_global_logger
@@ -27,6 +29,12 @@ from jolteon.engine.strategy.market_making.fair_value.fair_price_model import (
 )
 
 
+@dataclass(frozen=True)
+class SessionMetadata:
+    exchange: str
+    symbol: str
+
+
 class ApplicationBase(SignalManager):
     THREAD_ENABLED: bool = True
 
@@ -35,6 +43,7 @@ class ApplicationBase(SignalManager):
         symbol: str,
         database_name,
         logfile_name,
+        exchange: str = "Kraken",
         strategy: object = None,
         fair_price_model: IFairPriceModel | None = None,
         parameter_service: IParameterService | None = None,
@@ -44,6 +53,8 @@ class ApplicationBase(SignalManager):
         one symbol and one strategy.
         """
         self._symbol = symbol
+        self._exchange = exchange
+        self._session_metadata_event = signal("session_metadata")
 
         # Published before anything else is built: the layers underneath
         # the wired components read their own tunables from here, and
@@ -154,6 +165,10 @@ class ApplicationBase(SignalManager):
     def _connect_signals(self):
         self.connect_all()
         self._signal_recorder.start_recording()
+        self._session_metadata_event.send(
+            self._session_metadata_event,
+            metadata=SessionMetadata(self._exchange, self._symbol),
+        )
 
     def _disconnect_signals(self):
         self.disconnect_all()

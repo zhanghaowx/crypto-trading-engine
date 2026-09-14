@@ -7,10 +7,9 @@ import streamlit as st
 from jolteon import paths
 from jolteon.app.data import EngineDatabase, engine_databases
 
-# Which symbol's engine every page that reads one engine is reading.
-# Named for the query parameter it is bound to, since the widget holding
-# it puts it in the URL.
-SYMBOL = "symbol"
+# The stable exchange-and-symbol engine key used by widgets and URLs.
+ENGINE = "engine"
+SYMBOL = ENGINE
 
 
 def parse_args() -> argparse.Namespace:
@@ -39,14 +38,23 @@ def init_settings() -> None:
     # longer there.
     engine = _chosen_engine(st.session_state.root)
     st.session_state.db_path = engine.path if engine else ""
+    st.session_state.exchange = engine.exchange if engine else "Kraken"
     st.session_state.log_db_path = args.log_db or (
         engine.log_path if engine else ""
     )
 
-    st.session_state.setdefault(
-        "params_db_path",
-        args.params_db or paths.parameter_store(st.session_state.root),
+    default_params = paths.parameter_store(
+        st.session_state.root, engine.exchange if engine else "Kraken"
     )
+    previous_default = st.session_state.get("_default_params_db_path")
+    if args.params_db:
+        st.session_state.params_db_path = args.params_db
+    elif (
+        "params_db_path" not in st.session_state
+        or st.session_state.params_db_path == previous_default
+    ):
+        st.session_state.params_db_path = default_params
+    st.session_state._default_params_db_path = default_params
     st.session_state.setdefault("auto_refresh", True)
     st.session_state.setdefault("refresh_seconds", 5)
     # Shared by Market Data's price chart and Risk Limits' sparklines, so
@@ -66,8 +74,12 @@ def _chosen_engine(root: str) -> EngineDatabase | None:
     at all.
     """
     engines = engine_databases(root)
-    chosen = st.session_state.get(SYMBOL) or st.query_params.get(SYMBOL)
+    chosen = st.session_state.get(ENGINE) or st.query_params.get(ENGINE)
     return next(
-        (engine for engine in engines if engine.symbol == chosen),
+        (
+            engine
+            for engine in engines
+            if engine.key == chosen or engine.symbol == chosen
+        ),
         engines[0] if engines else None,
     )

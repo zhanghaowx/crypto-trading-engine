@@ -86,9 +86,12 @@ def _scopes(stored: dict[Field, Any]) -> list[str]:
     dashboard is reading: a symbol is tunable while its own engine runs,
     whichever engine the reader happens to be looking at.
     """
+    selected_exchange = st.session_state.get("exchange", "Kraken")
     symbols = {symbol for symbol, _, _ in stored if symbol != ALL_SYMBOLS}
     symbols.update(
-        engine.symbol for engine in engine_databases(st.session_state.root)
+        engine.symbol
+        for engine in engine_databases(st.session_state.root)
+        if engine.exchange == selected_exchange
     )
     return [ALL_SYMBOLS, *sorted(symbols)]
 
@@ -120,7 +123,10 @@ def _engine_reports() -> dict[str, Any]:
     force, whatever the others made of it.
     """
     reports: dict[str, Any] = {}
+    selected_exchange = st.session_state.get("exchange", "Kraken")
     for engine in engine_databases(st.session_state.root):
+        if engine.exchange != selected_exchange:
+            continue
         applied = read_table(engine.path, "parameter_applied")
         if applied.empty or "key" not in applied.columns:
             continue

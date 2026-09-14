@@ -13,7 +13,7 @@ from jolteon.app.components import (
 )
 from jolteon.app.data import engine_databases
 from jolteon.app.health_summary import redraw_nav_if_stale
-from jolteon.app.settings import SYMBOL
+from jolteon.app.settings import ENGINE
 
 
 def _select_engine() -> None:
@@ -31,13 +31,16 @@ def _select_engine() -> None:
 
     st.segmented_control(
         "Symbol",
-        options=[engine.symbol for engine in engines],
-        default=engines[0].symbol,
+        options=[engine.key for engine in engines],
+        default=engines[0].key,
+        format_func=lambda key: next(
+            engine.label for engine in engines if engine.key == key
+        ),
         # A page that reads one engine has to be reading one: cleared,
         # every section below would go on showing the engine the reader
         # had just stopped asking for.
         required=True,
-        key=SYMBOL,
+        key=ENGINE,
         # The binding carries the symbol in the URL, so a link names the
         # symbol it was copied from. `persist_state` is what carries it
         # across a page switch: a bound value belongs to the page that

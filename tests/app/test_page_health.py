@@ -72,8 +72,8 @@ def test_every_engine_is_watched_at_once(engines):
 
     assert not at.exception
     headings = [m.value for m in at.markdown]
-    assert "**BTC/USD**" in headings
-    assert "**ETH/USD**" in headings
+    assert "**Kraken · BTC/USD**" in headings
+    assert "**Kraken · ETH/USD**" in headings
     assert "**MarketMaking**" in headings
     assert "**MD**" in headings
 

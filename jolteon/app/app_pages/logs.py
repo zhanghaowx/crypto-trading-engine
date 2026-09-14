@@ -93,10 +93,10 @@ def render() -> None:
         # log, and two engines can log in the same instant - so an entry
         # already shown keeps its key (and its mounted DOM node) across
         # reruns even as newer entries push it down the list.
-        key = row_key("error", f"{row['symbol']} {row['created']}")
+        key = row_key("error", f"{row['engine_key']} {row['created']}")
         row_levels.append((key, level))
         summary = (
-            f"`{row['symbol']}`  ·  {_relative_age(row['local_time'])}"
+            f"`{row['engine_label']}`  ·  {_relative_age(row['local_time'])}"
             f"  ·  {row['clean_message']}"
         )
         with st.container(key=key):
@@ -104,7 +104,7 @@ def render() -> None:
                 summary, icon=_LEVEL_ICONS.get(level, ":material/error:")
             ):
                 st.caption(
-                    f"{row['symbol']} · {row.get('name', '-')} · "
+                    f"{row['engine_label']} · {row.get('name', '-')} · "
                     f"{row.get('filename', '-')}:{row.get('lineno', '-')}"
                 )
                 if row["clean_message"] != row["msg"]:

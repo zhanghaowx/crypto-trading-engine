@@ -56,7 +56,12 @@ def heartbeats(root: str) -> pd.DataFrame:
     is known only from the file it was read out of.
     """
     frames = [
-        found.assign(symbol=engine.symbol)
+        found.assign(
+            symbol=engine.symbol,
+            exchange=engine.exchange,
+            engine_key=engine.key,
+            engine_label=engine.label,
+        )
         for engine, found in (
             (engine, read_latest_per_group(engine.path, "heartbeat", "sender"))
             for engine in engine_databases(root)
@@ -75,7 +80,12 @@ def errors(engines: list[EngineDatabase]) -> pd.DataFrame:
     dashboard left open reads only the lines added since it last looked.
     """
     frames = [
-        found.assign(symbol=engine.symbol)
+        found.assign(
+            symbol=engine.symbol,
+            exchange=engine.exchange,
+            engine_key=engine.key,
+            engine_label=engine.label,
+        )
         for engine, found in (
             (engine, _error_lines(engine.log_path)) for engine in engines
         )
@@ -123,7 +133,7 @@ def summary(root: str) -> HealthSummary:
     now = time.time()
     down = (
         tuple(
-            f"{row.symbol} · {row.sender}"
+            f"{row.engine_label} · {row.sender}"
             for row in latest.itertuples()
             if is_down(now - row.timestamp)
         )

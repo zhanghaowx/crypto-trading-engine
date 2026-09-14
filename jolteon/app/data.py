@@ -116,11 +116,22 @@ def read_table(db_path: str, table: str) -> pd.DataFrame:
 
 @dataclass(frozen=True)
 class EngineDatabase:
-    """One engine's recording, and the symbol that engine was trading."""
+    """One engine recording identified by exchange and canonical symbol."""
 
     path: str
+    exchange: str
     symbol: str
     log_path: str
+    legacy: bool = False
+
+    @property
+    def key(self) -> str:
+        venue = paths.exchange_directory_name(self.exchange)
+        return f"{venue}:{self.symbol}"
+
+    @property
+    def label(self) -> str:
+        return f"{self.exchange} · {self.symbol}"
 
 
 # How long a scan of the root is reused for. Below the shortest refresh
@@ -149,14 +160,19 @@ def engine_databases(root: str) -> list[EngineDatabase]:
     its own: it is a file inside a symbol's directory, not another one
     beside it.
     """
-    return [
-        EngineDatabase(
-            path=paths.recording(root, symbol),
-            symbol=_recorded_symbol(paths.recording(root, symbol), symbol),
-            log_path=paths.log_database(root, symbol),
+    databases = []
+    for session in paths.session_directories(root):
+        recording = str(session.path / f"{paths.LIVE}.sqlite")
+        databases.append(
+            EngineDatabase(
+                path=recording,
+                exchange=session.exchange,
+                symbol=_recorded_symbol(recording, session.symbol),
+                log_path=str(session.path / f"{paths.LIVE}.log.sqlite"),
+                legacy=session.legacy,
+            )
         )
-        for symbol in paths.traded_symbols(root)
-    ]
+    return databases
 
 
 def _recorded_symbol(db_path: str, directory_symbol: str) -> str:

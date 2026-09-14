@@ -32,6 +32,8 @@ class TestMarketEnum(unittest.TestCase):
         self.assertEqual(Market.MOCK, Market.parse("mock"))
         self.assertEqual(Market.KRAKEN, Market.parse("KRAKEN"))
         self.assertEqual(Market.KRAKEN, Market.parse("kraken"))
+        self.assertEqual(Market.BINANCE_US, Market.parse("Binance.US"))
+        self.assertEqual(Market.BINANCE_US, Market.parse("binance-us"))
 
         with self.assertRaises(RuntimeError) as context:
             Market.parse("unknown_market")
