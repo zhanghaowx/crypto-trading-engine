@@ -220,10 +220,10 @@ Map these exchange filters:
 - `LOT_SIZE.stepSize` and `minQty` -> quantity precision and minimum;
 - `MIN_NOTIONAL.minNotional` -> minimum cost.
 
-Publish the instrument before enabling strategy quotes. This also provides a
-clean solution to known issue 7: feeds declaring `Channel.INSTRUMENT` expose a
-readiness signal, and the strategy is connected only after that signal has
-arrived. Replays and feeds without the channel remain immediately ready.
+Publish the instrument before enabling strategy quotes. This closes the known
+instrument-startup race for feeds declaring `Channel.INSTRUMENT`. It is the
+first narrow readiness gate, while the shared service-readiness framework in
+PR 4a covers initialization and later health loss across all dependencies.
 
 ## Binance.US fees and execution
 
@@ -499,6 +499,19 @@ opens the selected one.
 
 Acceptance: a long-running feed maintains a synchronized book, emits
 canonical symbols and never quotes before venue limits are known.
+
+### PR 4a: coordinated trading readiness
+
+- Give each required service an explicit initializing, healthy and unhealthy
+  lifecycle.
+- Combine service states into one in-memory trading-ready decision.
+- Check readiness at the execution boundary and withdraw quotes when it is
+  lost.
+- Define replay readiness without requiring live-only initialization events.
+
+Acceptance: neither exchange can submit an order until every required service
+is healthy; losing any dependency stops new orders and withdraws quotes; and
+trading resumes only after every dependency has recovered.
 
 ### PR 5: depth-aware paper execution and replay
 
