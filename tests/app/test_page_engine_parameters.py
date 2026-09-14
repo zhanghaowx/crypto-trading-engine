@@ -376,7 +376,7 @@ def demo_catalog():
         yield
 
 
-def _reported(root, traded="BTC/USD", **row) -> str:
+def _reported(root, traded="BTC/USD", exchange=None, **row) -> str:
     """One engine's recording, holding the report it made about a pushed
     parameter, as SQLiteWriter would have recorded it. Returns the root
     the engine trading `traded` recorded under."""
@@ -396,7 +396,11 @@ def _reported(root, traded="BTC/USD", **row) -> str:
         "reason": "",
         **row,
     }
-    db_path = paths.recording(root, traded)
+    db_path = (
+        paths.recording(root, exchange, traded)
+        if exchange
+        else paths.recording(root, traded)
+    )
     paths.prepare(db_path)
     with sqlite3.connect(db_path) as conn:
         conn.execute(
@@ -617,6 +621,27 @@ class TestWhatTheEngineSaidItDid:
 
         assert "Rejected" in self._badges(at)
         assert "must be at most 10.0" in " ".join(c.value for c in at.caption)
+
+    def test_ignores_parameter_reports_from_another_exchange(
+        self, params_db_path, missing_db_path, tmp_path
+    ):
+        self._pushed(params_db_path)
+        root = str(tmp_path)
+        _reported(root, traded="BTC/USD", exchange="Kraken")
+        _reported(
+            root,
+            traded="BTC/USD",
+            exchange="Binance.US",
+            status=REJECTED,
+            reason="another venue",
+        )
+
+        at = _page(params_db_path, missing_db_path, root)
+        at.session_state["exchange"] = "Kraken"
+        at.run()
+
+        assert "Rejected" not in self._badges(at)
+        assert "another venue" not in " ".join(c.value for c in at.caption)
 
     def test_a_status_the_page_does_not_know_outranks_a_settled_one(
         self, params_db_path, missing_db_path, tmp_path

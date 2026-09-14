@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import pytest
 
 from jolteon.app.exchanges import exchange_definition, exchanges
@@ -16,6 +18,14 @@ def test_binance_us_translates_symbols_only_at_its_boundary():
 
     assert exchange.encode_symbol("BTC/USD") == "BTCUSD"
     assert exchange.decode_symbol("BTCUSDT") == "BTC/USDT"
+    assert exchange.decode_symbol("btc-usd") == "BTC/USD"
+
+
+def test_kraken_application_is_loaded_through_the_registry():
+    with patch("jolteon.app.kraken.KrakenApplication") as application:
+        exchange_definition(Market.KRAKEN).application("BTC/USD", paper=True)
+
+    application.assert_called_once_with("BTC/USD", paper=True)
 
 
 def test_binance_us_rejects_an_ambiguous_wire_symbol():
