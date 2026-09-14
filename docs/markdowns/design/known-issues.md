@@ -27,7 +27,7 @@ starts from rather than the only values it can hold. See
 |---|---|---|
 | 1 | Fees exceed quoted edge by ~5x | Strategy cannot profit |
 | 2 | Simulated queue position is always zero | Fill rate wildly overstated |
-| 3 | Sweeps fill the whole remainder | Overstates size on adverse fills |
+| 3 | Sweeps lack depth-based sizing | Still estimates adverse fill size |
 | 4 | No latency model | Queue position optimistic |
 | 5 | Simulated book never reacts to our orders | Inherent to replay |
 | 6 | A better fill model would be live-only | Cannot be backtested |
@@ -110,11 +110,12 @@ unknowable, and that choice materially swings fill rate. Kraken's `level3`
 channel resolves this and is not implemented, because it requires an API
 token.
 
-## 3. Sweeps fill the whole remainder
+## 3. Sweeps lack depth-based sizing
 
 In `_try_fill_resting_order`, a trade printing beyond the resting price is
-treated as clearing the level and fills the entire remaining quantity. The
-size is assumed rather than derived.
+treated as clearing the level. The fill is capped by the printed trade's
+quantity, so a small print cannot fill a larger quote, but the quantity
+consumed between the touch and the resting level remains unknown.
 
 Now that depth is published, the fill can be capped at the quantity
 actually consumed between the touch and the resting level. Note that this
@@ -122,6 +123,12 @@ branch is also the only one that fires in practice for quotes far behind
 the touch, which means simulated fills arrive almost exclusively when the
 market is moving through the quote. The adverse selection is real rather than a
 simulation artifact, but its size is currently guessed.
+
+The trade-size cap is conservative when one print represents all liquidity
+that crossed our level, but optimistic when volume at better prices consumed
+part of that print first. The depth-aware cap described above is the better
+answer but a larger change, because the mock subscribes to `ticker_feed` and
+holds only a `BBO` per symbol; it imports no `OrderBook` at all.
 
 ## 4. No latency model
 

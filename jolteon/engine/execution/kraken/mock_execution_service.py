@@ -140,8 +140,11 @@ class MockExecutionService(Heartbeater, SignalSubscriber):
 
         if market_trade.price != resting.price:
             # Price already traded through our level: the real book must
-            # have cleared it, so treat the whole remainder as filled.
-            filled_quantity = resting.remaining_quantity
+            # have cleared it, but the print cannot prove more size traded
+            # than it carries.
+            filled_quantity = min(
+                resting.remaining_quantity, market_trade.quantity
+            )
         else:
             available = market_trade.quantity
             if resting.ahead_quantity > 0:

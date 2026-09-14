@@ -43,6 +43,11 @@ since it generates orders, fills, and risk-limit hits to look at:
 uv run jolteon --exchange Kraken --paper
 ```
 
+Paper limit orders fill only when an opposing market trade reaches their
+price. A trade through the quote can fill no more than the quantity printed;
+visible depth and exact queue rank are not yet fully modeled. See the
+[known fill-model limitations](docs/markdowns/design/known-issues.md).
+
 **Live trading** — same thing, but orders are real. Drop `--paper` and set your keys:
 
 ```bash
