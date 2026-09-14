@@ -4,6 +4,7 @@ import sys
 import unittest
 from datetime import datetime
 from io import StringIO
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytz
@@ -261,9 +262,9 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
 
         mock_app.start.assert_awaited_once()
         self.assertTrue(MockApplication.call_args.kwargs["use_mock_execution"])
-        self.assertIn(
-            "/binance-us/BTC-USD/live.sqlite",
-            MockApplication.call_args.kwargs["database_name"],
+        self.assertEqual(
+            Path(MockApplication.call_args.kwargs["database_name"]).parts[-3:],
+            ("binance-us", "BTC-USD", "live.sqlite"),
         )
 
     @patch(
