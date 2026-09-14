@@ -16,6 +16,19 @@ def script():
     init_settings()
 
 
+def script_with_custom_parameter_store():
+    import sys
+
+    from jolteon.app.settings import init_settings
+
+    original = sys.argv
+    try:
+        sys.argv = ["dashboard", "--params-db", "/custom/parameters.sqlite"]
+        init_settings()
+    finally:
+        sys.argv = original
+
+
 def test_parse_args_defaults_db_path(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["prog"])
 
@@ -63,6 +76,13 @@ def test_init_settings_does_not_override_a_readers_own_settings():
     assert not at.exception
     assert at.session_state["auto_refresh"] is False
     assert at.session_state["refresh_seconds"] == 30
+
+
+def test_init_settings_uses_an_explicit_parameter_store():
+    at = AppTest.from_function(script_with_custom_parameter_store).run()
+
+    assert not at.exception
+    assert at.session_state["params_db_path"] == "/custom/parameters.sqlite"
 
 
 def _recording(root, symbol: str) -> str:

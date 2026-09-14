@@ -33,6 +33,7 @@ def test_discovers_the_same_symbol_on_two_exchanges(tmp_path):
         ("Binance.US", "BTC/USD"),
         ("Kraken", "BTC/USD"),
     ]
+    assert paths.traded_symbols(str(tmp_path)) == ["BTC/USD", "BTC/USD"]
 
 
 def test_reads_legacy_kraken_layout(tmp_path):
