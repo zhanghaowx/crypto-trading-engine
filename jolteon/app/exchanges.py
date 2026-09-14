@@ -6,6 +6,9 @@ from typing import Callable
 from jolteon.app.base import ApplicationBase
 from jolteon.engine.core.fee_schedule import FeeSchedule
 from jolteon.engine.core.market import Market
+from jolteon.engine.execution.binance_us.fee_schedule import (
+    BinanceUsFeeSchedule,
+)
 from jolteon.engine.execution.kraken.fee_schedule import KrakenFeeSchedule
 
 
@@ -31,6 +34,12 @@ def _kraken_application(*args, **kwargs) -> ApplicationBase:
     from jolteon.app.kraken import KrakenApplication
 
     return KrakenApplication(*args, **kwargs)
+
+
+def _binance_us_application(*args, **kwargs) -> ApplicationBase:
+    from jolteon.app.binance_us import BinanceUsApplication
+
+    return BinanceUsApplication(*args, **kwargs)
 
 
 @dataclass(frozen=True)
@@ -70,8 +79,8 @@ _EXCHANGES = {
         market=Market.BINANCE_US,
         name="Binance.US",
         path_name="binance-us",
-        application=None,
-        fee_schedule=None,
+        application=_binance_us_application,
+        fee_schedule=BinanceUsFeeSchedule,
         encode_symbol=_binance_wire,
         decode_symbol=_binance_canonical,
         supports_remote_history=False,

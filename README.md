@@ -74,6 +74,18 @@ symbol, so trading two means running two engines:
 uv run jolteon --exchange Kraken --paper --symbol ETH/USD
 ```
 
+**Binance.US paper trading** uses the public trade, best-bid/offer and
+synchronized L2 depth streams. It loads the venue's price, quantity and
+minimum-notional filters before the strategy can place its first quote:
+
+```bash
+uv run jolteon --exchange Binance.US --paper --symbol BTC/USD
+```
+
+Binance.US live order submission and remote historical replay are intentionally
+disabled until their later rollout steps. The public WebSocket requires no API
+credentials.
+
 ### Where a session writes
 
 Everything a session writes is scoped first by exchange and then by canonical

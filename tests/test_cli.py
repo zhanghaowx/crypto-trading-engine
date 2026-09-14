@@ -237,6 +237,35 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual("", captured_output.getvalue().split("\n")[-1])
 
+    @patch("jolteon.app.binance_us.BinanceUsApplication")
+    @patch(
+        "argparse.ArgumentParser.parse_args",
+        return_value=argparse.Namespace(
+            replay_start="",
+            replay_end="",
+            replay_db="",
+            exchange="Binance.US",
+            symbol="BTC-USD",
+            root=str(ROOT),
+            params_db="",
+            paper=True,
+        ),
+    )
+    async def test_main_runs_binance_us_paper(
+        self, mock_args, MockApplication
+    ):
+        mock_app = MockApplication.return_value
+        mock_app.start = AsyncMock(return_value=1.0)
+
+        await main()
+
+        mock_app.start.assert_awaited_once()
+        self.assertTrue(MockApplication.call_args.kwargs["use_mock_execution"])
+        self.assertIn(
+            "/binance-us/BTC-USD/live.sqlite",
+            MockApplication.call_args.kwargs["database_name"],
+        )
+
     @patch(
         "argparse.ArgumentParser.parse_args",
         return_value=argparse.Namespace(

@@ -16,9 +16,15 @@ from jolteon.engine.core.parameter.poll_parameters import (
 )
 from jolteon.engine.core.retry import RetryParameters
 from jolteon.engine.core.sqlite_writer import SqliteWriterParameters
+from jolteon.engine.execution.binance_us.fee_schedule import (
+    BinanceUsFeeSchedule,
+)
 from jolteon.engine.execution.kraken.fee_schedule import KrakenFeeSchedule
 from jolteon.engine.execution.kraken.parameters import (
     KrakenExecutionParameters,
+)
+from jolteon.engine.market_data.binance_us.parameters import (
+    BinanceUsFeedParameters,
 )
 from jolteon.engine.market_data.kraken.parameters import KrakenFeedParameters
 from jolteon.engine.market_data.parameters import BookFeatureParameters
@@ -52,6 +58,8 @@ GROUPS: tuple[type[ParameterGroup], ...] = (
     KrakenFeedParameters,
     KrakenExecutionParameters,
     KrakenFeeSchedule,
+    BinanceUsFeedParameters,
+    BinanceUsFeeSchedule,
     BookFeatureParameters,
     HeartbeatParameters,
     RetryParameters,

@@ -20,7 +20,7 @@ from jolteon.engine.market_data.book_feature_recorder import (
     BookFeatureRecorder,
 )
 from jolteon.engine.market_data.data_source import DatabaseDataSource
-from jolteon.engine.market_data.feed import IMarketDataFeed
+from jolteon.engine.market_data.feed import Channel, IMarketDataFeed
 from jolteon.engine.market_data.historical_feed import HistoricalFeed
 from jolteon.engine.position.position_manager import PositionManager
 from jolteon.engine.post_trade.post_trade_service import PostTradeService
@@ -107,6 +107,14 @@ class ApplicationBase(SignalManager):
     def use_market_data_service(self, market_data: IMarketDataFeed):
         print(f"Using {type(market_data).__name__}")
         self._md = market_data
+        if self._strategy is not None and Channel.INSTRUMENT in getattr(
+            market_data, "channels", frozenset()
+        ):
+            require_instrument = getattr(
+                self._strategy, "require_instrument", None
+            )
+            if require_instrument:
+                require_instrument()
         return self
 
     async def run_start(self, *args):
