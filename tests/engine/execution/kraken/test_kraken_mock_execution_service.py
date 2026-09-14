@@ -192,6 +192,24 @@ class TestMockExecutionService(IsolatedAsyncioTestCase):
         self.assertEqual(0.01, self.fills[0].quantity)
         self.assertEqual(100.0, self.fills[0].price)
 
+    async def test_trade_through_cannot_fill_more_than_its_quantity(self):
+        order = self.create_limit_order(MarketSide.BUY, 100.0)
+        self.execution_service.on_order(self, order)
+
+        self.execution_service.on_market_trade(
+            self, self.create_market_trade(MarketSide.SELL, 99.0, 0.004)
+        )
+
+        self.assertEqual(1, len(self.fills))
+        self.assertEqual(0.004, self.fills[0].quantity)
+
+        self.execution_service.on_market_trade(
+            self, self.create_market_trade(MarketSide.SELL, 98.0, 0.006)
+        )
+
+        self.assertEqual(2, len(self.fills))
+        self.assertAlmostEqual(0.01, sum(fill.quantity for fill in self.fills))
+
     async def test_cancel_order_removes_resting_order(self):
         order = self.create_limit_order(MarketSide.BUY, 100.0)
         self.execution_service.on_order(self, order)
