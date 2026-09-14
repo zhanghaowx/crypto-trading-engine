@@ -31,6 +31,7 @@ starts from rather than the only values it can hold. See
 | 4 | No latency model | Queue position optimistic |
 | 5 | Simulated book never reacts to our orders | Inherent to replay |
 | 6 | A better fill model would be live-only | Cannot be backtested |
+| 7 | Trading readiness is not coordinated | Orders can escape while a dependency starts or fails |
 
 ## 1. Fees exceed the quoted edge
 
@@ -161,6 +162,37 @@ sample. If fill realism is the goal rather than better signals, a compact
 book writer belongs on the critical path. Nothing wires the book into the
 Kraken mock either, whose fill model imports no `OrderBook` at all and
 whose resting-order logic is untouched by the depth work.
+
+## 7. Trading readiness is not coordinated
+
+The application starts services independently and has no single readiness
+decision that guards order submission. A strategy can therefore receive a
+market event while another dependency is still initializing, or continue to
+trade after a dependency has become unhealthy. Examples include parameters
+that have not completed their first read, instrument limits that have not been
+downloaded, an order book that is resynchronizing, or an execution service
+that has not reconciled its open orders and positions.
+
+The Binance.US public-feed step closes one instance of this race by holding
+quotes until a feed that declares `Channel.INSTRUMENT` publishes the matching
+instrument. That protects price increments and order minima, but it is a local
+gate rather than a complete lifecycle model. Adding one boolean or strategy
+method for every dependency would spread readiness policy through strategies
+and still leave a window around order submission.
+
+What would fix it is a shared readiness coordinator. Every service begins
+unhealthy, reports ready only after its initial state is usable, and returns to
+unhealthy whenever that state is stale or being recovered. The application
+combines the required services into one trading-ready state, and the execution
+boundary refuses new orders unless that state is healthy. The strategy should
+also cancel or withdraw quotes when readiness is lost. Health used for this
+gate must be current in memory; persisted heartbeats remain useful for the
+dashboard but are too delayed to authorize an order.
+
+Replays need an explicit readiness profile because they may not contain every
+live initialization event. Tests need to cover initial startup, loss and
+recovery of each dependency, cancellation on readiness loss, and the final
+check immediately before an order leaves the process.
 
 ## Reading results while these stand
 
