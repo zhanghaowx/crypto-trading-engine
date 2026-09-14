@@ -163,6 +163,19 @@ class TestMarketMakingStrategy(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual([(), (PriceLevel(99.0, 1.0),)], seen)
 
+    async def test_holds_quotes_until_a_required_instrument_arrives(self):
+        self.strategy.require_instrument()
+
+        self.strategy.on_bbo("_", self.create_bbo(99.0, 101.0))
+        self.assertEqual([], self.orders)
+
+        self.strategy.on_instrument(
+            "_", InstrumentSpec(symbol="BTC/USD", price_increment=0.01)
+        )
+        self.strategy.on_bbo("_", self.create_bbo(99.0, 101.0))
+
+        self.assertEqual(2, len(self.orders))
+
     async def test_carried_levels_do_not_follow_a_later_book_update(self):
         seen = []
         self.strategy._fair_price_model = _RecordingFairPriceModel(seen)

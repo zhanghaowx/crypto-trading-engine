@@ -81,6 +81,8 @@ class MarketMakingStrategy(Heartbeater, SignalSubscriber):
         # Unconstrained until the venue says otherwise, so a replay quotes
         # the sizes it was configured with rather than none at all.
         self._instrument = InstrumentSpec(symbol)
+        self._instrument_required = False
+        self._instrument_ready = False
         self._refusal: str | None = None
 
         self.order_event = signal("order")
@@ -115,9 +117,16 @@ class MarketMakingStrategy(Heartbeater, SignalSubscriber):
         # The channel covers every pair the venue lists, not just ours.
         if instrument.symbol == self._symbol:
             self._instrument = instrument
+            self._instrument_ready = True
+
+    def require_instrument(self) -> None:
+        """Hold quotes until a live venue has published its trading rules."""
+        self._instrument_required = True
 
     @subscribe("ticker_feed")
     def on_bbo(self, _: str, bbo: BBO):
+        if self._instrument_required and not self._instrument_ready:
+            return
         params = self._parameters()
         if not self._is_size_sendable(params.quote_size, bbo):
             return

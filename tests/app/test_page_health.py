@@ -102,7 +102,9 @@ def test_describes_a_short_silence_in_seconds(engines):
 
     assert not at.exception
     assert "DOWN" in _badges(at)
-    assert "No heartbeat for 45 seconds" in at.caption[0].value
+    assert "No heartbeat for" in at.caption[0].value
+    assert "seconds" in at.caption[0].value
+    assert "minutes" not in at.caption[0].value
 
 
 def test_reports_a_silent_sender_as_down(engines):

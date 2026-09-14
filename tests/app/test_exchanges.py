@@ -28,6 +28,15 @@ def test_kraken_application_is_loaded_through_the_registry():
     application.assert_called_once_with("BTC/USD", paper=True)
 
 
+def test_binance_us_application_and_fee_schedule_are_registered():
+    exchange = exchange_definition(Market.BINANCE_US)
+    with patch("jolteon.app.binance_us.BinanceUsApplication") as application:
+        exchange.application("BTC/USD", use_mock_execution=True)
+
+    application.assert_called_once_with("BTC/USD", use_mock_execution=True)
+    assert exchange.fee_schedule.__name__ == "BinanceUsFeeSchedule"
+
+
 def test_binance_us_rejects_an_ambiguous_wire_symbol():
     with pytest.raises(ValueError, match="Cannot decode"):
         exchange_definition(Market.BINANCE_US).decode_symbol("BTC")
