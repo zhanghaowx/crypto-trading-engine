@@ -104,10 +104,36 @@ uv run poe dashboard
 
 ### Docker
 
+Start the Kraken BTC/USD paper engine and dashboard in the background:
+
 ```bash
-docker build -t jolteon -f Containerfile .
-docker run --rm -e KRAKEN_API_KEY -e KRAKEN_API_SECRET jolteon --exchange Kraken
+cp .env.example .env
+docker compose up --build -d
 ```
+
+Open <http://localhost:8501>, then use these commands to operate the stack:
+
+```bash
+docker compose ps
+docker compose logs -f
+docker compose down
+```
+
+The named `jolteon-data` volume keeps recordings and parameters across image and
+container recreation. `docker compose down --volumes` also deletes that data.
+Change `JOLTEON_DASHBOARD_PORT` in `.env` if port 8501 is already in use.
+
+Live trading is kept behind an explicit profile and does not restart
+automatically. After setting both Kraken credentials in `.env`, start only the
+live engine and dashboard with:
+
+```bash
+docker compose --profile live up --build -d engine-kraken-btc-usd-live dashboard
+```
+
+Selecting the live services as above does not start the paper engine. See the
+[local stack runbook](docs/markdowns/operations/local-stack.md) for logs,
+updates, and data cleanup.
 
 ## Development
 

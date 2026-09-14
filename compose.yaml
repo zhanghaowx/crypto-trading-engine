@@ -1,0 +1,43 @@
+name: jolteon
+
+services:
+  engine-kraken-btc-usd:
+    build:
+      context: .
+      dockerfile: Containerfile
+      target: engine
+    command: ["--exchange", "Kraken", "--paper", "--symbol", "BTC/USD", "--root", "/data"]
+    init: true
+    restart: unless-stopped
+    volumes:
+      - jolteon-data:/data
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: Containerfile
+      target: dashboard
+    init: true
+    restart: unless-stopped
+    ports:
+      - "${JOLTEON_DASHBOARD_PORT:-8501}:8501"
+    volumes:
+      - jolteon-data:/data
+
+  engine-kraken-btc-usd-live:
+    profiles: ["live"]
+    build:
+      context: .
+      dockerfile: Containerfile
+      target: engine
+    command: ["--exchange", "Kraken", "--symbol", "BTC/USD", "--root", "/data"]
+    environment:
+      KRAKEN_API_KEY: "${KRAKEN_API_KEY:-}"
+      KRAKEN_API_SECRET: "${KRAKEN_API_SECRET:-}"
+    init: true
+    restart: "no"
+    volumes:
+      - jolteon-data:/data
+
+volumes:
+  jolteon-data:

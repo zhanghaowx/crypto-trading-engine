@@ -30,6 +30,12 @@ jobs:
         run: uv sync
       - name: Run Linter
         run: uv run poe lint
+      - name: Validate Compose configuration
+        run: docker compose config --quiet
+      - name: Build container targets
+        run: |
+          docker build --target engine -t jolteon-engine-ci -f Containerfile .
+          docker build --target dashboard -t jolteon-dashboard-ci -f Containerfile .
 
   tests_linux:
     needs: linter
