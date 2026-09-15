@@ -3,9 +3,12 @@ from typing import Union
 
 from jolteon.engine.core.event.signal import signal, subscribe
 from jolteon.engine.core.event.signal_subscriber import SignalSubscriber
+from jolteon.engine.core.health_monitor.health import (
+    HealthMonitor,
+    HealthState,
+)
 from jolteon.engine.core.health_monitor.heartbeat import (
     Heartbeater,
-    HeartbeatLevel,
 )
 from jolteon.engine.core.id_generator import id_generator
 from jolteon.engine.core.parameter.parameter_service import (
@@ -63,8 +66,9 @@ class MarketMakingStrategy(Heartbeater, SignalSubscriber):
         fair_price_model: Union[IFairPriceModel, None] = None,
         parameter_service: Union[IParameterService, None] = None,
         quote_offset_service: Union[IQuoteOffsetService, None] = None,
+        health_monitor: HealthMonitor | None = None,
     ):
-        super().__init__(type(self).__name__)
+        super().__init__(type(self).__name__, health_monitor=health_monitor)
         self._symbol = symbol
         self._parameter_service = parameter_service or StaticParameterService()
         self._requote_tolerance = requote_tolerance
@@ -81,13 +85,15 @@ class MarketMakingStrategy(Heartbeater, SignalSubscriber):
         # Unconstrained until the venue says otherwise, so a replay quotes
         # the sizes it was configured with rather than none at all.
         self._instrument = InstrumentSpec(symbol)
-        self._instrument_required = False
-        self._instrument_ready = False
+        self._health_monitor = health_monitor
         self._refusal: str | None = None
 
         self.order_event = signal("order")
         self.cancel_order_event = signal("cancel_order")
         self.risk_limit_event = signal("risk_limit_snapshot")
+        if health_monitor is not None:
+            health_monitor.add_listener(self.on_trading_health)
+        self.mark_healthy()
 
     @property
     def inventory(self) -> float:
@@ -117,15 +123,15 @@ class MarketMakingStrategy(Heartbeater, SignalSubscriber):
         # The channel covers every pair the venue lists, not just ours.
         if instrument.symbol == self._symbol:
             self._instrument = instrument
-            self._instrument_ready = True
 
-    def require_instrument(self) -> None:
-        """Hold quotes until a live venue has published its trading rules."""
-        self._instrument_required = True
+    def on_trading_health(self, state: HealthState) -> None:
+        if not state.can_trade:
+            for side in tuple(self._live_orders):
+                self._cancel(side)
 
     @subscribe("ticker_feed")
     def on_bbo(self, _: str, bbo: BBO):
-        if self._instrument_required and not self._instrument_ready:
+        if self._health_monitor and not self._health_monitor.can_trade:
             return
         params = self._parameters()
         if not self._is_size_sendable(params.quote_size, bbo):
@@ -155,7 +161,7 @@ class MarketMakingStrategy(Heartbeater, SignalSubscriber):
             else:
                 logging.error(f"Not quoting {self._symbol}: {refusal}")
                 self.add_issue(
-                    HeartbeatLevel.ERROR, self.UNSENDABLE_QUOTE_SIZE
+                    HealthState.CRITICAL, self.UNSENDABLE_QUOTE_SIZE
                 )
         return refusal is None
 
@@ -221,8 +227,17 @@ class MarketMakingStrategy(Heartbeater, SignalSubscriber):
             side=side,
             creation_time=time_manager().now(),
         )
-        self._live_orders[side] = order
-        self.order_event.send(self.order_event, order=order)
+
+        def remember() -> None:
+            self._live_orders[side] = order
+
+        if self._health_monitor is None:
+            remember()
+            authorized = True
+        else:
+            authorized = self._health_monitor.run_if_can_trade(remember)
+        if authorized:
+            self.order_event.send(self.order_event, order=order)
 
     def _cancel(self, side: MarketSide):
         live_order = self._live_orders.pop(side, None)

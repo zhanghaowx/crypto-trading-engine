@@ -15,6 +15,7 @@ import pytz
 from jolteon import monitoring, paths
 from jolteon.app.exchanges import exchange_definition
 from jolteon.app.progress_bar import ProgressBar
+from jolteon.engine.core.health_monitor.health import HealthMonitor
 from jolteon.engine.core.market import Market
 from jolteon.engine.core.parameter.parameter_service import (
     StaticParameterService,
@@ -201,13 +202,14 @@ async def main():
     else:
         strategy = None
         fair_price_model = None
+        health_monitor = HealthMonitor()
         # Only a live session polls. A replay installs fake time and has
         # to produce the same result twice, which it cannot if a
         # dashboard can retune it halfway through.
         parameter_service = (
-            StoredParameterService(params_db)
+            StoredParameterService(params_db, health_monitor=health_monitor)
             if params_db
-            else StaticParameterService()
+            else StaticParameterService(health_monitor=health_monitor)
         )
         if args.paper:
             strategy_symbol = symbol.replace("-", "/")
@@ -233,6 +235,7 @@ async def main():
                 fair_price_model=fair_price_model,
                 parameter_service=parameter_service,
                 quote_offset_service=quote_offset_service,
+                health_monitor=health_monitor,
             )
 
         app = Application(
@@ -243,6 +246,7 @@ async def main():
             strategy=strategy,
             fair_price_model=fair_price_model,
             parameter_service=parameter_service,
+            health_monitor=health_monitor,
         )
         _active_app = app
         pnl = await app.start()

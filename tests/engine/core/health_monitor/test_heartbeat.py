@@ -3,6 +3,7 @@ import unittest
 
 from blinker import ANY
 
+from jolteon.engine.core.health_monitor.health import HealthState
 from jolteon.engine.core.health_monitor.heartbeat import (
     Heartbeat,
     Heartbeater,
@@ -61,8 +62,8 @@ class TestHeartbeater(unittest.IsolatedAsyncioTestCase):
 
         last_heartbeat = subscriber.all_issues[name][-1]
         self.assertGreater(len(subscriber.all_issues[name]), 0)
-        self.assertEqual(last_heartbeat.level, HeartbeatLevel.NORMAL)
-        self.assertEqual(last_heartbeat.message, "")
+        self.assertEqual(last_heartbeat.level, HeartbeatLevel.WARN)
+        self.assertEqual(last_heartbeat.message, Heartbeater.INITIALIZING)
         self.assertGreaterEqual(
             interval_in_seconds,
             (
@@ -114,16 +115,36 @@ class TestHeartbeater(unittest.IsolatedAsyncioTestCase):
         self.assertGreater(len(subscriber.all_issues), 0)
         self.assertGreater(len(subscriber.all_issues[name]), 0)
         self.assertEqual(
+            subscriber.all_issues[name][-1].level, HeartbeatLevel.WARN
+        )
+        self.assertEqual(
+            subscriber.all_issues[name][-1].message,
+            Heartbeater.INITIALIZING,
+        )
+
+        heartbeater.mark_healthy()
+        heartbeater.send_heartbeat()
+        self.assertEqual(
             subscriber.all_issues[name][-1].level, HeartbeatLevel.NORMAL
         )
-        self.assertEqual(subscriber.all_issues[name][-1].message, "")
+
+        heartbeater.mark_critical()
+        heartbeater.send_heartbeat()
+        self.assertEqual(
+            subscriber.all_issues[name][-1].level, HeartbeatLevel.CRITICAL
+        )
+        self.assertEqual(
+            subscriber.all_issues[name][-1].message, Heartbeater.CRITICAL
+        )
 
     async def test_add_and_remove_issues(self):
         name = "ABC"
         interval_in_seconds = 0.01
         heartbeater = Heartbeater(name, interval_in_seconds)
+        heartbeater.mark_healthy()
         heartbeater.start_heartbeating()
-        heartbeater.add_issue(HeartbeatLevel.WARN, "Pay Attention!")
+        heartbeater.add_issue(HealthState.WARNING, "Pay Attention!")
+        self.assertEqual(HealthState.WARNING, heartbeater.health.state)
 
         subscriber = HeartbeatTestSubscriber()
         heartbeater.heartbeat_signal().connect(subscriber.on_heartbeat)
@@ -138,7 +159,7 @@ class TestHeartbeater(unittest.IsolatedAsyncioTestCase):
             subscriber.all_issues[name][-1].message, "Pay Attention!"
         )
 
-        heartbeater.add_issue(HeartbeatLevel.WARN, "Pay Attention 2nd Time!")
+        heartbeater.add_issue(HealthState.WARNING, "Pay Attention 2nd Time!")
 
         await asyncio.sleep(interval_in_seconds)
         self.assertEqual(
@@ -148,11 +169,12 @@ class TestHeartbeater(unittest.IsolatedAsyncioTestCase):
             subscriber.all_issues[name][-1].message, "Pay Attention 2nd Time!"
         )
 
-        heartbeater.add_issue(HeartbeatLevel.ERROR, "Pay Attention 3rd Time!")
+        heartbeater.add_issue(HealthState.CRITICAL, "Pay Attention 3rd Time!")
+        self.assertEqual(HealthState.CRITICAL, heartbeater.health.state)
 
         await asyncio.sleep(interval_in_seconds)
         self.assertEqual(
-            subscriber.all_issues[name][-1].level, HeartbeatLevel.ERROR
+            subscriber.all_issues[name][-1].level, HeartbeatLevel.CRITICAL
         )
         self.assertEqual(
             subscriber.all_issues[name][-1].message, "Pay Attention 3rd Time!"
@@ -161,6 +183,7 @@ class TestHeartbeater(unittest.IsolatedAsyncioTestCase):
         heartbeater.remove_issue("Pay Attention!")
         heartbeater.remove_issue("Pay Attention 2nd Time!")
         heartbeater.remove_issue("Pay Attention 3rd Time!")
+        self.assertEqual(HealthState.HEALTHY, heartbeater.health.state)
 
         await asyncio.sleep(interval_in_seconds)
         self.assertGreater(len(subscriber.all_issues), 0)

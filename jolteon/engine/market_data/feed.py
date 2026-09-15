@@ -2,9 +2,12 @@ import logging
 from abc import ABC, abstractmethod
 from enum import StrEnum, auto
 
+from jolteon.engine.core.health_monitor.health import (
+    HealthMonitor,
+    HealthState,
+)
 from jolteon.engine.core.health_monitor.heartbeat import (
     Heartbeater,
-    HeartbeatLevel,
 )
 from jolteon.engine.market_data.core.events import Events
 from jolteon.engine.market_data.core.order_book import OrderBook
@@ -27,8 +30,13 @@ class IMarketDataFeed(Heartbeater, ABC):
     class ErrorCode(StrEnum):
         ORDER_BOOK_OUT_OF_SYNC = auto()
 
-    def __init__(self, name: str, interval_in_seconds: float | None = None):
-        super().__init__(name, interval_in_seconds)
+    def __init__(
+        self,
+        name: str,
+        interval_in_seconds: float | None = None,
+        health_monitor: HealthMonitor | None = None,
+    ):
+        super().__init__(name, interval_in_seconds, health_monitor)
         self.events = Events()
 
     @property
@@ -63,7 +71,7 @@ class IMarketDataFeed(Heartbeater, ABC):
         )
         order_book.clear()
         self.add_issue(
-            HeartbeatLevel.WARN,
+            HealthState.CRITICAL,
             IMarketDataFeed.ErrorCode.ORDER_BOOK_OUT_OF_SYNC.name,
         )
         await self._request_order_book_snapshot(order_book.symbol)

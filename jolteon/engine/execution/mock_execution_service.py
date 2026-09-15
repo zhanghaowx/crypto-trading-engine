@@ -5,6 +5,7 @@ from typing import Union
 from jolteon.engine.core.event.signal import signal, subscribe
 from jolteon.engine.core.event.signal_subscriber import SignalSubscriber
 from jolteon.engine.core.fee_schedule import FeeSchedule
+from jolteon.engine.core.health_monitor.health import HealthMonitor
 from jolteon.engine.core.health_monitor.heartbeat import Heartbeater
 from jolteon.engine.core.id_generator import id_generator
 from jolteon.engine.core.parameter.parameter_service import parameter_service
@@ -28,7 +29,11 @@ class _RestingOrder:
 
 
 class MockExecutionService(Heartbeater, SignalSubscriber):
-    def __init__(self, fee_schedule: type[FeeSchedule]):
+    def __init__(
+        self,
+        fee_schedule: type[FeeSchedule],
+        health_monitor: HealthMonitor | None = None,
+    ):
         """
         Creates a mock execution service to act as the exchange.
 
@@ -45,10 +50,11 @@ class MockExecutionService(Heartbeater, SignalSubscriber):
         quantity at the touch when the order was placed - it is not a
         precise reconstruction of Kraken's real matching engine.
         """
-        super().__init__(type(self).__name__)
+        super().__init__(type(self).__name__, health_monitor=health_monitor)
         self._fee_schedule = fee_schedule
         self.order_history = dict[str, Order]()
         self.order_fill_event = signal("order_fill")
+        self._health_monitor = health_monitor
 
         self._latest_bbo: dict[str, BBO] = {}
         self._resting_orders: dict[str, _RestingOrder] = {}
@@ -67,6 +73,8 @@ class MockExecutionService(Heartbeater, SignalSubscriber):
             None
 
         """
+        if self._health_monitor and not self._health_monitor.can_trade:
+            return
         # Record every order in history
         self.order_history[order.client_order_id] = order
 

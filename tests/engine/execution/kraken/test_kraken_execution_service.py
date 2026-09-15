@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytz
 
+from jolteon.engine.core.health_monitor.health import HealthMonitor
 from jolteon.engine.core.side import MarketSide
 from jolteon.engine.market_data.core.order import CancelOrder, Order, OrderType
 from jolteon.engine.market_data.core.trade import Trade
@@ -29,9 +30,13 @@ class TestExecutionService(IsolatedAsyncioTestCase):
             ExecutionService,
         )
 
+        self.health_monitor = HealthMonitor()
         self.execution_service = ExecutionService(
-            dry_run=False, poll_interval=0.1
+            dry_run=False,
+            poll_interval=0.1,
+            health_monitor=self.health_monitor,
         )
+        self.execution_service.mark_healthy()
         self.mock_order = Order(
             client_order_id="123",
             order_type=OrderType.MARKET_ORDER,
@@ -122,6 +127,14 @@ class TestExecutionService(IsolatedAsyncioTestCase):
 
     def on_fill(self, _: str, trade: Trade):
         self.fills.append(trade)
+
+    async def test_execution_boundary_refuses_an_order_while_unready(self):
+        self.execution_service.health.mark_critical()
+        self.execution_service.send_order = MagicMock()
+
+        self.execution_service.on_order(self, self.mock_order)
+
+        self.execution_service.send_order.assert_not_called()
 
     async def test_on_create_order(self):
         with patch("requests.post", new_callable=MagicMock) as mock_post:

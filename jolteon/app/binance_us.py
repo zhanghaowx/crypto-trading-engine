@@ -1,6 +1,7 @@
 import logging
 
 from jolteon.app.base import ApplicationBase
+from jolteon.engine.core.health_monitor.health import HealthMonitor
 from jolteon.engine.core.parameter.parameter_service import IParameterService
 from jolteon.engine.execution.binance_us.fee_schedule import (
     BinanceUsFeeSchedule,
@@ -24,6 +25,7 @@ class BinanceUsApplication(ApplicationBase):
         strategy: object = None,
         fair_price_model: IFairPriceModel | None = None,
         parameter_service: IParameterService | None = None,
+        health_monitor: HealthMonitor | None = None,
     ):
         if not use_mock_execution:
             raise NotImplementedError(
@@ -37,13 +39,18 @@ class BinanceUsApplication(ApplicationBase):
             strategy=strategy,
             fair_price_model=fair_price_model,
             parameter_service=parameter_service,
+            health_monitor=health_monitor,
         )
         super().use_execution_service(
-            MockExecutionService(BinanceUsFeeSchedule)
+            MockExecutionService(
+                BinanceUsFeeSchedule, health_monitor=self._health_monitor
+            )
         )
 
     async def start(self):
-        super().use_market_data_service(PublicFeed())
+        super().use_market_data_service(
+            PublicFeed(health_monitor=self._health_monitor)
+        )
         logging.info("Running %s on Binance.US", self._symbol)
         return await super().run_start()
 

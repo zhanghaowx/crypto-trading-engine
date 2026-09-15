@@ -10,9 +10,12 @@ from requests import Response
 
 from jolteon.engine.core.event.signal import signal, subscribe
 from jolteon.engine.core.event.signal_subscriber import SignalSubscriber
+from jolteon.engine.core.health_monitor.health import (
+    HealthMonitor,
+    HealthState,
+)
 from jolteon.engine.core.health_monitor.heartbeat import (
     Heartbeater,
-    HeartbeatLevel,
 )
 from jolteon.engine.core.parameter.parameter_service import parameter_service
 from jolteon.engine.core.retry import Retry
@@ -32,7 +35,12 @@ class ExecutionService(Heartbeater, SignalSubscriber):
         GET_TRADE_FAILURE = "GET_TRADE_FAILURE"
         CANCEL_ORDER_FAILURE = "CANCEL_ORDER_FAILURE"
 
-    def __init__(self, dry_run=None, poll_interval=None):
+    def __init__(
+        self,
+        dry_run=None,
+        poll_interval=None,
+        health_monitor: HealthMonitor | None = None,
+    ):
         """
         Creates an execution service to act as the exchange. It will
         respond to requests such as buy and sell.
@@ -44,7 +52,7 @@ class ExecutionService(Heartbeater, SignalSubscriber):
                            the just sent orders
 
         """
-        super().__init__(type(self).__name__)
+        super().__init__(type(self).__name__, health_monitor=health_monitor)
         params = parameter_service().get(KrakenExecutionParameters)
         self._dry_run = params.dry_run if dry_run is None else dry_run
         self._client = KrakenRESTClient()
@@ -55,6 +63,7 @@ class ExecutionService(Heartbeater, SignalSubscriber):
 
         self.order_history = dict[str, Order]()
         self.order_fill_event = signal("order_fill")
+        self._health_monitor = health_monitor
         assert os.environ.get("KRAKEN_API_KEY"), (
             "Please set the KRAKEN_API_KEY environment variable"
         )
@@ -76,6 +85,8 @@ class ExecutionService(Heartbeater, SignalSubscriber):
             None
 
         """
+        if self._health_monitor and not self._health_monitor.can_trade:
+            return
         try:
             response = self.send_order(order)
             transaction_ids = response.get("result", {}).get("txid", [])
@@ -92,7 +103,7 @@ class ExecutionService(Heartbeater, SignalSubscriber):
             capture_operational_exception(e, operation="submit_order")
 
             self.add_issue(
-                HeartbeatLevel.ERROR, self.ErrorCode.CREATE_ORDER_FAILURE.name
+                HealthState.CRITICAL, self.ErrorCode.CREATE_ORDER_FAILURE.name
             )
             return
 
@@ -119,7 +130,7 @@ class ExecutionService(Heartbeater, SignalSubscriber):
             capture_operational_exception(e, operation="cancel_order")
 
             self.add_issue(
-                HeartbeatLevel.ERROR, self.ErrorCode.CANCEL_ORDER_FAILURE.name
+                HealthState.CRITICAL, self.ErrorCode.CANCEL_ORDER_FAILURE.name
             )
             return
 
@@ -291,7 +302,7 @@ class ExecutionService(Heartbeater, SignalSubscriber):
     ):
         if response.status_code != 200:
             logging.error(f"REST API returned error: {response}")
-            self.add_issue(HeartbeatLevel.ERROR, error_code.name)
+            self.add_issue(HealthState.CRITICAL, error_code.name)
             return True
 
         possible_error = response.json().get("error")
@@ -300,6 +311,6 @@ class ExecutionService(Heartbeater, SignalSubscriber):
                 f"REST API returned error: {possible_error}, "
                 f"full response: {response.json()}"
             )
-            self.add_issue(HeartbeatLevel.ERROR, error_code.name)
+            self.add_issue(HealthState.CRITICAL, error_code.name)
             return True
         return False

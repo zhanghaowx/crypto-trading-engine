@@ -8,8 +8,11 @@ from enum import StrEnum
 import websockets
 from websockets.exceptions import ConnectionClosed
 
+from jolteon.engine.core.health_monitor.health import (
+    HealthMonitor,
+    HealthState,
+)
 from jolteon.engine.core.health_monitor.heartbeat import (
-    HeartbeatLevel,
     starts_heartbeating,
 )
 from jolteon.engine.core.parameter.parameter_service import parameter_service
@@ -43,8 +46,12 @@ class PublicFeed(IMarketDataFeed):
         CONNECTION_LOST = "Connection Lost"
         MALFORMED_RESPONSE = "Malformed Response from Binance.US"
 
-    def __init__(self, rest_client: BinanceUsPublicRestClient | None = None):
-        super().__init__(type(self).__name__)
+    def __init__(
+        self,
+        rest_client: BinanceUsPublicRestClient | None = None,
+        health_monitor: HealthMonitor | None = None,
+    ):
+        super().__init__(type(self).__name__, health_monitor=health_monitor)
         self._rest = rest_client or BinanceUsPublicRestClient()
         self._clock = time.monotonic
         self._symbol = ""
@@ -94,7 +101,7 @@ class PublicFeed(IMarketDataFeed):
                 raise
             except Exception as error:
                 self.add_issue(
-                    HeartbeatLevel.ERROR, self.ErrorCode.CONNECTION_LOST.value
+                    HealthState.CRITICAL, self.ErrorCode.CONNECTION_LOST.value
                 )
                 logging.warning(
                     "Reconnecting to Binance.US after feed error: %s", error
@@ -135,6 +142,7 @@ class PublicFeed(IMarketDataFeed):
             await self._publish_instrument()
             await self._load_snapshot()
             self.remove_issue(self.ErrorCode.CONNECTION_LOST.value)
+            self.mark_healthy()
             async with asyncio.timeout(self.MAX_CONNECTION_SECONDS):
                 while True:
                     try:
@@ -146,7 +154,7 @@ class PublicFeed(IMarketDataFeed):
                         raise
                     except Exception as error:
                         self.add_issue(
-                            HeartbeatLevel.ERROR,
+                            HealthState.CRITICAL,
                             self.ErrorCode.MALFORMED_RESPONSE.value,
                         )
                         logging.error(

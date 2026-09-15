@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import websockets
 
-from jolteon.engine.core.health_monitor.heartbeat import HeartbeatLevel
+from jolteon.engine.core.health_monitor.health import HealthState
 from jolteon.engine.core.parameter.parameter_service import (
     StaticParameterService,
     use_parameter_service,
@@ -348,7 +348,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
 
         self.assertIn("get an error message", "".join(logs.output))
         mock_add_issue.assert_any_call(
-            HeartbeatLevel.ERROR,
+            HealthState.CRITICAL,
             PublicFeed.ErrorCode.CONNECTION_LOST.value,
         )
         mock_remove_issue.assert_any_call(
@@ -598,7 +598,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
             )
 
         mock_add_issue.assert_any_call(
-            HeartbeatLevel.ERROR,
+            HealthState.CRITICAL,
             PublicFeed.ErrorCode.MALFORMAT_RESPONSE.value,
         )
         mock_remove_issue.assert_any_call(

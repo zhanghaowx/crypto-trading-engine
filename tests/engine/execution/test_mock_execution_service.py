@@ -5,6 +5,7 @@ from unittest import IsolatedAsyncioTestCase
 
 import pytz
 
+from jolteon.engine.core.health_monitor.health import HealthMonitor
 from jolteon.engine.core.side import MarketSide
 from jolteon.engine.execution.kraken.fee_schedule import (
     KrakenFeeSchedule,
@@ -21,7 +22,11 @@ from jolteon.engine.market_data.data_source import IDataSource
 class TestMockExecutionService(IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.fills = list[Trade]()
-        self.execution_service = MockExecutionService(KrakenFeeSchedule)
+        self.health_monitor = HealthMonitor()
+        self.execution_service = MockExecutionService(
+            KrakenFeeSchedule, health_monitor=self.health_monitor
+        )
+        self.execution_service.mark_healthy()
         self.execution_service.order_fill_event.connect(self.on_fill)
         self.mock_order = Order(
             client_order_id="123",
@@ -45,6 +50,15 @@ class TestMockExecutionService(IsolatedAsyncioTestCase):
         self.assertEqual(len(self.fills), 1)
         self.assertEqual(0.0, self.fills[0].price)
         self.assertEqual(0.0, self.fills[0].fee)
+
+    async def test_final_execution_gate_refuses_order_until_ready(self):
+        self.execution_service.health.mark_critical()
+
+        self.execution_service.on_order(self, self.mock_order)
+        self.assertEqual([], self.fills)
+        self.execution_service.health.mark_healthy()
+        self.execution_service.on_order(self, self.mock_order)
+        self.assertEqual(1, len(self.fills))
 
     @staticmethod
     def create_market_trade(side: MarketSide, price: float, quantity: float):
