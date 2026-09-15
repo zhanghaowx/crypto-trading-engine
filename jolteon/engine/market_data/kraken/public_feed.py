@@ -457,9 +457,8 @@ class PublicFeed(IMarketDataFeed):
             """
             is_snapshot = response.get("type") == "snapshot"
             for book_json in response["data"]:
-                self._order_book.apply(
-                    self._decode_book_update(book_json, is_snapshot)
-                )
+                update = self._decode_book_update(book_json, is_snapshot)
+                self._order_book.apply(update)
                 if is_snapshot:
                     self.on_order_book_synced()
                     self._book_ready = True
@@ -469,6 +468,10 @@ class PublicFeed(IMarketDataFeed):
                     await self.resync_order_book(self._order_book)
                     return
 
+                self._dispatch_isolating_receiver_errors(
+                    self.events.order_book_update,
+                    book_update=self.record_order_book_update(update),
+                )
                 self._dispatch_isolating_receiver_errors(
                     self.events.order_book, order_book=self._order_book
                 )

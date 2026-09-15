@@ -2,9 +2,11 @@ import unittest
 from datetime import datetime
 
 from jolteon.engine.market_data.core.order_book import (
+    BookModel,
     BookUpdate,
     OrderBook,
     PriceLevel,
+    RecordedBookUpdate,
 )
 
 
@@ -161,6 +163,42 @@ class TestOrderBook(unittest.TestCase):
 
         self.assertEqual(3, len(self.order_book.bids(10)))
         self.assertEqual(2, len(self.order_book.asks(10)))
+
+    def test_quantity_at_reads_an_exact_level_on_either_side(self):
+        self.apply_snapshot()
+
+        self.assertEqual(2.0, self.order_book.quantity_at(99.0, bid=True))
+        self.assertEqual(4.0, self.order_book.quantity_at(102.0, bid=False))
+        self.assertEqual(0.0, self.order_book.quantity_at(97.0, bid=True))
+
+    def test_recorded_update_round_trips_compact_l2_data(self):
+        update = self.update(
+            bids=[(100.0, 1.25)],
+            asks=[(101.0, 2.5)],
+            is_snapshot=True,
+        )
+
+        record = RecordedBookUpdate.from_update(update)
+
+        self.assertEqual(BookModel.L2, record.model)
+        self.assertEqual(1, record.version)
+        self.assertEqual("[[100.0,1.25]]", record.bids)
+        self.assertEqual(update, record.to_update())
+
+    def test_recorded_update_rejects_an_unknown_format(self):
+        record = RecordedBookUpdate(
+            symbol="BTC/USD",
+            model=BookModel.L3,
+            version=1,
+            sequence=1,
+            bids="[]",
+            asks="[]",
+            is_snapshot=False,
+            exchange_time=self.exchange_time,
+        )
+
+        with self.assertRaisesRegex(ValueError, "Unsupported book recording"):
+            record.to_update()
 
 
 class TestDepthLimitedOrderBook(unittest.TestCase):

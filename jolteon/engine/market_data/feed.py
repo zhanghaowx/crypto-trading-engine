@@ -10,7 +10,11 @@ from jolteon.engine.core.health_monitor.heartbeat import (
     Heartbeater,
 )
 from jolteon.engine.market_data.core.events import Events
-from jolteon.engine.market_data.core.order_book import OrderBook
+from jolteon.engine.market_data.core.order_book import (
+    BookUpdate,
+    OrderBook,
+    RecordedBookUpdate,
+)
 
 
 class Channel(StrEnum):
@@ -38,6 +42,7 @@ class IMarketDataFeed(Heartbeater, ABC):
     ):
         super().__init__(name, interval_in_seconds, health_monitor)
         self.events = Events()
+        self._book_record_sequence = 0
 
     @property
     @abstractmethod
@@ -79,6 +84,26 @@ class IMarketDataFeed(Heartbeater, ABC):
     def on_order_book_synced(self) -> None:
         self.remove_issue(
             IMarketDataFeed.ErrorCode.ORDER_BOOK_OUT_OF_SYNC.name
+        )
+
+    def publish_order_book(
+        self, order_book: OrderBook, update: BookUpdate
+    ) -> None:
+        """Publish both the compact replay record and current L2 view."""
+        self.events.order_book_update.send(
+            self.events.order_book_update,
+            book_update=self.record_order_book_update(update),
+        )
+        self.events.order_book.send(
+            self.events.order_book, order_book=order_book
+        )
+
+    def record_order_book_update(
+        self, update: BookUpdate
+    ) -> RecordedBookUpdate:
+        self._book_record_sequence += 1
+        return RecordedBookUpdate.from_update(
+            update, sequence=self._book_record_sequence
         )
 
     async def _request_order_book_snapshot(self, symbol: str) -> None:

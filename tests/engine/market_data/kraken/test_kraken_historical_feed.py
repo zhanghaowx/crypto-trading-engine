@@ -1,8 +1,14 @@
 import unittest
 from datetime import datetime, timedelta, timezone
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
+from jolteon.engine.core.side import MarketSide
 from jolteon.engine.core.time.time_manager import time_manager
+from jolteon.engine.market_data.core.order_book import (
+    BookUpdate,
+    PriceLevel,
+    RecordedBookUpdate,
+)
 from jolteon.engine.market_data.core.trade import Trade
 from jolteon.engine.market_data.data_source import IDataSource
 from jolteon.engine.market_data.historical_feed import HistoricalFeed
@@ -145,6 +151,54 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
             "Some market trades might be missing!", "".join(logs.output)
         )
         self.assertEqual(len(self.market_trades), 2)
+
+    async def test_replays_recorded_book_before_a_later_trade(self):
+        start = datetime(2023, 1, 1, tzinfo=timezone.utc)
+        data_source = MagicMock(spec=IDataSource)
+        data_source.download_market_trades = AsyncMock(
+            return_value=[
+                Trade(
+                    trade_id=1,
+                    client_order_id="",
+                    symbol="BTC/USD",
+                    maker_order_id="",
+                    taker_order_id="",
+                    side=MarketSide.SELL,
+                    price=100.0,
+                    fee=0.0,
+                    quantity=1.0,
+                    transaction_time=start + timedelta(seconds=2),
+                )
+            ]
+        )
+        record = RecordedBookUpdate.from_update(
+            BookUpdate(
+                symbol="BTC/USD",
+                bids=[PriceLevel(100.0, 2.0)],
+                asks=[PriceLevel(101.0, 3.0)],
+                is_snapshot=True,
+                exchange_time=start + timedelta(seconds=1),
+            )
+        )
+        data_source.download_order_book_updates = AsyncMock(
+            return_value=[record]
+        )
+        feed = HistoricalFeed(data_source)
+        seen = []
+        feed.events.order_book.connect(
+            lambda _, order_book: seen.append(
+                ("book", order_book.quantity_at(100.0, bid=True))
+            ),
+            weak=False,
+        )
+        feed.events.market_trade.connect(
+            lambda _, market_trade: seen.append(("trade", market_trade.price)),
+            weak=False,
+        )
+
+        await feed.connect("BTC/USD", start, start + timedelta(seconds=3))
+
+        self.assertEqual([("book", 2.0), ("trade", 100.0)], seen)
 
 
 class TestKrakenHistoricalDataSource(unittest.IsolatedAsyncioTestCase):
