@@ -8,6 +8,7 @@ from datetime import datetime
 import pytz
 
 from jolteon.app.base import ApplicationBase
+from jolteon.engine.core.health_monitor.health import HealthMonitor
 from jolteon.engine.core.parameter.parameter_service import IParameterService
 from jolteon.engine.execution.kraken.execution_service import ExecutionService
 from jolteon.engine.execution.kraken.fee_schedule import KrakenFeeSchedule
@@ -34,6 +35,7 @@ class KrakenApplication(ApplicationBase):
         strategy: object = None,
         fair_price_model: IFairPriceModel | None = None,
         parameter_service: IParameterService | None = None,
+        health_monitor: HealthMonitor | None = None,
     ):
         print(f"Using {type(self).__name__}")
         super().__init__(
@@ -44,16 +46,23 @@ class KrakenApplication(ApplicationBase):
             strategy=strategy,
             fair_price_model=fair_price_model,
             parameter_service=parameter_service,
+            health_monitor=health_monitor,
         )
         if use_mock_execution:
             super().use_execution_service(
-                MockExecutionService(KrakenFeeSchedule)
+                MockExecutionService(
+                    KrakenFeeSchedule, health_monitor=self._health_monitor
+                )
             )
         else:
-            super().use_execution_service(ExecutionService())
+            super().use_execution_service(
+                ExecutionService(health_monitor=self._health_monitor)
+            )
 
     async def start(self):
-        super().use_market_data_service(PublicFeed())
+        super().use_market_data_service(
+            PublicFeed(health_monitor=self._health_monitor)
+        )
 
         logging.info(f"Running {self._symbol} live")
         print(f"Running {self._symbol} live")
@@ -62,7 +71,10 @@ class KrakenApplication(ApplicationBase):
 
     async def run_replay(self, start: datetime, end: datetime):
         super().use_market_data_service(
-            HistoricalFeed(KrakenHistoricalDataSource())
+            HistoricalFeed(
+                KrakenHistoricalDataSource(),
+                health_monitor=self._health_monitor,
+            )
         )
 
         logging.info(f"Replaying {self._symbol} from {start} to {end}")

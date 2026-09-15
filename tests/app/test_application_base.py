@@ -1,18 +1,21 @@
 import tempfile
 import unittest
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 from jolteon.app.base import ApplicationBase
 from jolteon.engine.core.event.signal import signal, subscribe
 from jolteon.engine.core.event.signal_subscriber import SignalSubscriber
+from jolteon.engine.core.health_monitor.health import (
+    HealthMonitor,
+    HealthState,
+)
 from jolteon.engine.core.parameter.parameter_service import (
     StaticParameterService,
     parameter_service,
 )
 from jolteon.engine.market_data.core.bbo import BBO
 from jolteon.engine.market_data.core.book_snapshot import BookSnapshot
-from jolteon.engine.market_data.feed import Channel
 from jolteon.engine.strategy.market_making.fair_value.fair_price_model import (
     FairPrice,
     IFairPriceModel,
@@ -70,32 +73,21 @@ class TestApplicationBaseFairPriceModel(unittest.TestCase):
         app.connect_all()
         app.disconnect_all()
 
-    def test_instrument_feed_requires_strategy_readiness(self):
-        strategy = Mock()
+    def test_uses_the_health_monitor_shared_by_constructed_services(self):
+        health_monitor = HealthMonitor()
+        parameters = StaticParameterService(health_monitor=health_monitor)
         app = ApplicationBase(
             symbol="BTC/USD",
             database_name=f"{tempfile.gettempdir()}/test_ready.sqlite",
             logfile_name=f"{tempfile.gettempdir()}/test_ready.log",
-            strategy=strategy,
+            parameter_service=parameters,
+            health_monitor=health_monitor,
         )
 
-        app.use_market_data_service(
-            Mock(channels=frozenset({Channel.INSTRUMENT}))
-        )
-
-        strategy.require_instrument.assert_called_once()
-
-    def test_unknown_strategy_readiness_hook_is_ignored(self):
-        app = ApplicationBase(
-            symbol="BTC/USD",
-            database_name=f"{tempfile.gettempdir()}/test_ready.sqlite",
-            logfile_name=f"{tempfile.gettempdir()}/test_ready.log",
-            strategy=object(),
-        )
-
-        app.use_market_data_service(
-            Mock(channels=frozenset({Channel.INSTRUMENT}))
-        )
+        self.assertIs(health_monitor, app._health_monitor)
+        self.assertEqual(HealthState.INITIALIZING, app._health_monitor.state)
+        parameters.start()
+        self.assertEqual(HealthState.HEALTHY, app._health_monitor.state)
 
 
 class TestApplicationBaseRunStart(unittest.IsolatedAsyncioTestCase):

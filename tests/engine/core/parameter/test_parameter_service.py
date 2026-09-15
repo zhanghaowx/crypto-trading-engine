@@ -1,6 +1,7 @@
 import unittest
 from dataclasses import dataclass
 
+from jolteon.engine.core.health_monitor.health import HealthState
 from jolteon.engine.core.parameter.parameter_service import (
     ParameterValues,
     StaticParameterService,
@@ -23,6 +24,14 @@ class SkewParameters(ParameterGroup):
 
 
 class TestStaticParameterService(unittest.TestCase):
+    def test_reports_parameter_health(self):
+        service = StaticParameterService()
+        service.mark_parameters_critical()
+        self.assertEqual(HealthState.CRITICAL, service.health.state)
+        service.start()
+        self.assertEqual(HealthState.HEALTHY, service.health.state)
+        service.stop()
+
     def test_returns_declared_defaults_when_nothing_was_given(self):
         service = StaticParameterService()
         self.assertEqual(0.0005, service.get(QuotingParameters).quote_size)

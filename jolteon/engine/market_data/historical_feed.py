@@ -3,8 +3,11 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum, auto
 
+from jolteon.engine.core.health_monitor.health import (
+    HealthMonitor,
+    HealthState,
+)
 from jolteon.engine.core.health_monitor.heartbeat import (
-    HeartbeatLevel,
     starts_heartbeating,
 )
 from jolteon.engine.core.time.time_manager import time_manager
@@ -21,8 +24,12 @@ class HistoricalFeed(IMarketDataFeed):
     Download and replay the historical market data feed.
     """
 
-    def __init__(self, data_source: IDataSource):
-        super().__init__(type(self).__name__)
+    def __init__(
+        self,
+        data_source: IDataSource,
+        health_monitor: HealthMonitor | None = None,
+    ):
+        super().__init__(type(self).__name__, health_monitor=health_monitor)
         self._data_source = data_source
 
     @property
@@ -50,12 +57,13 @@ class HistoricalFeed(IMarketDataFeed):
         time_manager().use_fake_time(start_time, admin=self)
 
         self.add_issue(
-            HeartbeatLevel.WARN, HistoricalFeed.ErrorCode.DOWNLOADING.name
+            HealthState.WARNING, HistoricalFeed.ErrorCode.DOWNLOADING.name
         )
         market_trades = await self._data_source.download_market_trades(
             symbol, start_time, end_time
         )
         self.remove_issue(HistoricalFeed.ErrorCode.DOWNLOADING.name)
+        self.mark_healthy()
 
         # Filter out unnecessary market trades
         market_trades = [

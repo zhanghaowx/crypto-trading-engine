@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import TypeVar
 
+from jolteon.engine.core.health_monitor.health import Health, HealthMonitor
 from jolteon.engine.core.parameter.parameter_specification import (
     ParameterDefinition,
     ParameterGroup,
@@ -78,6 +79,19 @@ class IParameterService(ABC):
     it was running.
     """
 
+    @property
+    def health(self) -> Health:
+        health = getattr(self, "_health", None)
+        if health is None:
+            health = self._health = Health("parameters")
+        return health
+
+    def mark_parameters_healthy(self) -> None:
+        self.health.mark_healthy()
+
+    def mark_parameters_critical(self) -> None:
+        self.health.mark_critical()
+
     @abstractmethod
     def values(self) -> ParameterValues:
         """
@@ -96,7 +110,7 @@ class IParameterService(ABC):
         return self.values().get(group, symbol)
 
     def start(self) -> None:
-        pass
+        pass  # pragma: no cover - optional implementation hook
 
     def stop(self) -> None:
         pass
@@ -110,7 +124,11 @@ class StaticParameterService(IParameterService):
     test reaches for when it wants one specific number changed.
     """
 
-    def __init__(self, *groups: ParameterGroup):
+    def __init__(
+        self,
+        *groups: ParameterGroup,
+        health_monitor: HealthMonitor | None = None,
+    ):
         for group in groups:
             for definition in definitions(type(group)):
                 assert_within_bounds(
@@ -121,9 +139,14 @@ class StaticParameterService(IParameterService):
             defaults={type(group): group for group in groups},
             by_symbol={},
         )
+        if health_monitor is not None:
+            health_monitor.require(self.health)
 
     def values(self) -> ParameterValues:
         return self._values
+
+    def start(self) -> None:
+        self.mark_parameters_healthy()
 
 
 def assert_within_bounds(

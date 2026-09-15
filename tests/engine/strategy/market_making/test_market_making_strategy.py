@@ -4,6 +4,7 @@ from datetime import datetime
 
 import pytz
 
+from jolteon.engine.core.health_monitor.health import Health, HealthMonitor
 from jolteon.engine.core.parameter.parameter_service import (
     StaticParameterService,
 )
@@ -37,6 +38,7 @@ class TestMarketMakingStrategy(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.orders = list[Order]()
         self.cancelled_ids = list[str]()
+        self.health_monitor = HealthMonitor()
 
         self.strategy = MarketMakingStrategy(
             symbol="BTC/USD",
@@ -45,6 +47,7 @@ class TestMarketMakingStrategy(unittest.IsolatedAsyncioTestCase):
                 MarketMakingParameters(quote_size=0.01, max_inventory=0.02)
             ),
             quote_offset_service=StaticQuoteOffsetService(half_spread=1.0),
+            health_monitor=self.health_monitor,
         )
         self.strategy.order_event.connect(self._on_order)
         self.strategy.cancel_order_event.connect(self._on_cancel_order)
@@ -89,6 +92,24 @@ class TestMarketMakingStrategy(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(99.0, buy_order.price)
         self.assertEqual(101.0, sell_order.price)
         self.assertEqual(OrderType.LIMIT_ORDER, buy_order.order_type)
+
+    async def test_health_blocks_quotes_cancels_and_recovers(self):
+        feed_health = Health("feed")
+        self.health_monitor.require(feed_health)
+
+        self.strategy.on_bbo("_", self.create_bbo(99.0, 101.0))
+        self.assertEqual([], self.orders)
+        feed_health.mark_healthy()
+        self.strategy.on_bbo("_", self.create_bbo(99.0, 101.0))
+        self.assertEqual(2, len(self.orders))
+
+        feed_health.mark_warning()
+        self.assertEqual(0, len(self.cancelled_ids))
+        feed_health.mark_critical()
+        self.assertEqual(2, len(self.cancelled_ids))
+        feed_health.mark_healthy()
+        self.strategy.on_bbo("_", self.create_bbo(99.0, 101.0))
+        self.assertEqual(4, len(self.orders))
 
     async def test_does_not_requote_within_tolerance(self):
         self.strategy.on_bbo("_", self.create_bbo(99.0, 101.0))
@@ -162,19 +183,6 @@ class TestMarketMakingStrategy(unittest.IsolatedAsyncioTestCase):
         self.strategy.on_bbo("_", self.create_bbo(99.0, 101.0))
 
         self.assertEqual([(), (PriceLevel(99.0, 1.0),)], seen)
-
-    async def test_holds_quotes_until_a_required_instrument_arrives(self):
-        self.strategy.require_instrument()
-
-        self.strategy.on_bbo("_", self.create_bbo(99.0, 101.0))
-        self.assertEqual([], self.orders)
-
-        self.strategy.on_instrument(
-            "_", InstrumentSpec(symbol="BTC/USD", price_increment=0.01)
-        )
-        self.strategy.on_bbo("_", self.create_bbo(99.0, 101.0))
-
-        self.assertEqual(2, len(self.orders))
 
     async def test_carried_levels_do_not_follow_a_later_book_update(self):
         seen = []

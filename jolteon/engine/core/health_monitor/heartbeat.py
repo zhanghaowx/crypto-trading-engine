@@ -6,6 +6,11 @@ from enum import Enum
 from typing import Union
 
 from jolteon.engine.core.event.signal import signal
+from jolteon.engine.core.health_monitor.health import (
+    Health,
+    HealthMonitor,
+    HealthState,
+)
 from jolteon.engine.core.health_monitor.parameters import HeartbeatParameters
 from jolteon.engine.core.parameter.parameter_service import parameter_service
 from jolteon.engine.core.time.time_manager import time_manager
@@ -76,10 +81,14 @@ class Heartbeat:
 
 
 class Heartbeater:
+    INITIALIZING = "Initializing"
+    CRITICAL = "Service has a critical issue"
+
     def __init__(
         self,
         name: str = "anonymous",
         interval_in_seconds: float | None = None,
+        health_monitor: HealthMonitor | None = None,
     ):
         """
         *Heartbeater* is the component that sends *Heartbeat* messages to
@@ -112,6 +121,21 @@ class Heartbeater:
             Heartbeat(level=HeartbeatLevel.NORMAL, sender=self._name)
         ]
         self._heartbeating_task: Union[asyncio.Task, None] = None
+        self._health = Health(self._name)
+        if health_monitor is not None:
+            health_monitor.require(self._health)
+        self._ready_state_reached = False
+
+    @property
+    def health(self) -> Health:
+        return self._health
+
+    def mark_healthy(self) -> None:
+        self._ready_state_reached = True
+        self._update_health()
+
+    def mark_critical(self) -> None:
+        self.health.mark_critical()
 
     def __del__(self):
         task = self._heartbeating_task
@@ -144,27 +168,32 @@ class Heartbeater:
         """
         return self._heartbeat_signal
 
-    def add_issue(self, level: HeartbeatLevel, message: str):
+    def add_issue(self, state: HealthState, message: str):
         """
         Add an issue to the issue list.
 
         Args:
-            level: The severity is this issue.
+            state: The health impact of this issue.
             message: Additional details about this issue.
 
         Returns:
             Index of the newly inserted issue. This index could be used to
             clear the issue later on.
         """
-        assert level.value > HeartbeatLevel.NORMAL.value, (
-            "Please report only severe issues that exceed "
-            "the normal severity level!"
+        assert state in (HealthState.WARNING, HealthState.CRITICAL), (
+            "An issue must be WARNING or CRITICAL"
         )
         assert len(message) > 0, "Please add details to your issue"
+        level = (
+            HeartbeatLevel.WARN
+            if state == HealthState.WARNING
+            else HeartbeatLevel.CRITICAL
+        )
         self._issues.append(
             Heartbeat(level=level, message=message, sender=self._name)
         )
         self._issues.sort()
+        self._update_health()
         return len(self._issues) - 1
 
     def remove_issue(self, message: str):
@@ -180,6 +209,18 @@ class Heartbeater:
         assert len(message) > 0, "Cannot remove the NORMAL heartbeat!"
         self._issues = [x for x in self._issues if x.message != message]
         self._issues.sort()
+        self._update_health()
+
+    def _update_health(self) -> None:
+        level = self._issues[-1].level
+        if level == HeartbeatLevel.CRITICAL:
+            self.health.mark_critical()
+        elif not self._ready_state_reached:
+            self.health.mark_initializing()
+        elif level != HeartbeatLevel.NORMAL:
+            self.health.mark_warning()
+        else:
+            self.health.mark_healthy()
 
     def send_heartbeat(self):
         """
@@ -194,6 +235,19 @@ class Heartbeater:
         )
 
         last_heartbeat = self._issues[-1]
+        if last_heartbeat.level == HeartbeatLevel.NORMAL:
+            if self.health.state == HealthState.INITIALIZING:
+                last_heartbeat = Heartbeat(
+                    level=HeartbeatLevel.WARN,
+                    sender=self._name,
+                    message=self.INITIALIZING,
+                )
+            elif self.health.state == HealthState.CRITICAL:
+                last_heartbeat = Heartbeat(
+                    level=HeartbeatLevel.CRITICAL,
+                    sender=self._name,
+                    message=self.CRITICAL,
+                )
         last_heartbeat.report_time = time_manager().now()
 
         self._heartbeat_signal.send(

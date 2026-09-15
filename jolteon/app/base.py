@@ -10,6 +10,7 @@ from jolteon import paths
 from jolteon.engine.core.event.signal import signal
 from jolteon.engine.core.event.signal_manager import SignalManager
 from jolteon.engine.core.event.signal_recorder import SignalRecorder
+from jolteon.engine.core.health_monitor.health import HealthMonitor
 from jolteon.engine.core.logging.logger import setup_global_logger
 from jolteon.engine.core.parameter.parameter_service import (
     IParameterService,
@@ -20,7 +21,7 @@ from jolteon.engine.market_data.book_feature_recorder import (
     BookFeatureRecorder,
 )
 from jolteon.engine.market_data.data_source import DatabaseDataSource
-from jolteon.engine.market_data.feed import Channel, IMarketDataFeed
+from jolteon.engine.market_data.feed import IMarketDataFeed
 from jolteon.engine.market_data.historical_feed import HistoricalFeed
 from jolteon.engine.position.position_manager import PositionManager
 from jolteon.engine.post_trade.post_trade_service import PostTradeService
@@ -47,6 +48,7 @@ class ApplicationBase(SignalManager):
         strategy: object = None,
         fair_price_model: IFairPriceModel | None = None,
         parameter_service: IParameterService | None = None,
+        health_monitor: HealthMonitor | None = None,
     ):
         """
         Connects different components to build the trading engine. It supports
@@ -59,7 +61,10 @@ class ApplicationBase(SignalManager):
         # Published before anything else is built: the layers underneath
         # the wired components read their own tunables from here, and
         # setup_global_logger below is already one of them.
-        self._parameter_service = parameter_service or StaticParameterService()
+        self._health_monitor = health_monitor or HealthMonitor()
+        self._parameter_service = parameter_service or StaticParameterService(
+            health_monitor=self._health_monitor
+        )
         use_parameter_service(self._parameter_service)
 
         # Made here rather than by whoever picked the paths, so the
@@ -102,19 +107,14 @@ class ApplicationBase(SignalManager):
     def use_execution_service(self, service: object):
         print(f"Using {type(service).__name__}")
         self._exec_service = service
+        mark_healthy = getattr(service, "mark_healthy", None)
+        if mark_healthy:
+            mark_healthy()
         return self
 
     def use_market_data_service(self, market_data: IMarketDataFeed):
         print(f"Using {type(market_data).__name__}")
         self._md = market_data
-        if self._strategy is not None and Channel.INSTRUMENT in getattr(
-            market_data, "channels", frozenset()
-        ):
-            require_instrument = getattr(
-                self._strategy, "require_instrument", None
-            )
-            if require_instrument:
-                require_instrument()
         return self
 
     async def run_start(self, *args):
@@ -157,7 +157,9 @@ class ApplicationBase(SignalManager):
         start = data_source.start_time()
         end = data_source.end_time()
 
-        self.use_market_data_service(HistoricalFeed(data_source))
+        self.use_market_data_service(
+            HistoricalFeed(data_source, health_monitor=self._health_monitor)
+        )
 
         logging.info(f"Replaying {self._symbol} from {start} to {end}")
         print(f"Replaying {self._symbol} from {start} to {end}")

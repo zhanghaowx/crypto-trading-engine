@@ -500,18 +500,36 @@ opens the selected one.
 Acceptance: a long-running feed maintains a synchronized book, emits
 canonical symbols and never quotes before venue limits are known.
 
-### PR 4a: coordinated trading readiness
+### PR 4a: coordinated service health
 
-- Give each required service an explicit initializing, healthy and unhealthy
+- Give each service an explicit initializing, healthy, warning and critical
   lifecycle.
-- Combine service states into one in-memory trading-ready decision.
-- Check readiness at the execution boundary and withdraw quotes when it is
-  lost.
-- Define replay readiness without requiring live-only initialization events.
+- Have one `HealthMonitor` derive its state from the required services.
+- Check health at the execution boundary and withdraw quotes when it is lost.
+- Define replay health without requiring live-only initialization events.
 
-Acceptance: neither exchange can submit an order until every required service
-is healthy; losing any dependency stops new orders and withdraws quotes; and
-trading resumes only after every dependency has recovered.
+Acceptance: neither exchange can submit an order while a service is
+initializing or critical; warnings remain visible without interrupting
+trading; a critical dependency stops new orders and withdraws quotes; and
+trading resumes after every critical dependency has recovered.
+
+The implementation uses the same `HealthState` for monitoring and trading.
+One thread-safe, in-memory `HealthMonitor` per engine derives its state from
+its dependencies instead of maintaining a separate trading-readiness state.
+The application passes that monitor to each participating service's
+constructor, where the service registers its health. Passing the monitor is
+the dependency declaration, so no registry or separate
+`required_for_trading` metadata is needed.
+Parameter services become healthy after their first successful load. Live feeds
+become healthy only after their initial venue state is usable: Binance.US after
+instrument rules and its REST book snapshot, and Kraken after both its matching
+instrument and book snapshots. Historical feeds become healthy after their data
+download, without waiting for live-only channels. Heartbeat issues on a bound
+feed or execution service make the monitor critical immediately. Warning
+issues, such as a rejected parameter push when valid prior values remain in
+use, do not stop trading. Quote publication is atomic with the health decision,
+and both execution implementations perform their own final check. The
+instrument-only strategy gate is removed.
 
 ### PR 5: depth-aware paper execution and replay
 

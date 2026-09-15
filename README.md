@@ -86,6 +86,18 @@ Binance.US live order submission and remote historical replay are intentionally
 disabled until their later rollout steps. The public WebSocket requires no API
 credentials.
 
+Every service has one in-memory health state. The engine's `HealthMonitor`
+derives its health from parameters, market data, and execution; the strategy
+quotes only after initialization completes. A warning is visible in the
+dashboard while trading continues. A critical issue withdraws existing quotes
+and makes both paper and live execution reject new orders until the service
+recovers. Historical replay becomes healthy after its data has loaded, so it
+does not depend on live-only instrument messages.
+
+The application creates one `HealthMonitor` and passes it to each service.
+Receiving that monitor makes the service part of the trading-health decision;
+there is no separate registry or `required_for_trading` flag.
+
 ### Where a session writes
 
 Everything a session writes is scoped first by exchange and then by canonical

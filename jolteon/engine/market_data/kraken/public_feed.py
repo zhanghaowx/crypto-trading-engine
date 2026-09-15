@@ -9,8 +9,11 @@ from enum import Enum
 
 import websockets
 
+from jolteon.engine.core.health_monitor.health import (
+    HealthMonitor,
+    HealthState,
+)
 from jolteon.engine.core.health_monitor.heartbeat import (
-    HeartbeatLevel,
     starts_heartbeating,
 )
 from jolteon.engine.core.id_generator import id_generator
@@ -46,8 +49,8 @@ class PublicFeed(IMarketDataFeed):
         CONNECTION_LOST = "Connection Lost"
         MALFORMAT_RESPONSE = "Malformatted Response from Kraken"
 
-    def __init__(self):
-        super().__init__(type(self).__name__)
+    def __init__(self, health_monitor: HealthMonitor | None = None):
+        super().__init__(type(self).__name__, health_monitor=health_monitor)
         self._last_received_trade_id = -math.inf
         self._clock = time.monotonic
         self._order_book = OrderBook("")
@@ -55,6 +58,9 @@ class PublicFeed(IMarketDataFeed):
         self._instruments: dict[str, InstrumentSpec] = {}
         self._websocket: websockets.WebSocketClientProtocol | None = None
         self._book_depth = 0
+        self._ready_symbol = ""
+        self._instrument_ready = False
+        self._book_ready = False
 
     @property
     def channels(self) -> frozenset[Channel]:
@@ -85,6 +91,7 @@ class PublicFeed(IMarketDataFeed):
             try:
                 await self.connect_once(symbol)
             except Exception as e:
+                self.mark_critical()
                 logging.warning(
                     "Schedule a reconnect after encountering an error "
                     f"while connecting to Kraken's websocket: {e}"
@@ -120,6 +127,9 @@ class PublicFeed(IMarketDataFeed):
             parameter_service().get(KrakenFeedParameters, symbol).book_depth
         )
         self._book_depth = book_depth
+        self._ready_symbol = symbol
+        self._instrument_ready = False
+        self._book_ready = False
         self._order_book = OrderBook(symbol, depth=book_depth)
         self._last_bbo = None
 
@@ -156,7 +166,7 @@ class PublicFeed(IMarketDataFeed):
                             exc_info=True,
                         )
                         self.add_issue(
-                            HeartbeatLevel.ERROR,
+                            HealthState.CRITICAL,
                             PublicFeed.ErrorCode.MALFORMAT_RESPONSE.value,
                         )
                         break
@@ -166,7 +176,7 @@ class PublicFeed(IMarketDataFeed):
                         )
                 except websockets.exceptions.ConnectionClosedError as e:
                     self.add_issue(
-                        HeartbeatLevel.ERROR,
+                        HealthState.CRITICAL,
                         PublicFeed.ErrorCode.CONNECTION_LOST.value,
                     )
                     logging.error(f"Connection Closed: {e}", exc_info=True)
@@ -291,6 +301,10 @@ class PublicFeed(IMarketDataFeed):
         self._last_bbo = bbo
         self._dispatch_isolating_receiver_errors(self.events.ticker, bbo=bbo)
 
+    def _mark_healthy_if_initialized(self) -> None:
+        if self._instrument_ready and self._book_ready:
+            self.mark_healthy()
+
     async def _decode_message(self, response):
         possible_error = response.get("error")
         if possible_error:
@@ -298,7 +312,7 @@ class PublicFeed(IMarketDataFeed):
                 f"Encountered error: {possible_error}", exc_info=True
             )
             self.add_issue(
-                HeartbeatLevel.ERROR,
+                HealthState.CRITICAL,
                 PublicFeed.ErrorCode.CONNECTION_LOST.value,
             )
             return
@@ -418,6 +432,9 @@ class PublicFeed(IMarketDataFeed):
                 self._dispatch_isolating_receiver_errors(
                     self.events.instrument, instrument=instrument
                 )
+                if instrument.symbol == self._ready_symbol:
+                    self._instrument_ready = True
+                    self._mark_healthy_if_initialized()
         elif message_type == "book":
             """
             Below is an example of a book message from Kraken. A snapshot
@@ -445,6 +462,8 @@ class PublicFeed(IMarketDataFeed):
                 )
                 if is_snapshot:
                     self.on_order_book_synced()
+                    self._book_ready = True
+                    self._mark_healthy_if_initialized()
 
                 if not self._is_book_in_sync(book_json.get("checksum")):
                     await self.resync_order_book(self._order_book)

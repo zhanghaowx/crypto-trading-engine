@@ -2,9 +2,12 @@ import logging
 import threading
 
 from jolteon.engine.core.event.signal import signal
+from jolteon.engine.core.health_monitor.health import (
+    HealthMonitor,
+    HealthState,
+)
 from jolteon.engine.core.health_monitor.heartbeat import (
     Heartbeater,
-    HeartbeatLevel,
 )
 from jolteon.engine.core.parameter import parameter_catalog
 from jolteon.engine.core.parameter.parameter_applied import (
@@ -52,12 +55,20 @@ class StoredParameterService(IParameterService, Heartbeater):
     would be touched during wiring.
     """
 
-    def __init__(self, database_name: str, name: str = ""):
+    def __init__(
+        self,
+        database_name: str,
+        name: str = "",
+        health_monitor: HealthMonitor | None = None,
+    ):
         # interval_in_seconds=0 disables Heartbeater's own asyncio loop:
         # this component's real work runs on a thread, and its heartbeat
         # goes out from that loop so a stall there stops the heartbeats.
         Heartbeater.__init__(
-            self, name or type(self).__name__, interval_in_seconds=0
+            self,
+            name or "parameters",
+            interval_in_seconds=0,
+            health_monitor=health_monitor,
         )
         self._store = ParameterStore(database_name)
         self._values = _build(revision=0, overrides=[], previous=None)
@@ -80,6 +91,7 @@ class StoredParameterService(IParameterService, Heartbeater):
         if self._thread is not None:
             return
         self._refresh()
+        self.mark_healthy()
         self._thread = threading.Thread(
             name="Parameters", target=self._poll, daemon=True
         )
@@ -99,7 +111,10 @@ class StoredParameterService(IParameterService, Heartbeater):
             try:
                 self._refresh()
             except Exception as error:
+                self.mark_critical()
                 logging.error(f"Could not refresh parameters: {error}")
+            else:
+                self.mark_healthy()
             self.send_heartbeat()
             interval = self._values.get(
                 ParameterPollParameters
@@ -132,7 +147,7 @@ class StoredParameterService(IParameterService, Heartbeater):
             self._values = rebuilt
             self.remove_issue(_REJECTED_PUSH)
         else:
-            self.add_issue(HeartbeatLevel.WARN, _REJECTED_PUSH)
+            self.add_issue(HealthState.WARNING, _REJECTED_PUSH)
 
         self._emit(overrides, rejected)
 

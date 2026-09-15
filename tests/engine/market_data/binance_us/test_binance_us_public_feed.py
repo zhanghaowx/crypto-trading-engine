@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 from websockets.exceptions import ConnectionClosedError
 
-from jolteon.engine.core.health_monitor.heartbeat import HeartbeatLevel
+from jolteon.engine.core.health_monitor.health import HealthState
 from jolteon.engine.core.parameter.parameter_service import (
     StaticParameterService,
     use_parameter_service,
@@ -137,7 +137,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
     async def test_resync_stays_degraded_until_a_bridging_update(self):
         await self.feed._request_order_book_snapshot("BTC/USD")
         self.feed.add_issue(
-            HeartbeatLevel.WARN,
+            HealthState.CRITICAL,
             IMarketDataFeed.ErrorCode.ORDER_BOOK_OUT_OF_SYNC.name,
         )
 
