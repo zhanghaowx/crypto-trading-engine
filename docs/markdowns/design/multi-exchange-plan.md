@@ -170,9 +170,11 @@ visible quantity at its exact price. Continue consuming queue ahead from
 opposing prints before filling the simulated order.
 
 This remains an estimate: L2 cannot reveal rank within a level or distinguish
-cancellations ahead from cancellations behind. Record the initial queue-ahead
-estimate and fill-model version with every simulated order so later analysis
-states which assumptions produced it.
+cancellations ahead from cancellations behind. A pluggable `QueuePositionModel`
+creates the `QueuePosition` owned by each simulated resting order. Replay
+derives each initial position from the recorded book and order stream. A future
+authoritative order state may also persist the calculated value when per-order
+audit history is needed.
 
 Binance.US does not document an L3, order-by-order market-data feed. Its
 `<symbol>@depth` stream is sequenced L2: each bid or ask contains a price and
@@ -189,6 +191,12 @@ columns. Store sequenced snapshots and deltas, or periodic snapshots plus
 deltas, sufficiently often to rebuild the same book deterministically.
 Teach `HistoricalFeed` to publish `order_book_feed` when the recording
 contains it and retain the current behavior for legacy recordings.
+
+The normalized recording declares its book model and format version. Version 1
+stores compact L2 price/quantity arrays. A future L3 adapter should record a
+separate order-level payload and may derive the shared L2 `OrderBook` for
+consumers that only need aggregate depth; it must not discard order identity by
+forcing L3 events into the L2 representation.
 
 This closes the live-only limitation in known issue 6 and lets the Binance.US
 experiment be repeated instead of existing as one real-time sample.
@@ -533,12 +541,23 @@ instrument-only strategy gate is removed.
 
 ### PR 5: depth-aware paper execution and replay
 
+**Status:** Implemented in GitHub PR #61; pending merge.
+
 - Initialize queue ahead from L2.
-- Record fill assumptions and compact book data.
+- Record compact book data continuously.
 - Replay recorded book updates.
 
 Acceptance: the same recording produces the same orders and fills twice, and
 queue ahead is nonzero whenever visible size rests at the quoted price.
+
+### PR 5a: record the paper execution model
+
+- Give each queue-position model a stable name and version.
+- Record the selected model once in session metadata.
+
+Acceptance: every paper and replay session identifies the queue-position model
+that produced its simulated fills without emitting a per-order configuration
+event.
 
 ### PR 6: complete the multi-venue background stack
 

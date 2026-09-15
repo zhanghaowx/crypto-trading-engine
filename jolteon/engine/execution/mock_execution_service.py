@@ -11,8 +11,14 @@ from jolteon.engine.core.id_generator import id_generator
 from jolteon.engine.core.parameter.parameter_service import parameter_service
 from jolteon.engine.core.side import MarketSide
 from jolteon.engine.core.time.time_manager import time_manager
+from jolteon.engine.execution.queue_position import (
+    L2QueuePositionModel,
+    QueuePosition,
+    QueuePositionModel,
+)
 from jolteon.engine.market_data.core.bbo import BBO
 from jolteon.engine.market_data.core.order import CancelOrder, Order, OrderType
+from jolteon.engine.market_data.core.order_book import OrderBook
 from jolteon.engine.market_data.core.trade import Trade
 from jolteon.engine.market_data.data_source import IDataSource
 
@@ -22,10 +28,7 @@ class _RestingOrder:
     order: Order
     price: float
     remaining_quantity: float
-    # Displayed quantity assumed to be ahead of us in the queue at our
-    # price level. Decremented as opposing trades print at that level;
-    # once it runs out, further matching volume fills this order.
-    ahead_quantity: float
+    queue_position: QueuePosition
 
 
 class MockExecutionService(Heartbeater, SignalSubscriber):
@@ -33,6 +36,7 @@ class MockExecutionService(Heartbeater, SignalSubscriber):
         self,
         fee_schedule: type[FeeSchedule],
         health_monitor: HealthMonitor | None = None,
+        queue_position_model: QueuePositionModel | None = None,
     ):
         """
         Creates a mock execution service to act as the exchange.
@@ -44,19 +48,21 @@ class MockExecutionService(Heartbeater, SignalSubscriber):
         limitation in mind when testing your strategy.
 
         Limit orders rest in a small simulated book and are only filled
-        as real market trades print through their price level. Since only
-        top-of-book (BBO) data is available (no real depth), the queue
-        position of a resting order is approximated from the displayed
-        quantity at the touch when the order was placed - it is not a
-        precise reconstruction of Kraken's real matching engine.
+        as real market trades print through their price level. Queue position
+        is initialized from displayed L2 quantity at the exact order price.
+        L2 does not reveal rank within a level, so this remains an estimate.
         """
         super().__init__(type(self).__name__, health_monitor=health_monitor)
         self._fee_schedule = fee_schedule
         self.order_history = dict[str, Order]()
         self.order_fill_event = signal("order_fill")
         self._health_monitor = health_monitor
+        self.queue_position_model = (
+            queue_position_model or L2QueuePositionModel()
+        )
 
         self._latest_bbo: dict[str, BBO] = {}
+        self._latest_order_book: dict[str, OrderBook] = {}
         self._resting_orders: dict[str, _RestingOrder] = {}
 
     @subscribe("order")
@@ -99,6 +105,10 @@ class MockExecutionService(Heartbeater, SignalSubscriber):
     def on_bbo(self, sender: object, bbo: BBO):
         self._latest_bbo[bbo.symbol] = bbo
 
+    @subscribe("order_book_feed")
+    def on_order_book(self, sender: object, order_book: OrderBook):
+        self._latest_order_book[order_book.symbol] = order_book
+
     @subscribe("market_trade_feed")
     def on_market_trade(self, sender: object, market_trade: Trade):
         for client_order_id in list(self._resting_orders.keys()):
@@ -111,19 +121,17 @@ class MockExecutionService(Heartbeater, SignalSubscriber):
         assert order.price is not None, "Limit orders must have a price"
         price = order.price
 
-        bbo = self._latest_bbo.get(order.symbol)
-        ahead_quantity = 0.0
-        if bbo is not None:
-            if order.side == MarketSide.BUY and price == bbo.bid_price:
-                ahead_quantity = bbo.bid_quantity
-            elif order.side == MarketSide.SELL and price == bbo.ask_price:
-                ahead_quantity = bbo.ask_quantity
+        queue_position = self.queue_position_model.create(
+            order,
+            self._latest_order_book.get(order.symbol),
+            self._latest_bbo.get(order.symbol),
+        )
 
         self._resting_orders[order.client_order_id] = _RestingOrder(
             order=order,
             price=price,
             remaining_quantity=order.quantity,
-            ahead_quantity=ahead_quantity,
+            queue_position=queue_position,
         )
 
     def _try_fill_resting_order(
@@ -151,10 +159,7 @@ class MockExecutionService(Heartbeater, SignalSubscriber):
             )
         else:
             available = market_trade.quantity
-            if resting.ahead_quantity > 0:
-                consumed = min(resting.ahead_quantity, available)
-                resting.ahead_quantity -= consumed
-                available -= consumed
+            available = resting.queue_position.consume(available)
             filled_quantity = min(resting.remaining_quantity, available)
 
         if filled_quantity <= 0:

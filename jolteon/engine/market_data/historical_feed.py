@@ -11,6 +11,7 @@ from jolteon.engine.core.health_monitor.heartbeat import (
     starts_heartbeating,
 )
 from jolteon.engine.core.time.time_manager import time_manager
+from jolteon.engine.market_data.core.order_book import OrderBook
 from jolteon.engine.market_data.data_source import IDataSource
 from jolteon.engine.market_data.feed import Channel, IMarketDataFeed
 
@@ -34,7 +35,7 @@ class HistoricalFeed(IMarketDataFeed):
 
     @property
     def channels(self) -> frozenset[Channel]:
-        return frozenset({Channel.MARKET_TRADE})
+        return frozenset({Channel.MARKET_TRADE, Channel.ORDER_BOOK})
 
     @starts_heartbeating
     async def connect(
@@ -60,6 +61,9 @@ class HistoricalFeed(IMarketDataFeed):
             HealthState.WARNING, HistoricalFeed.ErrorCode.DOWNLOADING.name
         )
         market_trades = await self._data_source.download_market_trades(
+            symbol, start_time, end_time
+        )
+        book_updates = await self._data_source.download_order_book_updates(
             symbol, start_time, end_time
         )
         self.remove_issue(HistoricalFeed.ErrorCode.DOWNLOADING.name)
@@ -94,12 +98,30 @@ class HistoricalFeed(IMarketDataFeed):
                 f"Some market trades might be missing!"
             )
 
-        for market_trade in market_trades:
-            time_manager().use_fake_time(
-                market_trade.transaction_time, admin=self
-            )
-            self.events.market_trade.send(
-                self.events.market_trade, market_trade=market_trade
-            )
-            logging.debug("Received Market Trade: %s", market_trade)
+        order_book = OrderBook(symbol)
+        replay_events = [
+            (trade.transaction_time, 1, trade.trade_id, trade)
+            for trade in market_trades
+        ] + [
+            (record.exchange_time, 0, record.sequence, record)
+            for record in book_updates
+        ]
+        replay_events.sort(key=lambda event: event[:3])
+
+        for event_time, event_type, _, payload in replay_events:
+            time_manager().use_fake_time(event_time, admin=self)
+            if event_type == 0:
+                update = payload.to_update()
+                order_book.apply(update)
+                self.events.order_book_update.send(
+                    self.events.order_book_update, book_update=payload
+                )
+                self.events.order_book.send(
+                    self.events.order_book, order_book=order_book
+                )
+            else:
+                self.events.market_trade.send(
+                    self.events.market_trade, market_trade=payload
+                )
+                logging.debug("Received Market Trade: %s", payload)
         time_manager().reset(admin=self)

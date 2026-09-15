@@ -15,10 +15,13 @@ class TestMarketDataFeed(unittest.TestCase):
         with self.assertRaises(TypeError):
             IncompleteFeed("incomplete", 10)
 
-    def test_replay_publishes_market_trades_only(self):
+    def test_replay_can_publish_trades_and_recorded_order_books(self):
         feed = HistoricalFeed(MagicMock())
 
-        self.assertEqual(frozenset({Channel.MARKET_TRADE}), feed.channels)
+        self.assertEqual(
+            frozenset({Channel.MARKET_TRADE, Channel.ORDER_BOOK}),
+            feed.channels,
+        )
 
     def test_kraken_publishes_trades_and_the_touch(self):
         feed = PublicFeed()

@@ -1,6 +1,8 @@
 import bisect
+import json
 from dataclasses import dataclass
 from datetime import datetime
+from enum import StrEnum
 
 from jolteon.engine.market_data.core.bbo import BBO
 
@@ -9,6 +11,11 @@ from jolteon.engine.market_data.core.bbo import BBO
 class PriceLevel:
     price: float
     quantity: float
+
+
+class BookModel(StrEnum):
+    L2 = "l2"
+    L3 = "l3"
 
 
 @dataclass(frozen=True)
@@ -24,6 +31,61 @@ class BookUpdate:
     asks: list[PriceLevel]
     is_snapshot: bool
     exchange_time: datetime
+
+
+@dataclass(frozen=True)
+class RecordedBookUpdate:
+    """Compact, versioned representation of a normalized book update.
+
+    Keeping the model explicit prevents a future L3 recording from being
+    silently reduced to aggregate price levels. Version 1 stores L2 levels as
+    compact JSON arrays so SignalRecorder creates a fixed-width table.
+    """
+
+    symbol: str
+    model: BookModel
+    version: int
+    sequence: int
+    bids: str
+    asks: str
+    is_snapshot: bool
+    exchange_time: datetime
+
+    @classmethod
+    def from_update(
+        cls, update: BookUpdate, sequence: int = 0
+    ) -> "RecordedBookUpdate":
+        encode = lambda levels: json.dumps(  # noqa: E731
+            [[level.price, level.quantity] for level in levels],
+            separators=(",", ":"),
+        )
+        return cls(
+            symbol=update.symbol,
+            model=BookModel.L2,
+            version=1,
+            sequence=sequence,
+            bids=encode(update.bids),
+            asks=encode(update.asks),
+            is_snapshot=update.is_snapshot,
+            exchange_time=update.exchange_time,
+        )
+
+    def to_update(self) -> BookUpdate:
+        if self.model != BookModel.L2 or self.version != 1:
+            raise ValueError(
+                f"Unsupported book recording {self.model} v{self.version}"
+            )
+        decode = lambda value: [  # noqa: E731
+            PriceLevel(float(price), float(quantity))
+            for price, quantity in json.loads(value)
+        ]
+        return BookUpdate(
+            symbol=self.symbol,
+            bids=decode(self.bids),
+            asks=decode(self.asks),
+            is_snapshot=self.is_snapshot,
+            exchange_time=self.exchange_time,
+        )
 
 
 class OrderBook:
@@ -104,6 +166,14 @@ class OrderBook:
         if depth <= 0:
             return []
         return self._asks[:depth]
+
+    def quantity_at(self, price: float, *, bid: bool) -> float:
+        """Return displayed aggregate quantity at one exact price level."""
+        levels = self._bids if bid else self._asks
+        index = bisect.bisect_left(levels, price, key=lambda x: x.price)
+        if index < len(levels) and levels[index].price == price:
+            return levels[index].quantity
+        return 0.0
 
     @staticmethod
     def _apply_level(levels: list[PriceLevel], level: PriceLevel) -> None:
