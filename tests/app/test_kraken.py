@@ -62,6 +62,9 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
         )
         mock_data_source.download_market_trades = AsyncMock()
         mock_data_source.download_market_trades.return_value = list[Trade]()
+        mock_data_source.download_order_book_updates = AsyncMock(
+            return_value=[]
+        )
 
         await self.application.run_local_replay("/tmp/unittest.sqlite")
 

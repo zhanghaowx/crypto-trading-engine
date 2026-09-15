@@ -8,6 +8,10 @@ import pytz
 
 from jolteon.engine.core.side import MarketSide
 from jolteon.engine.market_data.core.events import Events
+from jolteon.engine.market_data.core.order_book import (
+    BookModel,
+    RecordedBookUpdate,
+)
 from jolteon.engine.market_data.core.trade import Trade
 
 
@@ -19,6 +23,12 @@ class IDataSource(ABC):
         self, symbol: str, start_time: datetime, end_time: datetime
     ):
         raise NotImplementedError
+
+    async def download_order_book_updates(
+        self, symbol: str, start_time: datetime, end_time: datetime
+    ) -> list[RecordedBookUpdate]:
+        """Return normalized book records when this source provides them."""
+        return []
 
     def cache_key(
         self, symbol: str, start_time: datetime, end_time: datetime
@@ -41,6 +51,7 @@ class DatabaseDataSource(IDataSource):
     def __init__(self, database_name: str):
         self._database_name = database_name
         self._table_name = Events().market_trade.name
+        self._book_table_name = Events().order_book_update.name
         self._index_name = f"ix_{self._table_name}_transaction_time"
         self._index_checked = False
 
@@ -114,6 +125,40 @@ class DatabaseDataSource(IDataSource):
         self.TRADE_CACHE[key] = market_trades
 
         return market_trades
+
+    async def download_order_book_updates(
+        self, symbol: str, start_time: datetime, end_time: datetime
+    ) -> list[RecordedBookUpdate]:
+        try:
+            with closing(self._connect()) as conn:
+                rows = conn.execute(
+                    f"SELECT symbol, model, version, sequence, bids, asks, "
+                    "is_snapshot, exchange_time FROM "
+                    f'"{self._book_table_name}" '
+                    "WHERE symbol = ? AND exchange_time BETWEEN ? AND ? "
+                    "ORDER BY exchange_time ASC, rowid ASC",
+                    (symbol, start_time.timestamp(), end_time.timestamp()),
+                ).fetchall()
+        except sqlite3.OperationalError as error:
+            if "no such table" in str(error):
+                return []
+            raise
+
+        return [
+            RecordedBookUpdate(
+                symbol=row[0],
+                model=BookModel(row[1]),
+                version=int(row[2]),
+                sequence=int(row[3]),
+                bids=row[4],
+                asks=row[5],
+                is_snapshot=bool(row[6]),
+                exchange_time=datetime.fromtimestamp(
+                    float(row[7]), tz=pytz.utc
+                ),
+            )
+            for row in rows
+        ]
 
     @staticmethod
     def to_trades(df: pd.DataFrame) -> list[Trade]:

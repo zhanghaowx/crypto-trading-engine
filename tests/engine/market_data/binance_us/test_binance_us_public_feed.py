@@ -118,8 +118,10 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertEqual(12, self.feed._last_update_id)
-        self.assertEqual(4.0, books[0].bid_quantity)
-        self.assertEqual(102.0, books[0].ask_price)
+        self.assertEqual(2, len(books))
+        self.assertEqual(2.0, books[0].bid_quantity)
+        self.assertEqual(4.0, books[-1].bid_quantity)
+        self.assertEqual(102.0, books[-1].ask_price)
 
     async def test_ignores_updates_already_in_snapshot(self):
         await self.feed._load_snapshot()

@@ -201,8 +201,10 @@ class PublicFeed(IMarketDataFeed):
         payload = await asyncio.to_thread(
             self._rest.depth, self._wire_symbol.upper(), self._book_depth
         )
-        self._order_book.apply(self._book_update(payload, is_snapshot=True))
+        update = self._book_update(payload, is_snapshot=True)
+        self._order_book.apply(update)
         self._last_update_id = int(payload["lastUpdateId"])
+        self.publish_order_book(self._order_book, update)
 
     async def _request_order_book_snapshot(self, symbol: str) -> None:
         self._awaiting_bridge = True
@@ -258,14 +260,13 @@ class PublicFeed(IMarketDataFeed):
         if first > self._last_update_id + 1:
             await self.resync_order_book(self._order_book)
             return
-        self._order_book.apply(self._book_update(payload, is_snapshot=False))
+        update = self._book_update(payload, is_snapshot=False)
+        self._order_book.apply(update)
         self._last_update_id = last
         if self._awaiting_bridge:
             self._awaiting_bridge = False
             self.on_order_book_synced()
-        self.events.order_book.send(
-            self.events.order_book, order_book=self._order_book
-        )
+        self.publish_order_book(self._order_book, update)
 
     def _book_update(self, payload: dict, is_snapshot: bool) -> BookUpdate:
         bids = payload.get("bids", payload.get("b", []))

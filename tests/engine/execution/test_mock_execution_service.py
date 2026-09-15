@@ -15,6 +15,11 @@ from jolteon.engine.execution.mock_execution_service import (
 )
 from jolteon.engine.market_data.core.bbo import BBO
 from jolteon.engine.market_data.core.order import CancelOrder, Order, OrderType
+from jolteon.engine.market_data.core.order_book import (
+    BookUpdate,
+    OrderBook,
+    PriceLevel,
+)
 from jolteon.engine.market_data.core.trade import Trade
 from jolteon.engine.market_data.data_source import IDataSource
 
@@ -143,6 +148,26 @@ class TestMockExecutionService(IsolatedAsyncioTestCase):
         )
         self.assertEqual(1, len(self.fills))
         self.assertEqual(0.01, self.fills[0].quantity)
+
+    async def test_l2_depth_initializes_queue_away_from_the_touch(self):
+        book = OrderBook("BTC/USD")
+        book.apply(
+            BookUpdate(
+                symbol="BTC/USD",
+                bids=[PriceLevel(100.0, 1.0), PriceLevel(99.0, 0.02)],
+                asks=[PriceLevel(101.0, 1.0)],
+                is_snapshot=True,
+                exchange_time=self.mock_order.creation_time,
+            )
+        )
+        self.execution_service.on_order_book(self, book)
+        order = self.create_limit_order(MarketSide.BUY, 99.0)
+        self.execution_service.on_order(self, order)
+        self.execution_service.on_market_trade(
+            self, self.create_market_trade(MarketSide.SELL, 99.0, 0.02)
+        )
+
+        self.assertEqual([], self.fills)
 
     async def test_limit_order_partial_fills_across_multiple_trades(self):
         order = self.create_limit_order(MarketSide.SELL, 100.0)

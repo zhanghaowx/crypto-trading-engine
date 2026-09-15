@@ -186,16 +186,6 @@ class PublicFeed(IMarketDataFeed):
 
         return False
 
-    def _dispatch_isolating_receiver_errors(self, signal, **kwargs):
-        try:
-            signal.send(signal, **kwargs)
-        except Exception as e:
-            logging.error(
-                f"A receiver of signal '{signal.name}' raised an "
-                f"exception: {e}",
-                exc_info=True,
-            )
-
     async def _subscribe(self, channel_name: str, **params) -> None:
         await self._send_request("subscribe", channel_name, **params)
 
@@ -457,9 +447,8 @@ class PublicFeed(IMarketDataFeed):
             """
             is_snapshot = response.get("type") == "snapshot"
             for book_json in response["data"]:
-                self._order_book.apply(
-                    self._decode_book_update(book_json, is_snapshot)
-                )
+                update = self._decode_book_update(book_json, is_snapshot)
+                self._order_book.apply(update)
                 if is_snapshot:
                     self.on_order_book_synced()
                     self._book_ready = True
@@ -469,9 +458,7 @@ class PublicFeed(IMarketDataFeed):
                     await self.resync_order_book(self._order_book)
                     return
 
-                self._dispatch_isolating_receiver_errors(
-                    self.events.order_book, order_book=self._order_book
-                )
+                self.publish_order_book(self._order_book, update)
                 self._publish_bbo(self._order_book.bbo())
         elif message_type == "trade":
             """

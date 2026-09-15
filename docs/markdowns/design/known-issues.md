@@ -2,7 +2,7 @@
 
 **Repository:** `zhanghaowx/crypto-trading-engine`
 **Branch reviewed:** `main`
-**Updated:** 2026-09-15 (updated for GitHub PR #60: `feat: gate trading on service health`)
+**Updated:** 2026-09-15 (depth-aware paper execution and replay)
 **Combines:** `docs/markdowns/design/known-issues.md` + architecture/refactoring review
 
 ---
@@ -48,10 +48,10 @@ Within each priority, open issues are ordered approximately by expected impact.
 | 1 | **P0** | Open | Kraken fee economics overwhelm the current quoted edge | Strategy viability |
 | 2 | **P0** | Open | Fill identity is not unique in the live Kraken path | PnL / post-trade correctness |
 | 3 | **P0** | Open | Event correctness depends on implicit subscriber ordering and a global signal namespace | Accounting / state correctness |
-| 4 | ~~P0~~ | **Addressed — PR #60 pending merge** | Service health is not coordinated at the execution boundary | Live-order safety |
+| 4 | ~~P0~~ | **Resolved — PR #60 merged** | Service health is not coordinated at the execution boundary | Live-order safety |
 | 5 | **P0** | Open | Strategy owns desired quotes and assumed live-order state in one object | Order lifecycle correctness |
-| 6 | **P0** | Open | Simulated queue position is effectively zero for the quotes the strategy actually places | Research validity |
-| 7 | **P1** | Open | Replay cannot support the better fill model because full book state is not recorded | Research workflow |
+| 6 | ~~P0~~ | **Addressed — PR #61 pending merge** | Simulated queue position is effectively zero for the quotes the strategy actually places | Research validity |
+| 7 | ~~P1~~ | **Addressed — PR #61 pending merge** | Replay cannot support the better fill model because full book state is not recorded | Research workflow |
 | 8 | **P1** | Open | Sweep fills are not sized from consumed depth | Fill-model realism |
 | 9 | **P1** | Open | Paper/replay execution has no latency model | Fill-model realism |
 | 10 | **P1** | Open | Post-trade markouts depend on real asyncio timing and mutable records | Determinism / analytics |
@@ -67,7 +67,7 @@ Within each priority, open issues are ordered approximately by expected impact.
 | 20 | **P3** | Open | Several dashboard modules are growing large | UI maintainability |
 | — | Constraint | — | Replayed historical markets cannot react to orders that were never actually present | Interpretation limit |
 
-**Active P0 order after PR #60:** fee economics → fill identity → event sequencing/session isolation → order lifecycle/reconciliation → simulated queue position.
+**Active P0 order after the current open work:** fee economics → fill identity → event sequencing/session isolation → order lifecycle/reconciliation.
 
 
 ---
@@ -302,7 +302,7 @@ Each application owns its subscriptions and disconnects only those subscriptions
 
 ## 4. Coordinated service health — addressed by PR #60
 
-**Status:** Addressed; implementation is in open GitHub PR #60 (`feat: gate trading on service health`). Remove this item from the active backlog after the PR merges.
+**Status:** Resolved by merged GitHub PR #60 (`feat: gate trading on service health`).
 
 The original problem was that services initialized and recovered independently, with no authoritative in-memory answer to:
 
@@ -420,7 +420,7 @@ The PR addresses the original coordinated-health issue:
 - historical replay has an explicit healthy transition;
 - order-authorization policy is centralized instead of spreading venue-specific booleans through strategy code.
 
-The issue remains here as an addressed record until PR #60 merges.
+The issue remains here as a record of the resolved safety boundary.
 
 ### What PR #60 does **not** resolve
 
@@ -561,6 +561,8 @@ Strategy code can be tested as pure quote-generation logic without an exchange, 
 
 ## 6. Simulated queue position is effectively zero for the quotes actually placed
 
+**Status:** Addressed in GitHub PR #61; pending merge.
+
 ### Problem
 
 The mock resting-order model initializes `ahead_quantity` from the BBO only when the simulated order price exactly equals the current best bid/ask.
@@ -615,7 +617,9 @@ behind us
 
 once we join a level.
 
-Kraken L3 data would provide much better queue information, but requires additional integration/authentication.
+An exchange L3 feed would provide much better queue information. Its normalized
+events must retain individual order identity; an L3 book can derive the shared
+L2 `OrderBook`, but the recording must not collapse the original L3 data.
 
 ### Acceptance criterion
 
@@ -626,6 +630,8 @@ Paper orders away from the touch must not default to first-in-queue when visible
 # P1 — Important realism, safety, and architecture work
 
 ## 7. Replay cannot support the better fill model because full book state is not recorded
+
+**Status:** Addressed in GitHub PR #61; pending merge.
 
 ### Problem
 
@@ -1439,7 +1445,7 @@ Add:
 
 ### ~~PR 6 — Coordinated service health~~ → Implemented in GitHub PR #60
 
-**Status:** Addressed; PR #60 is open and pending merge.
+**Status:** Resolved; PR #60 is merged.
 
 Implemented:
 
@@ -1454,7 +1460,7 @@ Implemented:
 - heartbeat integration;
 - replay health initialization.
 
-**Resolves after merge:** Issue 4.
+**Resolved:** Issue 4.
 
 Do **not** fold order acknowledgement or cancel acknowledgement into this item; those remain Issue 5.
 
@@ -1462,7 +1468,7 @@ Do **not** fold order acknowledgement or cancel acknowledgement into this item; 
 
 ## Phase 3 — Make strategy research believable
 
-### PR 7 — Book-aware initial queue position
+### ~~PR 7 — Book-aware initial queue position~~ → Implemented together in GitHub PR #61
 
 Use visible L2 quantity at the order level instead of default zero.
 
@@ -1488,7 +1494,7 @@ Start with configurable constants; later calibrate from live measurements.
 
 ---
 
-### PR 10 — Record reconstructable book updates
+### ~~PR 10 — Record reconstructable book updates~~ → Implemented together in GitHub PR #61
 
 Persist compact book snapshot/delta data and replay it through the same book builder.
 
@@ -1798,6 +1804,18 @@ That is still valuable information and should not be confused with a failed sign
 ---
 
 # Change log
+
+## 2026-09-15 — Depth-aware paper execution and replay implemented
+
+- initialized simulated queue ahead from L2 quantity at the exact order price;
+- introduced a pluggable `QueuePositionModel` and per-order `QueuePosition`;
+- added compact, versioned, model-labelled L2 snapshot/delta records;
+- rebuilt and published the shared `OrderBook` during local replay;
+- retained trade-only replay for legacy recordings;
+- kept L3 as a distinct future normalized event that can derive an L2 view
+  without losing order identity.
+
+---
 
 ## 2026-09-15 — PR #60 coordinated-health design updated
 
