@@ -190,6 +190,12 @@ deltas, sufficiently often to rebuild the same book deterministically.
 Teach `HistoricalFeed` to publish `order_book_feed` when the recording
 contains it and retain the current behavior for legacy recordings.
 
+The normalized recording declares its book model and format version. Version 1
+stores compact L2 price/quantity arrays. A future L3 adapter should record a
+separate order-level payload and may derive the shared L2 `OrderBook` for
+consumers that only need aggregate depth; it must not discard order identity by
+forcing L3 events into the L2 representation.
+
 This closes the live-only limitation in known issue 6 and lets the Binance.US
 experiment be repeated instead of existing as one real-time sample.
 
@@ -532,6 +538,8 @@ and both execution implementations perform their own final check. The
 instrument-only strategy gate is removed.
 
 ### PR 5: depth-aware paper execution and replay
+
+**Status:** Implemented in GitHub PR #61; pending merge.
 
 - Initialize queue ahead from L2.
 - Record fill assumptions and compact book data.

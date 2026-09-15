@@ -45,7 +45,10 @@ uv run jolteon --exchange Kraken --paper
 
 Paper limit orders fill only when an opposing market trade reaches their
 price. A trade through the quote can fill no more than the quantity printed;
-visible depth and exact queue rank are not yet fully modeled. See the
+the simulator initializes queue ahead from visible L2 quantity at the exact
+order price. It records that estimate and the fill-model version with the
+order. L2 cannot reveal exact queue rank or whether later cancellations were
+ahead of the simulated order. See the
 [known fill-model limitations](docs/markdowns/design/known-issues.md).
 
 **Live trading** — same thing, but orders are real. Drop `--paper` and set your keys:
@@ -66,6 +69,12 @@ uv run jolteon --exchange Kraken --replay-start 2024-01-01T00:00:00 --replay-end
 ```bash
 uv run jolteon --exchange Kraken --replay-db /tmp/jolteon/kraken/BTC-USD/live.sqlite
 ```
+
+New recordings contain compact, versioned L2 snapshots and deltas. Local
+replay rebuilds the same exchange-neutral `OrderBook` used during live paper
+trading. Older trade-only recordings remain replayable and use the legacy
+queue behavior. The recording identifies its book model explicitly
+so a future L3 feed can retain order-level data instead of being reduced to L2.
 
 **Another symbol** — `--symbol` takes any pair the venue lists. One engine trades one
 symbol, so trading two means running two engines:

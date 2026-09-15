@@ -13,6 +13,7 @@ from jolteon.engine.core.side import MarketSide
 from jolteon.engine.core.time.time_manager import time_manager
 from jolteon.engine.market_data.core.bbo import BBO
 from jolteon.engine.market_data.core.order import CancelOrder, Order, OrderType
+from jolteon.engine.market_data.core.order_book import OrderBook
 from jolteon.engine.market_data.core.trade import Trade
 from jolteon.engine.market_data.data_source import IDataSource
 
@@ -28,7 +29,16 @@ class _RestingOrder:
     ahead_quantity: float
 
 
+@dataclass(frozen=True)
+class SimulatedOrderAssumption:
+    client_order_id: str
+    fill_model_version: int
+    initial_ahead_quantity: float
+
+
 class MockExecutionService(Heartbeater, SignalSubscriber):
+    FILL_MODEL_VERSION = 2
+
     def __init__(
         self,
         fee_schedule: type[FeeSchedule],
@@ -44,19 +54,19 @@ class MockExecutionService(Heartbeater, SignalSubscriber):
         limitation in mind when testing your strategy.
 
         Limit orders rest in a small simulated book and are only filled
-        as real market trades print through their price level. Since only
-        top-of-book (BBO) data is available (no real depth), the queue
-        position of a resting order is approximated from the displayed
-        quantity at the touch when the order was placed - it is not a
-        precise reconstruction of Kraken's real matching engine.
+        as real market trades print through their price level. Queue position
+        is initialized from displayed L2 quantity at the exact order price.
+        L2 does not reveal rank within a level, so this remains an estimate.
         """
         super().__init__(type(self).__name__, health_monitor=health_monitor)
         self._fee_schedule = fee_schedule
         self.order_history = dict[str, Order]()
         self.order_fill_event = signal("order_fill")
+        self.assumption_event = signal("simulated_order_assumption")
         self._health_monitor = health_monitor
 
         self._latest_bbo: dict[str, BBO] = {}
+        self._latest_order_book: dict[str, OrderBook] = {}
         self._resting_orders: dict[str, _RestingOrder] = {}
 
     @subscribe("order")
@@ -99,6 +109,10 @@ class MockExecutionService(Heartbeater, SignalSubscriber):
     def on_bbo(self, sender: object, bbo: BBO):
         self._latest_bbo[bbo.symbol] = bbo
 
+    @subscribe("order_book_feed")
+    def on_order_book(self, sender: object, order_book: OrderBook):
+        self._latest_order_book[order_book.symbol] = order_book
+
     @subscribe("market_trade_feed")
     def on_market_trade(self, sender: object, market_trade: Trade):
         for client_order_id in list(self._resting_orders.keys()):
@@ -111,9 +125,15 @@ class MockExecutionService(Heartbeater, SignalSubscriber):
         assert order.price is not None, "Limit orders must have a price"
         price = order.price
 
-        bbo = self._latest_bbo.get(order.symbol)
-        ahead_quantity = 0.0
-        if bbo is not None:
+        book = self._latest_order_book.get(order.symbol)
+        if book is not None:
+            ahead_quantity = book.quantity_at(
+                price, bid=order.side == MarketSide.BUY
+            )
+        else:
+            bbo = self._latest_bbo.get(order.symbol)
+            ahead_quantity = 0.0
+        if book is None and bbo is not None:
             if order.side == MarketSide.BUY and price == bbo.bid_price:
                 ahead_quantity = bbo.bid_quantity
             elif order.side == MarketSide.SELL and price == bbo.ask_price:
@@ -124,6 +144,14 @@ class MockExecutionService(Heartbeater, SignalSubscriber):
             price=price,
             remaining_quantity=order.quantity,
             ahead_quantity=ahead_quantity,
+        )
+        self.assumption_event.send(
+            self.assumption_event,
+            assumption=SimulatedOrderAssumption(
+                client_order_id=order.client_order_id,
+                fill_model_version=self.FILL_MODEL_VERSION,
+                initial_ahead_quantity=ahead_quantity,
+            ),
         )
 
     def _try_fill_resting_order(

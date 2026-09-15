@@ -10,6 +10,7 @@ import pytz
 
 from jolteon.engine.core.side import MarketSide
 from jolteon.engine.market_data.core.events import Events
+from jolteon.engine.market_data.core.order_book import BookModel
 from jolteon.engine.market_data.data_source import (
     DatabaseDataSource,
     IDataSource,
@@ -18,6 +19,7 @@ from jolteon.engine.market_data.data_source import (
 
 class TestDatabaseDataSource(unittest.IsolatedAsyncioTestCase):
     TABLE = Events().market_trade.name
+    BOOK_TABLE = Events().order_book_update.name
 
     async def asyncSetUp(self):
         self.database_filepath = (
@@ -83,6 +85,58 @@ class TestDatabaseDataSource(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(MarketSide.SELL, trades[1].side)
         self.assertEqual(100.0, trades[0].price)
         self.assertEqual(self.start, trades[0].transaction_time)
+
+    async def test_downloads_compact_book_updates(self):
+        with closing(sqlite3.connect(self.database_filepath)) as conn:
+            conn.execute(
+                f'CREATE TABLE "{self.BOOK_TABLE}" ('
+                "symbol, model, version, sequence, bids, asks, is_snapshot, "
+                "exchange_time)"
+            )
+            conn.execute(
+                f'INSERT INTO "{self.BOOK_TABLE}" VALUES (?,?,?,?,?,?,?,?)',
+                (
+                    "BTC/USD",
+                    "l2",
+                    1,
+                    7,
+                    "[[100.0,2.0]]",
+                    "[[101.0,3.0]]",
+                    1,
+                    self.start.timestamp(),
+                ),
+            )
+            conn.commit()
+
+        records = await self.data_source.download_order_book_updates(
+            "BTC/USD", self.start, self.start + timedelta(seconds=1)
+        )
+
+        self.assertEqual(1, len(records))
+        self.assertEqual(BookModel.L2, records[0].model)
+        self.assertEqual(7, records[0].sequence)
+        self.assertEqual(2.0, records[0].to_update().bids[0].quantity)
+
+    async def test_legacy_recording_has_no_book_updates(self):
+        self.record(1)
+
+        records = await self.data_source.download_order_book_updates(
+            "BTC/USD", self.start, self.start + timedelta(seconds=1)
+        )
+
+        self.assertEqual([], records)
+
+    async def test_malformed_book_table_reports_its_schema_error(self):
+        with closing(sqlite3.connect(self.database_filepath)) as conn:
+            conn.execute(f'CREATE TABLE "{self.BOOK_TABLE}" (symbol)')
+            conn.commit()
+
+        with self.assertRaisesRegex(
+            sqlite3.OperationalError, "no such column"
+        ):
+            await self.data_source.download_order_book_updates(
+                "BTC/USD", self.start, self.start + timedelta(seconds=1)
+            )
 
     async def test_download_market_trades_only_reads_the_range_asked_for(self):
         """

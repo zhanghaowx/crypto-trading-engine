@@ -11,4 +11,5 @@ class Events:
     ticker = signal("ticker_feed")
     market_trade = signal("market_trade_feed")
     order_book = signal("order_book_feed")
+    order_book_update = signal("order_book_update_feed")
     instrument = signal("instrument_feed")
