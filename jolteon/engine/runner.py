@@ -1,6 +1,4 @@
-"""
-CLI interface for jolteon project.
-"""
+"""Command-line runner for live trading and historical replay."""
 
 import argparse
 import asyncio
@@ -12,7 +10,6 @@ from datetime import datetime, timezone
 
 import pytz
 
-from jolteon import monitoring, paths
 from jolteon.app.exchanges import exchange_definition
 from jolteon.app.progress_bar import ProgressBar
 from jolteon.engine.core.health_monitor.health import HealthMonitor
@@ -23,6 +20,8 @@ from jolteon.engine.core.parameter.live_parameter_service import (
 from jolteon.engine.core.parameter.parameter_service import (
     StaticParameterService,
 )
+from jolteon.engine.core.sentry import reporting
+from jolteon.engine.core.storage import paths
 from jolteon.engine.market_data.data_source import DatabaseDataSource
 from jolteon.engine.strategy.market_making.fair_value.adjusted_model import (
     AdjustedFairPriceModel,
@@ -127,7 +126,7 @@ async def main():
         if (replay_start and replay_end) or replay_db
         else ("paper" if getattr(args, "paper", False) else "live")
     )
-    monitoring.configure(
+    reporting.configure(
         exchange=args.exchange,
         symbol=symbol,
         mode=mode,

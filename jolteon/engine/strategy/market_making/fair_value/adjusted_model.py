@@ -54,7 +54,7 @@ class AdjustedFairPriceModel(IFairPriceModel, SignalSubscriber):
 
     def connect(self) -> None:
         # SignalManager.connect_all() only discovers SignalSubscribers that
-        # are attributes of ApplicationBase directly, so a subscribing
+        # are attributes of TradingApplication directly, so a subscribing
         # adjustment held in self._adjustments needs connecting here.
         super().connect()
         for adjustment in self._adjustments:

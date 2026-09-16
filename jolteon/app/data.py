@@ -11,7 +11,10 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from jolteon import paths
+from jolteon.engine.core.storage import paths
+from jolteon.engine.core.storage.exchange_instrument_directory_discovery import (  # noqa: E501
+    discover_exchange_instrument_directories,
+)
 
 # Rows already fetched, keyed by (database, table), for as long as this
 # viewer's session lasts.
@@ -151,7 +154,7 @@ SCAN_SECONDS = 2.0
 def engine_databases(root: str) -> list[EngineDatabase]:
     """
     Returns: One entry per symbol something has been recorded for under
-    `root`, each naming that session's recording and its log database.
+    `root`, each naming that instrument's recording and its log database.
 
     Every engine writes under a directory named after the symbol it
     trades, so the symbols on offer are the directories present. Reading
@@ -161,15 +164,15 @@ def engine_databases(root: str) -> list[EngineDatabase]:
     beside it.
     """
     databases = []
-    for session in paths.session_directories(root):
-        recording = str(session.path / f"{paths.LIVE}.sqlite")
+    for instrument in discover_exchange_instrument_directories(root):
+        recording = str(instrument.path / f"{paths.LIVE}.sqlite")
         databases.append(
             EngineDatabase(
                 path=recording,
-                exchange=session.exchange,
-                symbol=_recorded_symbol(recording, session.symbol),
-                log_path=str(session.path / f"{paths.LIVE}.log.sqlite"),
-                legacy=session.legacy,
+                exchange=instrument.exchange,
+                symbol=_recorded_symbol(recording, instrument.symbol),
+                log_path=str(instrument.path / f"{paths.LIVE}.log.sqlite"),
+                legacy=instrument.legacy,
             )
         )
     return databases

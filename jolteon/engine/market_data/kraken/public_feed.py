@@ -289,7 +289,7 @@ class PublicFeed(IMarketDataFeed):
             return
 
         self._last_bbo = bbo
-        self._dispatch_isolating_receiver_errors(self.events.ticker, bbo=bbo)
+        self._send_signal(self.events.ticker, bbo=bbo)
 
     def _mark_healthy_if_initialized(self) -> None:
         if self._instrument_ready and self._book_ready:
@@ -323,9 +323,7 @@ class PublicFeed(IMarketDataFeed):
             # Once subscribed to at least one channel, heartbeat messages are
             # sent approximately once every second in the absence of
             # subscription data.
-            self._dispatch_isolating_receiver_errors(
-                self.events.channel_heartbeat, payload=response
-            )
+            self._send_signal(self.events.channel_heartbeat, payload=response)
         elif message_type == "ticker":
             """
             Below is an example of 2 ticker messages from Kraken:
@@ -419,7 +417,7 @@ class PublicFeed(IMarketDataFeed):
             for pair_json in response["data"].get("pairs", []):
                 instrument = self._decode_instrument(pair_json)
                 self._instruments[instrument.symbol] = instrument
-                self._dispatch_isolating_receiver_errors(
+                self._send_signal(
                     self.events.instrument, instrument=instrument
                 )
                 if instrument.symbol == self._ready_symbol:
@@ -518,7 +516,7 @@ class PublicFeed(IMarketDataFeed):
                         trade_json["timestamp"]
                     ),
                 )
-                self._dispatch_isolating_receiver_errors(
+                self._send_signal(
                     self.events.market_trade, market_trade=market_trade
                 )
                 self._last_received_trade_id = int(market_trade.trade_id)

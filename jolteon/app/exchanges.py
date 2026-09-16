@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from typing import Callable
 
-from jolteon.app.base import ApplicationBase
+from jolteon.app.trading_application import TradingApplication
 from jolteon.engine.core.fee_schedule import FeeSchedule
 from jolteon.engine.core.market import Market
 from jolteon.engine.execution.binance_us.fee_schedule import (
@@ -30,13 +30,13 @@ def _binance_canonical(symbol: str) -> str:
     raise ValueError(f"Cannot decode Binance.US symbol {symbol}")
 
 
-def _kraken_application(*args, **kwargs) -> ApplicationBase:
+def _kraken_application(*args, **kwargs) -> TradingApplication:
     from jolteon.app.kraken import KrakenApplication
 
     return KrakenApplication(*args, **kwargs)
 
 
-def _binance_us_application(*args, **kwargs) -> ApplicationBase:
+def _binance_us_application(*args, **kwargs) -> TradingApplication:
     from jolteon.app.binance_us import BinanceUsApplication
 
     return BinanceUsApplication(*args, **kwargs)
@@ -47,7 +47,7 @@ class ExchangeDefinition:
     market: Market
     name: str
     path_name: str
-    application: Callable[..., ApplicationBase] | None
+    application: Callable[..., TradingApplication] | None
     fee_schedule: type[FeeSchedule] | None
     encode_symbol: Callable[[str], str]
     decode_symbol: Callable[[str], str]

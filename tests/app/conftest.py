@@ -6,7 +6,7 @@ import pytest
 import streamlit as st
 from streamlit.testing.v1 import AppTest
 
-from jolteon import paths
+from jolteon.engine.core.storage import paths
 
 _DASHBOARD_PATH = str(
     Path(__file__).resolve().parents[2] / "jolteon" / "app" / "dashboard.py"
@@ -181,7 +181,7 @@ class _Engines:
 
     def add(self, symbol: str, *, heartbeats=(), logs=()) -> str:
         recording = paths.recording(self.root, symbol)
-        paths.prepare(recording)
+        Path(recording).parent.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(recording)
         try:
             conn.execute(
@@ -231,7 +231,7 @@ def recordings(tmp_path):
 
     def write(symbol: str) -> str:
         path = paths.recording(str(tmp_path), symbol)
-        paths.prepare(path)
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(path)
         try:
             conn.execute(

@@ -3,10 +3,10 @@ import logging
 import threading
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 
 import pytz
 
-from jolteon import paths
 from jolteon.engine.core.event.signal import signal
 from jolteon.engine.core.event.signal_manager import SignalManager
 from jolteon.engine.core.event.signal_recorder import SignalRecorder
@@ -36,7 +36,7 @@ class SessionMetadata:
     symbol: str
 
 
-class ApplicationBase(SignalManager):
+class TradingApplication(SignalManager):
     THREAD_ENABLED: bool = True
 
     def __init__(
@@ -70,7 +70,7 @@ class ApplicationBase(SignalManager):
         # Made here rather than by whoever picked the paths, so the
         # first session on a new symbol writes into a directory that
         # exists whatever built it.
-        paths.prepare(database_name, logfile_name)
+        self._create_output_directories(database_name, logfile_name)
 
         # Logs get their own file so their writer never contends with
         # `database_name`'s for its write lock.
@@ -104,6 +104,11 @@ class ApplicationBase(SignalManager):
             str, tuple[asyncio.AbstractEventLoop, asyncio.Task]
         ] = {}
 
+    @staticmethod
+    def _create_output_directories(*file_paths: str) -> None:
+        for path in file_paths:
+            Path(path).parent.mkdir(parents=True, exist_ok=True)
+
     def use_execution_service(self, service: object):
         print(f"Using {type(service).__name__}")
         self._exec_service = service
@@ -125,7 +130,7 @@ class ApplicationBase(SignalManager):
         # stop() in a finally, or a feed that raises leaves the parameter
         # poller and the recorder running behind it.
         try:
-            if ApplicationBase.THREAD_ENABLED:
+            if TradingApplication.THREAD_ENABLED:
                 md_thread, md_loop, md_task = self._start_thread(
                     "MD", self._md.connect(self._symbol, *args)
                 )

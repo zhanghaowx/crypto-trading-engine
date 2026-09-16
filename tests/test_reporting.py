@@ -1,13 +1,13 @@
 from unittest.mock import patch
 
-from jolteon import monitoring
+from jolteon.engine.core.sentry import reporting
 
 
 def test_an_unset_dsn_initializes_nothing(monkeypatch):
     monkeypatch.delenv("SENTRY_DSN", raising=False)
 
-    with patch("jolteon.monitoring.sentry_sdk.init") as init:
-        assert not monitoring.configure(
+    with patch("jolteon.engine.core.sentry.reporting.sentry_sdk.init") as init:
+        assert not reporting.configure(
             exchange="Kraken",
             symbol="BTC-USD",
             mode="paper",
@@ -23,10 +23,12 @@ def test_configured_reporting_has_identity_and_no_tracing(monkeypatch):
     monkeypatch.setenv("JOLTEON_SERVICE", "engine-kraken-btc-usd")
 
     with (
-        patch("jolteon.monitoring.sentry_sdk.init") as init,
-        patch("jolteon.monitoring.sentry_sdk.set_tags") as set_tags,
+        patch("jolteon.engine.core.sentry.reporting.sentry_sdk.init") as init,
+        patch(
+            "jolteon.engine.core.sentry.reporting.sentry_sdk.set_tags"
+        ) as set_tags,
     ):
-        assert monitoring.configure(
+        assert reporting.configure(
             exchange="Kraken",
             symbol="BTC-USD",
             mode="paper",
@@ -63,7 +65,7 @@ def test_event_filter_removes_requests_locals_and_secrets():
         },
     }
 
-    filtered = monitoring._before_send(event, {})
+    filtered = reporting._before_send(event, {})
 
     assert "request" not in filtered
     assert "user" not in filtered
@@ -77,10 +79,14 @@ def test_handled_operational_failure_is_tagged(monkeypatch):
     error = RuntimeError("order failed")
 
     with (
-        patch("jolteon.monitoring.sentry_sdk.new_scope") as new_scope,
-        patch("jolteon.monitoring.sentry_sdk.capture_exception") as capture,
+        patch(
+            "jolteon.engine.core.sentry.reporting.sentry_sdk.new_scope"
+        ) as new_scope,
+        patch(
+            "jolteon.engine.core.sentry.reporting.sentry_sdk.capture_exception"
+        ) as capture,
     ):
-        monitoring.capture_operational_exception(
+        reporting.capture_operational_exception(
             error, operation="submit_order"
         )
 

@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytz
 
-from jolteon.cli import main
+from jolteon.engine.runner import main
 from jolteon.engine.strategy.market_making.fair_value.adjusted_model import (
     AdjustedFairPriceModel,
 )
@@ -76,7 +76,7 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("", captured_output.getvalue().split("\n")[-1])
 
     @patch("jolteon.app.kraken.KrakenApplication")
-    @patch("jolteon.cli.DatabaseDataSource")
+    @patch("jolteon.engine.runner.DatabaseDataSource")
     @patch(
         "argparse.ArgumentParser.parse_args",
         return_value=argparse.Namespace(
@@ -294,7 +294,7 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
 
         # Mock sys.exit to prevent actual exit
         with patch("sys.exit") as mock_exit:
-            from jolteon.cli import graceful_exit
+            from jolteon.engine.runner import graceful_exit
 
             graceful_exit(signal.SIGINT, None)
 
@@ -316,7 +316,7 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
         thread and leaves a live feed's connect() (which runs until
         cancelled) stuck, hanging shutdown.
         """
-        import jolteon.cli as cli
+        import jolteon.engine.runner as cli
 
         mock_app = MagicMock()
         with (

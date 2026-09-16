@@ -3,7 +3,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from jolteon.app.base import ApplicationBase
+from jolteon.app.trading_application import TradingApplication
 from jolteon.engine.core.event.signal import signal, subscribe
 from jolteon.engine.core.event.signal_subscriber import SignalSubscriber
 from jolteon.engine.core.health_monitor.health import (
@@ -39,9 +39,9 @@ class SubscribingFairPriceModel(IFairPriceModel, SignalSubscriber):
         self.ticks_seen += 1
 
 
-class TestApplicationBaseFairPriceModel(unittest.TestCase):
+class TestTradingApplicationFairPriceModel(unittest.TestCase):
     def _make_app(self, fair_price_model):
-        return ApplicationBase(
+        return TradingApplication(
             symbol="BTC/USD",
             database_name=f"{tempfile.gettempdir()}/test_base.sqlite",
             logfile_name=f"{tempfile.gettempdir()}/test_base.log",
@@ -76,7 +76,7 @@ class TestApplicationBaseFairPriceModel(unittest.TestCase):
     def test_uses_the_health_monitor_shared_by_constructed_services(self):
         health_monitor = HealthMonitor()
         parameters = StaticParameterService(health_monitor=health_monitor)
-        app = ApplicationBase(
+        app = TradingApplication(
             symbol="BTC/USD",
             database_name=f"{tempfile.gettempdir()}/test_ready.sqlite",
             logfile_name=f"{tempfile.gettempdir()}/test_ready.log",
@@ -90,9 +90,9 @@ class TestApplicationBaseFairPriceModel(unittest.TestCase):
         self.assertEqual(HealthState.HEALTHY, app._health_monitor.state)
 
 
-class TestApplicationBaseRunStart(unittest.IsolatedAsyncioTestCase):
+class TestTradingApplicationRunStart(unittest.IsolatedAsyncioTestCase):
     def _make_app(self):
-        return ApplicationBase(
+        return TradingApplication(
             symbol="BTC/USD",
             database_name=f"{tempfile.gettempdir()}/test_run_start.sqlite",
             logfile_name=f"{tempfile.gettempdir()}/test_run_start.log",
@@ -111,7 +111,7 @@ class TestApplicationBaseRunStart(unittest.IsolatedAsyncioTestCase):
 
         app.use_market_data_service(SimpleNamespace(connect=connect))
 
-        with patch.object(ApplicationBase, "THREAD_ENABLED", False):
+        with patch.object(TradingApplication, "THREAD_ENABLED", False):
             pnl = await app.run_start()
 
         self.assertEqual([("BTC/USD", ())], connected)
@@ -130,7 +130,7 @@ class TestApplicationBaseRunStart(unittest.IsolatedAsyncioTestCase):
             patch("threading.excepthook"),
             self.assertLogs(level="ERROR") as logs,
         ):
-            thread, _, _ = ApplicationBase._start_thread(
+            thread, _, _ = TradingApplication._start_thread(
                 "MD", failing_connect()
             )
             thread.join(timeout=5)
@@ -142,9 +142,9 @@ if __name__ == "__main__":
     unittest.main()
 
 
-class TestApplicationBaseParameterService(unittest.IsolatedAsyncioTestCase):
+class TestTradingApplicationParameterService(unittest.IsolatedAsyncioTestCase):
     def _make_app(self, parameter_service=None):
-        return ApplicationBase(
+        return TradingApplication(
             symbol="BTC/USD",
             database_name=f"{tempfile.gettempdir()}/test_parameters.sqlite",
             logfile_name=f"{tempfile.gettempdir()}/test_parameters.log",
@@ -165,7 +165,7 @@ class TestApplicationBaseParameterService(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(0, service.stopped)
 
         app.use_market_data_service(SimpleNamespace(connect=connect))
-        with patch.object(ApplicationBase, "THREAD_ENABLED", False):
+        with patch.object(TradingApplication, "THREAD_ENABLED", False):
             await app.run_start()
 
         self.assertEqual(1, service.stopped)
@@ -178,7 +178,7 @@ class TestApplicationBaseParameterService(unittest.IsolatedAsyncioTestCase):
             raise RuntimeError("feed blew up")
 
         app.use_market_data_service(SimpleNamespace(connect=connect))
-        with patch.object(ApplicationBase, "THREAD_ENABLED", False):
+        with patch.object(TradingApplication, "THREAD_ENABLED", False):
             with self.assertRaises(RuntimeError):
                 await app.run_start()
 

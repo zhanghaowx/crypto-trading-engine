@@ -90,16 +90,15 @@ class IMarketDataFeed(Heartbeater, ABC):
         self, order_book: OrderBook, update: BookUpdate
     ) -> None:
         """Publish both the compact replay record and current L2 view."""
-        self._dispatch_isolating_receiver_errors(
+        self._send_signal(
             self.events.order_book_update,
             book_update=self.record_order_book_update(update),
         )
-        self._dispatch_isolating_receiver_errors(
-            self.events.order_book, order_book=order_book
-        )
+        self._send_signal(self.events.order_book, order_book=order_book)
 
     @staticmethod
-    def _dispatch_isolating_receiver_errors(signal, **kwargs) -> None:
+    def _send_signal(signal, **kwargs) -> None:
+        """Send a feed signal, logging receiver failures without raising."""
         try:
             signal.send(signal, **kwargs)
         except Exception as error:

@@ -36,7 +36,7 @@ from jolteon.app.health_summary import (
     summary,
 )
 from jolteon.app.settings import init_settings
-from jolteon.monitoring import configure
+from jolteon.engine.core.sentry.reporting import configure
 
 configure(
     exchange="all",

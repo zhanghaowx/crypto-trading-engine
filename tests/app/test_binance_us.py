@@ -43,7 +43,7 @@ def test_start_uses_public_feed(tmp_path):
     with (
         patch("jolteon.app.binance_us.PublicFeed") as feed,
         patch(
-            "jolteon.app.base.ApplicationBase.run_start",
+            "jolteon.app.trading_application.TradingApplication.run_start",
             AsyncMock(return_value=3.0),
         ) as run,
     ):

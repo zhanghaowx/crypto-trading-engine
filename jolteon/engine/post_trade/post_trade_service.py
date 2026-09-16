@@ -53,7 +53,7 @@ class PostTradeService(SignalSubscriber):
 
         # Requires PositionManager's order_fill receiver - and the
         # position_updated it sends - to have already run for this fill.
-        # Holds because ApplicationBase constructs _position_manager before
+        # Holds because TradingApplication constructs _position_manager before
         # _post_trade_service, and SignalManager.connect_all() connects
         # subscribers in alphabetical dir() order.
         inventory_before, inventory_after = self._pending_position.pop(

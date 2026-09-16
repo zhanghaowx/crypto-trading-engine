@@ -51,7 +51,7 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
             cash_value=1.0,
         )
 
-    @patch("jolteon.app.base.DatabaseDataSource")
+    @patch("jolteon.app.trading_application.DatabaseDataSource")
     async def test_run_local_replay(self, MockDatabaseDataSource):
         mock_data_source = MockDatabaseDataSource.return_value
         mock_data_source.start_time.return_value = datetime(

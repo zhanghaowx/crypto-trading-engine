@@ -1,6 +1,6 @@
 import logging
 
-from jolteon.app.base import ApplicationBase
+from jolteon.app.trading_application import TradingApplication
 from jolteon.engine.core.health_monitor.health import HealthMonitor
 from jolteon.engine.core.parameter.parameter_service import IParameterService
 from jolteon.engine.execution.binance_us.fee_schedule import (
@@ -15,7 +15,7 @@ from jolteon.engine.strategy.market_making.fair_value.fair_price_model import (
 )
 
 
-class BinanceUsApplication(ApplicationBase):
+class BinanceUsApplication(TradingApplication):
     def __init__(
         self,
         symbol: str,

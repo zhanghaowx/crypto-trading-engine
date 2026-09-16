@@ -4,8 +4,8 @@ import argparse
 
 import streamlit as st
 
-from jolteon import paths
 from jolteon.app.data import EngineDatabase, engine_databases
+from jolteon.engine.core.storage import paths
 
 # The stable exchange-and-symbol engine key used by widgets and URLs.
 ENGINE = "engine"
