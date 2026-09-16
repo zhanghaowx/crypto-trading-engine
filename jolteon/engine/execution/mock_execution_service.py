@@ -11,11 +11,7 @@ from jolteon.engine.core.id_generator import id_generator
 from jolteon.engine.core.parameter.parameter_service import parameter_service
 from jolteon.engine.core.side import MarketSide
 from jolteon.engine.core.time.time_manager import time_manager
-from jolteon.engine.execution.queue_position import (
-    L2QueuePositionModel,
-    QueuePosition,
-    QueuePositionModel,
-)
+from jolteon.engine.execution.queue_position import QueuePosition
 from jolteon.engine.market_data.core.bbo import BBO
 from jolteon.engine.market_data.core.order import CancelOrder, Order, OrderType
 from jolteon.engine.market_data.core.order_book import OrderBook
@@ -36,7 +32,6 @@ class MockExecutionService(Heartbeater, SignalSubscriber):
         self,
         fee_schedule: type[FeeSchedule],
         health_monitor: HealthMonitor | None = None,
-        queue_position_model: QueuePositionModel | None = None,
     ):
         """
         Creates a mock execution service to act as the exchange.
@@ -57,10 +52,6 @@ class MockExecutionService(Heartbeater, SignalSubscriber):
         self.order_history = dict[str, Order]()
         self.order_fill_event = signal("order_fill")
         self._health_monitor = health_monitor
-        self.queue_position_model = (
-            queue_position_model or L2QueuePositionModel()
-        )
-
         self._latest_bbo: dict[str, BBO] = {}
         self._latest_order_book: dict[str, OrderBook] = {}
         self._resting_orders: dict[str, _RestingOrder] = {}
@@ -121,7 +112,7 @@ class MockExecutionService(Heartbeater, SignalSubscriber):
         assert order.price is not None, "Limit orders must have a price"
         price = order.price
 
-        queue_position = self.queue_position_model.create(
+        queue_position = QueuePosition.best_guess(
             order,
             self._latest_order_book.get(order.symbol),
             self._latest_bbo.get(order.symbol),

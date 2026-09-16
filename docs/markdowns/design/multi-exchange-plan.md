@@ -170,11 +170,11 @@ visible quantity at its exact price. Continue consuming queue ahead from
 opposing prints before filling the simulated order.
 
 This remains an estimate: L2 cannot reveal rank within a level or distinguish
-cancellations ahead from cancellations behind. A pluggable `QueuePositionModel`
-creates the `QueuePosition` owned by each simulated resting order. Replay
-derives each initial position from the recorded book and order stream. A future
-authoritative order state may also persist the calculated value when per-order
-audit history is needed.
+cancellations ahead from cancellations behind. Each simulated resting order
+owns a `QueuePosition` initialized as the engine's best guess from the strongest
+available feed data. Replay derives each initial position from the recorded
+book and order stream. A future authoritative order state may also persist the
+calculated value when per-order audit history is needed.
 
 Binance.US does not document an L3, order-by-order market-data feed. Its
 `<symbol>@depth` stream is sequenced L2: each bid or ask contains a price and
@@ -549,15 +549,6 @@ instrument-only strategy gate is removed.
 
 Acceptance: the same recording produces the same orders and fills twice, and
 queue ahead is nonzero whenever visible size rests at the quoted price.
-
-### PR 5a: record the paper execution model
-
-- Give each queue-position model a stable name and version.
-- Record the selected model once in session metadata.
-
-Acceptance: every paper and replay session identifies the queue-position model
-that produced its simulated fills without emitting a per-order configuration
-event.
 
 ### PR 6: complete the multi-venue background stack
 

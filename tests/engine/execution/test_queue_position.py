@@ -1,10 +1,7 @@
 from datetime import datetime, timezone
 
 from jolteon.engine.core.side import MarketSide
-from jolteon.engine.execution.queue_position import (
-    L2QueuePositionModel,
-    QueuePosition,
-)
+from jolteon.engine.execution.queue_position import QueuePosition
 from jolteon.engine.market_data.core.bbo import BBO
 from jolteon.engine.market_data.core.order import Order, OrderType
 from jolteon.engine.market_data.core.order_book import (
@@ -47,7 +44,7 @@ def test_l2_model_reads_the_exact_book_level():
         )
     )
 
-    position = L2QueuePositionModel().create(
+    position = QueuePosition.best_guess(
         order(MarketSide.BUY, 99.0), book, None
     )
 
@@ -56,17 +53,21 @@ def test_l2_model_reads_the_exact_book_level():
 
 def test_l2_model_falls_back_to_matching_bbo_without_a_book():
     bbo = BBO("BTC/USD", 100.0, 2.0, 101.0, 3.0)
-    model = L2QueuePositionModel()
-
     assert (
-        model.create(order(MarketSide.BUY, 100.0), None, bbo).ahead_quantity
+        QueuePosition.best_guess(
+            order(MarketSide.BUY, 100.0), None, bbo
+        ).ahead_quantity
         == 2.0
     )
     assert (
-        model.create(order(MarketSide.SELL, 101.0), None, bbo).ahead_quantity
+        QueuePosition.best_guess(
+            order(MarketSide.SELL, 101.0), None, bbo
+        ).ahead_quantity
         == 3.0
     )
     assert (
-        model.create(order(MarketSide.BUY, 99.0), None, bbo).ahead_quantity
+        QueuePosition.best_guess(
+            order(MarketSide.BUY, 99.0), None, bbo
+        ).ahead_quantity
         == 0.0
     )

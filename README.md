@@ -45,9 +45,9 @@ uv run jolteon --exchange Kraken --paper
 
 Paper limit orders fill only when an opposing market trade reaches their
 price. A trade through the quote can fill no more than the quantity printed;
-the simulator initializes queue ahead from visible L2 quantity at the exact
-order price through a pluggable `QueuePositionModel`. L2 cannot reveal exact
-queue rank or whether later cancellations were ahead of the simulated order. See the
+the simulator makes its best queue-position guess from visible L2 quantity at
+the exact order price. L2 cannot reveal exact queue rank or whether later
+cancellations were ahead of the simulated order. See the
 [known fill-model limitations](docs/markdowns/design/known-issues.md).
 
 **Live trading** — same thing, but orders are real. Drop `--paper` and set your keys:
