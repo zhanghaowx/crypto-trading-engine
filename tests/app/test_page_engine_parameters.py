@@ -8,13 +8,13 @@ from streamlit.testing.v1 import AppTest
 
 from jolteon import paths
 from jolteon.app.app_pages import engine_parameters
-from jolteon.engine.core.parameter.parameter_applied import (
+from jolteon.engine.core.parameter.parameter_catalog import GROUPS
+from jolteon.engine.core.parameter.parameter_change_result import (
     REJECTED,
     TAKEN,
     UNKNOWN,
-    applied_key,
+    change_key,
 )
-from jolteon.engine.core.parameter.parameter_catalog import GROUPS
 from jolteon.engine.core.parameter.parameter_service import ALL_SYMBOLS
 from jolteon.engine.core.parameter.parameter_specification import (
     ParameterGroup,
@@ -22,9 +22,9 @@ from jolteon.engine.core.parameter.parameter_specification import (
     parameter,
 )
 from jolteon.engine.core.parameter.parameter_store import (
-    ParameterOverride,
+    ParameterChange,
     ParameterStore,
-    override_of,
+    change_of,
 )
 from jolteon.engine.strategy.market_making.parameters import (
     MarketMakingParameters,
@@ -152,7 +152,7 @@ def test_an_edit_shows_the_value_it_is_replacing(
     parameter declares.
     """
     ParameterStore(params_db_path).push(
-        [override_of("MarketMakingParameters", "quote_size", 0.01)]
+        [change_of("MarketMakingParameters", "quote_size", 0.01)]
     )
     at = _page(params_db_path, missing_db_path).run()
     at.number_input(key=QUOTE_SIZE).set_value(0.02).run()
@@ -238,7 +238,7 @@ def test_reports_a_stored_value_no_engine_has_read(
     the widget and nothing else reads as though it were in force.
     """
     ParameterStore(params_db_path).push(
-        [override_of("MarketMakingParameters", "quote_size", 0.02)]
+        [change_of("MarketMakingParameters", "quote_size", 0.02)]
     )
     at = _page(params_db_path, missing_db_path).run()
 
@@ -257,7 +257,7 @@ def test_a_fields_state_sits_on_the_row_with_its_name(
     field.
     """
     ParameterStore(params_db_path).push(
-        [override_of("MarketMakingParameters", "quote_size", 0.02)]
+        [change_of("MarketMakingParameters", "quote_size", 0.02)]
     )
     at = _page(params_db_path, missing_db_path).run()
 
@@ -281,7 +281,7 @@ class TestAStoreThePageCannotRender:
         self, params_db_path, missing_db_path
     ):
         ParameterStore(params_db_path).push(
-            [override_of("MarketMakingParameters", "quote_size", 99.0)]
+            [change_of("MarketMakingParameters", "quote_size", 99.0)]
         )
         at = _page(params_db_path, missing_db_path).run()
 
@@ -292,7 +292,7 @@ class TestAStoreThePageCannotRender:
         self, params_db_path, missing_db_path
     ):
         ParameterStore(params_db_path).push(
-            [override_of("MarketMakingParameters", "quote_size", -5.0)]
+            [change_of("MarketMakingParameters", "quote_size", -5.0)]
         )
         at = _page(params_db_path, missing_db_path).run()
 
@@ -303,7 +303,7 @@ class TestAStoreThePageCannotRender:
         self, params_db_path, missing_db_path
     ):
         ParameterStore(params_db_path).push(
-            [override_of("MarketMakingParameters", "book_depth", "ten")]
+            [change_of("MarketMakingParameters", "book_depth", "ten")]
         )
         at = _page(params_db_path, missing_db_path).run()
 
@@ -314,7 +314,7 @@ class TestAStoreThePageCannotRender:
         self, params_db_path, missing_db_path
     ):
         ParameterStore(params_db_path).push(
-            [override_of("MarketMakingParameters", "quote_size", 99.0)]
+            [change_of("MarketMakingParameters", "quote_size", 99.0)]
         )
         at = _page(params_db_path, missing_db_path).run()
 
@@ -328,7 +328,7 @@ class TestAStoreThePageCannotRender:
         self, params_db_path, missing_db_path
     ):
         ParameterStore(params_db_path).push(
-            [override_of("MarketMakingParameters", "quote_size", 99.0)]
+            [change_of("MarketMakingParameters", "quote_size", 99.0)]
         )
         at = _page(params_db_path, missing_db_path).run()
 
@@ -345,7 +345,7 @@ class TestAStoreThePageCannotRender:
         stays in the store until someone decides what it should be.
         """
         store = ParameterStore(params_db_path)
-        store.push([override_of("MarketMakingParameters", "quote_size", 99.0)])
+        store.push([change_of("MarketMakingParameters", "quote_size", 99.0)])
         at = _page(params_db_path, missing_db_path).run()
 
         assert at.session_state["_staged_parameters"] == {}
@@ -381,7 +381,7 @@ def _reported(root, traded="BTC/USD", exchange=None, **row) -> str:
     parameter, as SQLiteWriter would have recorded it. Returns the root
     the engine trading `traded` recorded under."""
     columns = {
-        "key": applied_key(
+        "key": change_key(
             "MarketMakingParameters",
             "quote_size",
             row.get("symbol", ALL_SYMBOLS),
@@ -390,8 +390,8 @@ def _reported(root, traded="BTC/USD", exchange=None, **row) -> str:
         "field_name": "quote_size",
         "symbol": ALL_SYMBOLS,
         "stored_value": "0.02",
-        "revision": 1,
-        "observed_revision": 1,
+        "current_revision": 1,
+        "last_read_revision": 1,
         "status": TAKEN,
         "reason": "",
         **row,
@@ -403,15 +403,25 @@ def _reported(root, traded="BTC/USD", exchange=None, **row) -> str:
     )
     paths.prepare(db_path)
     with sqlite3.connect(db_path) as conn:
+        current_revision = columns.pop("current_revision")
+        last_read_revision = columns.pop("last_read_revision")
         conn.execute(
-            "CREATE TABLE IF NOT EXISTS parameter_applied ("
+            "CREATE TABLE IF NOT EXISTS parameter_change_result ("
             "key TEXT PRIMARY KEY, group_name TEXT, field_name TEXT, "
-            "symbol TEXT, stored_value TEXT, revision INTEGER, "
-            "observed_revision INTEGER, status TEXT, reason TEXT)"
+            "symbol TEXT, stored_value TEXT, status TEXT, reason TEXT)"
         )
         conn.execute(
-            "INSERT INTO parameter_applied VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO parameter_change_result VALUES (?, ?, ?, ?, ?, ?, ?)",
             tuple(columns.values()),
+        )
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS parameter_group_revision ("
+            "group_name TEXT PRIMARY KEY, current_revision INTEGER, "
+            "last_read_revision INTEGER)"
+        )
+        conn.execute(
+            "INSERT OR REPLACE INTO parameter_group_revision VALUES (?, ?, ?)",
+            (columns["group_name"], current_revision, last_read_revision),
         )
     conn.close()
     return root
@@ -463,7 +473,7 @@ class TestFieldKindsBeyondNumbers:
         self, demo_catalog, params_db_path, missing_db_path
     ):
         ParameterStore(params_db_path).push(
-            [override_of("DemoParameters", "mode", "sideways")]
+            [change_of("DemoParameters", "mode", "sideways")]
         )
         at = _page(params_db_path, missing_db_path).run()
 
@@ -474,7 +484,7 @@ class TestFieldKindsBeyondNumbers:
         self, demo_catalog, params_db_path, missing_db_path
     ):
         ParameterStore(params_db_path).push(
-            [override_of("DemoParameters", "mode", "sideways")]
+            [change_of("DemoParameters", "mode", "sideways")]
         )
         at = _page(params_db_path, missing_db_path).run()
 
@@ -491,7 +501,7 @@ class TestWhatTheEngineSaidItDid:
 
     def _pushed(self, params_db_path):
         ParameterStore(params_db_path).push(
-            [override_of("MarketMakingParameters", "quote_size", 0.02)]
+            [change_of("MarketMakingParameters", "quote_size", 0.02)]
         )
 
     @staticmethod
@@ -499,19 +509,17 @@ class TestWhatTheEngineSaidItDid:
         # st.badge reaches AppTest as markdown, as ":green-badge[applied]".
         return " ".join(m.value for m in at.markdown if "-badge[" in m.value)
 
-    def test_a_value_the_engine_is_quoting_on_says_nothing(
+    def test_a_change_whose_group_was_read_says_nothing(
         self, params_db_path, missing_db_path, tmp_path
     ):
         """
-        Silence is the signal: a value the engine has read is the number
-        it is running on, and a badge on every tuned field would leave
-        nothing for the fields that are not.
+        An accepted change needs no badge once its group has been read.
         """
         self._pushed(params_db_path)
         at = _page(
             params_db_path,
             missing_db_path,
-            _reported(str(tmp_path), revision=3, observed_revision=3),
+            _reported(str(tmp_path), current_revision=3, last_read_revision=3),
         ).run()
 
         assert not at.exception
@@ -521,19 +529,60 @@ class TestWhatTheEngineSaidItDid:
         self, params_db_path, missing_db_path, tmp_path
     ):
         """
-        Stored and accepted, but the component that uses it has not read
-        since - what "takes effect on restart" looks like with nobody
-        having declared it.
+        The change was accepted, but its current group has not been read.
         """
         self._pushed(params_db_path)
         at = _page(
             params_db_path,
             missing_db_path,
-            _reported(str(tmp_path), revision=3, observed_revision=1),
+            _reported(str(tmp_path), current_revision=3, last_read_revision=1),
         ).run()
 
         captions = " ".join(c.value for c in at.caption)
-        assert "has not looked since" in captions
+        assert "no component has read the current parameter group" in captions
+        assert "Not read yet" in self._badges(at)
+
+    def test_a_group_never_read_is_not_reported_as_read(
+        self, params_db_path, missing_db_path, tmp_path
+    ):
+        self._pushed(params_db_path)
+        root = _reported(str(tmp_path), last_read_revision=None)
+        at = _page(params_db_path, missing_db_path, root).run()
+        assert not at.exception
+        assert "Not read yet" in self._badges(at)
+
+    @pytest.mark.parametrize("missing", ["table", "group"])
+    def test_missing_revision_information_is_not_reported_as_read(
+        self, params_db_path, missing_db_path, tmp_path, missing
+    ):
+        self._pushed(params_db_path)
+        root = _reported(str(tmp_path))
+        with sqlite3.connect(paths.recording(root, "BTC/USD")) as conn:
+            if missing == "table":
+                conn.execute("DROP TABLE parameter_group_revision")
+            else:
+                conn.execute(
+                    "UPDATE parameter_group_revision "
+                    "SET group_name = 'AnotherGroup'"
+                )
+        conn.close()
+        at = _page(params_db_path, missing_db_path, root).run()
+        assert not at.exception
+        assert "Not read yet" in self._badges(at)
+
+    def test_group_revisions_are_joined_within_each_engine(
+        self, params_db_path, missing_db_path, tmp_path
+    ):
+        self._pushed(params_db_path)
+        root = str(tmp_path)
+        _reported(
+            root, traded="BTC/USD", current_revision=2, last_read_revision=1
+        )
+        _reported(
+            root, traded="ETH/USD", current_revision=10, last_read_revision=10
+        )
+        at = _page(params_db_path, missing_db_path, root).run()
+        assert not at.exception
         assert "Not read yet" in self._badges(at)
 
     def test_a_refused_value_reports_the_engines_own_reason(
@@ -581,7 +630,7 @@ class TestWhatTheEngineSaidItDid:
         eth = "ETH/USD"
         ParameterStore(params_db_path).push(
             [
-                ParameterOverride(
+                ParameterChange(
                     "MarketMakingParameters", "quote_size", eth, 0.01
                 )
             ]
@@ -690,8 +739,8 @@ class TestTuningOneSymbol:
     def _eth_quote_size(self) -> str:
         return _key("MarketMakingParameters", "quote_size", self.ETH)
 
-    def _seeded(self, params_db_path, overrides):
-        ParameterStore(params_db_path).push(overrides)
+    def _seeded(self, params_db_path, changes):
+        ParameterStore(params_db_path).push(changes)
 
     def _page_for(self, params_db_path, missing_db_path, symbol=None):
         at = _page(params_db_path, missing_db_path)
@@ -712,7 +761,7 @@ class TestTuningOneSymbol:
         self._seeded(
             params_db_path,
             [
-                ParameterOverride(
+                ParameterChange(
                     "MarketMakingParameters", "quote_size", self.ETH, 0.01
                 )
             ],
@@ -762,8 +811,8 @@ class TestTuningOneSymbol:
         self._seeded(
             params_db_path,
             [
-                override_of("MarketMakingParameters", "quote_size", 0.02),
-                ParameterOverride(
+                change_of("MarketMakingParameters", "quote_size", 0.02),
+                ParameterChange(
                     "MarketMakingParameters", "book_depth", self.ETH, 4
                 ),
             ],
@@ -777,8 +826,8 @@ class TestTuningOneSymbol:
         self._seeded(
             params_db_path,
             [
-                override_of("MarketMakingParameters", "quote_size", 0.02),
-                ParameterOverride(
+                change_of("MarketMakingParameters", "quote_size", 0.02),
+                ParameterChange(
                     "MarketMakingParameters", "quote_size", self.ETH, 0.01
                 ),
             ],
@@ -793,8 +842,8 @@ class TestTuningOneSymbol:
         self._seeded(
             params_db_path,
             [
-                override_of("MarketMakingParameters", "quote_size", 0.02),
-                ParameterOverride(
+                change_of("MarketMakingParameters", "quote_size", 0.02),
+                ParameterChange(
                     "MarketMakingParameters", "book_depth", self.ETH, 4
                 ),
             ],
@@ -810,7 +859,7 @@ class TestTuningOneSymbol:
         self._seeded(
             params_db_path,
             [
-                ParameterOverride(
+                ParameterChange(
                     "MarketMakingParameters", "book_depth", self.ETH, 4
                 )
             ],
@@ -832,8 +881,8 @@ class TestTuningOneSymbol:
         self._seeded(
             params_db_path,
             [
-                override_of("MarketMakingParameters", "quote_size", 0.02),
-                ParameterOverride(
+                change_of("MarketMakingParameters", "quote_size", 0.02),
+                ParameterChange(
                     "MarketMakingParameters", "book_depth", self.ETH, 4
                 ),
             ],
@@ -851,7 +900,7 @@ class TestTuningOneSymbol:
         self._seeded(
             params_db_path,
             [
-                ParameterOverride(
+                ParameterChange(
                     "MarketMakingParameters", "book_depth", self.ETH, 4
                 )
             ],
@@ -872,7 +921,7 @@ class TestTuningOneSymbol:
         self._seeded(
             params_db_path,
             [
-                ParameterOverride(
+                ParameterChange(
                     "MarketMakingParameters", "quote_size", self.ETH, 0.01
                 )
             ],
@@ -894,7 +943,7 @@ class TestTuningOneSymbol:
         self._seeded(
             params_db_path,
             [
-                ParameterOverride(
+                ParameterChange(
                     "MarketMakingParameters", "book_depth", self.ETH, 4
                 )
             ],

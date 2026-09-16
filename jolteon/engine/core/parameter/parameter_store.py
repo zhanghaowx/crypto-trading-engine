@@ -6,6 +6,10 @@ from dataclasses import dataclass
 
 from jolteon.engine.core.parameter.parameter_service import ALL_SYMBOLS
 
+_OLD_POLL_GROUP = "ParameterPollParameters"
+_POLL_GROUP = "ParameterPollingSettings"
+
+# Keep the legacy table name so existing parameter databases remain readable.
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS parameter_override (
     group_name TEXT NOT NULL,
@@ -29,7 +33,9 @@ CREATE TABLE IF NOT EXISTS parameter_change (
 
 
 @dataclass(frozen=True)
-class ParameterOverride:
+class ParameterChange:
+    """A requested value for one parameter, shared or specific to a symbol."""
+
     group_name: str
     field_name: str
     symbol: str
@@ -67,9 +73,9 @@ class ParameterStore:
             default=None,
         )
 
-    def read(self) -> list[ParameterOverride]:
+    def read(self) -> list[ParameterChange]:
         """
-        Returns: Every stored override, or nothing at all if the file is
+        Returns: Every stored change, or nothing at all if the file is
         missing or unreadable.
 
         A dashboard that has never pushed has not created the file yet,
@@ -78,47 +84,50 @@ class ParameterStore:
         rows = self._reading(
             lambda conn: conn.execute(
                 "SELECT group_name, field_name, symbol, value "
-                "FROM parameter_override"
+                "FROM parameter_override ORDER BY updated_at"
             ).fetchall(),
             default=[],
         )
 
-        overrides = []
+        changes = {}
         for group_name, field_name, symbol, value in rows:
             try:
                 parsed = json.loads(value)
             except json.JSONDecodeError:
                 continue
-            overrides.append(
-                ParameterOverride(group_name, field_name, symbol, parsed)
+            if group_name == _OLD_POLL_GROUP:
+                group_name = _POLL_GROUP
+            changes[group_name, field_name, symbol] = ParameterChange(
+                group_name, field_name, symbol, parsed
             )
-        return overrides
+        return list(changes.values())
 
     def push(
         self,
-        overrides: list[ParameterOverride],
+        changes: list[ParameterChange],
         source: str = "dashboard",
     ) -> None:
         """
-        Writes every given override and its history in one transaction,
+        Writes every given change and its history in one transaction,
         so an engine polling mid-push sees all of them or none.
         """
         now = time.time()
         with closing(self._writable()) as conn:
             conn.executescript(_SCHEMA)
             with conn:
-                for override in overrides:
+                _rename_polling_group(conn)
+                for change in changes:
                     key = (
-                        override.group_name,
-                        override.field_name,
-                        override.symbol,
+                        change.group_name,
+                        change.field_name,
+                        change.symbol,
                     )
                     previous = conn.execute(
                         "SELECT value FROM parameter_override WHERE "
                         "group_name = ? AND field_name = ? AND symbol = ?",
                         key,
                     ).fetchone()
-                    encoded = json.dumps(override.value)
+                    encoded = json.dumps(change.value)
                     conn.execute(
                         "INSERT INTO parameter_override "
                         "VALUES (?, ?, ?, ?, ?) "
@@ -146,13 +155,14 @@ class ParameterStore:
         source: str = "dashboard",
     ) -> None:
         """
-        Drops overrides so the engine falls back to declared defaults,
+        Drops changes so the engine falls back to declared defaults,
         for one group or for everything.
         """
         now = time.time()
         with closing(self._writable()) as conn:
             conn.executescript(_SCHEMA)
             with conn:
+                _rename_polling_group(conn)
                 where = ""
                 params: tuple[str, ...] = ()
                 if group_name is not None:
@@ -221,5 +231,26 @@ class ParameterStore:
         return conn
 
 
-def override_of(group_name: str, field_name: str, value: object):
-    return ParameterOverride(group_name, field_name, ALL_SYMBOLS, value)
+def change_of(group_name: str, field_name: str, value: object):
+    return ParameterChange(group_name, field_name, ALL_SYMBOLS, value)
+
+
+def _rename_polling_group(conn: sqlite3.Connection) -> None:
+    """Migrate saved polling settings when the dashboard next writes.
+
+    Engine reads normalize the name without writing. If both names exist,
+    preserve whichever value was saved most recently; keep history intact.
+    """
+    conn.execute(
+        "INSERT INTO parameter_override "
+        "SELECT ?, field_name, symbol, value, updated_at "
+        "FROM parameter_override WHERE group_name = ? "
+        "ON CONFLICT(group_name, field_name, symbol) DO UPDATE SET "
+        "value = excluded.value, updated_at = excluded.updated_at "
+        "WHERE excluded.updated_at > parameter_override.updated_at",
+        (_POLL_GROUP, _OLD_POLL_GROUP),
+    )
+    conn.execute(
+        "DELETE FROM parameter_override WHERE group_name = ?",
+        (_OLD_POLL_GROUP,),
+    )

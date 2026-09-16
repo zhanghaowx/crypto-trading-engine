@@ -17,11 +17,11 @@ from jolteon.app.exchanges import exchange_definition
 from jolteon.app.progress_bar import ProgressBar
 from jolteon.engine.core.health_monitor.health import HealthMonitor
 from jolteon.engine.core.market import Market
+from jolteon.engine.core.parameter.live_parameter_service import (
+    LiveParameterService,
+)
 from jolteon.engine.core.parameter.parameter_service import (
     StaticParameterService,
-)
-from jolteon.engine.core.parameter.stored_parameter_service import (
-    StoredParameterService,
 )
 from jolteon.engine.market_data.data_source import DatabaseDataSource
 from jolteon.engine.strategy.market_making.fair_value.adjusted_model import (
@@ -207,7 +207,7 @@ async def main():
         # to produce the same result twice, which it cannot if a
         # dashboard can retune it halfway through.
         parameter_service = (
-            StoredParameterService(params_db, health_monitor=health_monitor)
+            LiveParameterService(params_db, health_monitor=health_monitor)
             if params_db
             else StaticParameterService(health_monitor=health_monitor)
         )

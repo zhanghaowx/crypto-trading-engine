@@ -2,6 +2,9 @@ from dataclasses import dataclass
 
 from jolteon.engine.core.health_monitor.parameters import HeartbeatParameters
 from jolteon.engine.core.logging.parameters import LoggingParameters
+from jolteon.engine.core.parameter.parameter_polling_settings import (
+    ParameterPollingSettings,
+)
 from jolteon.engine.core.parameter.parameter_service import (
     ALL_SYMBOLS,
     ParameterValues,
@@ -10,9 +13,6 @@ from jolteon.engine.core.parameter.parameter_service import (
 from jolteon.engine.core.parameter.parameter_specification import (
     ParameterGroup,
     definitions,
-)
-from jolteon.engine.core.parameter.poll_parameters import (
-    ParameterPollParameters,
 )
 from jolteon.engine.core.retry import RetryParameters
 from jolteon.engine.core.sqlite_writer import SqliteWriterParameters
@@ -65,7 +65,7 @@ GROUPS: tuple[type[ParameterGroup], ...] = (
     RetryParameters,
     SqliteWriterParameters,
     LoggingParameters,
-    ParameterPollParameters,
+    ParameterPollingSettings,
 )
 
 
