@@ -41,7 +41,6 @@ dev = [
     "pytest-cov",
     "mypy",
     "gitchangelog",
-    "mkdocs",
     "freezegun",
     "ruff",
     "poethepoet",
@@ -124,10 +123,6 @@ sequence = ["lint", "integration-only"]
 help = "Run unit tests on every file change (requires entr)"
 shell = "ls **/**.py | entr pytest -s -vvv -l --tb=long --maxfail=1 tests/"
 
-[tool.poe.tasks.docs]
-help = "Serve documentation locally with live reload"
-cmd = "mkdocs serve"
-
 [tool.poe.tasks.dashboard]
 help = "Run the live Streamlit dashboard (reads /tmp/jolteon by default)"
 cmd = "streamlit run jolteon/app/dashboard.py"
@@ -137,7 +132,7 @@ help = "Remove build/test artifacts"
 shell = """
 find . -name '*.pyc' -exec rm -f {} + ; \
 find . -name '__pycache__' -exec rm -rf {} + ; \
-rm -rf .cache .pytest_cache .mypy_cache .ruff_cache build dist *.egg-info htmlcov docs/_build
+rm -rf .cache .pytest_cache .mypy_cache .ruff_cache build dist *.egg-info htmlcov
 """
 
 [tool.poe.tasks.release]

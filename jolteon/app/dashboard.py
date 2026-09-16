@@ -45,9 +45,7 @@ configure(
     component="dashboard",
 )
 
-_LOGO_PATH = (
-    Path(__file__).resolve().parents[2] / "docs" / "images" / "jolteon.png"
-)
+_LOGO_PATH = Path(__file__).resolve().parent / "static" / "jolteon.png"
 
 _FOCUS_CSS = (
     Path(__file__).resolve().parent / "static" / "focus_visible.css"
