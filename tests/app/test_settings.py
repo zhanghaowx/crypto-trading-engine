@@ -1,13 +1,14 @@
 import shutil
 import sqlite3
 import sys
+from pathlib import Path
 
 from streamlit.testing.v1 import AppTest
 
-from jolteon import paths
 from jolteon.app import data
 from jolteon.app.data import engine_databases
 from jolteon.app.settings import SYMBOL, parse_args
+from jolteon.engine.core.storage import paths
 
 
 def script():
@@ -88,7 +89,7 @@ def test_init_settings_uses_an_explicit_parameter_store():
 def _recording(root, symbol: str) -> str:
     """One engine's recording, laid out where an engine would lay it."""
     path = paths.recording(str(root), symbol)
-    paths.prepare(path)
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)
     try:
         conn.execute("CREATE TABLE ticker_feed (timestamp REAL, symbol TEXT)")
@@ -103,7 +104,7 @@ def _recording(root, symbol: str) -> str:
 
 def _exchange_recording(root, exchange: str, symbol: str) -> str:
     path = paths.recording(str(root), exchange, symbol)
-    paths.prepare(path)
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)
     try:
         conn.execute("CREATE TABLE ticker_feed (timestamp REAL, symbol TEXT)")
@@ -166,7 +167,7 @@ def test_the_tuning_store_is_not_a_symbol(tmp_path):
     """
     _recording(tmp_path, "ETH/USD")
     parameter_store = paths.parameter_store(str(tmp_path))
-    paths.prepare(parameter_store)
+    Path(parameter_store).parent.mkdir(parents=True, exist_ok=True)
     sqlite3.connect(parameter_store).close()
 
     found = engine_databases(str(tmp_path))

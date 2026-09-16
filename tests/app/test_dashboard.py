@@ -1,7 +1,8 @@
 import sqlite3
 import time
+from pathlib import Path
 
-from jolteon import paths
+from jolteon.engine.core.storage import paths
 
 
 def test_dashboard_renders_every_section_on_one_page(dashboard):
@@ -122,7 +123,7 @@ def test_selects_same_symbol_on_two_exchanges(dashboard, tmp_path):
     recordings = {}
     for exchange in ("Kraken", "Binance.US"):
         path = paths.recording(str(tmp_path), exchange, "BTC/USD")
-        paths.prepare(path)
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(path)
         try:
             conn.execute(

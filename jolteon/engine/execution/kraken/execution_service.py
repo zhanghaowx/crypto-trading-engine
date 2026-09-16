@@ -19,13 +19,15 @@ from jolteon.engine.core.health_monitor.heartbeat import (
 )
 from jolteon.engine.core.parameter.parameter_service import parameter_service
 from jolteon.engine.core.retry import Retry
+from jolteon.engine.core.sentry.reporting import (
+    capture_operational_exception,
+)
 from jolteon.engine.execution.kraken.parameters import (
     KrakenExecutionParameters,
 )
 from jolteon.engine.execution.kraken.rest_client import KrakenRESTClient
 from jolteon.engine.market_data.core.order import CancelOrder, Order
 from jolteon.engine.market_data.core.trade import Trade
-from jolteon.monitoring import capture_operational_exception
 
 
 class ExecutionService(Heartbeater, SignalSubscriber):

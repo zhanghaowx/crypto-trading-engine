@@ -6,7 +6,6 @@ from unittest.mock import patch
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from jolteon import paths
 from jolteon.app.app_pages import engine_parameters
 from jolteon.engine.core.parameter.parameter_catalog import GROUPS
 from jolteon.engine.core.parameter.parameter_change_result import (
@@ -26,6 +25,7 @@ from jolteon.engine.core.parameter.parameter_store import (
     ParameterStore,
     change_of,
 )
+from jolteon.engine.core.storage import paths
 from jolteon.engine.strategy.market_making.parameters import (
     MarketMakingParameters,
 )
@@ -401,7 +401,7 @@ def _reported(root, traded="BTC/USD", exchange=None, **row) -> str:
         if exchange
         else paths.recording(root, traded)
     )
-    paths.prepare(db_path)
+    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(db_path) as conn:
         current_revision = columns.pop("current_revision")
         last_read_revision = columns.pop("last_read_revision")
@@ -636,7 +636,9 @@ class TestWhatTheEngineSaidItDid:
             ]
         )
         root = str(tmp_path)
-        paths.prepare(paths.recording(root, "BTC/USD"))
+        Path(paths.recording(root, "BTC/USD")).parent.mkdir(
+            parents=True, exist_ok=True
+        )
         _reported(root, traded=eth, symbol=eth)
 
         at = _page(params_db_path, paths.recording(root, "BTC/USD"), root)
