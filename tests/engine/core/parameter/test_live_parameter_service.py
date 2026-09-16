@@ -1,30 +1,33 @@
+import sqlite3
 import tempfile
 import threading
 import unittest
+from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path
 from unittest.mock import patch
 
+from jolteon.engine.core.event.signal_recorder import SignalRecorder
 from jolteon.engine.core.parameter import parameter_catalog
-from jolteon.engine.core.parameter.parameter_applied import (
+from jolteon.engine.core.parameter.live_parameter_service import (
+    LiveParameterService,
+)
+from jolteon.engine.core.parameter.parameter_change_result import (
     REJECTED,
     TAKEN,
     UNKNOWN,
+)
+from jolteon.engine.core.parameter.parameter_polling_settings import (
+    ParameterPollingSettings,
 )
 from jolteon.engine.core.parameter.parameter_specification import (
     ParameterGroup,
     parameter,
 )
 from jolteon.engine.core.parameter.parameter_store import (
-    ParameterOverride,
+    ParameterChange,
     ParameterStore,
-    override_of,
-)
-from jolteon.engine.core.parameter.poll_parameters import (
-    ParameterPollParameters,
-)
-from jolteon.engine.core.parameter.stored_parameter_service import (
-    StoredParameterService,
+    change_of,
 )
 
 
@@ -34,7 +37,7 @@ class QuotingParameters(ParameterGroup):
     depth: int = parameter(10, minimum=1, maximum=100)
 
 
-class StoredParameterServiceTestCase(unittest.TestCase):
+class LiveParameterServiceTestCase(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
@@ -45,24 +48,36 @@ class StoredParameterServiceTestCase(unittest.TestCase):
         patcher = patch.object(
             parameter_catalog,
             "GROUPS",
-            (QuotingParameters, ParameterPollParameters),
+            (QuotingParameters, ParameterPollingSettings),
         )
         patcher.start()
         self.addCleanup(patcher.stop)
 
-        self.applied = []
+        self.results = []
+        self.revisions = []
 
-    def service(self) -> StoredParameterService:
-        service = StoredParameterService(self.path)
-        service.parameter_applied_event.connect(self._on_applied)
+    def service(self) -> LiveParameterService:
+        service = LiveParameterService(self.path)
+        service.parameter_change_result_event.connect(self._on_result)
+        service.parameter_group_revision_event.connect(self._on_revision)
         self.addCleanup(service.stop)
         return service
 
-    def _on_applied(self, _, parameter_applied):
-        self.applied.append(parameter_applied)
+    def _on_result(self, _, parameter_change_result):
+        self.results.append(parameter_change_result)
+
+    def _on_revision(self, _, parameter_group_revision):
+        self.revisions.append(parameter_group_revision)
+
+    def quoting_revision(self):
+        return next(
+            r
+            for r in reversed(self.revisions)
+            if r.group_name == "QuotingParameters"
+        )
 
 
-class TestReadingStoredValues(StoredParameterServiceTestCase):
+class TestReadingStoredValues(LiveParameterServiceTestCase):
     def test_runs_on_declared_defaults_when_nothing_was_pushed(self):
         service = self.service()
         service.start()
@@ -81,13 +96,13 @@ class TestReadingStoredValues(StoredParameterServiceTestCase):
         self.assertEqual(0.0005, service.get(QuotingParameters).quote_size)
 
     def test_takes_a_pushed_value_over_the_default(self):
-        self.store.push([override_of("QuotingParameters", "quote_size", 0.01)])
+        self.store.push([change_of("QuotingParameters", "quote_size", 0.01)])
         service = self.service()
         service.start()
         self.assertEqual(0.01, service.get(QuotingParameters).quote_size)
 
     def test_keeps_an_int_field_an_int(self):
-        self.store.push([override_of("QuotingParameters", "depth", 4)])
+        self.store.push([change_of("QuotingParameters", "depth", 4)])
         service = self.service()
         service.start()
         self.assertIsInstance(service.get(QuotingParameters).depth, int)
@@ -95,8 +110,8 @@ class TestReadingStoredValues(StoredParameterServiceTestCase):
     def test_prefers_a_symbols_own_value(self):
         self.store.push(
             [
-                override_of("QuotingParameters", "quote_size", 0.01),
-                ParameterOverride(
+                change_of("QuotingParameters", "quote_size", 0.01),
+                ParameterChange(
                     "QuotingParameters", "quote_size", "BTC/USD", 0.05
                 ),
             ]
@@ -116,8 +131,8 @@ class TestReadingStoredValues(StoredParameterServiceTestCase):
         """
         self.store.push(
             [
-                override_of("QuotingParameters", "depth", 25),
-                ParameterOverride(
+                change_of("QuotingParameters", "depth", 25),
+                ParameterChange(
                     "QuotingParameters", "quote_size", "BTC/USD", 0.05
                 ),
             ]
@@ -132,7 +147,7 @@ class TestReadingStoredValues(StoredParameterServiceTestCase):
     def test_a_symbol_keeps_the_declared_default_nobody_overrode(self):
         self.store.push(
             [
-                ParameterOverride(
+                ParameterChange(
                     "QuotingParameters", "quote_size", "BTC/USD", 0.05
                 )
             ]
@@ -144,7 +159,7 @@ class TestReadingStoredValues(StoredParameterServiceTestCase):
     def test_a_symbol_falls_back_to_the_default_for_other_groups(self):
         self.store.push(
             [
-                ParameterOverride(
+                ParameterChange(
                     "QuotingParameters", "quote_size", "BTC/USD", 0.05
                 )
             ]
@@ -154,24 +169,24 @@ class TestReadingStoredValues(StoredParameterServiceTestCase):
         self.assertEqual(
             1.0,
             service.get(
-                ParameterPollParameters, "BTC/USD"
+                ParameterPollingSettings, "BTC/USD"
             ).interval_in_seconds,
         )
 
 
-class TestPickingUpChanges(StoredParameterServiceTestCase):
+class TestPickingUpChanges(LiveParameterServiceTestCase):
     def test_a_push_reaches_the_engine_on_the_next_refresh(self):
         service = self.service()
         service.start()
         self.assertEqual(0.0005, service.get(QuotingParameters).quote_size)
 
-        self.store.push([override_of("QuotingParameters", "quote_size", 0.02)])
+        self.store.push([change_of("QuotingParameters", "quote_size", 0.02)])
         service._refresh()
 
         self.assertEqual(0.02, service.get(QuotingParameters).quote_size)
 
     def test_refreshing_with_nothing_committed_rebuilds_nothing(self):
-        self.store.push([override_of("QuotingParameters", "quote_size", 0.02)])
+        self.store.push([change_of("QuotingParameters", "quote_size", 0.02)])
         service = self.service()
         service.start()
 
@@ -190,7 +205,7 @@ class TestPickingUpChanges(StoredParameterServiceTestCase):
         self.assertEqual(revision, service.values().revision)
 
     def test_polling_an_unchanged_store_changes_nothing(self):
-        self.store.push([override_of("QuotingParameters", "quote_size", 0.02)])
+        self.store.push([change_of("QuotingParameters", "quote_size", 0.02)])
         service = self.service()
         service.start()
         revision = service.values().revision
@@ -216,20 +231,20 @@ class TestPickingUpChanges(StoredParameterServiceTestCase):
         service.start()
         first = service.values().revision
 
-        self.store.push([override_of("QuotingParameters", "quote_size", 0.02)])
+        self.store.push([change_of("QuotingParameters", "quote_size", 0.02)])
         service._refresh()
         service._refresh()
 
         self.assertEqual(first + 1, service.values().revision)
 
 
-class TestRefusingABadPush(StoredParameterServiceTestCase):
+class TestRefusingABadPush(LiveParameterServiceTestCase):
     def test_keeps_the_running_values_when_a_value_is_out_of_bounds(self):
-        self.store.push([override_of("QuotingParameters", "quote_size", 0.02)])
+        self.store.push([change_of("QuotingParameters", "quote_size", 0.02)])
         service = self.service()
         service.start()
 
-        self.store.push([override_of("QuotingParameters", "quote_size", 9.0)])
+        self.store.push([change_of("QuotingParameters", "quote_size", 9.0)])
         service._refresh()
 
         self.assertEqual(0.02, service.get(QuotingParameters).quote_size)
@@ -237,12 +252,12 @@ class TestRefusingABadPush(StoredParameterServiceTestCase):
     def test_reports_why_an_out_of_bounds_value_was_refused(self):
         service = self.service()
         service.start()
-        self.applied.clear()
+        self.results.clear()
 
-        self.store.push([override_of("QuotingParameters", "quote_size", 9.0)])
+        self.store.push([change_of("QuotingParameters", "quote_size", 9.0)])
         service._refresh()
 
-        refused = [a for a in self.applied if a.status == REJECTED]
+        refused = [a for a in self.results if a.status == REJECTED]
         self.assertEqual(1, len(refused))
         self.assertEqual("quote_size", refused[0].field_name)
         self.assertIn("at most 1.0", refused[0].reason)
@@ -255,7 +270,7 @@ class TestRefusingABadPush(StoredParameterServiceTestCase):
 
         self.store.push(
             [
-                ParameterOverride(
+                ParameterChange(
                     "QuotingParameters", "quote_size", "BTC/USD", 9.0
                 )
             ]
@@ -269,18 +284,18 @@ class TestRefusingABadPush(StoredParameterServiceTestCase):
     def test_reports_a_refused_symbol_value_against_that_symbol(self):
         service = self.service()
         service.start()
-        self.applied.clear()
+        self.results.clear()
 
         self.store.push(
             [
-                ParameterOverride(
+                ParameterChange(
                     "QuotingParameters", "quote_size", "BTC/USD", 9.0
                 )
             ]
         )
         service._refresh()
 
-        refused = [a for a in self.applied if a.status == REJECTED]
+        refused = [a for a in self.results if a.status == REJECTED]
         self.assertEqual(1, len(refused))
         self.assertEqual("BTC/USD", refused[0].symbol)
         self.assertIn("at most 1.0", refused[0].reason)
@@ -288,19 +303,19 @@ class TestRefusingABadPush(StoredParameterServiceTestCase):
     def test_reports_a_parameter_this_engine_does_not_have(self):
         service = self.service()
         service.start()
-        self.applied.clear()
+        self.results.clear()
 
-        self.store.push([override_of("QuotingParameters", "invented", 1.0)])
+        self.store.push([change_of("QuotingParameters", "invented", 1.0)])
         service._refresh()
 
-        unknown = [a for a in self.applied if a.status == UNKNOWN]
+        unknown = [a for a in self.results if a.status == UNKNOWN]
         self.assertEqual(["invented"], [a.field_name for a in unknown])
 
     def test_an_unknown_field_does_not_block_a_good_one(self):
         self.store.push(
             [
-                override_of("QuotingParameters", "invented", 1.0),
-                override_of("QuotingParameters", "quote_size", 0.03),
+                change_of("QuotingParameters", "invented", 1.0),
+                change_of("QuotingParameters", "quote_size", 0.03),
             ]
         )
         service = self.service()
@@ -312,11 +327,11 @@ class TestRefusingABadPush(StoredParameterServiceTestCase):
         Bounds cannot catch this one: the value never gets far enough to
         be compared against them, since coercing it raises first.
         """
-        self.store.push([override_of("QuotingParameters", "depth", 20)])
+        self.store.push([change_of("QuotingParameters", "depth", 20)])
         service = self.service()
         service.start()
 
-        self.store.push([override_of("QuotingParameters", "depth", "ten")])
+        self.store.push([change_of("QuotingParameters", "depth", "ten")])
         service._refresh()
 
         self.assertEqual(20, service.get(QuotingParameters).depth)
@@ -324,12 +339,12 @@ class TestRefusingABadPush(StoredParameterServiceTestCase):
     def test_reports_why_an_uncoercible_value_was_refused(self):
         service = self.service()
         service.start()
-        self.applied.clear()
+        self.results.clear()
 
-        self.store.push([override_of("QuotingParameters", "depth", "ten")])
+        self.store.push([change_of("QuotingParameters", "depth", "ten")])
         service._refresh()
 
-        refused = [a for a in self.applied if a.status == REJECTED]
+        refused = [a for a in self.results if a.status == REJECTED]
         self.assertEqual(["depth"], [a.field_name for a in refused])
         self.assertIn("ten", refused[0].reason)
 
@@ -344,8 +359,8 @@ class TestRefusingABadPush(StoredParameterServiceTestCase):
 
         self.store.push(
             [
-                override_of("QuotingParameters", "quote_size", 0.03),
-                override_of("QuotingParameters", "depth", "ten"),
+                change_of("QuotingParameters", "quote_size", 0.03),
+                change_of("QuotingParameters", "depth", "ten"),
             ]
         )
         service._refresh()
@@ -355,58 +370,140 @@ class TestRefusingABadPush(StoredParameterServiceTestCase):
     def test_raises_a_warning_while_a_push_stands_refused(self):
         service = self.service()
         service.start()
-        self.store.push([override_of("QuotingParameters", "quote_size", 9.0)])
+        self.store.push([change_of("QuotingParameters", "quote_size", 9.0)])
         service._refresh()
         self.assertGreater(len(service._issues), 1)
 
-        self.store.push([override_of("QuotingParameters", "quote_size", 0.03)])
+        self.store.push([change_of("QuotingParameters", "quote_size", 0.03)])
         service._refresh()
         self.assertEqual(1, len(service._issues))
 
 
-class TestReportingWhatWasApplied(StoredParameterServiceTestCase):
+class TestReportingChanges(LiveParameterServiceTestCase):
+    def test_multiple_fields_share_one_group_revision(self):
+        self.store.push(
+            [
+                change_of("QuotingParameters", "quote_size", 0.02),
+                ParameterChange("QuotingParameters", "depth", "BTC/USD", 5),
+            ]
+        )
+        service = self.service()
+        service._refresh()
+
+        self.assertEqual(2, len(self.results))
+        self.assertEqual(
+            1, sum(r.group_name == "QuotingParameters" for r in self.revisions)
+        )
+        self.results.clear()
+        self.revisions.clear()
+        service.get(QuotingParameters, "BTC/USD")
+        service._refresh()
+        self.assertEqual([], self.results)
+        self.assertEqual(1, len(self.revisions))
+        self.assertEqual(1, self.revisions[0].last_read_revision)
+
+    def test_default_group_reads_are_reported_without_field_changes(self):
+        service = self.service()
+        service._refresh()
+        self.assertIsNone(self.quoting_revision().last_read_revision)
+        service.get(QuotingParameters)
+        service._refresh()
+        self.assertEqual(0, self.quoting_revision().last_read_revision)
+        self.assertEqual([], self.results)
+
+    def test_different_rejected_values_each_emit_a_result(self):
+        service = self.service()
+        for value in (9.0, 10.0):
+            self.store.push(
+                [change_of("QuotingParameters", "quote_size", value)]
+            )
+            service._refresh()
+        self.assertEqual(
+            ["9.0", "10.0"], [r.stored_value for r in self.results]
+        )
+        self.assertTrue(all(r.status == REJECTED for r in self.results))
+        self.assertEqual(0, self.quoting_revision().current_revision)
+
+    def test_recorder_persists_results_and_revisions_separately(self):
+        self.store.push([change_of("QuotingParameters", "quote_size", 0.02)])
+        service = self.service()
+        recording = str(Path(self.directory.name) / "engine.sqlite")
+        recorder = SignalRecorder(recording)
+        self.addCleanup(recorder.close)
+        recorder.start_recording()
+        service._refresh()
+        recorder.flush()
+        with closing(sqlite3.connect(recording)) as conn:
+            self.assertEqual(
+                (1, None),
+                conn.execute(
+                    "SELECT current_revision, last_read_revision "
+                    "FROM parameter_group_revision "
+                    "WHERE group_name = 'QuotingParameters'"
+                ).fetchone(),
+            )
+            service.get(QuotingParameters)
+            service._refresh()
+            recorder.flush()
+            self.assertEqual(
+                (1, 1),
+                conn.execute(
+                    "SELECT current_revision, last_read_revision "
+                    "FROM parameter_group_revision "
+                    "WHERE group_name = 'QuotingParameters'"
+                ).fetchone(),
+            )
+            self.assertEqual(
+                [(TAKEN, "0.02")],
+                conn.execute(
+                    "SELECT status, stored_value FROM parameter_change_result"
+                ).fetchall(),
+            )
+
     def test_says_nothing_about_a_field_nobody_pushed(self):
         service = self.service()
         service.start()
-        self.assertEqual([], self.applied)
+        self.assertEqual([], self.results)
 
     def test_reports_a_pushed_field_as_taken(self):
-        self.store.push([override_of("QuotingParameters", "quote_size", 0.02)])
+        self.store.push([change_of("QuotingParameters", "quote_size", 0.02)])
         service = self.service()
         service.start()
 
-        self.assertEqual(1, len(self.applied))
-        self.assertEqual(TAKEN, self.applied[0].status)
-        self.assertEqual("0.02", self.applied[0].stored_value)
+        self.assertEqual(1, len(self.results))
+        self.assertEqual(TAKEN, self.results[0].status)
+        self.assertEqual("0.02", self.results[0].stored_value)
 
     def test_a_field_is_behind_until_a_component_reads_its_group(self):
-        self.store.push([override_of("QuotingParameters", "quote_size", 0.02)])
+        self.store.push([change_of("QuotingParameters", "quote_size", 0.02)])
         service = self.service()
         service.start()
 
-        first = self.applied[-1]
-        self.assertLess(first.observed_revision, first.revision)
+        first = self.quoting_revision()
+        self.assertIsNone(first.last_read_revision)
+        self.results.clear()
 
         service.get(QuotingParameters)
         service._refresh()
 
-        latest = self.applied[-1]
-        self.assertEqual(latest.revision, latest.observed_revision)
+        latest = self.quoting_revision()
+        self.assertEqual(latest.current_revision, latest.last_read_revision)
+        self.assertEqual([], self.results)
 
     def test_stops_repeating_itself_once_nothing_is_moving(self):
-        self.store.push([override_of("QuotingParameters", "quote_size", 0.02)])
+        self.store.push([change_of("QuotingParameters", "quote_size", 0.02)])
         service = self.service()
         service.start()
         service.get(QuotingParameters)
         service._refresh()
 
-        self.applied.clear()
+        self.results.clear()
         service._refresh()
         service._refresh()
-        self.assertEqual([], self.applied)
+        self.assertEqual([], self.results)
 
 
-class TestPollingThread(StoredParameterServiceTestCase):
+class TestPollingThread(LiveParameterServiceTestCase):
     def test_starting_twice_leaves_one_thread(self):
         service = self.service()
         service.start()
@@ -429,11 +526,7 @@ class TestPollingThread(StoredParameterServiceTestCase):
         poller looks exactly like a dashboard nobody is pushing from.
         """
         self.store.push(
-            [
-                override_of(
-                    "ParameterPollParameters", "interval_in_seconds", 0.1
-                )
-            ]
+            [change_of("ParameterPollingSettings", "interval_in_seconds", 0.1)]
         )
         service = self.service()
         service.start()
@@ -466,14 +559,10 @@ class TestPollingThread(StoredParameterServiceTestCase):
 
     def test_the_poll_interval_is_itself_a_parameter(self):
         self.store.push(
-            [
-                override_of(
-                    "ParameterPollParameters", "interval_in_seconds", 2.5
-                )
-            ]
+            [change_of("ParameterPollingSettings", "interval_in_seconds", 2.5)]
         )
         service = self.service()
         service.start()
         self.assertEqual(
-            2.5, service.get(ParameterPollParameters).interval_in_seconds
+            2.5, service.get(ParameterPollingSettings).interval_in_seconds
         )

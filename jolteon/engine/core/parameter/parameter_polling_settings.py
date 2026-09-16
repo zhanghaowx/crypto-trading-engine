@@ -7,7 +7,9 @@ from jolteon.engine.core.parameter.parameter_specification import (
 
 
 @dataclass(frozen=True)
-class ParameterPollParameters(ParameterGroup):
+class ParameterPollingSettings(ParameterGroup):
+    """How often the engine checks for changes to stored parameters."""
+
     interval_in_seconds: float = parameter(
         1.0,
         minimum=0.1,
@@ -16,7 +18,8 @@ class ParameterPollParameters(ParameterGroup):
         number_format="%.1f",
         unit="s",
         description=(
-            "How long a pushed parameter may take to reach the engine. "
-            "Each tick is one trivial query unless something changed."
+            "Seconds between checks for parameter changes. Accepted "
+            "changes are available the next time a component reads its "
+            "parameters."
         ),
     )

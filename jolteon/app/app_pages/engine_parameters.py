@@ -25,19 +25,19 @@ from jolteon.app.components import (
     slug,
 )
 from jolteon.app.data import engine_databases, read_table
-from jolteon.engine.core.parameter.parameter_applied import (
+from jolteon.engine.core.parameter.parameter_catalog import GROUPS
+from jolteon.engine.core.parameter.parameter_change_result import (
     REJECTED,
     TAKEN,
-    applied_key,
+    change_key,
 )
-from jolteon.engine.core.parameter.parameter_catalog import GROUPS
 from jolteon.engine.core.parameter.parameter_service import ALL_SYMBOLS
 from jolteon.engine.core.parameter.parameter_specification import (
     ParameterDefinition,
     definitions,
 )
 from jolteon.engine.core.parameter.parameter_store import (
-    ParameterOverride,
+    ParameterChange,
     ParameterStore,
 )
 
@@ -96,41 +96,53 @@ def _scopes(stored: dict[Field, Any]) -> list[str]:
     return [ALL_SYMBOLS, *sorted(symbols)]
 
 
+def _group_has_been_read(report: Any) -> bool:
+    return (
+        report.current_revision is not None
+        and report.last_read_revision is not None
+        and report.last_read_revision >= report.current_revision
+    )
+
+
 def _unsettled(report: Any) -> int:
-    """
-    How far a report is from a value an engine is quoting on, so that the
-    least settled of several answers is the one shown.
-    """
+    """Rank rejection, unknown status, and unread groups ahead of reads."""
     if report.status == REJECTED:
         return 3
     if report.status != TAKEN:
         return 2
-    return 0 if report.observed_revision >= report.revision else 1
+    return 0 if _group_has_been_read(report) else 1
 
 
 def _engine_reports() -> dict[str, Any]:
-    """
-    What the engines last said they did with each pushed parameter, keyed
-    by the parameter it is about. Absent until an engine has run against
-    this store.
+    """Join field results to group revisions within each engine.
 
-    Every engine under the root is asked, not only the one whose
-    recording the rest of the dashboard is reading: a value set for one
-    symbol is read by the engine trading that symbol and by no other, so
-    reading a single recording answered for the wrong process. A value
-    set for every symbol is read by all of them, and there the least
-    settled answer wins - one engine refusing a value means it is not in
-    force, whatever the others made of it.
+    For shared parameters, display the least settled response across the
+    selected exchange's engines. Revisions from different engines must
+    never be combined: each engine has its own snapshot counter.
     """
     reports: dict[str, Any] = {}
     selected_exchange = st.session_state.get("exchange", "Kraken")
     for engine in engine_databases(st.session_state.root):
         if engine.exchange != selected_exchange:
             continue
-        applied = read_table(engine.path, "parameter_applied")
-        if applied.empty or "key" not in applied.columns:
+        results = read_table(engine.path, "parameter_change_result")
+        if results.empty or "key" not in results.columns:
             continue
-        for report in applied.itertuples():
+        revisions = read_table(engine.path, "parameter_group_revision")
+        if revisions.empty:
+            results = results.assign(
+                current_revision=None, last_read_revision=None
+            )
+        else:
+            results = results.merge(
+                revisions[
+                    ["group_name", "current_revision", "last_read_revision"]
+                ],
+                on="group_name",
+                how="left",
+                validate="many_to_one",
+            )
+        for report in results.itertuples():
             seen = reports.get(report.key)
             if seen is None or _unsettled(report) > _unsettled(seen):
                 reports[report.key] = report
@@ -370,17 +382,7 @@ def _state_note(
     definition: ParameterDefinition,
     stored: dict[Field, Any],
 ) -> _Note | None:
-    """
-    Returns: What this field has to say about what the engine did with
-    it, or nothing when it has nothing to say.
-
-    Silence is the ordinary state, and it means two different things
-    either side of a push: a field left at its declared default has
-    nothing to have been picked up, and a field the engine has read is
-    already the number it is quoting on. Neither is worth a badge; the
-    ones worth interrupting a reader for are the ones where what is
-    stored is not what is running.
-    """
+    """Describe a change result and whether its group has been read."""
     symbol, group_name, _ = field
     if field not in stored:
         inherited = (ALL_SYMBOLS, group_name, definition.name) in stored
@@ -389,7 +391,7 @@ def _state_note(
         return None
 
     reports = st.session_state.get(_REPORTS, {})
-    row = reports.get(applied_key(group_name, definition.name, symbol))
+    row = reports.get(change_key(group_name, definition.name, symbol))
     if row is None:
         return _Note(
             "Not picked up",
@@ -402,12 +404,14 @@ def _state_note(
         # The engine decides what statuses exist, so one this page has
         # never heard of is passed through as it came.
         return _Note(row.status, "orange")
-    if row.observed_revision >= row.revision:
+    if _group_has_been_read(row):
         return None
     return _Note(
         "Not read yet",
         "yellow",
-        caption="Stored, but the component has not looked since.",
+        caption=(
+            "Accepted, but no component has read the current parameter group."
+        ),
     )
 
 
@@ -454,7 +458,7 @@ def _push() -> None:
     store = ParameterStore(st.session_state.params_db_path)
     store.push(
         [
-            ParameterOverride(group_name, field_name, symbol, value)
+            ParameterChange(group_name, field_name, symbol, value)
             for (symbol, group_name, field_name), value in _staged().items()
         ]
     )
