@@ -9,8 +9,8 @@ for real, against a mock execution service (paper trading), or against historica
 data (backtesting). Every run is recorded to a SQLite file you can inspect
 afterwards in the included dashboard.
 
-> This is a personal project and still rough around the edges. It trades a single
-> symbol (`BTC-USD`) with a single strategy.
+> This is a personal project and still rough around the edges. Each engine
+> process trades one symbol with one strategy.
 
 ## What's in it
 
@@ -48,7 +48,7 @@ price. A trade through the quote can fill no more than the quantity printed;
 the simulator makes its best queue-position guess from visible L2 quantity at
 the exact order price. L2 cannot reveal exact queue rank or whether later
 cancellations were ahead of the simulated order. See the
-[known fill-model limitations](docs/markdowns/design/known-issues.md).
+[remaining fill-model work](https://github.com/zhanghaowx/crypto-trading-engine/issues/67).
 
 **Live trading** — same thing, but orders are real. Drop `--paper` and set your keys:
 
@@ -135,12 +135,14 @@ exchange-first layout.
 ### Dashboard
 
 A read-only view of a run — health, market data, risk limits, orders and PnL.
-It polls the SQLite file, so you can watch a live run or open an old one
-([details](docs/markdowns/ui/dashboard.md)):
+It polls the SQLite file, so you can watch a live run or open an old one:
 
 ```bash
 uv run poe dashboard
 ```
+
+Use the sidebar to select an exchange, symbol, and recorded session. Runtime
+parameters are edited from the Parameters page.
 
 ### Docker
 
@@ -159,6 +161,13 @@ docker compose logs -f
 docker compose down
 ```
 
+Follow one process by appending its service name, for example:
+
+```bash
+docker compose logs -f engine-kraken-btc-usd
+docker compose logs -f dashboard
+```
+
 The named `jolteon-data` volume keeps recordings and parameters across image and
 container recreation. `docker compose down --volumes` also deletes that data.
 Change `JOLTEON_DASHBOARD_PORT` in `.env` if port 8501 is already in use.
@@ -171,9 +180,7 @@ live engine and dashboard with:
 docker compose --profile live up --build -d engine-kraken-btc-usd-live dashboard
 ```
 
-Selecting the live services as above does not start the paper engine. See the
-[local stack runbook](docs/markdowns/operations/local-stack.md) for logs,
-updates, and data cleanup.
+Selecting the live services as above does not start the paper engine.
 
 ### Error reporting
 
@@ -190,6 +197,9 @@ such as `paper-us` when running outside local development.
 
 ## Development
 
+Planned work and known limitations are tracked in
+[GitHub Issues](https://github.com/zhanghaowx/crypto-trading-engine/issues).
+
 Tasks run through [poe](https://poethepoet.natn.io/):
 
 ```bash
@@ -197,7 +207,6 @@ uv run poe fmt          # format and sort imports
 uv run poe lint         # ruff + mypy
 uv run poe test         # lint, then unit tests with coverage
 uv run poe integration  # lint, then tests against the live exchange
-uv run poe docs         # serve the mkdocs site locally
 uv run poe clean        # delete build and test artifacts
 ```
 
