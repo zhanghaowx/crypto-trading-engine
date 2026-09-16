@@ -1,4 +1,3 @@
-from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 from jolteon.engine.core.side import MarketSide
@@ -13,27 +12,11 @@ class QueuePosition:
 
     ahead_quantity: float
 
-    def consume(self, quantity: float) -> float:
-        """Consume queue ahead and return volume available to our order."""
-        consumed = min(self.ahead_quantity, quantity)
-        self.ahead_quantity -= consumed
-        return quantity - consumed
-
-
-class QueuePositionModel(ABC):
-    """Calculates initial simulated queue position from available data."""
-
-    @abstractmethod
-    def create(
-        self, order: Order, order_book: OrderBook | None, bbo: BBO | None
-    ) -> QueuePosition:
-        raise NotImplementedError  # pragma: no cover
-
-
-class L2QueuePositionModel(QueuePositionModel):
-    def create(
-        self, order: Order, order_book: OrderBook | None, bbo: BBO | None
-    ) -> QueuePosition:
+    @classmethod
+    def best_guess(
+        cls, order: Order, order_book: OrderBook | None, bbo: BBO | None
+    ) -> "QueuePosition":
+        """Estimate queue ahead from the strongest available market data."""
         assert order.price is not None, "Limit orders must have a price"
         if order_book is not None:
             ahead = order_book.quantity_at(
@@ -50,4 +33,10 @@ class L2QueuePositionModel(QueuePositionModel):
             )
         else:
             ahead = 0.0
-        return QueuePosition(ahead)
+        return cls(ahead)
+
+    def consume(self, quantity: float) -> float:
+        """Consume queue ahead and return volume available to our order."""
+        consumed = min(self.ahead_quantity, quantity)
+        self.ahead_quantity -= consumed
+        return quantity - consumed

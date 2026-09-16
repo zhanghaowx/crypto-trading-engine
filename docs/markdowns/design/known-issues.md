@@ -1808,7 +1808,8 @@ That is still valuable information and should not be confused with a failed sign
 ## 2026-09-15 — Depth-aware paper execution and replay implemented
 
 - initialized simulated queue ahead from L2 quantity at the exact order price;
-- introduced a pluggable `QueuePositionModel` and per-order `QueuePosition`;
+- introduced a per-order `QueuePosition` initialized as the best guess from
+  available market data;
 - added compact, versioned, model-labelled L2 snapshot/delta records;
 - rebuilt and published the shared `OrderBook` during local replay;
 - retained trade-only replay for legacy recordings;
