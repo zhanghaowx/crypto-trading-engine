@@ -19,6 +19,5 @@ class Trade:
     exchange: str = ""
     exchange_order_id: str = ""
     exchange_trade_id: str = ""
-    # Execution identity is separate from a public market trade ID.
-    # Empty for public prints and legacy/simulated trades.
-    fill_id: str = ""
+    # Set on our own fills; public market prints leave it empty.
+    unique_trade_id: str = ""

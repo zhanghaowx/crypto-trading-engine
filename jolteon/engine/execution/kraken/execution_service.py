@@ -23,13 +23,15 @@ from jolteon.engine.core.retry import Retry
 from jolteon.engine.core.sentry.reporting import (
     capture_operational_exception,
 )
-from jolteon.engine.execution.fill_identity import fill_identity
 from jolteon.engine.execution.kraken.parameters import (
     KrakenExecutionParameters,
 )
 from jolteon.engine.execution.kraken.rest_client import KrakenRESTClient
+from jolteon.engine.execution.unique_trade_id import unique_trade_id
 from jolteon.engine.market_data.core.order import CancelOrder, Order
 from jolteon.engine.market_data.core.trade import Trade
+
+_EXCHANGE = "Kraken"
 
 
 class ExecutionService(Heartbeater, SignalSubscriber):
@@ -265,7 +267,7 @@ class ExecutionService(Heartbeater, SignalSubscriber):
         unseen = [
             trade_id
             for trade_id, order_id in trade_orders.items()
-            if fill_identity("Kraken", order_id, trade_id)
+            if unique_trade_id(_EXCHANGE, order_id, trade_id)
             not in self._reported_fills
         ]
         executions: dict[str, dict] = {}
@@ -289,9 +291,11 @@ class ExecutionService(Heartbeater, SignalSubscriber):
             fills.append(
                 Trade(
                     trade_id=int(details["trade_id"]),
-                    fill_id=fill_identity("Kraken", order_id, trade_id),
+                    unique_trade_id=unique_trade_id(
+                        _EXCHANGE, order_id, trade_id
+                    ),
                     client_order_id=order.client_order_id,
-                    exchange="Kraken",
+                    exchange=_EXCHANGE,
                     exchange_order_id=order_id,
                     exchange_trade_id=trade_id,
                     symbol=order.symbol,
@@ -311,7 +315,7 @@ class ExecutionService(Heartbeater, SignalSubscriber):
         quantities = {
             trade_id: self._reported_fills[key]
             for trade_id, order_id in trade_orders.items()
-            if (key := fill_identity("Kraken", order_id, trade_id))
+            if (key := unique_trade_id(_EXCHANGE, order_id, trade_id))
             in self._reported_fills
         }
         quantities.update(
@@ -328,11 +332,12 @@ class ExecutionService(Heartbeater, SignalSubscriber):
                 )
 
         for trade in sorted(
-            fills, key=lambda fill: (fill.transaction_time, fill.fill_id)
+            fills,
+            key=lambda fill: (fill.transaction_time, fill.unique_trade_id),
         ):
             # Mark before dispatch: a receiver failure must not make a later
             # poll account for the same execution twice.
-            self._reported_fills[trade.fill_id] = Decimal(
+            self._reported_fills[trade.unique_trade_id] = Decimal(
                 executions[trade.exchange_trade_id]["vol"]
             )
             self.order_fill_event.send(self.order_fill_event, trade=trade)

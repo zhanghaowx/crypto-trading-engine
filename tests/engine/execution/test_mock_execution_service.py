@@ -13,6 +13,7 @@ from jolteon.engine.execution.kraken.fee_schedule import (
 from jolteon.engine.execution.mock_execution_service import (
     MockExecutionService,
 )
+from jolteon.engine.execution.unique_trade_id import unique_trade_id
 from jolteon.engine.market_data.core.bbo import BBO
 from jolteon.engine.market_data.core.order import CancelOrder, Order, OrderType
 from jolteon.engine.market_data.core.order_book import (
@@ -55,6 +56,20 @@ class TestMockExecutionService(IsolatedAsyncioTestCase):
         self.assertEqual(len(self.fills), 1)
         self.assertEqual(0.0, self.fills[0].price)
         self.assertEqual(0.0, self.fills[0].fee)
+
+    async def test_simulated_fills_have_distinct_mock_unique_trade_ids(self):
+        self.execution_service.on_order(self, self.mock_order)
+        self.execution_service.on_order(self, self.mock_order)
+
+        first, second = self.fills
+        self.assertNotEqual(first.unique_trade_id, second.unique_trade_id)
+        for fill in self.fills:
+            self.assertEqual("Mock", fill.exchange)
+            self.assertEqual("123", fill.exchange_order_id)
+            self.assertEqual(
+                unique_trade_id("Mock", "123", fill.exchange_trade_id),
+                fill.unique_trade_id,
+            )
 
     async def test_final_execution_gate_refuses_order_until_ready(self):
         self.execution_service.health.mark_critical()

@@ -5,6 +5,7 @@ from datetime import datetime
 import pytz
 
 from jolteon.engine.core.side import MarketSide
+from jolteon.engine.execution.unique_trade_id import unique_trade_id
 from jolteon.engine.market_data.core.bbo import BBO
 from jolteon.engine.market_data.core.trade import Trade
 from jolteon.engine.position.position_manager import PositionUpdate
@@ -58,6 +59,12 @@ class TestPostTradeService(unittest.IsolatedAsyncioTestCase):
             fee=fee,
             quantity=quantity,
             transaction_time=datetime.now(pytz.utc),
+            exchange="Mock",
+            exchange_order_id=str(trade_id),
+            exchange_trade_id=str(trade_id),
+            unique_trade_id=unique_trade_id(
+                "Mock", str(trade_id), str(trade_id)
+            ),
         )
 
     def notify_position(self, volume: float, symbol: str = "BTC/USD"):
@@ -85,7 +92,13 @@ class TestPostTradeService(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(1, len(self.records))
         record = self.records[0]
-        self.assertEqual(1, record.trade_id)
+        self.assertEqual(
+            unique_trade_id("Mock", "1", "1"), record.unique_trade_id
+        )
+        self.assertEqual("1", record.client_order_id)
+        self.assertEqual("Mock", record.exchange)
+        self.assertEqual("1", record.exchange_order_id)
+        self.assertEqual("1", record.exchange_trade_id)
         self.assertEqual(MarketSide.BUY, record.side)
         self.assertEqual(100.0, record.fill_price)
         self.assertEqual(1.0, record.fill_qty)
@@ -123,7 +136,9 @@ class TestPostTradeService(unittest.IsolatedAsyncioTestCase):
         )
 
         self.post_trade_service.on_bbo("_", self.create_bbo(100.0, 102.0))
-        self.post_trade_service._on_horizon(1, "fair_price_100ms")
+        self.post_trade_service._on_horizon(
+            unique_trade_id("Mock", "1", "1"), "fair_price_100ms"
+        )
 
         self.assertEqual(2, len(self.records))
         latest = self.records[-1]
@@ -141,10 +156,12 @@ class TestPostTradeService(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertEqual(1, len(self.post_trade_service._pending_fills))
-        self.post_trade_service._on_horizon(1, "fair_price_30s")
+        self.post_trade_service._on_horizon(
+            unique_trade_id("Mock", "1", "1"), "fair_price_30s"
+        )
         self.assertEqual(0, len(self.post_trade_service._pending_fills))
 
     async def test_horizon_callback_for_an_unknown_fill_is_a_no_op(self):
-        self.post_trade_service._on_horizon(999, "fair_price_100ms")
+        self.post_trade_service._on_horizon("unknown", "fair_price_100ms")
 
         self.assertEqual([], self.records)

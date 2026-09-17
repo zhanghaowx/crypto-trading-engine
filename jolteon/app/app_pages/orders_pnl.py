@@ -109,7 +109,7 @@ def fills_table(fills: pd.DataFrame) -> pd.DataFrame:
     ordered = _newest_first(fills, "transaction_timestamp")
     price = _optional(ordered, "fill_price")
     quantity = _optional(ordered, "fill_qty")
-    trade_id = _optional(ordered, "trade_id")
+    trade_id = _optional(ordered, "exchange_trade_id")
     return _readable(
         {
             "Time": _local_time(
