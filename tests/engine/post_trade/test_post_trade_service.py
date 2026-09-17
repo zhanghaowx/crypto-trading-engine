@@ -8,7 +8,6 @@ from jolteon.engine.core.side import MarketSide
 from jolteon.engine.execution.unique_trade_id import unique_trade_id
 from jolteon.engine.market_data.core.bbo import BBO
 from jolteon.engine.market_data.core.trade import Trade
-from jolteon.engine.position.position_manager import PositionUpdate
 from jolteon.engine.post_trade.decorated_order_fill import DecoratedOrderFill
 from jolteon.engine.post_trade.post_trade_service import PostTradeService
 
@@ -67,14 +66,6 @@ class TestPostTradeService(unittest.IsolatedAsyncioTestCase):
             ),
         )
 
-    def notify_position(self, volume: float, symbol: str = "BTC/USD"):
-        """Simulates PositionManager's position_updated arriving for this
-        fill, ahead of the fill itself - the ordering PostTradeService
-        relies on in production (see PostTradeService.on_fill)."""
-        self.post_trade_service.on_position_updated(
-            "_", PositionUpdate(symbol=symbol, volume=volume)
-        )
-
     async def test_skips_fill_with_no_bbo_seen_yet(self):
         self.post_trade_service.on_fill(
             "_", self.create_fill(1, MarketSide.BUY, 100.0, 1.0)
@@ -82,9 +73,8 @@ class TestPostTradeService(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual([], self.records)
 
-    async def test_decorates_first_fill_with_zero_inventory_before(self):
+    async def test_decorates_a_fill_with_its_fair_price(self):
         self.post_trade_service.on_bbo("_", self.create_bbo(99.0, 101.0))
-        self.notify_position(1.0)
 
         self.post_trade_service.on_fill(
             "_", self.create_fill(1, MarketSide.BUY, 100.0, 1.0)
@@ -103,34 +93,15 @@ class TestPostTradeService(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(100.0, record.fill_price)
         self.assertEqual(1.0, record.fill_qty)
         self.assertEqual(100.0, record.fair_price_at_fill)
-        self.assertEqual(0.0, record.inventory_before)
-        self.assertEqual(1.0, record.inventory_after)
         self.assertIsNone(record.fair_price_100ms)
         self.assertIsNone(record.fair_price_1s)
         self.assertIsNone(record.fair_price_5s)
         self.assertIsNone(record.fair_price_30s)
 
-    async def test_decorates_subsequent_fill_with_prior_inventory(self):
-        self.post_trade_service.on_bbo("_", self.create_bbo(99.0, 101.0))
-
-        self.notify_position(1.0)
-        self.post_trade_service.on_fill(
-            "_", self.create_fill(1, MarketSide.BUY, 100.0, 1.0)
-        )
-        self.notify_position(1.5)
-        self.post_trade_service.on_fill(
-            "_", self.create_fill(2, MarketSide.BUY, 100.0, 0.5)
-        )
-
-        self.assertEqual(2, len(self.records))
-        self.assertEqual(1.0, self.records[1].inventory_before)
-        self.assertEqual(1.5, self.records[1].inventory_after)
-
     async def test_fair_price_after_fill_sets_field_without_clobbering_others(
         self,
     ):
         self.post_trade_service.on_bbo("_", self.create_bbo(99.0, 101.0))
-        self.notify_position(1.0)
         self.post_trade_service.on_fill(
             "_", self.create_fill(1, MarketSide.BUY, 100.0, 1.0)
         )
@@ -150,7 +121,6 @@ class TestPostTradeService(unittest.IsolatedAsyncioTestCase):
 
     async def test_final_markout_delay_drops_the_pending_fill(self):
         self.post_trade_service.on_bbo("_", self.create_bbo(99.0, 101.0))
-        self.notify_position(1.0)
         self.post_trade_service.on_fill(
             "_", self.create_fill(1, MarketSide.BUY, 100.0, 1.0)
         )

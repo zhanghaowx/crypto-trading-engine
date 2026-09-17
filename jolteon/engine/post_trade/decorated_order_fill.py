@@ -20,8 +20,6 @@ class DecoratedOrderFill:
     fill_qty: float
     fair_price_at_fill: float
     fee: float
-    inventory_before: float
-    inventory_after: float
     fair_price_100ms: float | None = None
     fair_price_1s: float | None = None
     fair_price_5s: float | None = None

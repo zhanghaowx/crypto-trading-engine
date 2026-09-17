@@ -5,7 +5,6 @@ from jolteon.engine.core.event.signal_subscriber import SignalSubscriber
 from jolteon.engine.market_data.core.bbo import BBO
 from jolteon.engine.market_data.core.book_snapshot import BookSnapshot
 from jolteon.engine.market_data.core.trade import Trade
-from jolteon.engine.position.position_manager import PositionUpdate
 from jolteon.engine.post_trade.decorated_order_fill import DecoratedOrderFill
 from jolteon.engine.strategy.market_making.fair_value.fair_price_model import (
     IFairPriceModel,
@@ -28,37 +27,17 @@ class PostTradeService(SignalSubscriber):
         self.decorated_order_fill_event = signal("decorated_order_fill")
 
         self._latest_bbo = dict[str, BBO]()
-        self._latest_volume = dict[str, float]()
-        self._pending_position = dict[str, tuple[float, float]]()
         self._pending_fills = dict[str, DecoratedOrderFill]()
 
     @subscribe("ticker_feed")
     def on_bbo(self, _: str, bbo: BBO):
         self._latest_bbo[bbo.symbol] = bbo
 
-    @subscribe("position_updated")
-    def on_position_updated(self, _: str, position_update: PositionUpdate):
-        before = self._latest_volume.get(position_update.symbol, 0.0)
-        self._pending_position[position_update.symbol] = (
-            before,
-            position_update.volume,
-        )
-        self._latest_volume[position_update.symbol] = position_update.volume
-
     @subscribe("order_fill")
     def on_fill(self, _: str, trade: Trade):
         bbo = self._latest_bbo.get(trade.symbol)
         if bbo is None:
             return
-
-        # Requires PositionManager's order_fill receiver - and the
-        # position_updated it sends - to have already run for this fill.
-        # Holds because TradingApplication constructs _position_manager before
-        # _post_trade_service, and SignalManager.connect_all() connects
-        # subscribers in alphabetical dir() order.
-        inventory_before, inventory_after = self._pending_position.pop(
-            trade.symbol, (0.0, 0.0)
-        )
 
         record = DecoratedOrderFill(
             unique_trade_id=trade.unique_trade_id,
@@ -73,8 +52,6 @@ class PostTradeService(SignalSubscriber):
             fill_qty=trade.quantity,
             fair_price_at_fill=self._fair_price(bbo),
             fee=trade.fee,
-            inventory_before=inventory_before,
-            inventory_after=inventory_after,
         )
         self._pending_fills[trade.unique_trade_id] = record
         self._send(record)
