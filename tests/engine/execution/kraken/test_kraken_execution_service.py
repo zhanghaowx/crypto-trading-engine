@@ -8,7 +8,7 @@ import pytz
 
 from jolteon.engine.core.health_monitor.health import HealthMonitor
 from jolteon.engine.core.side import MarketSide
-from jolteon.engine.execution.fill_identity import fill_identity
+from jolteon.engine.execution.unique_trade_id import unique_trade_id
 from jolteon.engine.market_data.core.order import CancelOrder, Order, OrderType
 from jolteon.engine.market_data.core.trade import Trade
 
@@ -158,8 +158,8 @@ class TestExecutionService(IsolatedAsyncioTestCase):
             exchange_trade_id = details["trades"][0]
             fill = by_id[exchange_trade_id]
             self.assertEqual(
-                fill_identity("Kraken", order_id, exchange_trade_id),
-                fill.fill_id,
+                unique_trade_id("Kraken", order_id, exchange_trade_id),
+                fill.unique_trade_id,
             )
             self.assertEqual("123", fill.client_order_id)
             self.assertEqual("Kraken", fill.exchange)

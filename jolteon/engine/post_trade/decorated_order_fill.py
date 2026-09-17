@@ -6,11 +6,13 @@ from jolteon.engine.core.side import MarketSide
 
 @dataclass
 class DecoratedOrderFill:
-    # Keep the existing SQLite key column. Live fills store their internal
-    # fill_id here; legacy and simulated fills retain numeric trade IDs.
-    PRIMARY_KEY = "trade_id"
+    PRIMARY_KEY = "unique_trade_id"
 
-    trade_id: int | str
+    unique_trade_id: str
+    client_order_id: str
+    exchange: str
+    exchange_order_id: str
+    exchange_trade_id: str
     transaction_timestamp: datetime
     symbol: str
     side: MarketSide
@@ -24,8 +26,3 @@ class DecoratedOrderFill:
     fair_price_1s: float | None = None
     fair_price_5s: float | None = None
     fair_price_30s: float | None = None
-    client_order_id: str = ""
-    exchange: str = ""
-    exchange_order_id: str = ""
-    exchange_trade_id: str = ""
-    fill_id: str = ""

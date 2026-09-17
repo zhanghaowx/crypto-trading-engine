@@ -12,11 +12,14 @@ from jolteon.engine.core.parameter.parameter_service import parameter_service
 from jolteon.engine.core.side import MarketSide
 from jolteon.engine.core.time.time_manager import time_manager
 from jolteon.engine.execution.queue_position import QueuePosition
+from jolteon.engine.execution.unique_trade_id import unique_trade_id
 from jolteon.engine.market_data.core.bbo import BBO
 from jolteon.engine.market_data.core.order import CancelOrder, Order, OrderType
 from jolteon.engine.market_data.core.order_book import OrderBook
 from jolteon.engine.market_data.core.trade import Trade
 from jolteon.engine.market_data.data_source import IDataSource
+
+_EXCHANGE = "Mock"
 
 
 @dataclass
@@ -193,8 +196,9 @@ class MockExecutionService(Heartbeater, SignalSubscriber):
         filled_quantity = order.quantity if quantity is None else quantity
         fees = parameter_service().get(self._fee_schedule, order.symbol)
         fee = fees.maker_fee if maker else fees.taker_fee
+        trade_id = id_generator().next()
         trade = Trade(
-            trade_id=id_generator().next(),
+            trade_id=trade_id,
             client_order_id=order.client_order_id,
             symbol=order.symbol,
             maker_order_id=str(uuid.uuid4()),
@@ -204,6 +208,12 @@ class MockExecutionService(Heartbeater, SignalSubscriber):
             fee=fee(filled_price, filled_quantity),
             quantity=filled_quantity,
             transaction_time=time_manager().now(),
+            exchange=_EXCHANGE,
+            exchange_order_id=order.client_order_id,
+            exchange_trade_id=str(trade_id),
+            unique_trade_id=unique_trade_id(
+                _EXCHANGE, order.client_order_id, str(trade_id)
+            ),
         )
 
         self.order_fill_event.send(

@@ -138,21 +138,18 @@ Kraken fills are read as individual executions through `QueryOrders` and
 `QueryTrades`, including partial fills on open, canceled, or expired orders.
 The API key needs permission to query closed orders and trades for execution
 details. Each fill retains its client-order ID, exchange-order ID, and
-exchange-trade ID. Its internal `fill_id` is a stable encoding of exchange,
+exchange-trade ID. Its `unique_trade_id` is a stable encoding of exchange,
 exchange-order ID, and exchange-trade ID, so equal prices, quantities, or
-timestamps do not merge separate fills.
+timestamps do not merge separate fills. Simulated fills get a mock
+`unique_trade_id` built the same way.
 
 Repeated polls suppress already reported executions within an execution
 service. Reconstructing a fill after restart produces the same identity;
 this does not implement restart recovery or persistent exactly-once event
 delivery. Polling still uses the configured retry budget.
 
-Post-trade records use that identity for pending markouts and for the existing
-`decorated_order_fill.trade_id` primary-key column, retaining the name for
-recording compatibility. The explicit `fill_id` and venue identifiers are
-also recorded. Legacy and paper records retain their numeric keys. Existing
-rows are preserved, but historical fills already overwritten by the old
-placeholder ID cannot be recovered from those recordings.
+Post-trade records are keyed by `unique_trade_id`, both for pending markouts
+and as the `decorated_order_fill` primary key.
 
 ### Dashboard
 

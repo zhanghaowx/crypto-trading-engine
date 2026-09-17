@@ -11,8 +11,8 @@ import pytest
 
 from jolteon.engine.core.event.signal_recorder import SignalRecorder
 from jolteon.engine.core.side import MarketSide
-from jolteon.engine.execution.fill_identity import fill_identity
 from jolteon.engine.execution.kraken.execution_service import ExecutionService
+from jolteon.engine.execution.unique_trade_id import unique_trade_id
 from jolteon.engine.market_data.core.bbo import BBO
 from jolteon.engine.market_data.core.order import Order, OrderType
 from jolteon.engine.post_trade.post_trade_service import PostTradeService
@@ -93,7 +93,7 @@ def test_identical_fills_on_separate_orders_have_distinct_stable_ids(venue):
         service._get_fills(
             [f"O{index}"], replace(order, client_order_id=str(index))
         )
-    assert len({fill.fill_id for fill in fills}) == 2
+    assert len({fill.unique_trade_id for fill in fills}) == 2
     assert [fill.client_order_id for fill in fills] == ["1", "2"]
     assert [fill.exchange_order_id for fill in fills] == ["O1", "O2"]
     assert [fill.exchange_trade_id for fill in fills] == ["T1", "T2"]
@@ -125,7 +125,7 @@ def test_partial_fills_arrive_once_with_their_own_price_fee_and_time(venue):
     service._get_fills(["O1"], order)
     service._get_fills(["O1"], order)
     assert len(fills) == 2
-    assert len({fill.fill_id for fill in fills}) == 2
+    assert len({fill.unique_trade_id for fill in fills}) == 2
     assert [fill.price for fill in fills] == [100, 101]
     assert [fill.fee for fill in fills] == [0.1, 0.2]
     assert sum(fill.quantity for fill in fills) == 1
@@ -208,7 +208,7 @@ def test_trade_lookup_respects_twenty_id_limit(venue):
 
 
 @pytest.mark.parametrize("same_order", [True, False])
-def test_markouts_and_existing_sqlite_primary_key_keep_fills_separate(
+def test_markouts_and_sqlite_primary_key_keep_fills_separate(
     venue, tmp_path, same_order
 ):
     service, order, orders, executions, fills = venue
@@ -222,13 +222,7 @@ def test_markouts_and_existing_sqlite_primary_key_keep_fills_separate(
         orders["O2"] = order_status(["T2"], volume="0.5")
         executions["T2"]["ordertxid"] = "O2"
         service._get_fills(["O1", "O2"], order)
-    db = str(tmp_path / "existing.sqlite")
-    with sqlite3.connect(db) as connection:
-        connection.execute(
-            "CREATE TABLE decorated_order_fill "
-            "(trade_id PRIMARY KEY, fill_qty)"
-        )
-        connection.execute("INSERT INTO decorated_order_fill VALUES (0, 3)")
+    db = str(tmp_path / "recording.sqlite")
 
     async def measure():
         post_trade = PostTradeService()
@@ -266,11 +260,11 @@ def test_markouts_and_existing_sqlite_primary_key_keep_fills_separate(
                 _, callback, key, field = call.args
                 callback(key, field)
             assert not post_trade._pending_fills
-            latest = {record.fill_id: record for record in records}
-            assert latest[fills[0].fill_id].fair_price_30s == 113
-            assert latest[fills[1].fill_id].fair_price_30s == 117
-            assert latest[fills[0].fill_id].fair_price_100ms == 110
-            assert latest[fills[1].fill_id].fair_price_100ms == 114
+            latest = {record.unique_trade_id: record for record in records}
+            assert latest[fills[0].unique_trade_id].fair_price_30s == 113
+            assert latest[fills[1].unique_trade_id].fair_price_30s == 117
+            assert latest[fills[0].unique_trade_id].fair_price_100ms == 110
+            assert latest[fills[1].unique_trade_id].fair_price_100ms == 114
         finally:
             recorder.close()
             post_trade.decorated_order_fill_event.disconnect(receive)
@@ -278,32 +272,27 @@ def test_markouts_and_existing_sqlite_primary_key_keep_fills_separate(
     asyncio.run(measure())
     with sqlite3.connect(db) as connection:
         rows = connection.execute(
-            "SELECT trade_id, fill_id, exchange, exchange_order_id, "
+            "SELECT unique_trade_id, exchange, exchange_order_id, "
             "exchange_trade_id, client_order_id, fair_price_30s "
-            "FROM decorated_order_fill WHERE trade_id != 0 "
-            "ORDER BY exchange_trade_id"
+            "FROM decorated_order_fill ORDER BY exchange_trade_id"
         ).fetchall()
         assert len(rows) == 2
         for index, row in enumerate(rows):
             fill = fills[index]
             assert row == (
-                fill.fill_id,
-                fill.fill_id,
+                fill.unique_trade_id,
                 "Kraken",
                 fill.exchange_order_id,
                 f"T{index + 1}",
                 "123",
                 113 + 4 * index,
             )
-        assert connection.execute(
-            "SELECT fill_qty FROM decorated_order_fill WHERE trade_id=0"
-        ).fetchone() == (3,)
 
 
 def test_identity_encoding_has_no_separator_collisions():
-    assert fill_identity("A:B", "C", "D") != fill_identity("A", "B:C", "D")
+    assert unique_trade_id("A:B", "C", "D") != unique_trade_id("A", "B:C", "D")
     with pytest.raises(ValueError):
-        fill_identity("Kraken", "", "T1")
+        unique_trade_id("Kraken", "", "T1")
 
 
 @pytest.mark.parametrize(
