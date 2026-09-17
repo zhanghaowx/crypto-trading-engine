@@ -60,6 +60,11 @@ class AdjustedFairPriceModel(IFairPriceModel, SignalSubscriber):
         for adjustment in self._adjustments:
             adjustment.connect()
 
+    def disconnect(self) -> None:
+        super().disconnect()
+        for adjustment in self._adjustments:
+            adjustment.disconnect()
+
     def _calculate(self, context: BookSnapshot) -> FairPrice:
         base_price = self._base.calculate(context)
         base_mid = (base_price.bid + base_price.ask) / 2

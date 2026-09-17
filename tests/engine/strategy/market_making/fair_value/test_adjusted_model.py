@@ -261,6 +261,18 @@ class TestAdjustedFairPriceModel(unittest.TestCase):
 
         self.assertEqual(1, adjustment.ticks_seen)
 
+    def test_disconnect_detaches_a_subscribing_adjustment(self):
+        adjustment = SubscribingAdjustment()
+        model = AdjustedFairPriceModel(
+            base=MidPriceFairPriceModel(), adjustments=[adjustment]
+        )
+
+        model.connect()
+        model.disconnect()
+        signal("ticker_feed").send("mock_sender", bbo=self.bbo)
+
+        self.assertEqual(0, adjustment.ticks_seen)
+
 
 if __name__ == "__main__":
     unittest.main()

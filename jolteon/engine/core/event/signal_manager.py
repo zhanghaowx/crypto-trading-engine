@@ -1,8 +1,3 @@
-import logging
-
-from blinker import ANY
-
-from jolteon.engine.core.event.signal import signal_namespace
 from jolteon.engine.core.event.signal_subscriber import SignalSubscriber
 
 
@@ -15,33 +10,21 @@ class SignalManager:
         """
         Connect signal receivers to signals for every signal subscriber
         in the app
-
-        Args:
-            app:
-
-        Returns:
-
         """
-        for attr_name in dir(self):
-            signal_subscriber = getattr(self, attr_name)
-            if isinstance(signal_subscriber, SignalSubscriber):
-                signal_subscriber.connect()
+        for subscriber in self._signal_subscribers():
+            subscriber.connect()
 
-    @staticmethod
-    def disconnect_all() -> None:
+    def disconnect_all(self) -> None:
         """
-        Disconnect all signals from its receivers
+        Disconnect the subscribers this app connected, leaving receivers
+        that belong to anything else connected.
+        """
+        for subscriber in self._signal_subscribers():
+            subscriber.disconnect()
 
-        Returns:
-            None
-        """
-        for named_signal in signal_namespace.values():
-            receivers = named_signal.receivers_for(ANY)
-            if receivers:
-                logging.info(
-                    f"Disconnecting signal {named_signal.name} "
-                    f"from its {len(named_signal.receivers.values())} "
-                    f"receivers"
-                )
-            for receiver in receivers:
-                named_signal.disconnect(receiver=receiver)
+    def _signal_subscribers(self) -> list[SignalSubscriber]:
+        return [
+            attribute
+            for attribute in (getattr(self, name) for name in dir(self))
+            if isinstance(attribute, SignalSubscriber)
+        ]

@@ -1,8 +1,9 @@
 import sys
 
 import pytest
+from blinker import ANY
 
-from jolteon.engine.core.event.signal_manager import SignalManager
+from jolteon.engine.core.event.signal import signal_namespace
 
 
 # each test runs on cwd to its temp dir
@@ -25,4 +26,6 @@ def disconnect_all_signals():
     on GC timing. No test relies on a signal connection surviving across
     tests, so disconnect everything unconditionally after each one."""
     yield
-    SignalManager.disconnect_all()
+    for named_signal in signal_namespace.values():
+        for receiver in list(named_signal.receivers_for(ANY)):
+            named_signal.disconnect(receiver)
