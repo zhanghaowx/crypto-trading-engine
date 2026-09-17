@@ -109,14 +109,16 @@ def fills_table(fills: pd.DataFrame) -> pd.DataFrame:
     ordered = _newest_first(fills, "transaction_timestamp")
     price = _optional(ordered, "fill_price")
     quantity = _optional(ordered, "fill_qty")
-    trade_id = _optional(ordered, "exchange_trade_id")
+    execution_id = _optional(ordered, "exchange_execution_id")
     return _readable(
         {
             "Time": _local_time(
                 ordered.get("transaction_timestamp", ordered.get("timestamp"))
             ),
             # As text, so the id reads as a label rather than a quantity.
-            "Trade": None if trade_id is None else trade_id.astype(str),
+            "Trade": None
+            if execution_id is None
+            else execution_id.astype(str),
             "Order": _optional(ordered, "client_order_id"),
             "Side": _optional(ordered, "side"),
             "Symbol": _optional(ordered, "symbol"),

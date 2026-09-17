@@ -89,18 +89,20 @@ class HistoricalFeed(IMarketDataFeed):
 
         if (
             len(market_trades)
-            != market_trades[-1].trade_id - market_trades[0].trade_id + 1
+            != market_trades[-1].exchange_trade_id
+            - market_trades[0].exchange_trade_id
+            + 1
         ):
             logging.warning(
                 f"Got {len(market_trades)} market trades "
-                f"from trade id {market_trades[0].trade_id + 1} "
-                f"to {market_trades[-1].trade_id}. "
+                f"from trade id {market_trades[0].exchange_trade_id + 1} "
+                f"to {market_trades[-1].exchange_trade_id}. "
                 f"Some market trades might be missing!"
             )
 
         order_book = OrderBook(symbol)
         replay_events = [
-            (trade.transaction_time, 1, trade.trade_id, trade)
+            (trade.transaction_time, 1, trade.exchange_trade_id, trade)
             for trade in market_trades
         ] + [
             (record.exchange_time, 0, record.sequence, record)

@@ -27,7 +27,7 @@ class TestPositionManager(unittest.IsolatedAsyncioTestCase):
         quantity: float,
     ):
         return Trade(
-            trade_id=randint(1, 1000),
+            exchange_trade_id=randint(1, 1000),
             client_order_id="",
             symbol=symbol,
             maker_order_id=str(uuid.uuid4()),

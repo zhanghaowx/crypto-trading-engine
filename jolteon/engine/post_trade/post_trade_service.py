@@ -65,7 +65,7 @@ class PostTradeService(SignalSubscriber):
             client_order_id=trade.client_order_id,
             exchange=trade.exchange,
             exchange_order_id=trade.exchange_order_id,
-            exchange_trade_id=trade.exchange_trade_id,
+            exchange_execution_id=trade.exchange_execution_id,
             transaction_timestamp=trade.transaction_time,
             symbol=trade.symbol,
             side=trade.side,

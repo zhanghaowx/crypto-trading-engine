@@ -59,7 +59,7 @@ class TestDatabaseDataSource(unittest.IsolatedAsyncioTestCase):
         with closing(sqlite3.connect(self.database_filepath)) as conn:
             conn.execute(
                 f'CREATE TABLE IF NOT EXISTS "{self.TABLE}" ('
-                "trade_id, client_order_id, symbol, maker_order_id, "
+                "exchange_trade_id, client_order_id, symbol, maker_order_id, "
                 "taker_order_id, side, price, fee, quantity, "
                 "transaction_time)"
             )
@@ -79,7 +79,7 @@ class TestDatabaseDataSource(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertEqual(3, len(trades))
-        self.assertEqual([1, 2, 3], [t.trade_id for t in trades])
+        self.assertEqual([1, 2, 3], [t.exchange_trade_id for t in trades])
         self.assertEqual("BTC/USD", trades[0].symbol)
         self.assertEqual(MarketSide.BUY, trades[0].side)
         self.assertEqual(MarketSide.SELL, trades[1].side)
@@ -152,7 +152,9 @@ class TestDatabaseDataSource(unittest.IsolatedAsyncioTestCase):
         )
 
         # Inclusive at both ends, matching HistoricalFeed's own filter
-        self.assertEqual([11, 12, 13, 14, 15], [t.trade_id for t in trades])
+        self.assertEqual(
+            [11, 12, 13, 14, 15], [t.exchange_trade_id for t in trades]
+        )
 
     async def test_download_market_trades_returns_them_in_order(self):
         self.record(50)

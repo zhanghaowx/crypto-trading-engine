@@ -13,7 +13,7 @@ class TestInventoryLimit(unittest.TestCase):
     @staticmethod
     def create_trade(side: MarketSide, quantity: float):
         return Trade(
-            trade_id=1,
+            exchange_trade_id=1,
             client_order_id="",
             symbol="BTC/USD",
             maker_order_id=str(uuid.uuid4()),

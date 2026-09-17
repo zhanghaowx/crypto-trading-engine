@@ -235,7 +235,7 @@ class PublicFeed(IMarketDataFeed):
 
     def _publish_trade(self, payload: dict) -> None:
         trade = Trade(
-            trade_id=int(payload["t"]),
+            exchange_trade_id=int(payload["t"]),
             client_order_id="",
             symbol=self._symbol,
             maker_order_id="",

@@ -58,7 +58,7 @@ class KrakenHistoricalDataSource(IDataSource):
                 #  <trade_id>
                 # ]
                 trade = Trade(
-                    trade_id=json_trade[6],
+                    exchange_trade_id=json_trade[6],
                     client_order_id="",
                     symbol=symbol,
                     maker_order_id="",
@@ -75,7 +75,8 @@ class KrakenHistoricalDataSource(IDataSource):
                 )
                 if (
                     len(market_trades) == 0
-                    or trade.trade_id > market_trades[-1].trade_id
+                    or trade.exchange_trade_id
+                    > market_trades[-1].exchange_trade_id
                 ):
                     # Don't add the same trade more than once to the list
                     market_trades.append(trade)

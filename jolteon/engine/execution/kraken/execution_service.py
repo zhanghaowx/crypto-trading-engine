@@ -255,15 +255,15 @@ class ExecutionService(Heartbeater, SignalSubscriber):
                 "QueryOrders did not return all requested orders"
             )
 
-        trade_orders: dict[str, str] = {}
+        execution_orders: dict[str, str] = {}
         for exchange_order_id, details in orders.items():
             if details["descr"]["type"] != order.side.value.lower():
                 raise ValueError(
                     "QueryOrders returned an unexpected order side"
                 )
-            for exchange_trade_id in details.get("trades", []):
-                previous = trade_orders.setdefault(
-                    exchange_trade_id, exchange_order_id
+            for exchange_execution_id in details.get("trades", []):
+                previous = execution_orders.setdefault(
+                    exchange_execution_id, exchange_order_id
                 )
                 if previous != exchange_order_id:
                     raise ValueError(
@@ -271,9 +271,9 @@ class ExecutionService(Heartbeater, SignalSubscriber):
                     )
 
         unseen = [
-            trade_id
-            for trade_id, order_id in trade_orders.items()
-            if unique_trade_id(_EXCHANGE, order_id, trade_id)
+            execution_id
+            for execution_id, order_id in execution_orders.items()
+            if unique_trade_id(_EXCHANGE, order_id, execution_id)
             not in self._reported_fills
         ]
         executions: dict[str, dict] = {}
@@ -287,22 +287,22 @@ class ExecutionService(Heartbeater, SignalSubscriber):
             executions.update(details)
 
         fills = []
-        for trade_id, details in executions.items():
-            order_id = trade_orders[trade_id]
+        for execution_id, details in executions.items():
+            order_id = execution_orders[execution_id]
             if details["ordertxid"] != order_id:
                 raise ValueError("Execution belongs to an unexpected order")
             if details["type"] != order.side.value.lower():
                 raise ValueError("Execution has an unexpected side")
             fills.append(
                 Trade(
-                    trade_id=int(details["trade_id"]),
+                    exchange_trade_id=int(details["trade_id"]),
                     unique_trade_id=unique_trade_id(
-                        _EXCHANGE, order_id, trade_id
+                        _EXCHANGE, order_id, execution_id
                     ),
                     client_order_id=order.client_order_id,
                     exchange=_EXCHANGE,
                     exchange_order_id=order_id,
-                    exchange_trade_id=trade_id,
+                    exchange_execution_id=execution_id,
                     symbol=order.symbol,
                     maker_order_id="",
                     taker_order_id="",
@@ -318,9 +318,9 @@ class ExecutionService(Heartbeater, SignalSubscriber):
 
         # Validate the whole response before publishing any part of it.
         quantities = {
-            trade_id: self._reported_fills[key]
-            for trade_id, order_id in trade_orders.items()
-            if (key := unique_trade_id(_EXCHANGE, order_id, trade_id))
+            execution_id: self._reported_fills[key]
+            for execution_id, order_id in execution_orders.items()
+            if (key := unique_trade_id(_EXCHANGE, order_id, execution_id))
             in self._reported_fills
         }
         quantities.update(
@@ -343,7 +343,7 @@ class ExecutionService(Heartbeater, SignalSubscriber):
             # Mark before dispatch: a receiver failure must not make a later
             # poll account for the same execution twice.
             self._reported_fills[trade.unique_trade_id] = Decimal(
-                executions[trade.exchange_trade_id]["vol"]
+                executions[trade.exchange_execution_id]["vol"]
             )
             self.order_fill_event.send(self.order_fill_event, trade=trade)
 

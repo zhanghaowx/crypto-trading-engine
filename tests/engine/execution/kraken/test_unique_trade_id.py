@@ -96,11 +96,11 @@ def test_identical_fills_on_separate_orders_have_distinct_stable_ids(venue):
     assert len({fill.unique_trade_id for fill in fills}) == 2
     assert [fill.client_order_id for fill in fills] == ["1", "2"]
     assert [fill.exchange_order_id for fill in fills] == ["O1", "O2"]
-    assert [fill.exchange_trade_id for fill in fills] == ["T1", "T2"]
+    assert [fill.exchange_execution_id for fill in fills] == ["T1", "T2"]
     assert fills[0].price == fills[1].price
     assert fills[0].quantity == fills[1].quantity
     assert fills[0].transaction_time == fills[1].transaction_time
-    assert fills[0].trade_id == fills[1].trade_id == 7
+    assert fills[0].exchange_trade_id == fills[1].exchange_trade_id == 7
 
     restarted = ExecutionService(dry_run=False)
     restarted._client = service._client
@@ -273,8 +273,8 @@ def test_markouts_and_sqlite_primary_key_keep_fills_separate(
     with sqlite3.connect(db) as connection:
         rows = connection.execute(
             "SELECT unique_trade_id, exchange, exchange_order_id, "
-            "exchange_trade_id, client_order_id, fair_price_30s "
-            "FROM decorated_order_fill ORDER BY exchange_trade_id"
+            "exchange_execution_id, client_order_id, fair_price_30s "
+            "FROM decorated_order_fill ORDER BY exchange_execution_id"
         ).fetchall()
         assert len(rows) == 2
         for index, row in enumerate(rows):
@@ -329,7 +329,7 @@ def test_closed_order_fill_is_reported_while_another_order_is_open(venue):
     executions["T1"] = execution("O1")
     with pytest.raises(RuntimeError, match="still open"):
         service._get_fills(["O1", "O2"], order)
-    assert [fill.exchange_trade_id for fill in fills] == ["T1"]
+    assert [fill.exchange_execution_id for fill in fills] == ["T1"]
     orders["O2"]["status"] = "canceled"
     service._get_fills(["O1", "O2"], order)
     assert len(fills) == 1
@@ -353,7 +353,7 @@ def test_wrong_order_side_is_rejected_before_loading_executions(venue):
     assert not fills
 
 
-def test_trade_id_associated_with_two_orders_is_rejected(venue):
+def test_execution_id_associated_with_two_orders_is_rejected(venue):
     service, order, orders, _, fills = venue
     orders["O1"] = order_status(["T1"], volume="0.5")
     orders["O2"] = order_status(["T1"], volume="0.5")

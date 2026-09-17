@@ -158,7 +158,7 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
         data_source.download_market_trades = AsyncMock(
             return_value=[
                 Trade(
-                    trade_id=1,
+                    exchange_trade_id=1,
                     client_order_id="",
                     symbol="BTC/USD",
                     maker_order_id="",

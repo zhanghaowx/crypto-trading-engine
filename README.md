@@ -137,11 +137,11 @@ exchange-first layout.
 Kraken fills are read as individual executions through `QueryOrders` and
 `QueryTrades`, including partial fills on open, canceled, or expired orders.
 The API key needs permission to query closed orders and trades for execution
-details. Each fill retains its client-order ID, exchange-order ID, and
-exchange-trade ID. Its `unique_trade_id` is a stable encoding of exchange,
-exchange-order ID, and exchange-trade ID, so equal prices, quantities, or
-timestamps do not merge separate fills. Simulated fills get a mock
-`unique_trade_id` built the same way.
+details. Each fill retains its client-order ID, exchange-order ID,
+exchange-execution ID, and the public exchange trade ID. Its `unique_trade_id`
+is a stable encoding of exchange, exchange-order ID, and exchange-execution
+ID, so equal prices, quantities, or timestamps do not merge separate fills.
+Simulated fills get a mock `unique_trade_id` built the same way.
 
 Repeated polls suppress already reported executions within an execution
 service. Reconstructing a fill after restart produces the same identity;

@@ -51,7 +51,7 @@ class PublicFeed(IMarketDataFeed):
 
     def __init__(self, health_monitor: HealthMonitor | None = None):
         super().__init__(type(self).__name__, health_monitor=health_monitor)
-        self._last_received_trade_id = -math.inf
+        self._last_received_exchange_trade_id = -math.inf
         self._clock = time.monotonic
         self._order_book = OrderBook("")
         self._last_bbo: BBO | None = None
@@ -498,12 +498,12 @@ class PublicFeed(IMarketDataFeed):
             for trade_json in response["data"]:
                 # Test if these trades are replay trades after re-connecting
                 # Note: Kraken's trade id is numerical
-                trade_id = int(trade_json["trade_id"])
-                if trade_id < self._last_received_trade_id:
+                exchange_trade_id = int(trade_json["trade_id"])
+                if exchange_trade_id < self._last_received_exchange_trade_id:
                     continue
 
                 market_trade = Trade(
-                    trade_id=trade_json["trade_id"],
+                    exchange_trade_id=trade_json["trade_id"],
                     client_order_id="",
                     symbol=trade_json["symbol"],
                     maker_order_id="",
@@ -519,5 +519,7 @@ class PublicFeed(IMarketDataFeed):
                 self._send_signal(
                     self.events.market_trade, market_trade=market_trade
                 )
-                self._last_received_trade_id = int(market_trade.trade_id)
+                self._last_received_exchange_trade_id = int(
+                    market_trade.exchange_trade_id
+                )
                 logging.debug("Received Market Trade: %s", market_trade)
