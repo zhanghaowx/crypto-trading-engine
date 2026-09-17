@@ -39,6 +39,46 @@ class SubscribingFairPriceModel(IFairPriceModel, SignalSubscriber):
         self.ticks_seen += 1
 
 
+class _Venue(SignalSubscriber):
+    def __init__(self):
+        self.latest_bbo: BBO | None = None
+
+    @subscribe("ticker_feed")
+    def on_bbo(self, _: str, bbo: BBO):
+        self.latest_bbo = bbo
+
+
+class TestTradingApplicationDisconnect(unittest.TestCase):
+    def _make_app(self, name: str, venue: _Venue):
+        app = TradingApplication(
+            symbol="BTC/USD",
+            database_name=f"{tempfile.gettempdir()}/test_{name}.sqlite",
+            logfile_name=f"{tempfile.gettempdir()}/test_{name}.log",
+        )
+        return app.use_execution_service(venue)
+
+    def test_stopping_one_app_leaves_another_apps_subscribers_connected(self):
+        stopped_venue, running_venue = _Venue(), _Venue()
+        stopped = self._make_app("stopped", stopped_venue)
+        running = self._make_app("running", running_venue)
+        stopped.connect_all()
+        running.connect_all()
+
+        stopped.disconnect_all()
+        tick = BBO(
+            symbol="BTC/USD",
+            bid_price=100.0,
+            bid_quantity=1.0,
+            ask_price=102.0,
+            ask_quantity=1.0,
+        )
+        signal("ticker_feed").send("mock_sender", bbo=tick)
+
+        self.assertIsNone(stopped_venue.latest_bbo)
+        self.assertEqual(tick, running_venue.latest_bbo)
+        running.disconnect_all()
+
+
 class TestTradingApplicationFairPriceModel(unittest.TestCase):
     def _make_app(self, fair_price_model):
         return TradingApplication(
