@@ -1,10 +1,57 @@
 import functools
+import threading
+from collections import deque
+from typing import Any
 
-from blinker import Namespace
+from blinker import NamedSignal
+
+_delivery = threading.local()
+
+
+class Signal(NamedSignal):
+    """
+    Delivers an event sent from inside a receiver only after the event
+    being delivered has reached every one of its receivers. No receiver can
+    then see another receiver's reaction to an event before handling that
+    event itself, whatever order the receivers are called in.
+    """
+
+    def send(self, sender: Any | None = None, /, **kwargs: Any) -> list:
+        pending = getattr(_delivery, "pending", None)
+        if pending is not None:
+            pending.append((self, sender, kwargs))
+            return []
+
+        _delivery.pending = deque([(self, sender, kwargs)])
+        try:
+            self._drain()
+        finally:
+            _delivery.pending = None
+        return []
+
+    @staticmethod
+    def _drain() -> None:
+        pending = _delivery.pending
+        while pending:
+            named_signal, sender, kwargs = pending.popleft()
+            named_signal._deliver(sender, **kwargs)
+
+    def _deliver(self, sender: Any | None, **kwargs: Any) -> None:
+        NamedSignal.send(self, sender, **kwargs)
+
 
 # Global variable for managing signals in the app
-signal_namespace = Namespace()
-signal = signal_namespace.signal
+signal_namespace: dict[str, Signal] = {}
+
+
+def signal(name: str) -> Signal:
+    """
+    The signal of this name, created on first use. Repeated calls with the
+    same name return the same signal.
+    """
+    if name not in signal_namespace:
+        signal_namespace[name] = Signal(name)
+    return signal_namespace[name]
 
 
 def subscribe(signal_name: str, strict: bool = False):
