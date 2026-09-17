@@ -33,6 +33,16 @@ from jolteon.engine.market_data.core.trade import Trade
 
 _EXCHANGE = "Kraken"
 
+# https://docs.kraken.com/api-reference/trading/add-order
+_ADD_ORDER_API = "/0/private/AddOrder"
+# https://docs.kraken.com/api-reference/trading/cancel-order
+_CANCEL_ORDER_API = "/0/private/CancelOrder"
+# https://docs.kraken.com/api-reference/account-data/query-orders-info
+_QUERY_ORDERS_API = "/0/private/QueryOrders"
+# https://docs.kraken.com/api-reference/account-data/query-trades-info
+_QUERY_TRADES_API = "/0/private/QueryTrades"
+_QUERY_TRADES_MAX_IDS = 20
+
 
 class ExecutionService(Heartbeater, SignalSubscriber):
     @dataclass
@@ -143,8 +153,7 @@ class ExecutionService(Heartbeater, SignalSubscriber):
 
     def send_cancel_order(self, cancel_order: CancelOrder):
         """
-        Using the following API to cancel an order at the exchange.
-        https://docs.kraken.com/api/docs/rest-api/cancel-order
+        Cancel an order at the exchange.
 
         The `txid` field accepts either the exchange's own order
         identifier or the `userref` the order was placed with; we placed
@@ -159,9 +168,7 @@ class ExecutionService(Heartbeater, SignalSubscriber):
 
         """
         post_data = {"txid": int(cancel_order.client_order_id)}
-        response = self._client.send_request(
-            "/0/private/CancelOrder", post_data
-        )
+        response = self._client.send_request(_CANCEL_ORDER_API, post_data)
 
         if self._handle_possible_error(
             response, self.ErrorCode.CANCEL_ORDER_FAILURE
@@ -176,8 +183,7 @@ class ExecutionService(Heartbeater, SignalSubscriber):
 
     def send_order(self, order):
         """
-        Using the following API to send an order to the exchange.
-        https://docs.kraken.com/rest/#tag/Trading/operation/addOrder
+        Send an order to the exchange.
 
         Args:
             order:
@@ -199,7 +205,7 @@ class ExecutionService(Heartbeater, SignalSubscriber):
             "userref": int(order.client_order_id),
             "validate": self._dry_run,
         }
-        response = self._client.send_request("/0/private/AddOrder", post_data)
+        response = self._client.send_request(_ADD_ORDER_API, post_data)
 
         if self._handle_possible_error(
             response, self.ErrorCode.CREATE_ORDER_FAILURE
@@ -236,7 +242,7 @@ class ExecutionService(Heartbeater, SignalSubscriber):
         if not transaction_ids:
             raise ValueError("Fill polling requires exchange order IDs")
         orders = self._query_fills(
-            "/0/private/QueryOrders",
+            _QUERY_ORDERS_API,
             {
                 "txid": ",".join(transaction_ids),
                 "userref": order.client_order_id,
@@ -271,11 +277,10 @@ class ExecutionService(Heartbeater, SignalSubscriber):
             not in self._reported_fills
         ]
         executions: dict[str, dict] = {}
-        # Kraken permits at most 20 IDs per QueryTrades request.
-        for start in range(0, len(unseen), 20):
-            batch = unseen[start : start + 20]
+        for start in range(0, len(unseen), _QUERY_TRADES_MAX_IDS):
+            batch = unseen[start : start + _QUERY_TRADES_MAX_IDS]
             details = self._query_fills(
-                "/0/private/QueryTrades", {"txid": ",".join(batch)}
+                _QUERY_TRADES_API, {"txid": ",".join(batch)}
             )
             if set(details) != set(batch):
                 raise RuntimeError("QueryTrades omitted requested executions")
