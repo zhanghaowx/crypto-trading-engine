@@ -3,6 +3,7 @@ import logging
 import os
 from dataclasses import dataclass
 from datetime import datetime
+from decimal import Decimal
 from enum import StrEnum
 
 import pytz
@@ -22,6 +23,7 @@ from jolteon.engine.core.retry import Retry
 from jolteon.engine.core.sentry.reporting import (
     capture_operational_exception,
 )
+from jolteon.engine.execution.fill_identity import fill_identity
 from jolteon.engine.execution.kraken.parameters import (
     KrakenExecutionParameters,
 )
@@ -64,6 +66,7 @@ class ExecutionService(Heartbeater, SignalSubscriber):
         self._fill_retries = params.max_retries
 
         self.order_history = dict[str, Order]()
+        self._reported_fills: dict[str, Decimal] = {}
         self.order_fill_event = signal("order_fill")
         self._health_monitor = health_monitor
         assert os.environ.get("KRAKEN_API_KEY"), (
@@ -223,81 +226,131 @@ class ExecutionService(Heartbeater, SignalSubscriber):
             )
 
     def _get_fills(self, transaction_ids: list[str], order: Order):
-        """
-        Use the following API to get fill notice.
-        https://docs.kraken.com/rest/#tag/Account-Data/operation/getOrdersInfo
+        """Publish individual executions once, including open-order partials.
 
-        Args:
-            transaction_ids: A list of transaction IDs returned from the
-                             exchange when market order is sent.
-            order: The original market order sent to the exchange
-        Returns:
-            None
+        QueryOrders aggregates executions; QueryTrades supplies the actual
+        prices, quantities, fees, timestamps and stable venue trade IDs.
         """
-
-        assert len(transaction_ids) > 0
-        response = self._client.send_request(
+        if not transaction_ids:
+            raise ValueError("Fill polling requires exchange order IDs")
+        orders = self._query_fills(
             "/0/private/QueryOrders",
             {
                 "txid": ",".join(transaction_ids),
                 "userref": order.client_order_id,
+                "trades": True,
+                "consolidate_taker": False,
             },
         )
-
-        if self._handle_possible_error(
-            response, self.ErrorCode.GET_TRADE_FAILURE
-        ):
+        if set(orders) != set(transaction_ids):
             raise RuntimeError(
-                "REST API returned an error on fetching trades."
+                "QueryOrders did not return all requested orders"
             )
 
-        self.remove_issue(self.ErrorCode.GET_TRADE_FAILURE)
-        logging.debug(
-            f"QueryOrders received response from exchange {response}"
-        )
+        trade_orders: dict[str, str] = {}
+        for exchange_order_id, details in orders.items():
+            if details["descr"]["type"] != order.side.value.lower():
+                raise ValueError(
+                    "QueryOrders returned an unexpected order side"
+                )
+            for exchange_trade_id in details.get("trades", []):
+                previous = trade_orders.setdefault(
+                    exchange_trade_id, exchange_order_id
+                )
+                if previous != exchange_order_id:
+                    raise ValueError(
+                        "One execution belongs to multiple orders"
+                    )
 
-        trades = list[Trade]()
-        for json_trade in response.json()["result"].values():
-            logging.info(f"Found trade {json_trade}")
-
-            # Symbol and pair may not 100% match. For example: BTC/USD vs.
-            # XBTUSD
-            # assert order.symbol == json_trade["pair"]
-            assert order.side.value.lower() == json_trade["descr"]["type"]
-            assert (
-                order.order_type.value.lower()
-                == json_trade["descr"]["ordertype"]
+        unseen = [
+            trade_id
+            for trade_id, order_id in trade_orders.items()
+            if fill_identity("Kraken", order_id, trade_id)
+            not in self._reported_fills
+        ]
+        executions: dict[str, dict] = {}
+        # Kraken permits at most 20 IDs per QueryTrades request.
+        for start in range(0, len(unseen), 20):
+            batch = unseen[start : start + 20]
+            details = self._query_fills(
+                "/0/private/QueryTrades", {"txid": ",".join(batch)}
             )
-            if json_trade["status"] != "closed":
-                continue
-            trades.append(
+            if set(details) != set(batch):
+                raise RuntimeError("QueryTrades omitted requested executions")
+            executions.update(details)
+
+        fills = []
+        for trade_id, details in executions.items():
+            order_id = trade_orders[trade_id]
+            if details["ordertxid"] != order_id:
+                raise ValueError("Execution belongs to an unexpected order")
+            if details["type"] != order.side.value.lower():
+                raise ValueError("Execution has an unexpected side")
+            fills.append(
                 Trade(
-                    trade_id=0,
+                    trade_id=int(details["trade_id"]),
+                    fill_id=fill_identity("Kraken", order_id, trade_id),
                     client_order_id=order.client_order_id,
+                    exchange="Kraken",
+                    exchange_order_id=order_id,
+                    exchange_trade_id=trade_id,
                     symbol=order.symbol,
                     maker_order_id="",
                     taker_order_id="",
                     side=order.side,
-                    price=float(json_trade["price"]),
-                    fee=float(json_trade["fee"]),
-                    quantity=float(json_trade["vol_exec"]),
+                    price=float(details["price"]),
+                    fee=float(details["fee"]),
+                    quantity=float(details["vol"]),
                     transaction_time=datetime.fromtimestamp(
-                        json_trade["closetm"], tz=pytz.utc
+                        details["time"], tz=pytz.utc
                     ),
                 )
             )
 
-        if sum([trade.quantity for trade in trades]) >= order.quantity:
-            for trade in trades:
-                self.order_fill_event.send(
-                    self.order_fill_event,
-                    trade=trade,
-                )
-            return
-
-        raise RuntimeError(
-            "REST API doesn't return all trades associated with this order"
+        # Validate the whole response before publishing any part of it.
+        quantities = {
+            trade_id: self._reported_fills[key]
+            for trade_id, order_id in trade_orders.items()
+            if (key := fill_identity("Kraken", order_id, trade_id))
+            in self._reported_fills
+        }
+        quantities.update(
+            {key: Decimal(value["vol"]) for key, value in executions.items()}
         )
+        for order_id, details in orders.items():
+            total = sum(
+                (quantities[key] for key in details.get("trades", [])),
+                Decimal(0),
+            )
+            if total != Decimal(details["vol_exec"]):
+                raise RuntimeError(
+                    "Execution quantities do not match the order"
+                )
+
+        for trade in sorted(
+            fills, key=lambda fill: (fill.transaction_time, fill.fill_id)
+        ):
+            # Mark before dispatch: a receiver failure must not make a later
+            # poll account for the same execution twice.
+            self._reported_fills[trade.fill_id] = Decimal(
+                executions[trade.exchange_trade_id]["vol"]
+            )
+            self.order_fill_event.send(self.order_fill_event, trade=trade)
+
+        if any(
+            details["status"] not in {"closed", "canceled", "expired"}
+            for details in orders.values()
+        ):
+            raise RuntimeError("Order is still open; continue polling fills")
+
+    def _query_fills(self, endpoint: str, payload: dict) -> dict:
+        response = self._client.send_request(endpoint, payload)
+        if self._handle_possible_error(
+            response, self.ErrorCode.GET_TRADE_FAILURE
+        ):
+            raise RuntimeError("REST API returned an error on fetching trades")
+        self.remove_issue(self.ErrorCode.GET_TRADE_FAILURE)
+        return response.json()["result"]
 
     def _handle_possible_error(
         self, response: Response, error_code: ErrorCode

@@ -30,7 +30,7 @@ class PostTradeService(SignalSubscriber):
         self._latest_bbo = dict[str, BBO]()
         self._latest_volume = dict[str, float]()
         self._pending_position = dict[str, tuple[float, float]]()
-        self._pending_fills = dict[int, DecoratedOrderFill]()
+        self._pending_fills = dict[int | str, DecoratedOrderFill]()
 
     @subscribe("ticker_feed")
     def on_bbo(self, _: str, bbo: BBO):
@@ -60,8 +60,14 @@ class PostTradeService(SignalSubscriber):
             trade.symbol, (0.0, 0.0)
         )
 
+        fill_id = trade.fill_id or trade.trade_id
         record = DecoratedOrderFill(
-            trade_id=trade.trade_id,
+            trade_id=fill_id,
+            fill_id=trade.fill_id,
+            client_order_id=trade.client_order_id,
+            exchange=trade.exchange,
+            exchange_order_id=trade.exchange_order_id,
+            exchange_trade_id=trade.exchange_trade_id,
             transaction_timestamp=trade.transaction_time,
             symbol=trade.symbol,
             side=trade.side,
@@ -72,16 +78,14 @@ class PostTradeService(SignalSubscriber):
             inventory_before=inventory_before,
             inventory_after=inventory_after,
         )
-        self._pending_fills[trade.trade_id] = record
+        self._pending_fills[fill_id] = record
         self._send(record)
 
         loop = asyncio.get_running_loop()
         for field_name, delay in _HORIZONS:
-            loop.call_later(
-                delay, self._on_horizon, trade.trade_id, field_name
-            )
+            loop.call_later(delay, self._on_horizon, fill_id, field_name)
 
-    def _on_horizon(self, trade_id: int, field_name: str):
+    def _on_horizon(self, trade_id: int | str, field_name: str):
         record = self._pending_fills.get(trade_id)
         if record is None:
             return

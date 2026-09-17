@@ -98,6 +98,10 @@ class TestTrade(unittest.TestCase):
                 0.0,
                 1.5,
                 trade.transaction_time,
+                "",
+                "",
+                "",
+                "",
             )
         )
 
