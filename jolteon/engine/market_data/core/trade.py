@@ -6,7 +6,7 @@ from jolteon.engine.core.side import MarketSide
 
 @dataclass(frozen=True, order=True)
 class Trade:
-    trade_id: int
+    exchange_trade_id: int
     client_order_id: str
     symbol: str
     maker_order_id: str
@@ -18,6 +18,6 @@ class Trade:
     transaction_time: datetime
     exchange: str = ""
     exchange_order_id: str = ""
-    exchange_trade_id: str = ""
+    exchange_execution_id: str = ""
     # Set on our own fills; public market prints leave it empty.
     unique_trade_id: str = ""

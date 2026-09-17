@@ -192,7 +192,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
             await self.feed._decode_message({"result": None})
 
         self.assertEqual(MarketSide.SELL, trades[0].side)
-        self.assertEqual(7, trades[0].trade_id)
+        self.assertEqual(7, trades[0].exchange_trade_id)
         self.assertEqual(100.0, ticks[0].bid_price)
 
     async def test_buyer_initiated_trade_is_a_buy(self):

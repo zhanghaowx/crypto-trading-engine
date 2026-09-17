@@ -153,12 +153,12 @@ class TestExecutionService(IsolatedAsyncioTestCase):
             await asyncio.sleep(self.execution_service._poll_interval + 0.01)
 
         self.assertEqual(2, len(self.fills))
-        by_id = {fill.exchange_trade_id: fill for fill in self.fills}
+        by_id = {fill.exchange_execution_id: fill for fill in self.fills}
         for order_id, details in self.closed_orders_response["result"].items():
-            exchange_trade_id = details["trades"][0]
-            fill = by_id[exchange_trade_id]
+            exchange_execution_id = details["trades"][0]
+            fill = by_id[exchange_execution_id]
             self.assertEqual(
-                unique_trade_id("Kraken", order_id, exchange_trade_id),
+                unique_trade_id("Kraken", order_id, exchange_execution_id),
                 fill.unique_trade_id,
             )
             self.assertEqual("123", fill.client_order_id)
@@ -180,7 +180,7 @@ class TestExecutionService(IsolatedAsyncioTestCase):
 
     def execution_responses(self, orders):
         trades = {
-            trade_id: {
+            execution_id: {
                 "ordertxid": order_id,
                 "trade_id": 12345,
                 "type": details["descr"]["type"],
@@ -190,7 +190,7 @@ class TestExecutionService(IsolatedAsyncioTestCase):
                 "time": details["closetm"],
             }
             for order_id, details in orders["result"].items()
-            for trade_id in details.get("trades", [])
+            for execution_id in details.get("trades", [])
         }
         return [
             self.response(orders),

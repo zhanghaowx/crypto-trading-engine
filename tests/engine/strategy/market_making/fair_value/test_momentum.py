@@ -27,7 +27,7 @@ class TestMomentumAdjustment(unittest.TestCase):
     @staticmethod
     def trade(side: MarketSide, quantity: float = 1.0) -> Trade:
         return Trade(
-            trade_id=0,
+            exchange_trade_id=0,
             client_order_id="",
             symbol="BTC/USD",
             maker_order_id="",

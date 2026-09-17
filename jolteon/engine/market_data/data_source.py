@@ -174,7 +174,7 @@ class DatabaseDataSource(IDataSource):
         for trade_dict in df.to_dict(orient="records"):
             market_trades.append(
                 Trade(
-                    trade_id=trade_dict["trade_id"],
+                    exchange_trade_id=trade_dict["exchange_trade_id"],
                     client_order_id=trade_dict["client_order_id"],
                     symbol=trade_dict["symbol"],
                     maker_order_id=trade_dict["maker_order_id"],

@@ -12,7 +12,7 @@ class DecoratedOrderFill:
     client_order_id: str
     exchange: str
     exchange_order_id: str
-    exchange_trade_id: str
+    exchange_execution_id: str
     transaction_timestamp: datetime
     symbol: str
     side: MarketSide

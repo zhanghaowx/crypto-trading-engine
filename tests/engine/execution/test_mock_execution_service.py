@@ -67,7 +67,7 @@ class TestMockExecutionService(IsolatedAsyncioTestCase):
             self.assertEqual("Mock", fill.exchange)
             self.assertEqual("123", fill.exchange_order_id)
             self.assertEqual(
-                unique_trade_id("Mock", "123", fill.exchange_trade_id),
+                unique_trade_id("Mock", "123", fill.exchange_execution_id),
                 fill.unique_trade_id,
             )
 
@@ -83,7 +83,7 @@ class TestMockExecutionService(IsolatedAsyncioTestCase):
     @staticmethod
     def create_market_trade(side: MarketSide, price: float, quantity: float):
         return Trade(
-            trade_id=1,
+            exchange_trade_id=1,
             client_order_id="",
             symbol="BTC/USD",
             maker_order_id="",
@@ -258,7 +258,7 @@ class TestMockExecutionService(IsolatedAsyncioTestCase):
 
         IDataSource.TRADE_CACHE[(symbol, timestamp)] = [
             Trade(
-                trade_id=1,
+                exchange_trade_id=1,
                 client_order_id="",
                 symbol=symbol,
                 maker_order_id=str(uuid.uuid4()),
@@ -270,7 +270,7 @@ class TestMockExecutionService(IsolatedAsyncioTestCase):
                 transaction_time=self.mock_order.creation_time,
             ),
             Trade(
-                trade_id=2,
+                exchange_trade_id=2,
                 client_order_id="",
                 symbol=symbol,
                 maker_order_id=str(uuid.uuid4()),

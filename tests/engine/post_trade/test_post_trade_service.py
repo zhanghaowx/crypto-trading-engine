@@ -41,7 +41,7 @@ class TestPostTradeService(unittest.IsolatedAsyncioTestCase):
 
     @staticmethod
     def create_fill(
-        trade_id: int,
+        exchange_trade_id: int,
         side: MarketSide,
         price: float,
         quantity: float,
@@ -49,8 +49,8 @@ class TestPostTradeService(unittest.IsolatedAsyncioTestCase):
         fee: float = 0.1,
     ):
         return Trade(
-            trade_id=trade_id,
-            client_order_id=str(trade_id),
+            exchange_trade_id=exchange_trade_id,
+            client_order_id=str(exchange_trade_id),
             symbol=symbol,
             maker_order_id=str(uuid.uuid4()),
             taker_order_id=str(uuid.uuid4()),
@@ -60,10 +60,10 @@ class TestPostTradeService(unittest.IsolatedAsyncioTestCase):
             quantity=quantity,
             transaction_time=datetime.now(pytz.utc),
             exchange="Mock",
-            exchange_order_id=str(trade_id),
-            exchange_trade_id=str(trade_id),
+            exchange_order_id=str(exchange_trade_id),
+            exchange_execution_id=str(exchange_trade_id),
             unique_trade_id=unique_trade_id(
-                "Mock", str(trade_id), str(trade_id)
+                "Mock", str(exchange_trade_id), str(exchange_trade_id)
             ),
         )
 
@@ -98,7 +98,7 @@ class TestPostTradeService(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("1", record.client_order_id)
         self.assertEqual("Mock", record.exchange)
         self.assertEqual("1", record.exchange_order_id)
-        self.assertEqual("1", record.exchange_trade_id)
+        self.assertEqual("1", record.exchange_execution_id)
         self.assertEqual(MarketSide.BUY, record.side)
         self.assertEqual(100.0, record.fill_price)
         self.assertEqual(1.0, record.fill_qty)

@@ -196,9 +196,9 @@ class MockExecutionService(Heartbeater, SignalSubscriber):
         filled_quantity = order.quantity if quantity is None else quantity
         fees = parameter_service().get(self._fee_schedule, order.symbol)
         fee = fees.maker_fee if maker else fees.taker_fee
-        trade_id = id_generator().next()
+        exchange_trade_id = id_generator().next()
         trade = Trade(
-            trade_id=trade_id,
+            exchange_trade_id=exchange_trade_id,
             client_order_id=order.client_order_id,
             symbol=order.symbol,
             maker_order_id=str(uuid.uuid4()),
@@ -210,9 +210,9 @@ class MockExecutionService(Heartbeater, SignalSubscriber):
             transaction_time=time_manager().now(),
             exchange=_EXCHANGE,
             exchange_order_id=order.client_order_id,
-            exchange_trade_id=str(trade_id),
+            exchange_execution_id=str(exchange_trade_id),
             unique_trade_id=unique_trade_id(
-                _EXCHANGE, order.client_order_id, str(trade_id)
+                _EXCHANGE, order.client_order_id, str(exchange_trade_id)
             ),
         )
 

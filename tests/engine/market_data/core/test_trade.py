@@ -11,7 +11,7 @@ class TestTrade(unittest.TestCase):
 
         # Create two identical trades
         trade1 = Trade(
-            trade_id=1,
+            exchange_trade_id=1,
             client_order_id="",
             symbol="BTC-USD",
             maker_order_id="order1",
@@ -24,7 +24,7 @@ class TestTrade(unittest.TestCase):
         )
 
         trade2 = Trade(
-            trade_id=1,
+            exchange_trade_id=1,
             client_order_id="",
             symbol="BTC-USD",
             maker_order_id="order1",
@@ -42,7 +42,7 @@ class TestTrade(unittest.TestCase):
     def test_trade_inequality(self):
         # Create two different trades
         trade1 = Trade(
-            trade_id=1,
+            exchange_trade_id=1,
             client_order_id="",
             symbol="BTC-USD",
             maker_order_id="order1",
@@ -55,7 +55,7 @@ class TestTrade(unittest.TestCase):
         )
 
         trade2 = Trade(
-            trade_id=2,
+            exchange_trade_id=2,
             client_order_id="",
             symbol="ETH-USD",
             maker_order_id="order3",
@@ -73,7 +73,7 @@ class TestTrade(unittest.TestCase):
     def test_trade_hash(self):
         # Create a trade
         trade = Trade(
-            trade_id=1,
+            exchange_trade_id=1,
             client_order_id="",
             symbol="BTC-USD",
             maker_order_id="order1",
@@ -113,7 +113,7 @@ class TestTrade(unittest.TestCase):
 
         # Create a trade
         trade = Trade(
-            trade_id=1,
+            exchange_trade_id=1,
             client_order_id="",
             symbol="BTC-USD",
             maker_order_id="order1",
