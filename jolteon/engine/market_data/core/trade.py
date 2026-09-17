@@ -16,3 +16,9 @@ class Trade:
     fee: float
     quantity: float
     transaction_time: datetime
+    exchange: str = ""
+    exchange_order_id: str = ""
+    exchange_trade_id: str = ""
+    # Execution identity is separate from a public market trade ID.
+    # Empty for public prints and legacy/simulated trades.
+    fill_id: str = ""

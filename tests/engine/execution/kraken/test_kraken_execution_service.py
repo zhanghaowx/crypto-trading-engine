@@ -8,6 +8,7 @@ import pytz
 
 from jolteon.engine.core.health_monitor.health import HealthMonitor
 from jolteon.engine.core.side import MarketSide
+from jolteon.engine.execution.fill_identity import fill_identity
 from jolteon.engine.market_data.core.order import CancelOrder, Order, OrderType
 from jolteon.engine.market_data.core.trade import Trade
 
@@ -137,56 +138,64 @@ class TestExecutionService(IsolatedAsyncioTestCase):
         self.execution_service.send_order.assert_not_called()
 
     async def test_on_create_order(self):
-        with patch("requests.post", new_callable=MagicMock) as mock_post:
-            mock_post.return_value = MagicMock()
-            mock_post.return_value.status_code = 200
-            mock_post.return_value.json.return_value = (
-                self.create_order_response
-            )
-
-            # Act
+        with patch.object(
+            self.execution_service._client, "send_request"
+        ) as request:
+            request.return_value = self.response(self.create_order_response)
             self.execution_service.on_order(self, self.mock_order)
-
-            # Assert
-            mock_post.assert_called_once()
-            self.assertEqual(1, len(self.execution_service.order_history))
+            request.assert_called_once()
             self.assertEqual(
-                self.execution_service.order_history["123"], self.mock_order
+                self.mock_order, self.execution_service.order_history["123"]
             )
-
-        with patch("requests.post", new_callable=MagicMock) as mock_post:
-            mock_post.return_value = MagicMock()
-            mock_post.return_value.status_code = 200
-            mock_post.return_value.json.return_value = (
+            request.side_effect = self.execution_responses(
                 self.closed_orders_response
             )
-
             await asyncio.sleep(self.execution_service._poll_interval + 0.01)
-            self.assertEqual(len(self.fills), 2)
-            self.assertEqual(self.fills[0].trade_id, 0)
-            self.assertEqual(self.fills[0].client_order_id, "123")
-            self.assertEqual(self.fills[0].symbol, "BTC-USD")
-            self.assertEqual(self.fills[0].maker_order_id, "")
-            self.assertEqual(self.fills[0].taker_order_id, "")
-            self.assertEqual(self.fills[0].side, MarketSide.BUY)
-            self.assertEqual(self.fills[0].price, 30010.00000)
-            self.assertEqual(self.fills[0].quantity, 0.02000000)
+
+        self.assertEqual(2, len(self.fills))
+        by_id = {fill.exchange_trade_id: fill for fill in self.fills}
+        for order_id, details in self.closed_orders_response["result"].items():
+            exchange_trade_id = details["trades"][0]
+            fill = by_id[exchange_trade_id]
             self.assertEqual(
-                self.fills[0].transaction_time,
-                datetime.fromtimestamp(1688667796.8802, tz=pytz.utc),
+                fill_identity("Kraken", order_id, exchange_trade_id),
+                fill.fill_id,
             )
-            self.assertEqual(self.fills[1].trade_id, 0)
-            self.assertEqual(self.fills[1].client_order_id, "123")
-            self.assertEqual(self.fills[1].symbol, "BTC-USD")
-            self.assertEqual(self.fills[1].maker_order_id, "")
-            self.assertEqual(self.fills[1].taker_order_id, "")
-            self.assertEqual(self.fills[1].side, MarketSide.BUY)
-            self.assertEqual(self.fills[1].price, 27732.00000)
-            self.assertEqual(self.fills[1].quantity, 0.980000)
+            self.assertEqual("123", fill.client_order_id)
+            self.assertEqual("Kraken", fill.exchange)
+            self.assertEqual(order_id, fill.exchange_order_id)
+            self.assertEqual("BTC-USD", fill.symbol)
+            self.assertEqual(MarketSide.BUY, fill.side)
+            self.assertEqual(float(details["price"]), fill.price)
+            self.assertEqual(float(details["fee"]), fill.fee)
+            self.assertEqual(float(details["vol_exec"]), fill.quantity)
             self.assertEqual(
-                self.fills[1].transaction_time,
-                datetime.fromtimestamp(1688082549.3138, tz=pytz.utc),
+                datetime.fromtimestamp(details["closetm"], tz=pytz.utc),
+                fill.transaction_time,
             )
+
+    @staticmethod
+    def response(payload):
+        return MagicMock(status_code=200, json=MagicMock(return_value=payload))
+
+    def execution_responses(self, orders):
+        trades = {
+            trade_id: {
+                "ordertxid": order_id,
+                "trade_id": 12345,
+                "type": details["descr"]["type"],
+                "price": details["price"],
+                "fee": details["fee"],
+                "vol": details["vol_exec"],
+                "time": details["closetm"],
+            }
+            for order_id, details in orders["result"].items()
+            for trade_id in details.get("trades", [])
+        }
+        return [
+            self.response(orders),
+            self.response({"error": [], "result": trades}),
+        ]
 
     async def test_on_cancel_order(self):
         with patch("requests.post", new_callable=MagicMock) as mock_post:
@@ -277,6 +286,7 @@ class TestExecutionService(IsolatedAsyncioTestCase):
             "result": {
                 f"TXID-{i}": {
                     "status": status,
+                    "trades": [f"TRADE-{i}"] if float(vol_exec) else [],
                     "closetm": 1688667796.8802,
                     "descr": {
                         "pair": "XBTUSD",
@@ -351,50 +361,50 @@ class TestExecutionService(IsolatedAsyncioTestCase):
             mock_post.assert_not_called()
             self.assertEqual([], self.fills)
 
-    async def test_orders_still_open_are_not_reported_as_fills(self):
-        with patch("requests.post", new_callable=MagicMock) as mock_post:
-            mock_post.return_value = MagicMock()
-            mock_post.return_value.status_code = 200
-            mock_post.return_value.json.return_value = (
-                self.create_order_response
-            )
-
-            self.execution_service.on_order(self, self.mock_order)
-
-        with patch("requests.post", new_callable=MagicMock) as mock_post:
-            mock_post.return_value = MagicMock()
-            mock_post.return_value.status_code = 200
-            mock_post.return_value.json.return_value = (
-                self.order_status_response(
-                    ("open", "0.00000000"), ("closed", "1.00000000")
-                )
-            )
-
-            await asyncio.sleep(self.execution_service._poll_interval + 0.01)
-
-        self.assertEqual(1, len(self.fills))
-        self.assertEqual(1.0, self.fills[0].quantity)
-
-    async def test_partially_filled_order_keeps_polling(self):
-        with patch("requests.post", new_callable=MagicMock) as mock_post:
-            mock_post.return_value = MagicMock()
-            mock_post.return_value.status_code = 200
-            mock_post.return_value.json.return_value = (
-                self.create_order_response
-            )
-
-            self.execution_service.on_order(self, self.mock_order)
-
-        with patch("requests.post", new_callable=MagicMock) as mock_post:
-            mock_post.return_value = MagicMock()
-            mock_post.return_value.status_code = 200
-            mock_post.return_value.json.return_value = (
-                self.order_status_response(("closed", "0.30000000"))
-            )
-
-            for _ in range(2):
-                mock_post.reset_mock()
-                await asyncio.sleep(self.execution_service._poll_interval)
-                mock_post.assert_called_once()
-
+    async def test_open_order_without_executions_has_no_fills(self):
+        orders = self.order_status_response(("open", "0"))
+        with patch.object(
+            self.execution_service._client,
+            "send_request",
+            return_value=self.response(orders),
+        ) as request:
+            with self.assertRaisesRegex(RuntimeError, "still open"):
+                self.execution_service._get_fills(["TXID-0"], self.mock_order)
+        request.assert_called_once()
         self.assertEqual([], self.fills)
+
+    async def test_partial_fill_is_reported_once_while_polling_continues(self):
+        orders = self.order_status_response(("open", "0.3"))
+        responses = self.execution_responses(orders) + [self.response(orders)]
+        with patch.object(
+            self.execution_service._client,
+            "send_request",
+            side_effect=responses,
+        ) as request:
+            for _ in range(2):
+                with self.assertRaisesRegex(RuntimeError, "still open"):
+                    self.execution_service._get_fills(
+                        ["TXID-0"], self.mock_order
+                    )
+        self.assertEqual(3, request.call_count)
+        self.assertEqual([0.3], [fill.quantity for fill in self.fills])
+
+    async def test_canceled_partial_order_finishes_without_reemitting_fill(
+        self,
+    ):
+        orders = self.order_status_response(("open", "0.3"))
+        with patch.object(
+            self.execution_service._client,
+            "send_request",
+            side_effect=self.execution_responses(orders),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "still open"):
+                self.execution_service._get_fills(["TXID-0"], self.mock_order)
+        orders["result"]["TXID-0"]["status"] = "canceled"
+        with patch.object(
+            self.execution_service._client,
+            "send_request",
+            return_value=self.response(orders),
+        ):
+            self.execution_service._get_fills(["TXID-0"], self.mock_order)
+        self.assertEqual(1, len(self.fills))
