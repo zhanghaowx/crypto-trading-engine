@@ -126,7 +126,7 @@ class TestPostTradeService(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(1.0, self.records[1].inventory_before)
         self.assertEqual(1.5, self.records[1].inventory_after)
 
-    async def test_horizon_callback_fills_field_without_clobbering_others(
+    async def test_fair_price_after_fill_sets_field_without_clobbering_others(
         self,
     ):
         self.post_trade_service.on_bbo("_", self.create_bbo(99.0, 101.0))
@@ -136,7 +136,7 @@ class TestPostTradeService(unittest.IsolatedAsyncioTestCase):
         )
 
         self.post_trade_service.on_bbo("_", self.create_bbo(100.0, 102.0))
-        self.post_trade_service._on_horizon(
+        self.post_trade_service._record_fair_price_after_fill(
             unique_trade_id("Mock", "1", "1"), "fair_price_100ms"
         )
 
@@ -148,7 +148,7 @@ class TestPostTradeService(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(latest.fair_price_5s)
         self.assertIsNone(latest.fair_price_30s)
 
-    async def test_final_horizon_callback_drops_the_pending_fill(self):
+    async def test_final_markout_delay_drops_the_pending_fill(self):
         self.post_trade_service.on_bbo("_", self.create_bbo(99.0, 101.0))
         self.notify_position(1.0)
         self.post_trade_service.on_fill(
@@ -156,12 +156,14 @@ class TestPostTradeService(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertEqual(1, len(self.post_trade_service._pending_fills))
-        self.post_trade_service._on_horizon(
+        self.post_trade_service._record_fair_price_after_fill(
             unique_trade_id("Mock", "1", "1"), "fair_price_30s"
         )
         self.assertEqual(0, len(self.post_trade_service._pending_fills))
 
-    async def test_horizon_callback_for_an_unknown_fill_is_a_no_op(self):
-        self.post_trade_service._on_horizon("unknown", "fair_price_100ms")
+    async def test_fair_price_after_fill_for_an_unknown_fill_is_a_no_op(self):
+        self.post_trade_service._record_fair_price_after_fill(
+            "unknown", "fair_price_100ms"
+        )
 
         self.assertEqual([], self.records)

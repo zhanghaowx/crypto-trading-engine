@@ -14,7 +14,7 @@ from jolteon.engine.strategy.market_making.fair_value.mid_price_model import (
     MidPriceFairPriceModel,
 )
 
-_HORIZONS: tuple[tuple[str, float], ...] = (
+_MARKOUT_DELAYS: tuple[tuple[str, float], ...] = (
     ("fair_price_100ms", 0.1),
     ("fair_price_1s", 1.0),
     ("fair_price_5s", 5.0),
@@ -80,12 +80,17 @@ class PostTradeService(SignalSubscriber):
         self._send(record)
 
         loop = asyncio.get_running_loop()
-        for field_name, delay in _HORIZONS:
+        for field_name, delay in _MARKOUT_DELAYS:
             loop.call_later(
-                delay, self._on_horizon, trade.unique_trade_id, field_name
+                delay,
+                self._record_fair_price_after_fill,
+                trade.unique_trade_id,
+                field_name,
             )
 
-    def _on_horizon(self, unique_trade_id: str, field_name: str):
+    def _record_fair_price_after_fill(
+        self, unique_trade_id: str, field_name: str
+    ):
         record = self._pending_fills.get(unique_trade_id)
         if record is None:
             return
@@ -95,7 +100,7 @@ class PostTradeService(SignalSubscriber):
             setattr(record, field_name, self._fair_price(bbo))
         self._send(record)
 
-        if field_name == _HORIZONS[-1][0]:
+        if field_name == _MARKOUT_DELAYS[-1][0]:
             del self._pending_fills[unique_trade_id]
 
     def _fair_price(self, bbo: BBO) -> float:
@@ -105,7 +110,7 @@ class PostTradeService(SignalSubscriber):
     def _send(self, record: DecoratedOrderFill):
         # Resends the whole record, not a partial payload: SQLiteWriter's
         # upsert overwrites every column present in the sent row, so a
-        # partial send would clobber earlier horizon fields back to NULL.
+        # partial send would clobber earlier markout fair prices back to NULL.
         self.decorated_order_fill_event.send(
             self.decorated_order_fill_event, decorated_order_fill=record
         )

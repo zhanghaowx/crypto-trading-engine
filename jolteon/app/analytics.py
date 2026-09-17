@@ -112,7 +112,7 @@ InventoryBucket = tuple[str, float]
 # inventory level is classified into the first bucket whose upper_bound it
 # does not exceed - the last bucket's upper_bound is a ceiling, never
 # actually compared against for smaller values. Plain module constants
-# rather than engine-side config, matching `_HORIZONS` in
+# rather than engine-side config, matching `_MARKOUT_DELAYS` in
 # `post_trade_service.py`: this table lives entirely in the app layer, so
 # there's nothing on the engine side for it to need to agree with.
 DEFAULT_INVENTORY_BUCKETS: tuple[InventoryBucket, ...] = (
