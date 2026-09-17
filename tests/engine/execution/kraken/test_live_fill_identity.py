@@ -344,3 +344,31 @@ def test_closed_order_fill_is_reported_while_another_order_is_open(venue):
     orders["O2"]["status"] = "canceled"
     service._get_fills(["O1", "O2"], order)
     assert len(fills) == 1
+
+
+def test_empty_order_ids_fail_before_querying_the_venue(venue):
+    service, order, _, _, fills = venue
+    with pytest.raises(ValueError, match="requires exchange order IDs"):
+        service._get_fills([], order)
+    service._client.send_request.assert_not_called()
+    assert not fills
+
+
+def test_wrong_order_side_is_rejected_before_loading_executions(venue):
+    service, order, orders, _, fills = venue
+    orders["O1"] = order_status(["T1"], volume="0.5")
+    orders["O1"]["descr"]["type"] = "sell"
+    with pytest.raises(ValueError, match="unexpected order side"):
+        service._get_fills(["O1"], order)
+    service._client.send_request.assert_called_once()
+    assert not fills
+
+
+def test_trade_id_associated_with_two_orders_is_rejected(venue):
+    service, order, orders, _, fills = venue
+    orders["O1"] = order_status(["T1"], volume="0.5")
+    orders["O2"] = order_status(["T1"], volume="0.5")
+    with pytest.raises(ValueError, match="multiple orders"):
+        service._get_fills(["O1", "O2"], order)
+    service._client.send_request.assert_called_once()
+    assert not fills

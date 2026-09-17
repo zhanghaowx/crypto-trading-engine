@@ -16,6 +16,8 @@ class TestHeartbeatMonitor(unittest.IsolatedAsyncioTestCase):
         # reliably gets to run within the sleep window below.
         time_out_in_seconds = 0.1
         monitor = HeartbeatMonitor(time_out_in_seconds)
+        # The periodic task retains the monitor; dispose it explicitly.
+        self.addCleanup(monitor.__del__)
         heartbeater.heartbeat_signal().connect(monitor.on_heartbeat)
 
         heartbeater.send_heartbeat()
