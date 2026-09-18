@@ -164,6 +164,33 @@ class TestOrderBook(unittest.TestCase):
         self.assertEqual(3, len(self.order_book.bids(10)))
         self.assertEqual(2, len(self.order_book.asks(10)))
 
+    def test_quantity_better_than_sums_the_levels_ahead_of_a_price(self):
+        self.apply_snapshot()
+
+        self.assertEqual(
+            1.0, self.order_book.quantity_better_than(99.0, bid=True)
+        )
+        self.assertEqual(
+            5.0, self.order_book.quantity_better_than(102.0, bid=False)
+        )
+        self.assertEqual(
+            6.0, self.order_book.quantity_better_than(97.5, bid=True)
+        )
+        self.assertEqual(
+            0.0, self.order_book.quantity_better_than(100.0, bid=True)
+        )
+        self.assertEqual(
+            0.0, self.order_book.quantity_better_than(101.0, bid=False)
+        )
+
+    def test_quantity_better_than_on_an_empty_book_is_zero(self):
+        self.assertEqual(
+            0.0, self.order_book.quantity_better_than(100.0, bid=True)
+        )
+        self.assertEqual(
+            0.0, self.order_book.quantity_better_than(100.0, bid=False)
+        )
+
     def test_quantity_at_reads_an_exact_level_on_either_side(self):
         self.apply_snapshot()
 

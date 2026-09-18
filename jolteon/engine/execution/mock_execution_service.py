@@ -144,17 +144,11 @@ class MockExecutionService(Heartbeater, SignalSubscriber):
         if not crosses:
             return
 
-        if market_trade.price != resting.price:
-            # Price already traded through our level: the real book must
-            # have cleared it, but the print cannot prove more size traded
-            # than it carries.
-            filled_quantity = min(
-                resting.remaining_quantity, market_trade.quantity
-            )
-        else:
-            available = market_trade.quantity
-            available = resting.queue_position.consume(available)
-            filled_quantity = min(resting.remaining_quantity, available)
+        available = market_trade.quantity - self._quantity_ahead(
+            resting, market_trade
+        )
+        available = resting.queue_position.consume(max(0.0, available))
+        filled_quantity = min(resting.remaining_quantity, available)
 
         if filled_quantity <= 0:
             return
@@ -169,6 +163,26 @@ class MockExecutionService(Heartbeater, SignalSubscriber):
 
         if resting.remaining_quantity <= 1e-12:
             self._resting_orders.pop(order.client_order_id, None)
+
+    def _quantity_ahead(
+        self, resting: _RestingOrder, market_trade: Trade
+    ) -> float:
+        """
+        How much of this market trade is taken by orders priced better
+        than ours before any of it can reach our price. A market trade at
+        our own price has already reached us, so nothing is ahead of us
+        but the quantity queued at that price.
+        """
+        if market_trade.price == resting.price:
+            return 0.0
+
+        order_book = self._latest_order_book.get(resting.order.symbol)
+        if order_book is None:
+            return 0.0
+
+        return order_book.quantity_better_than(
+            resting.price, bid=resting.order.side == MarketSide.BUY
+        )
 
     # noinspection PyArgumentList
     @staticmethod

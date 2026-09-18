@@ -106,6 +106,19 @@ class TestMockExecutionService(IsolatedAsyncioTestCase):
             creation_time=datetime(2024, 1, 1, tzinfo=pytz.utc),
         )
 
+    def rest_book(self, bids=(), asks=()):
+        book = OrderBook("BTC/USD")
+        book.apply(
+            BookUpdate(
+                symbol="BTC/USD",
+                bids=[PriceLevel(price, qty) for price, qty in bids],
+                asks=[PriceLevel(price, qty) for price, qty in asks],
+                is_snapshot=True,
+                exchange_time=self.mock_order.creation_time,
+            )
+        )
+        self.execution_service.on_order_book(self, book)
+
     async def test_limit_order_rests_until_trade_crosses_it(self):
         order = self.create_limit_order(MarketSide.BUY, 100.0)
         self.execution_service.on_order(self, order)
@@ -237,6 +250,51 @@ class TestMockExecutionService(IsolatedAsyncioTestCase):
 
         self.assertEqual(2, len(self.fills))
         self.assertAlmostEqual(0.01, sum(fill.quantity for fill in self.fills))
+
+    async def test_trade_through_fills_only_what_better_prices_left(self):
+        # A market trade down at 98 is taken by the 1.0 resting at 100
+        # before any of it can reach our bid at 99.
+        self.rest_book(bids=[(100.0, 1.0), (99.0, 0.0)])
+        order = self.create_limit_order(MarketSide.BUY, 99.0)
+        self.execution_service.on_order(self, order)
+
+        self.execution_service.on_market_trade(
+            self, self.create_market_trade(MarketSide.SELL, 98.0, 0.5)
+        )
+        self.assertEqual([], self.fills)
+
+        self.execution_service.on_market_trade(
+            self, self.create_market_trade(MarketSide.SELL, 98.0, 1.004)
+        )
+        self.assertEqual(1, len(self.fills))
+        self.assertAlmostEqual(0.004, self.fills[0].quantity)
+        self.assertEqual(99.0, self.fills[0].price)
+
+    async def test_trade_through_still_queues_behind_our_own_price(self):
+        # Nothing rests at a better price than our bid, but 0.005 sits
+        # at the same price and fills ahead of us.
+        self.rest_book(bids=[(99.0, 0.005)])
+        order = self.create_limit_order(MarketSide.BUY, 99.0)
+        self.execution_service.on_order(self, order)
+
+        self.execution_service.on_market_trade(
+            self, self.create_market_trade(MarketSide.SELL, 98.0, 0.011)
+        )
+
+        self.assertEqual(1, len(self.fills))
+        self.assertAlmostEqual(0.006, self.fills[0].quantity)
+
+    async def test_trade_through_of_an_ask_is_capped_by_better_asks(self):
+        self.rest_book(asks=[(100.0, 1.0)])
+        order = self.create_limit_order(MarketSide.SELL, 101.0)
+        self.execution_service.on_order(self, order)
+
+        self.execution_service.on_market_trade(
+            self, self.create_market_trade(MarketSide.BUY, 102.0, 1.006)
+        )
+
+        self.assertEqual(1, len(self.fills))
+        self.assertAlmostEqual(0.006, self.fills[0].quantity)
 
     async def test_cancel_order_removes_resting_order(self):
         order = self.create_limit_order(MarketSide.BUY, 100.0)
