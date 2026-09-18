@@ -146,7 +146,9 @@ class TestPaperTradingDeliveryOrder(unittest.IsolatedAsyncioTestCase):
             ticker.send(ticker, bbo=_bbo(100.0, 102.0))
             market_trade.send(
                 market_trade,
-                market_trade=_market_trade(MarketSide.BUY, 103.0, 0.05),
+                # Big enough to clear the 1.0 resting at our ask price
+                # before any of it reaches us.
+                market_trade=_market_trade(MarketSide.BUY, 103.0, 1.05),
             )
         for named_signal in signal_namespace.values():
             for receiver in list(named_signal.receivers_for(ANY)):

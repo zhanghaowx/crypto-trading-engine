@@ -175,6 +175,19 @@ class OrderBook:
             return levels[index].quantity
         return 0.0
 
+    def quantity_better_than(self, price: float, *, bid: bool) -> float:
+        """Total quantity held at every price better than `price`: higher
+        bids, or lower asks."""
+        if bid:
+            levels = self._bids[
+                bisect.bisect_right(self._bids, price, key=lambda x: x.price) :
+            ]
+        else:
+            levels = self._asks[
+                : bisect.bisect_left(self._asks, price, key=lambda x: x.price)
+            ]
+        return sum(level.quantity for level in levels)
+
     @staticmethod
     def _apply_level(levels: list[PriceLevel], level: PriceLevel) -> None:
         index = bisect.bisect_left(levels, level.price, key=lambda x: x.price)
