@@ -189,8 +189,9 @@ def test_the_details_icon_opens_the_card_in_a_modal():
 
     assert not at.exception
     assert at.get("dialog")
-    # The card's own content, once on the page and once in the modal.
-    assert [m.value for m in at.markdown].count("md") == 2
+    # The card's content moves into the modal rather than being drawn in
+    # both places at once.
+    assert [m.value for m in at.markdown].count("md") == 1
 
 
 def test_the_modal_stays_open_across_a_refresh():
@@ -214,7 +215,7 @@ def test_a_card_with_details_shows_those_instead_of_its_content():
     assert not at.exception
     values = [m.value for m in at.markdown]
     assert "every tick" in values
-    assert values.count("md") == 1
+    assert "md" not in values
 
 
 def test_the_close_icon_hides_a_card_and_offers_it_back():
@@ -281,6 +282,34 @@ def accented_cards_script():
             ),
         ]
     )
+
+
+def keyed_card_script():
+    import streamlit as st
+
+    from jolteon.app.card import Card, render_cards
+
+    def body() -> None:
+        st.write("md")
+        st.button("Refresh", key="market-data-refresh")
+
+    render_cards([Card("Market Data", ":material/show_chart:", body)])
+
+
+def test_a_card_whose_content_keys_a_widget_still_opens_in_a_modal():
+    """Regression test: the modal draws the card's own content, so a card
+    that keys anything inside it - the risk gauges, the page through
+    recent fills - was asked for that key twice in the same run, which
+    Streamlit refuses."""
+    at = AppTest.from_function(keyed_card_script).run()
+
+    at.button(key="card-market-data-details").click().run()
+
+    assert not at.exception
+    assert at.get("dialog")
+    # Drawn in the modal rather than on the page, not in both.
+    assert [m.value for m in at.markdown].count("md") == 1
+    assert len([b for b in at.button if b.key == "market-data-refresh"]) == 1
 
 
 def test_accent_rule_stripes_the_named_card_in_the_theme_color():
