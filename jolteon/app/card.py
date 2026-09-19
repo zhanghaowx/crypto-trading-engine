@@ -262,6 +262,12 @@ def card(spec: Card) -> None:
     key = card_key(spec.title)
     if key in _hidden():
         return
+    # A card's content is drawn in one place at a time: on the page, or
+    # in the modal, never both. Anything inside it that keys a widget or
+    # a container of its own - the risk gauges, the page through recent
+    # fills - would otherwise be asked for twice in the same run, which
+    # Streamlit refuses.
+    in_modal = st.session_state.get(_DETAILS) == key
     accent = spec.accent() if callable(spec.accent) else spec.accent
     # With the card's own container rather than with the page's other
     # rules: an accent that reports on live data is only known once the
@@ -276,9 +282,9 @@ def card(spec: Card) -> None:
             st.subheader(spec.title, icon=spec.icon)
         with chrome_col:
             _chrome(spec, key)
-        if not _is_collapsed(key):
+        if not (in_modal or _is_collapsed(key)):
             spec.body()
-    if st.session_state.get(_DETAILS) == key:
+    if in_modal:
         _details_dialog(spec)
 
 
