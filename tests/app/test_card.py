@@ -2,6 +2,7 @@ from streamlit.testing.v1 import AppTest
 
 from jolteon.app.card import (
     Card,
+    accent_rule,
     card_grid_rule,
     card_key,
     cards_rule,
@@ -257,3 +258,70 @@ def test_hiding_a_card_closes_the_modal_it_had_open():
 
     assert not at.exception
     assert not at.get("dialog")
+
+
+def accented_cards_script():
+    import streamlit as st
+
+    from jolteon.app.card import Card, render_cards
+
+    render_cards(
+        [
+            Card(
+                "Market Data",
+                ":material/show_chart:",
+                lambda: st.write("md"),
+                accent="blue",
+            ),
+            Card(
+                "Risk Limits",
+                ":material/earthquake:",
+                lambda: st.write("risk"),
+                accent=lambda: st.session_state.get("risk_accent"),
+            ),
+        ]
+    )
+
+
+def test_accent_rule_stripes_the_named_card_in_the_theme_color():
+    rule = accent_rule("card-risk-limits", "red")
+
+    assert ".st-key-card-risk-limits {" in rule
+    assert "border-left: 5px solid #DC2626" in rule
+
+
+def test_accent_rule_is_empty_for_a_card_with_no_accent():
+    assert accent_rule("card-risk-limits", None) == ""
+
+
+def test_a_cards_accent_reaches_the_page():
+    at = AppTest.from_function(accented_cards_script).run()
+
+    assert not at.exception
+    rules = [h.body for h in at.get("html")]
+    assert any(
+        ".st-key-card-market-data {" in rule and "#3E8FD0" in rule
+        for rule in rules
+    )
+
+
+def test_an_accent_given_as_a_function_follows_what_it_reports_on():
+    at = AppTest.from_function(accented_cards_script)
+    at.session_state["risk_accent"] = "green"
+    at.run()
+
+    assert "#16A34A" in " ".join(h.body for h in at.get("html"))
+
+    at.session_state["risk_accent"] = "red"
+    at.run()
+
+    assert "#DC2626" in " ".join(h.body for h in at.get("html"))
+
+
+def test_a_card_without_an_accent_emits_no_rule_for_one():
+    at = AppTest.from_function(accented_cards_script).run()
+
+    assert not at.exception
+    assert not any(
+        ".st-key-card-risk-limits {" in h.body for h in at.get("html")
+    )

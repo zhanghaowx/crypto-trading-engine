@@ -4,7 +4,8 @@
 html { interpolate-size: allow-keywords; }
 
 %(selector)s {
-  transition: height 300ms ease, box-shadow 300ms ease;
+  transition: height 300ms ease, box-shadow 300ms ease,
+              border-color 300ms ease;
 }
 
 /* The chrome stays quiet until its card is pointed at, so a page of cards

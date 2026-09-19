@@ -6,7 +6,7 @@ import pandas as pd
 import streamlit as st
 
 from jolteon.app.card import card_grid
-from jolteon.app.components import BadgeColor, slug
+from jolteon.app.components import SEMANTIC_COLORS, BadgeColor, slug
 from jolteon.app.data import as_datetime, engine_databases
 from jolteon.app.health_summary import heartbeats, is_down
 from jolteon.engine.core.health_monitor.heartbeat import HeartbeatLevel
@@ -22,17 +22,9 @@ UNKNOWN_BADGE: tuple[str, BadgeColor] = ("UNKNOWN", "gray")
 
 DOWN_BADGE: tuple[str, BadgeColor] = ("DOWN", "red")
 
-_DOT_HEX: dict[BadgeColor, str] = {
-    "green": "#16A34A",
-    "yellow": "#E8B93C",
-    "orange": "#E8873C",
-    "red": "#DC2626",
-    "gray": "#8A8D91",
-}
-
 
 def _status_dot(color: BadgeColor) -> str:
-    hex_color = _DOT_HEX.get(color, _DOT_HEX["gray"])
+    hex_color = SEMANTIC_COLORS[color]
     style = f"background:{hex_color}; color:{hex_color}"
     return f'<span class="jolteon-status-dot" style="{style}"></span>'
 

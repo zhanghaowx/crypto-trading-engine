@@ -49,12 +49,18 @@ def _select_engine() -> None:
 
 cards = [
     Card("Market Data", ":material/show_chart:", market_data.render),
-    Card("Risk Limits", ":material/earthquake:", risk_limits.render),
+    Card(
+        "Risk Limits",
+        ":material/earthquake:",
+        risk_limits.render,
+        accent=risk_limits.accent,
+    ),
     Card(
         "Orders & PnL",
         ":material/currency_bitcoin:",
         orders_pnl.render,
         actions=orders_pnl.render_header_actions,
+        accent=orders_pnl.accent,
     ),
     Card(
         "Trade Quality", ":material/target:", orders_pnl.render_trade_quality
