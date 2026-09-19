@@ -5,7 +5,8 @@ from datetime import datetime
 import pandas as pd
 import streamlit as st
 
-from jolteon.app.components import BadgeColor, card_grid, slug
+from jolteon.app.card import card_grid
+from jolteon.app.components import BadgeColor, slug
 from jolteon.app.data import as_datetime, engine_databases
 from jolteon.app.health_summary import heartbeats, is_down
 from jolteon.engine.core.health_monitor.heartbeat import HeartbeatLevel

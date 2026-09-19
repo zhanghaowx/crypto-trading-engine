@@ -576,9 +576,8 @@ def _render_inventory_buckets(fills: pd.DataFrame) -> None:
 
 
 def render_header_actions() -> None:
-    """A download icon for the section title's own row (see
-    `dashboard.py`'s `actions` slot on `_section`) - every raw fill as a
-    CSV file, the fastest way to get this page's data out for analysis
+    """A download icon for the card title's own row - every raw fill as
+    a CSV file, the fastest way to get this page's data out for analysis
     elsewhere. A no-op until there are fills to download."""
     fills = read_table(st.session_state.db_path, "decorated_order_fill")
     if fills.empty:

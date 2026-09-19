@@ -6,11 +6,7 @@ from jolteon.app.app_pages import (
     orders_pnl,
     risk_limits,
 )
-from jolteon.app.components import (
-    Section,
-    render_sections,
-    section_surface_rule,
-)
+from jolteon.app.card import Card, cards_rule, render_cards
 from jolteon.app.data import engine_databases
 from jolteon.app.health_summary import redraw_nav_if_stale
 from jolteon.app.settings import ENGINE
@@ -18,7 +14,7 @@ from jolteon.app.settings import ENGINE
 
 def _select_engine() -> None:
     """
-    Which engine's recording the sections below read.
+    Which engine's recording the cards below read.
 
     One engine trades one symbol and records to its own file, so choosing
     a symbol is choosing a database - which `init_settings` resolves from
@@ -37,7 +33,7 @@ def _select_engine() -> None:
             engine.label for engine in engines if engine.key == key
         ),
         # A page that reads one engine has to be reading one: cleared,
-        # every section below would go on showing the engine the reader
+        # every card below would go on showing the engine the reader
         # had just stopped asking for.
         required=True,
         key=ENGINE,
@@ -51,32 +47,26 @@ def _select_engine() -> None:
     )
 
 
-sections: list[Section] = [
-    ("Market Data", ":material/show_chart:", market_data.render, None),
-    ("Risk Limits", ":material/earthquake:", risk_limits.render, None),
-    (
+cards = [
+    Card("Market Data", ":material/show_chart:", market_data.render),
+    Card("Risk Limits", ":material/earthquake:", risk_limits.render),
+    Card(
         "Orders & PnL",
         ":material/currency_bitcoin:",
         orders_pnl.render,
-        orders_pnl.render_header_actions,
+        actions=orders_pnl.render_header_actions,
     ),
-    (
-        "Trade Quality",
-        ":material/target:",
-        orders_pnl.render_trade_quality,
-        None,
+    Card(
+        "Trade Quality", ":material/target:", orders_pnl.render_trade_quality
     ),
-    (
-        "Fair Price Signals",
-        ":material/insights:",
-        fair_price_signals.render,
-        None,
+    Card(
+        "Fair Price Signals", ":material/insights:", fair_price_signals.render
     ),
 ]
 
-st.html(section_surface_rule(title for title, *_ in sections))
+st.html(cards_rule(cards))
 
-# Outside the refreshing fragment: the sections below read whichever
+# Outside the refreshing fragment: the cards below read whichever
 # engine this picks, so it has to be settled before they run, and a
 # selector redrawn on every refresh would fight the reader for it.
 _select_engine()
@@ -92,9 +82,9 @@ _refresh_seconds = (
 )
 
 
-def _refresh(sections: list[Section]) -> None:
-    render_sections(sections)
+def _refresh(cards: list[Card]) -> None:
+    render_cards(cards)
     redraw_nav_if_stale(st.session_state.root)
 
 
-st.fragment(_refresh, run_every=_refresh_seconds)(sections)
+st.fragment(_refresh, run_every=_refresh_seconds)(cards)

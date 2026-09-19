@@ -4,12 +4,8 @@ import math
 import altair as alt
 import streamlit as st
 
-from jolteon.app.components import (
-    BadgeColor,
-    card_grid,
-    style_chart,
-    warn_if_no_db,
-)
+from jolteon.app.card import card_grid, style_chart
+from jolteon.app.components import BadgeColor, warn_if_no_db
 from jolteon.app.data import as_datetime, read_table
 
 # Solid versions of the theme's semantic colors (config.toml), used for the

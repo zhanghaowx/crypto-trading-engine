@@ -18,10 +18,9 @@ from typing import Any
 
 import streamlit as st
 
+from jolteon.app.card import card_grid, surface_rule
 from jolteon.app.components import (
     BadgeColor,
-    card_grid,
-    card_surface_rule,
     slug,
 )
 from jolteon.app.data import engine_databases, read_table
@@ -492,7 +491,7 @@ def render() -> None:
 
     # Before the cards themselves: a rule arriving after a container has
     # reached the browser shows the canvas through it for a moment first.
-    st.html(card_surface_rule(_card_key(group) for group in GROUPS))
+    st.html(surface_rule(_card_key(group) for group in GROUPS))
 
     for group in card_grid(GROUPS, key="parameter-cards", key_fn=_card_key):
         st.markdown(f"**{_group_title(group.__name__)}**")
