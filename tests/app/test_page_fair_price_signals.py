@@ -4,7 +4,12 @@ import pandas as pd
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from jolteon.app.app_pages.fair_price_signals import _MIN_SAMPLES
+from jolteon.app.app_pages.fair_price_signals import (
+    _COLLECTING,
+    _MIN_SAMPLES,
+    _verdict,
+    _warn_style,
+)
 
 
 def _script():
@@ -119,9 +124,11 @@ def test_renders_slope_and_correlation(tmp_path):
     assert "**Calibration (\u03b2)**" in markdown_values
     assert "**Reliability (\u03c1)**" in markdown_values
 
-    slope = at.dataframe[0].value.set_index("Adjustment")
+    verdict = at.dataframe[0].value.set_index("Adjustment")
     correlation = at.dataframe[1].value.set_index("Adjustment")
+    slope = at.dataframe[2].value.set_index("Adjustment")
 
+    assert verdict.loc["Momentum", "Verdict"] == "Worth a weight"
     assert slope.loc["Momentum", "+1s"] == pytest.approx(1.0)
     assert correlation.loc["Momentum", "+1s"] == pytest.approx(1.0)
     assert slope.loc["Total", "+1s"] == pytest.approx(1.0)
@@ -154,6 +161,50 @@ def test_blanks_only_the_undersampled_horizons(tmp_path):
     at.run()
 
     assert not at.exception
-    slope = at.dataframe[0].value.set_index("Adjustment")
+    slope = at.dataframe[2].value.set_index("Adjustment")
     assert pd.notna(slope.loc["Momentum", "+1s"])
     assert pd.isna(slope.loc["Momentum", "+30s"])
+
+
+def _evaluated(correlation: float, n: int = _MIN_SAMPLES + 1) -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "horizon": ["1s"],
+            "n": [n],
+            "slope": [1.0],
+            "correlation": [correlation],
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    ("correlation", "expected"),
+    [
+        (0.9, "Worth a weight"),
+        (-0.9, "\u26a0\ufe0f Points the wrong way"),
+        (0.10, "\u26a0\ufe0f Too weak to size from"),
+        (-0.10, "\u26a0\ufe0f Too weak to size from"),
+        (0.01, "\u26a0\ufe0f No usable signal yet"),
+        (float("nan"), _COLLECTING),
+    ],
+)
+def test_verdict_reads_the_strength_before_the_direction(
+    correlation, expected
+):
+    assert _verdict(_evaluated(correlation)) == expected
+
+
+def test_verdict_waits_while_a_horizon_is_undersampled():
+    assert _verdict(_evaluated(0.9, n=_MIN_SAMPLES - 1)) == _COLLECTING
+
+
+def test_warn_style_tints_only_the_rows_carrying_a_warning():
+    column = pd.Series(
+        ["\u26a0\ufe0f No usable signal yet", "Worth a weight", _COLLECTING]
+    )
+
+    warned, trusted, collecting = _warn_style(column)
+
+    assert "background-color" in warned
+    assert trusted == ""
+    assert collecting == ""

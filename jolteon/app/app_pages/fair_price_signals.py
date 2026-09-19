@@ -6,7 +6,7 @@ import pandas as pd
 import streamlit as st
 
 from jolteon.app.analytics import HORIZONS
-from jolteon.app.components import styled_table, warn_if_no_db
+from jolteon.app.components import NEGATIVE_RGB, styled_table, warn_if_no_db
 from jolteon.app.data import read_table
 from jolteon.app.signal_evaluation import evaluate_adjustments
 
@@ -29,8 +29,12 @@ _SLOPE_HELP = (
     r"$$\beta = \frac{\operatorname{Cov}(s,\ r)}{\operatorname{Var}(s)}$$"
     "\n\n"
     r"where $s$ is the adjustment's own value and $r$ is the market's"
-    r" actual forward move. Both are in price units, so $\beta$ reads"
-    r" directly as the weight the adjustment should carry."
+    r" actual forward move. If the adjustment says the price should be a"
+    r" dollar higher and it really does rise a dollar, $\beta$ is 1."
+    "\n\n"
+    r"Read Reliability first. $\beta$ is calculated whether or not there"
+    r" is any relationship to measure, so against an unreliable"
+    r" adjustment it is a confident-looking number drawn from noise."
 )
 
 _CORRELATION_HELP = (
@@ -39,7 +43,26 @@ _CORRELATION_HELP = (
     r"where $s$ is the adjustment's own value and $r$ is the market's"
     r" actual forward move. Dividing by both spreads instead of only"
     r" the adjustment's keeps $\rho$ between -1 and +1."
+    "\n\n"
+    r"How consistently the adjustment and the market's next move agree."
+    r" Near zero means they do not, and nothing else on this page means"
+    r" anything until this is far enough from it."
 )
+
+_VERDICT_HELP = (
+    "What the two figures below add up to for each adjustment, read"
+    " at whichever horizon its reliability is strongest."
+    "\n\n"
+    "These bands are rules of thumb for deciding whether a number is"
+    " worth acting on, not statistical tests."
+)
+
+# How far correlation has to sit from zero before the calibration beside
+# it is worth reading at all, and then before it is worth sizing from.
+_NO_SIGNAL = 0.05
+_WORTH_SIZING = 0.15
+
+_WARNING = "\u26a0\ufe0f "
 
 
 def _fmt_ratio(value: float) -> str:
@@ -62,6 +85,46 @@ def _pivot(evaluation: pd.DataFrame, value_column: str) -> pd.DataFrame:
     return pivoted.reset_index().rename(columns={"adjustment": "Adjustment"})
 
 
+def _verdict(rows: pd.DataFrame) -> str:
+    """What one adjustment's figures amount to, in words a reader can act
+    on, taken at the horizon where its correlation is strongest."""
+    usable = rows[rows["n"] >= _MIN_SAMPLES].dropna(subset=["correlation"])
+    if usable.empty:
+        return _COLLECTING
+
+    best = usable.loc[usable["correlation"].abs().idxmax()]
+    strength = abs(best["correlation"])
+    if strength < _NO_SIGNAL:
+        return f"{_WARNING}No usable signal yet"
+    if strength < _WORTH_SIZING:
+        return f"{_WARNING}Too weak to size from"
+    if best["correlation"] < 0:
+        return f"{_WARNING}Points the wrong way"
+    return "Worth a weight"
+
+
+def _warn_style(column: pd.Series) -> list[str]:
+    r, g, b = NEGATIVE_RGB
+    return [
+        f"background-color: rgba({r}, {g}, {b}, 0.12)"
+        if str(value).startswith(_WARNING.strip())
+        else ""
+        for value in column
+    ]
+
+
+def _render_verdict(evaluation: pd.DataFrame) -> None:
+    st.markdown("**Verdict**", help=_VERDICT_HELP)
+    table = pd.DataFrame(
+        [
+            {"Adjustment": name, "Verdict": _verdict(rows)}
+            for name, rows in evaluation.groupby("adjustment", sort=False)
+        ]
+    )
+    styled = table.style.apply(_warn_style, subset=["Verdict"], axis=0)
+    st.dataframe(styled, hide_index=True, width="stretch")
+
+
 def _render_slope(evaluation: pd.DataFrame) -> None:
     st.markdown("**Calibration (β)**", help=_SLOPE_HELP)
     table = _pivot(evaluation, "slope")
@@ -69,10 +132,10 @@ def _render_slope(evaluation: pd.DataFrame) -> None:
         column: st.column_config.NumberColumn(
             help="Regression slope of the market's actual forward move "
             f"{_HORIZON_PHRASES[horizon]} later against this adjustment's "
-            "own value at the time - the suggested weight. 1.0 means "
-            "correctly scaled, a smaller magnitude means the adjustment "
-            "is oversized, and a negative sign means it points the "
-            "wrong way."
+            "own value at the time. 1.0 means correctly scaled, a "
+            "smaller magnitude means the adjustment is oversized, and a "
+            "negative sign means it points the wrong way. Worth reading "
+            "only where the reliability above is far enough from zero."
         )
         for column, horizon in zip(_HORIZON_COLUMNS, HORIZONS)
     }
@@ -89,9 +152,9 @@ def _render_correlation(evaluation: pd.DataFrame) -> None:
         column: st.column_config.NumberColumn(
             help="Correlation between this adjustment's value and the "
             f"market's actual forward move {_HORIZON_PHRASES[horizon]} "
-            "later. Near zero means the slope is likely noise regardless "
-            "of its size; closer to +/-1 means it reflects a real "
-            "relationship."
+            "later. Near zero means the calibration beside it is likely "
+            "noise regardless of its size; closer to +/-1 means it "
+            "reflects a real relationship."
         )
         for column, horizon in zip(_HORIZON_COLUMNS, HORIZONS)
     }
@@ -124,6 +187,8 @@ def render() -> None:
         )
         return
 
-    _render_slope(evaluation)
-    st.divider()
-    _render_correlation(evaluation)
+    _render_verdict(evaluation)
+    with st.expander("Show the numbers"):
+        _render_correlation(evaluation)
+        st.divider()
+        _render_slope(evaluation)
