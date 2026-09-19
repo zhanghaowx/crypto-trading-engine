@@ -12,7 +12,7 @@ from typing import Callable, Iterable, TypeVar
 import altair as alt
 import streamlit as st
 
-from jolteon.app.components import slug
+from jolteon.app.components import SEMANTIC_COLORS, BadgeColor, slug
 
 # Cards sit on the page's grey canvas (`backgroundColor` in
 # .streamlit/config.toml) and would otherwise be transparent, leaving the
@@ -77,6 +77,27 @@ def surface_rule(keys: Iterable[str]) -> str:
     )
 
 
+Accent = BadgeColor | None
+
+# What a card's accent is worth saying with: enough of the card's left
+# edge to catch the eye from across the page, and no more, so the card
+# still reads as the white surface it is.
+ACCENT_WIDTH = "5px"
+
+
+def accent_rule(key: str, accent: Accent) -> str:
+    """
+    Returns: A style block striping the left edge of the card keyed `key`
+    in `accent`, empty for a card with no accent to draw.
+    """
+    if accent is None:
+        return ""
+    return (
+        f"<style>.st-key-{key} {{ border-left:"
+        f" {ACCENT_WIDTH} solid {SEMANTIC_COLORS[accent]}; }}</style>"
+    )
+
+
 @dataclass(frozen=True)
 class Card:
     """One titled card on a page, and what goes inside it.
@@ -86,6 +107,11 @@ class Card:
     `details` is what the details icon opens in a modal; left out, the
     modal shows the card's own content at a width it does not have to
     squeeze into.
+
+    `accent` stripes the card's left edge. A card whose color says
+    something that changes - a limit going from comfortable to nearly
+    breached - gives a function instead of a color, which is called each
+    time the card is drawn.
     """
 
     title: str
@@ -93,6 +119,7 @@ class Card:
     body: Callable[[], None]
     actions: Callable[[], None] | None = None
     details: Callable[[], None] | None = None
+    accent: Accent | Callable[[], Accent] = None
 
 
 _CARD_CSS = (
@@ -235,6 +262,12 @@ def card(spec: Card) -> None:
     key = card_key(spec.title)
     if key in _hidden():
         return
+    accent = spec.accent() if callable(spec.accent) else spec.accent
+    # With the card's own container rather than with the page's other
+    # rules: an accent that reports on live data is only known once the
+    # card is being drawn.
+    if rule := accent_rule(key, accent):
+        st.html(rule)
     with st.container(border=True, key=key):
         # The chrome shares the title's row instead of pushing the card's
         # content down to make room for it.

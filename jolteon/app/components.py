@@ -24,8 +24,23 @@ BadgeColor = Literal[
 ]
 
 
-POSITIVE_COLOR = "#16A34A"
-NEGATIVE_COLOR = "#DC2626"
+# The theme's semantic colors (`.streamlit/config.toml`). Streamlit hands
+# these to a badge by name but to nothing drawn by hand, so a status dot,
+# a gauge arc or a card's accent has to name the hex itself.
+SEMANTIC_COLORS: dict[BadgeColor, str] = {
+    "red": "#DC2626",
+    "orange": "#E8873C",
+    "yellow": "#E8B93C",
+    "blue": "#3E8FD0",
+    "green": "#16A34A",
+    "violet": "#8B7EF0",
+    "gray": "#8A8D91",
+    "grey": "#8A8D91",
+    "primary": "#15171C",
+}
+
+POSITIVE_COLOR = SEMANTIC_COLORS["green"]
+NEGATIVE_COLOR = SEMANTIC_COLORS["red"]
 
 
 def sign_color(value: float) -> str:

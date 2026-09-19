@@ -14,6 +14,7 @@ from jolteon.app.analytics import (
     inventory_bucket_stats,
     signed_cash_flow,
 )
+from jolteon.app.card import Accent
 from jolteon.app.components import (
     NEGATIVE_RGB,
     POSITIVE_RGB,
@@ -573,6 +574,15 @@ def _render_inventory_buckets(fills: pd.DataFrame) -> None:
         ),
     }
     _shaded_table(table, ["Average edge", *_MARKOUT_COLUMNS], column_config)
+
+
+def accent() -> Accent:
+    """The card's edge color: green while the day is up, red while it is
+    down, and nothing at all before the first fill."""
+    fills = read_table(st.session_state.db_path, "decorated_order_fill")
+    if fills.empty:
+        return None
+    return "green" if realized_pnl(fills) >= 0 else "red"
 
 
 def render_header_actions() -> None:

@@ -1,12 +1,26 @@
 import streamlit as st
 
 from jolteon.app.app_pages import engine_health, logs
-from jolteon.app.card import Card, cards_rule, render_cards
-from jolteon.app.health_summary import redraw_nav_if_stale
+from jolteon.app.card import Accent, Card, cards_rule, render_cards
+from jolteon.app.health_summary import redraw_nav_if_stale, summary
+
+
+def _down_accent() -> Accent:
+    return "red" if summary(st.session_state.root).down else "green"
+
+
+def _errors_accent() -> Accent:
+    return "red" if summary(st.session_state.root).errors else None
+
 
 cards = [
-    Card("Health", ":material/monitor_heart:", engine_health.render),
-    Card("Errors", ":material/error:", logs.render),
+    Card(
+        "Health",
+        ":material/monitor_heart:",
+        engine_health.render,
+        accent=_down_accent,
+    ),
+    Card("Errors", ":material/error:", logs.render, accent=_errors_accent),
 ]
 
 st.html(cards_rule(cards))

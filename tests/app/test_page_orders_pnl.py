@@ -442,3 +442,69 @@ def test_realized_pnl_keeps_symbols_apart():
     # The sell belongs to a different symbol, so it opens a short rather
     # than closing the BTC-USD long.
     assert realized_pnl(fills) == pytest.approx(0.0)
+
+
+def _accent_script():
+    import streamlit as st
+
+    from jolteon.app.app_pages import orders_pnl
+
+    st.write(str(orders_pnl.accent()))
+
+
+def _round_trip_db(tmp_path, sell_price: float) -> str:
+    """A closed round trip: one lot bought at 100 and sold back at
+    `sell_price`, which is what decides whether the card reads as up or
+    down."""
+    db_path = str(tmp_path / f"round-trip-{sell_price}.sqlite")
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            "CREATE TABLE decorated_order_fill "
+            "(timestamp REAL, transaction_timestamp REAL, side TEXT, "
+            "fill_price REAL, fill_qty REAL, fee REAL, symbol TEXT, "
+            "exchange_execution_id TEXT PRIMARY KEY, fair_price_at_fill REAL, "
+            "inventory_before REAL, inventory_after REAL, "
+            "fair_price_100ms REAL, fair_price_1s REAL, fair_price_5s REAL, "
+            "fair_price_30s REAL)"
+        )
+        conn.executemany(
+            "INSERT INTO decorated_order_fill VALUES "
+            "(?, ?, ?, ?, 1.0, 0.0, 'BTC-USD', ?, 100.0, 0.0, 0.0, "
+            "NULL, NULL, NULL, NULL)",
+            [
+                (1700000000, 1700000000, "BUY", 100.0, 1),
+                (1700000001, 1700000001, "SELL", sell_price, 2),
+            ],
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return db_path
+
+
+def test_accent_is_absent_before_the_first_fill(empty_db_path):
+    at = AppTest.from_function(_accent_script)
+    at.session_state["db_path"] = empty_db_path
+    at.run()
+
+    assert not at.exception
+    assert at.markdown[0].value == "None"
+
+
+def test_accent_is_green_while_the_round_trips_are_up(tmp_path):
+    at = AppTest.from_function(_accent_script)
+    at.session_state["db_path"] = _round_trip_db(tmp_path, 110.0)
+    at.run()
+
+    assert not at.exception
+    assert at.markdown[0].value == "green"
+
+
+def test_accent_is_red_while_the_round_trips_are_down(tmp_path):
+    at = AppTest.from_function(_accent_script)
+    at.session_state["db_path"] = _round_trip_db(tmp_path, 90.0)
+    at.run()
+
+    assert not at.exception
+    assert at.markdown[0].value == "red"

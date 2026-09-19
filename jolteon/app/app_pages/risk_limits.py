@@ -4,19 +4,13 @@ import math
 import altair as alt
 import streamlit as st
 
-from jolteon.app.card import card_grid, style_chart
-from jolteon.app.components import BadgeColor, warn_if_no_db
+from jolteon.app.card import Accent, card_grid, style_chart
+from jolteon.app.components import SEMANTIC_COLORS, BadgeColor, warn_if_no_db
 from jolteon.app.data import as_datetime, read_table
 
-# Solid versions of the theme's semantic colors (config.toml), used for the
-# gauge arc - `st.progress` has no color option, so the gauge is drawn as
-# inline SVG via `st.html`, the same escape hatch health.py uses for tile
-# backgrounds.
-GAUGE_COLORS: dict[BadgeColor, str] = {
-    "green": "#16A34A",
-    "orange": "#E8873C",
-    "red": "#DC2626",
-}
+# `st.progress` has no color option, so the gauge is drawn as inline SVG
+# via `st.html`, the same escape hatch health.py uses for tile backgrounds
+# - which means naming the theme's semantic colors by hex.
 GAUGE_TRACK_COLOR = "#D3D9C6"
 
 # Gauge axis-label type size, and the breathing room kept between the
@@ -39,6 +33,21 @@ def risk_limit_badge(utilization: float) -> tuple[str, BadgeColor, str]:
     if utilization >= ELEVATED_THRESHOLD:
         return "Elevated", "orange", ":material/warning:"
     return "OK", "green", ":material/check_circle:"
+
+
+def accent() -> Accent:
+    """The card's edge color: what the closest limit to being breached
+    would badge itself as, so a limit under pressure is visible from the
+    top of the page without opening the card."""
+    risk = read_table(st.session_state.db_path, "risk_limit_snapshot")
+    if risk.empty:
+        return None
+    latest = risk.sort_values("timestamp").groupby(["name", "symbol"]).last()
+    used = [
+        min(abs(row.current) / row.maximum, 1.0) if row.maximum else 0.0
+        for row in latest.itertuples()
+    ]
+    return risk_limit_badge(max(used))[1]
 
 
 def _fmt_bound(value: float) -> str:
@@ -83,9 +92,9 @@ def _gauge_svg(utilization: float, color: str, maximum: float) -> str:
     offset = circumference * (1 - utilization)
 
     zones = [
-        (0.0, ELEVATED_THRESHOLD, GAUGE_COLORS["green"]),
-        (ELEVATED_THRESHOLD, NEAR_LIMIT_THRESHOLD, GAUGE_COLORS["orange"]),
-        (NEAR_LIMIT_THRESHOLD, 1.0, GAUGE_COLORS["red"]),
+        (0.0, ELEVATED_THRESHOLD, SEMANTIC_COLORS["green"]),
+        (ELEVATED_THRESHOLD, NEAR_LIMIT_THRESHOLD, SEMANTIC_COLORS["orange"]),
+        (NEAR_LIMIT_THRESHOLD, 1.0, SEMANTIC_COLORS["red"]),
     ]
     colorbar = "\n".join(
         f'<path d="{_arc_path(cx, cy, r_ring, f0, f1)}" fill="none" '
@@ -184,7 +193,7 @@ def render() -> None:
         with st.container(horizontal=True, vertical_alignment="center"):
             st.caption(symbol, width="content")
             st.badge(label, color=color, icon=icon)
-        gauge_color = GAUGE_COLORS.get(color, GAUGE_TRACK_COLOR)
+        gauge_color = SEMANTIC_COLORS.get(color, GAUGE_TRACK_COLOR)
         # The gauge always reflects the latest snapshot; only the sparkline
         # is windowed, the same stretch of history Market Data's chart uses.
         cutoff = history["timestamp"].max() - window_seconds
