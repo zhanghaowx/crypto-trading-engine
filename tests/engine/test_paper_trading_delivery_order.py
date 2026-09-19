@@ -131,19 +131,19 @@ class TestPaperTradingDeliveryOrder(unittest.IsolatedAsyncioTestCase):
             receiver_order(receivers)
             return iter(receivers)
 
-        ticker, market_trade = (
-            signal("ticker_feed"),
+        bbo_feed, market_trade = (
+            signal("bbo_feed"),
             signal("market_trade_feed"),
         )
         with patch.object(NamedSignal, "receivers_for", receivers_for):
-            ticker.send(ticker, bbo=_bbo(99.0, 101.0))
+            bbo_feed.send(bbo_feed, bbo=_bbo(99.0, 101.0))
             # Our bid rests behind the 1.0 displayed at 99 when it arrived,
             # so this print is used up by the queue ahead of us.
             market_trade.send(
                 market_trade,
                 market_trade=_market_trade(MarketSide.SELL, 99.0, 0.5),
             )
-            ticker.send(ticker, bbo=_bbo(100.0, 102.0))
+            bbo_feed.send(bbo_feed, bbo=_bbo(100.0, 102.0))
             market_trade.send(
                 market_trade,
                 # Big enough to clear the 1.0 resting at our ask price

@@ -59,7 +59,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             {
                 Channel.MARKET_TRADE,
-                Channel.TICKER,
+                Channel.BBO,
                 Channel.ORDER_BOOK,
                 Channel.INSTRUMENT,
             },
@@ -170,7 +170,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
             ticks.append(bbo)
 
         self.feed.events.market_trade.connect(trade_receiver, weak=False)
-        self.feed.events.ticker.connect(tick_receiver, weak=False)
+        self.feed.events.bbo.connect(tick_receiver, weak=False)
 
         await self.feed._decode_message(
             {

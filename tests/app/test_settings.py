@@ -92,10 +92,8 @@ def _recording(root, symbol: str) -> str:
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)
     try:
-        conn.execute("CREATE TABLE ticker_feed (timestamp REAL, symbol TEXT)")
-        conn.execute(
-            "INSERT INTO ticker_feed VALUES (1700000000, ?)", (symbol,)
-        )
+        conn.execute("CREATE TABLE bbo_feed (timestamp REAL, symbol TEXT)")
+        conn.execute("INSERT INTO bbo_feed VALUES (1700000000, ?)", (symbol,))
         conn.commit()
     finally:
         conn.close()
@@ -107,10 +105,8 @@ def _exchange_recording(root, exchange: str, symbol: str) -> str:
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)
     try:
-        conn.execute("CREATE TABLE ticker_feed (timestamp REAL, symbol TEXT)")
-        conn.execute(
-            "INSERT INTO ticker_feed VALUES (1700000000, ?)", (symbol,)
-        )
+        conn.execute("CREATE TABLE bbo_feed (timestamp REAL, symbol TEXT)")
+        conn.execute("INSERT INTO bbo_feed VALUES (1700000000, ?)", (symbol,))
         conn.commit()
     finally:
         conn.close()

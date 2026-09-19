@@ -77,8 +77,8 @@ def render() -> None:
         return
 
     db_path = st.session_state.db_path
-    bbo = read_latest_row(db_path, "ticker_feed")
-    ticks = read_table(db_path, "ticker_feed")
+    bbo = read_latest_row(db_path, "bbo_feed")
+    ticks = read_table(db_path, "bbo_feed")
     quotes = read_latest_per_group(db_path, "order", "side")
 
     if bbo is None:

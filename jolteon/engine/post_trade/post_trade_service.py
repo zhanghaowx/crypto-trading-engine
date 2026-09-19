@@ -29,7 +29,7 @@ class PostTradeService(SignalSubscriber):
         self._latest_bbo = dict[str, BBO]()
         self._pending_fills = dict[str, DecoratedOrderFill]()
 
-    @subscribe("ticker_feed")
+    @subscribe("bbo_feed")
     def on_bbo(self, _: str, bbo: BBO):
         self._latest_bbo[bbo.symbol] = bbo
 

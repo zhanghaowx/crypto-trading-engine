@@ -127,11 +127,11 @@ def test_selects_same_symbol_on_two_exchanges(dashboard, tmp_path):
         conn = sqlite3.connect(path)
         try:
             conn.execute(
-                "CREATE TABLE ticker_feed "
+                "CREATE TABLE bbo_feed "
                 "(timestamp REAL, symbol TEXT, bid_price REAL, ask_price REAL)"
             )
             conn.execute(
-                "INSERT INTO ticker_feed VALUES (1, 'BTC/USD', 100, 101)"
+                "INSERT INTO bbo_feed VALUES (1, 'BTC/USD', 100, 101)"
             )
             conn.commit()
         finally:
