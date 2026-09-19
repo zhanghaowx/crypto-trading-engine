@@ -1,4 +1,3 @@
-import json
 import sqlite3
 
 import pandas as pd
@@ -20,16 +19,10 @@ def _script():
     orders_pnl.render_trade_quality()
 
 
-def _animated_metrics(at):
-    """Args passed to each `animated_metric` custom component, by its key.
-
-    `st.metric` values are exposed by AppTest directly (`at.metric`), but a
-    custom component is not - it only shows up as a generic
-    `component_instance`, whose `json_args` carries what was passed in.
-    """
-    return {
-        e.key: json.loads(e.json_args) for e in at.get("component_instance")
-    }
+def _metrics(at):
+    """Every metric's rendered value, by its label. A colored metric
+    carries its color in the value's own markdown (`:green[9.90]`)."""
+    return {m.label: m.value for m in at.metric}
 
 
 def test_shows_warning_when_db_missing(missing_db_path):
@@ -65,19 +58,16 @@ def test_renders_pnl_and_recent_fills(populated_db_path):
     # net cash = -(99.5 * 1.0) - 0.1 = -99.6; inventory marked at mid 100.5
     # -> inventory_value = 1.0 * 100.5 = 100.5; total_pnl = 0.9. Nothing has
     # been sold back, so realized PnL is just the fee paid.
-    metrics = _animated_metrics(at)
-    assert metrics["net-cash-flow"]["value"] == pytest.approx(-99.6)
-    assert metrics["net-cash-flow"]["color"] == "#DC2626"
-    assert metrics["realized-pnl"]["value"] == pytest.approx(-0.1)
-    assert metrics["realized-pnl"]["color"] == "#DC2626"
-    assert metrics["total-pnl"]["value"] == pytest.approx(0.9)
-    assert metrics["total-pnl"]["color"] == "#16A34A"
-    assert metrics["inventory-value"]["value"] == pytest.approx(100.5)
-    assert metrics["BTC-USD-position"]["value"] == 1.0
-    assert metrics["BTC-USD-mark-price"]["value"] == pytest.approx(100.5)
+    metrics = _metrics(at)
+    assert metrics["Net cash flow"] == ":red[-99.60]"
+    assert metrics["Realized PnL"] == ":red[-0.10]"
+    assert metrics["Total PnL"] == ":green[0.90]"
+    assert metrics["Inventory value"] == "100.50"
+    assert metrics["BTC-USD position"] == "1.0"
+    assert metrics["BTC-USD mark price"] == "100.50"
     # Recent fills renders as a row list, not st.dataframe (a canvas-drawn
-    # grid, which can't play a per-row entrance animation) - check for the
-    # header and the one fill's own values instead of a dataframe.
+    # grid, whose cells can't be styled per side) - check for the header
+    # and the one fill's own values instead of a dataframe.
     markdown_values = [m.value for m in at.markdown]
     assert "Time" in markdown_values
     assert "Side" in markdown_values
@@ -376,11 +366,10 @@ def test_marks_inventory_at_zero_without_a_bbo_feed(tmp_path):
     at.run()
 
     assert not at.exception
-    metrics = _animated_metrics(at)
+    metrics = _metrics(at)
     # No mark price available, so total PnL falls back to net cash alone.
-    assert metrics["net-cash-flow"]["value"] == metrics["total-pnl"]["value"]
-    # And the mark price itself falls back to a plain, unanimated "-".
-    assert {m.label: m.value for m in at.metric}["BTC-USD mark price"] == "-"
+    assert metrics["Net cash flow"] == metrics["Total PnL"]
+    assert metrics["BTC-USD mark price"] == "-"
 
 
 def _fills(*trades) -> pd.DataFrame:

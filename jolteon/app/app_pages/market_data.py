@@ -2,7 +2,7 @@ import altair as alt
 import streamlit as st
 
 from jolteon.app.card import style_chart
-from jolteon.app.components import animated_metric, warn_if_no_db
+from jolteon.app.components import BadgeColor, metric, warn_if_no_db
 from jolteon.app.data import (
     as_datetime,
     read_latest_per_group,
@@ -35,6 +35,7 @@ def price_chart(ticks) -> alt.Chart:
 
 
 _QUOTE_LINE_COLORS = {"BUY": "#16A34A", "SELL": "#DC2626"}
+_QUOTE_COLORS: dict[str, BadgeColor] = {"BUY": "green", "SELL": "red"}
 
 
 def quote_lines(quotes) -> alt.Chart:
@@ -65,11 +66,11 @@ def _quote_metric(col, quotes, side: str, label: str) -> None:
         if match.empty:
             st.metric(label, "—", help=_QUOTE_HELP)
         else:
-            animated_metric(
-                f"quote-{side}",
+            metric(
                 label,
                 float(match.iloc[0]["price"]),
-                color=_QUOTE_LINE_COLORS[side],
+                color=_QUOTE_COLORS[side],
+                help=_QUOTE_HELP,
             )
 
 
@@ -94,11 +95,11 @@ def render() -> None:
         with cols[0]:
             st.metric("Symbol", bbo.get("symbol", "-"))
         with cols[1]:
-            animated_metric("bid", "Bid", float(bbo["bid_price"]))
+            metric("Bid", float(bbo["bid_price"]))
         with cols[2]:
-            animated_metric("ask", "Ask", float(bbo["ask_price"]))
+            metric("Ask", float(bbo["ask_price"]))
         with cols[3]:
-            animated_metric("mid", "Mid", float(mid))
+            metric("Mid", float(mid))
         if not quotes.empty:
             _quote_metric(cols[1], quotes, "BUY", "Buy Quote")
             _quote_metric(cols[2], quotes, "SELL", "Sell Quote")

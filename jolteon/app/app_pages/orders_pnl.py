@@ -19,9 +19,8 @@ from jolteon.app.components import (
     NEGATIVE_RGB,
     POSITIVE_RGB,
     BadgeColor,
-    animated_metric,
+    metric,
     paginate,
-    row_add_rule,
     row_key,
     sign_color,
     styled_table,
@@ -255,10 +254,7 @@ def render_fills_list(display: pd.DataFrame) -> None:
                 for col, label in zip(st.columns(weights), labels):
                     _render_fill_cell(col, label, row[label])
 
-        st.html(
-            f"<style>{row_add_rule('fill')}{_FILL_ROW_CSS}"
-            f"{_FILL_HEADER_CSS}</style>"
-        )
+        st.html(f"<style>{_FILL_ROW_CSS}{_FILL_HEADER_CSS}</style>")
 
 
 def pnl_by_symbol(
@@ -369,16 +365,11 @@ def _shade_side(column: pd.Series) -> list[str]:
 def _render_pnl(fills: pd.DataFrame, latest_mid: pd.DataFrame) -> None:
     by_symbol = pnl_by_symbol(fills, latest_mid)
 
-    # `animated_metric` is a custom component, and unlike `st.metric` it
-    # fills whatever width it's given rather than shrinking to its content
-    # - so it needs a fixed-width column of its own, the same way the
-    # Market Data metrics get one, rather than a plain flex row.
     cols = iter(st.columns(5 + 2 * len(by_symbol)))
 
     total_pnl = by_symbol["total_pnl"].sum()
     with next(cols):
-        animated_metric(
-            "total-pnl",
+        metric(
             "Total PnL",
             total_pnl,
             color=sign_color(total_pnl),
@@ -386,8 +377,7 @@ def _render_pnl(fills: pd.DataFrame, latest_mid: pd.DataFrame) -> None:
         )
     realized = realized_pnl(fills)
     with next(cols):
-        animated_metric(
-            "realized-pnl",
+        metric(
             "Realized PnL",
             realized,
             color=sign_color(realized),
@@ -395,31 +385,27 @@ def _render_pnl(fills: pd.DataFrame, latest_mid: pd.DataFrame) -> None:
         )
     net_cash = by_symbol["net_cash"].sum()
     with next(cols):
-        animated_metric(
-            "net-cash-flow",
+        metric(
             "Net cash flow",
             net_cash,
             color=sign_color(net_cash),
             border=True,
         )
     with next(cols):
-        animated_metric(
-            "inventory-value",
+        metric(
             "Inventory value",
             by_symbol["inventory_value"].sum(),
             border=True,
         )
     with next(cols):
-        animated_metric(
-            "fees-paid",
+        metric(
             "Fees paid",
             fills["fee"].sum(),
             border=True,
         )
     for symbol, row in by_symbol.iterrows():
         with next(cols):
-            animated_metric(
-                f"{symbol}-position",
+            metric(
                 f"{symbol} position",
                 row["position"],
                 decimals=None,
@@ -439,11 +425,11 @@ def _render_pnl(fills: pd.DataFrame, latest_mid: pd.DataFrame) -> None:
                     help=mark_help,
                 )
             else:
-                animated_metric(
-                    f"{symbol}-mark-price",
+                metric(
                     f"{symbol} mark price",
                     float(mark),
                     border=True,
+                    help=mark_help,
                 )
 
 

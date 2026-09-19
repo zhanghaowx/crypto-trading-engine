@@ -1,12 +1,10 @@
 """Shared UI helpers used by more than one dashboard page."""
 
 import re
-from pathlib import Path
 from typing import Callable, Literal
 
 import pandas as pd
 import streamlit as st
-import streamlit.components.v1 as components
 from pandas.io.formats.style import Styler
 
 from jolteon.app.data import database_exists
@@ -43,9 +41,32 @@ POSITIVE_COLOR = SEMANTIC_COLORS["green"]
 NEGATIVE_COLOR = SEMANTIC_COLORS["red"]
 
 
-def sign_color(value: float) -> str:
+def sign_color(value: float) -> BadgeColor:
     """A signed value's color, the way quotes are colored elsewhere."""
-    return POSITIVE_COLOR if value >= 0 else NEGATIVE_COLOR
+    return "green" if value >= 0 else "red"
+
+
+def metric(
+    label: str,
+    value: float,
+    *,
+    decimals: int | None = 2,
+    color: BadgeColor | None = None,
+    prefix: str = "",
+    suffix: str = "",
+    border: bool = False,
+    help: str | None = None,
+) -> None:
+    """A metric whose number is formatted and, given a `color`, drawn in
+    one of the theme's semantic colors rather than the body text color."""
+    shown = f"{value:,}" if decimals is None else f"{value:,.{decimals}f}"
+    shown = f"{prefix}{shown}{suffix}"
+    st.metric(
+        label,
+        f":{color}[{shown}]" if color else shown,
+        border=border,
+        help=help,
+    )
 
 
 def hex_to_rgb(color: str) -> tuple[int, int, int]:
@@ -88,11 +109,6 @@ def styled_table(
     return styled.apply(shade_column, subset=shaded_columns, axis=0)
 
 
-_ROW_ANIMATIONS_CSS = (
-    Path(__file__).resolve().parent / "static" / "row_animations.css"
-).read_text()
-
-
 def slug(text: str) -> str:
     """`text` as a CSS-safe fragment of a container key."""
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
@@ -105,66 +121,10 @@ def row_key(prefix: str, identity: str) -> str:
     *not* its position in a list, which shifts as newer rows arrive.
 
     Streamlit keeps a container's DOM node across reruns as long as its
-    key is unchanged, so an existing row is left alone (no replayed
-    animation) while a row whose identity has never been seen before
-    mounts fresh - which is what `row_add_rule` needs to play once, only
-    for the row that's actually new.
+    key is unchanged, so an existing row is left alone rather than being
+    torn down and rebuilt on every refresh.
     """
     return f"row-{prefix}-{slug(identity)}"
-
-
-def row_add_rule(prefix: str) -> str:
-    """
-    CSS making every container keyed by `row_key(prefix, ...)` slide down,
-    fade in, and briefly highlight when it mounts - once per row, however
-    many rows exist, since only a brand-new key ever triggers a mount.
-    """
-    return (
-        f'{_ROW_ANIMATIONS_CSS}[class*="st-key-row-{prefix}-"] '
-        f"{{ animation: jolteon-row-add 350ms ease-out; }}"
-    )
-
-
-_ANIMATED_METRIC_DIR = (
-    Path(__file__).resolve().parent / "static" / "animated_metric"
-)
-_animated_metric = components.declare_component(
-    "animated_metric", path=str(_ANIMATED_METRIC_DIR)
-)
-
-
-def animated_metric(
-    key: str,
-    label: str,
-    value: float,
-    *,
-    decimals: int | None = 2,
-    color: str | None = None,
-    prefix: str = "",
-    suffix: str = "",
-    border: bool = False,
-) -> None:
-    """
-    A metric tile whose number rolls, digit by digit, to its new value
-    (via NumberFlow - see jolteon/app/static/animated_metric) rather than
-    just replacing the old text - `st.metric` has no such transition.
-
-    `key` must stay stable for a given metric across reruns: Streamlit
-    then keeps this component's iframe mounted and delivers new args into
-    it in place, instead of recreating the iframe (which `st.metric` and
-    `st.html` both effectively do on every rerun) - a fresh element has no
-    previous value to animate from.
-    """
-    _animated_metric(
-        label=label,
-        value=value,
-        decimals=decimals,
-        color=color,
-        prefix=prefix,
-        suffix=suffix,
-        border=border,
-        key=key,
-    )
 
 
 def _shift_page(state_key: str, delta: int, page_count: int) -> None:
