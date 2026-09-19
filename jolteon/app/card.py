@@ -145,7 +145,10 @@ def cards_rule(cards: Iterable[Card]) -> str:
     keys = [card_key(card.title) for card in cards]
     if not keys:
         return ""
-    selector = ", ".join(f".st-key-{key}" for key in keys)
+    # `:is(...)`, not a bare comma list: the rules below scope descendants
+    # of a card, and in `.a, .b desc` the descendant part binds only to
+    # `.b` - every earlier card would take the rule on itself instead.
+    selector = ":is(" + ", ".join(f".st-key-{key}" for key in keys) + ")"
     return surface_rule(keys) + (
         f"<style>{_CARD_CSS % {'selector': selector}}</style>"
     )
@@ -157,14 +160,6 @@ _HIDDEN = "_card_hidden"
 _DETAILS = "_card_details"
 
 
-def _collapsed_key(key: str) -> str:
-    return f"_card_collapsed_{key}"
-
-
-def _is_collapsed(key: str) -> bool:
-    return bool(st.session_state.get(_collapsed_key(key), False))
-
-
 def _hidden() -> set[str]:
     return st.session_state.setdefault(_HIDDEN, set())
 
@@ -173,10 +168,6 @@ def _hidden() -> set[str]:
 # session state *before* the rerun - the rerun's own top-to-bottom pass
 # then draws the card the reader just asked for rather than the one they
 # clicked on.
-def _toggle_collapsed(key: str) -> None:
-    st.session_state[_collapsed_key(key)] = not _is_collapsed(key)
-
-
 def _open_details(key: str) -> None:
     st.session_state[_DETAILS] = key
 
@@ -215,7 +206,6 @@ def _details_dialog(spec: Card) -> None:
 
 
 def _chrome(spec: Card, key: str) -> None:
-    collapsed = _is_collapsed(key)
     with st.container(
         horizontal=True,
         horizontal_alignment="right",
@@ -232,19 +222,6 @@ def _chrome(spec: Card, key: str) -> None:
             help="Open this card in a window of its own.",
             type="tertiary",
             on_click=_open_details,
-            args=(key,),
-        )
-        st.button(
-            "",
-            icon=(
-                ":material/keyboard_arrow_down:"
-                if collapsed
-                else ":material/keyboard_arrow_up:"
-            ),
-            key=f"{key}-collapse",
-            help="Expand this card." if collapsed else "Collapse this card.",
-            type="tertiary",
-            on_click=_toggle_collapsed,
             args=(key,),
         )
         st.button(
@@ -275,15 +252,18 @@ def card(spec: Card) -> None:
     if rule := accent_rule(key, accent):
         st.html(rule)
     with st.container(border=True, key=key):
-        # The chrome shares the title's row instead of pushing the card's
-        # content down to make room for it.
-        title_col, chrome_col = st.columns([2, 1], vertical_alignment="center")
-        with title_col:
-            st.subheader(spec.title, icon=spec.icon)
-        with chrome_col:
-            _chrome(spec, key)
-        if not (in_modal or _is_collapsed(key)):
-            spec.body()
+        # Collapsing is the expander's own doing, and it does it in the
+        # browser: the content is already there, so folding it away costs
+        # no rerun, no re-read of the recording, and no chart redraw. A
+        # button of ours would have had to ask the server instead, which
+        # is what made expanding a card take the best part of a second.
+        with st.expander(f"{spec.icon} {spec.title}", expanded=True):
+            if not in_modal:
+                spec.body()
+        # After the expander, not before: it is positioned over the
+        # expander's own summary row by `card.css`, and a later sibling
+        # wins the stacking order without needing a z-index.
+        _chrome(spec, key)
     if in_modal:
         _details_dialog(spec)
 
