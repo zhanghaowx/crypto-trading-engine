@@ -5,11 +5,18 @@ from pathlib import Path
 from jolteon.engine.core.storage import paths
 
 
+def _card_titles(at) -> list[str]:
+    """Each card's title. A card is an expander, so that it folds in the
+    browser, and its title is that expander's label with the card's own
+    icon in front of it."""
+    return [e.label.split(": ", 1)[-1] for e in at.expander]
+
+
 def test_dashboard_renders_every_section_on_one_page(dashboard):
     at = dashboard.run()
 
     assert not at.exception
-    assert [s.value for s in at.subheader] == [
+    assert _card_titles(at) == [
         "Market Data",
         "Risk Limits",
         "Orders & PnL",
@@ -55,7 +62,7 @@ def test_parameters_page_does_not_render_the_live_sections(dashboard):
     at.switch_page("app_pages/parameters.py").run()
 
     assert not at.exception
-    assert "Market Data" not in [s.value for s in at.subheader]
+    assert "Market Data" not in _card_titles(at)
 
 
 def test_health_has_a_page_of_its_own(dashboard):
@@ -63,7 +70,7 @@ def test_health_has_a_page_of_its_own(dashboard):
     at.switch_page("app_pages/health.py").run()
 
     assert not at.exception
-    assert [s.value for s in at.subheader] == ["Health", "Errors"]
+    assert _card_titles(at) == ["Health", "Errors"]
 
 
 def test_the_live_page_no_longer_reports_health(dashboard):
@@ -73,8 +80,8 @@ def test_the_live_page_no_longer_reports_health(dashboard):
     """
     at = dashboard.run()
 
-    assert "Health" not in [s.value for s in at.subheader]
-    assert "Errors" not in [s.value for s in at.subheader]
+    assert "Health" not in _card_titles(at)
+    assert "Errors" not in _card_titles(at)
 
 
 def test_the_health_page_watches_every_engine(dashboard, engines):

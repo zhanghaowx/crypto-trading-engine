@@ -120,8 +120,25 @@ def test_cards_rule_names_every_card():
         ]
     )
 
-    assert ".st-key-card-health, .st-key-card-errors {" in rule
-    assert "transition: height" in rule
+    assert ":is(.st-key-card-health, .st-key-card-errors)" in rule
+    assert "transition: box-shadow" in rule
+
+
+def test_cards_rule_scopes_descendants_to_every_card_not_just_the_last():
+    """Regression test: a bare comma list binds a descendant part to only
+    the final selector (`.a, .b desc` means `.a` OR `.b desc`), so every
+    card but the last took the expander rules on itself and the page
+    laid out sideways. `:is()` distributes them over all of them."""
+    rule = cards_rule(
+        [
+            Card("Health", ":material/monitor_heart:", lambda: None),
+            Card("Errors", ":material/error:", lambda: None),
+        ]
+    )
+
+    scope = ":is(.st-key-card-health, .st-key-card-errors)"
+    assert f'{scope} [data-testid="stExpander"] details' in rule
+    assert f"{scope} [class*=" in rule
 
 
 def test_cards_rule_is_empty_without_cards():
@@ -132,7 +149,10 @@ def test_every_card_renders_under_its_own_title():
     at = AppTest.from_function(cards_script).run()
 
     assert not at.exception
-    assert [s.value for s in at.subheader] == ["Market Data", "Orders & PnL"]
+    assert [e.label for e in at.expander] == [
+        ":material/show_chart: Market Data",
+        ":material/currency_bitcoin: Orders & PnL",
+    ]
     assert [m.value for m in at.markdown if m.value in ("md", "pnl")] == [
         "md",
         "pnl",
@@ -151,33 +171,25 @@ def test_every_card_carries_its_own_chrome():
     keys = [b.key for b in at.button]
     for title in ("card-market-data", "card-orders-pnl"):
         assert f"{title}-details" in keys
-        assert f"{title}-collapse" in keys
         assert f"{title}-hide" in keys
 
 
-def test_a_card_collapses_to_its_title_and_expands_again():
+def test_collapsing_is_the_expanders_own_doing():
+    """
+    A card folds in the browser, which is what keeps expanding one off
+    the server entirely - no rerun, no re-read of the recording, no
+    chart redrawn.
+
+    There is no collapse button of ours, and the expander reports no
+    open/closed state back: with `on_change="ignore"` a reader's toggle
+    never reaches Python at all, which is why the card's content is
+    always rendered rather than left out while it is closed.
+    """
     at = AppTest.from_function(cards_script).run()
 
-    at.button(key="card-market-data-collapse").click().run()
-
-    assert not at.exception
-    assert [s.value for s in at.subheader] == ["Market Data", "Orders & PnL"]
-    assert "md" not in [m.value for m in at.markdown]
-    assert "pnl" in [m.value for m in at.markdown]
-
-    at.button(key="card-market-data-collapse").click().run()
-
-    assert "md" in [m.value for m in at.markdown]
-
-
-def test_collapsing_one_card_leaves_the_others_open():
-    at = AppTest.from_function(cards_script).run()
-
-    at.button(key="card-orders-pnl-collapse").click().run()
-
-    assert not at.exception
-    assert "md" in [m.value for m in at.markdown]
-    assert "pnl" not in [m.value for m in at.markdown]
+    assert not [b for b in at.button if (b.key or "").endswith("-collapse")]
+    assert all(e.proto.expanded for e in at.expander)
+    assert not hasattr(at.expander[0], "open")
 
 
 def test_the_details_icon_opens_the_card_in_a_modal():
@@ -224,12 +236,14 @@ def test_the_close_icon_hides_a_card_and_offers_it_back():
     at.button(key="card-market-data-hide").click().run()
 
     assert not at.exception
-    assert [s.value for s in at.subheader] == ["Orders & PnL"]
+    assert [e.label for e in at.expander] == [
+        ":material/currency_bitcoin: Orders & PnL"
+    ]
     assert at.button(key="card-unhide").label == "Show Market Data"
 
     at.button(key="card-unhide").click().run()
 
-    assert [s.value for s in at.subheader] == ["Market Data", "Orders & PnL"]
+    assert len(at.expander) == 2
 
 
 def test_a_hidden_card_stays_hidden_across_a_refresh():
@@ -239,7 +253,9 @@ def test_a_hidden_card_stays_hidden_across_a_refresh():
     at.run()
 
     assert not at.exception
-    assert [s.value for s in at.subheader] == ["Orders & PnL"]
+    assert [e.label for e in at.expander] == [
+        ":material/currency_bitcoin: Orders & PnL"
+    ]
 
 
 def test_nothing_is_offered_back_while_every_card_is_showing():
