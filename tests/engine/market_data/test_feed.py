@@ -27,7 +27,7 @@ class TestMarketDataFeed(unittest.TestCase):
         feed = PublicFeed()
 
         self.assertIn(Channel.MARKET_TRADE, feed.channels)
-        self.assertIn(Channel.TICKER, feed.channels)
+        self.assertIn(Channel.BBO, feed.channels)
 
     def test_every_feed_carries_its_own_events(self):
         self.assertIsNotNone(PublicFeed().events.market_trade)

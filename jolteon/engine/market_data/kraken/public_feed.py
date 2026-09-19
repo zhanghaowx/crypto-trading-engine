@@ -67,7 +67,7 @@ class PublicFeed(IMarketDataFeed):
         return frozenset(
             {
                 Channel.MARKET_TRADE,
-                Channel.TICKER,
+                Channel.BBO,
                 Channel.ORDER_BOOK,
                 Channel.INSTRUMENT,
             }
@@ -289,7 +289,7 @@ class PublicFeed(IMarketDataFeed):
             return
 
         self._last_bbo = bbo
-        self._send_signal(self.events.ticker, bbo=bbo)
+        self._send_signal(self.events.bbo, bbo=bbo)
 
     def _mark_healthy_if_initialized(self) -> None:
         if self._instrument_ready and self._book_ready:

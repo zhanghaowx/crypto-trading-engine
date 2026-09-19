@@ -53,7 +53,7 @@ class SubscribingAdjustment(IFairPriceAdjustment):
     def adjustment(self, context: BookSnapshot) -> float:
         return 0.0
 
-    @subscribe("ticker_feed")
+    @subscribe("bbo_feed")
     def on_bbo(self, _: str, bbo: BBO):
         self.ticks_seen += 1
 
@@ -257,7 +257,7 @@ class TestAdjustedFairPriceModel(unittest.TestCase):
         )
 
         model.connect()
-        signal("ticker_feed").send("mock_sender", bbo=self.bbo)
+        signal("bbo_feed").send("mock_sender", bbo=self.bbo)
 
         self.assertEqual(1, adjustment.ticks_seen)
 
@@ -269,7 +269,7 @@ class TestAdjustedFairPriceModel(unittest.TestCase):
 
         model.connect()
         model.disconnect()
-        signal("ticker_feed").send("mock_sender", bbo=self.bbo)
+        signal("bbo_feed").send("mock_sender", bbo=self.bbo)
 
         self.assertEqual(0, adjustment.ticks_seen)
 

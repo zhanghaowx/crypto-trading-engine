@@ -185,7 +185,7 @@ def _recorded_symbol(db_path: str, directory_symbol: str) -> str:
     is a spelling the engine chose, while a recorded tick names the pair
     as the venue does.
     """
-    latest = read_latest_row(db_path, "ticker_feed")
+    latest = read_latest_row(db_path, "bbo_feed")
     if latest is not None and latest.get("symbol"):
         return str(latest["symbol"])
     return directory_symbol

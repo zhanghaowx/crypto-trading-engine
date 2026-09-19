@@ -179,7 +179,7 @@ class TestReadLatestRow(unittest.TestCase):
     def test_missing_database_file_returns_none(self):
         missing_path = str(Path(self._tmpdir.name) / "missing.sqlite")
 
-        self.assertIsNone(read_latest_row(missing_path, "ticker_feed"))
+        self.assertIsNone(read_latest_row(missing_path, "bbo_feed"))
 
     def test_missing_table_returns_none(self):
         self.write("CREATE TABLE other (a INTEGER)")
@@ -188,12 +188,12 @@ class TestReadLatestRow(unittest.TestCase):
 
     def test_returns_only_the_most_recently_inserted_row(self):
         self.write(
-            "CREATE TABLE ticker_feed (price REAL)",
-            "INSERT INTO ticker_feed VALUES (1.0)",
-            "INSERT INTO ticker_feed VALUES (2.0)",
+            "CREATE TABLE bbo_feed (price REAL)",
+            "INSERT INTO bbo_feed VALUES (1.0)",
+            "INSERT INTO bbo_feed VALUES (2.0)",
         )
 
-        row = read_latest_row(self.db_path, "ticker_feed")
+        row = read_latest_row(self.db_path, "bbo_feed")
 
         self.assertEqual(2.0, row["price"])
 

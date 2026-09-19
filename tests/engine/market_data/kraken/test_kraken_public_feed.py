@@ -406,7 +406,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             3, mock_websocket.__aenter__.return_value.recv.call_count
         )
-        self.assertEqual(2, self.feed.events.ticker.send.call_count)
+        self.assertEqual(2, self.feed.events.bbo.send.call_count)
 
     @patch("websockets.connect")
     async def test_an_unchanged_touch_is_not_republished(self, mock_connect):
@@ -420,7 +420,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
 
         await self.feed.connect("ETH-USD", max_retries=0)
 
-        self.assertEqual(1, self.feed.events.ticker.send.call_count)
+        self.assertEqual(1, self.feed.events.bbo.send.call_count)
 
     @patch("websockets.connect")
     async def test_book_feed(self, mock_connect):
@@ -462,8 +462,8 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
 
         await self.feed.connect("BTC-USD", max_retries=0)
 
-        self.assertEqual(1, self.feed.events.ticker.send.call_count)
-        bbo = self.feed.events.ticker.send.call_args.kwargs["bbo"]
+        self.assertEqual(1, self.feed.events.bbo.send.call_count)
+        bbo = self.feed.events.bbo.send.call_args.kwargs["bbo"]
         self.assertEqual(45283.5, bbo.bid_price)
         self.assertEqual(45284.2, bbo.ask_price)
 
@@ -483,7 +483,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
 
         published = [
             call.kwargs["bbo"].bid_price
-            for call in self.feed.events.ticker.send.call_args_list
+            for call in self.feed.events.bbo.send.call_args_list
         ]
         self.assertEqual([6000.0, 45283.5], published)
 
@@ -500,7 +500,7 @@ class TestPublicFeed(unittest.IsolatedAsyncioTestCase):
         await self.feed.connect("BTC-USD", max_retries=0)
 
         self.assertEqual(2, self.feed.events.order_book.send.call_count)
-        self.assertEqual(1, self.feed.events.ticker.send.call_count)
+        self.assertEqual(1, self.feed.events.bbo.send.call_count)
 
     @patch("websockets.connect")
     async def test_unknown_feed(self, mock_connect):

@@ -249,7 +249,7 @@ class TestRetuningWhileRunning(unittest.IsolatedAsyncioTestCase):
 
     def _tick(self, bid=100.0, ask=101.0):
         self.strategy.on_bbo(
-            "ticker_feed",
+            "bbo_feed",
             BBO(
                 symbol="BTC/USD",
                 bid_price=bid,

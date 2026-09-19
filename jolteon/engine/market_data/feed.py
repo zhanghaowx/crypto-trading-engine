@@ -19,7 +19,7 @@ from jolteon.engine.market_data.core.order_book import (
 
 class Channel(StrEnum):
     MARKET_TRADE = "market_trade"
-    TICKER = "ticker"
+    BBO = "bbo"
     ORDER_BOOK = "order_book"
     INSTRUMENT = "instrument"
 

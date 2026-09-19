@@ -129,7 +129,7 @@ class MarketMakingStrategy(Heartbeater, SignalSubscriber):
             for side in tuple(self._live_orders):
                 self._cancel(side)
 
-    @subscribe("ticker_feed")
+    @subscribe("bbo_feed")
     def on_bbo(self, _: str, bbo: BBO):
         if self._health_monitor and not self._health_monitor.can_trade:
             return

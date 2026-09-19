@@ -68,8 +68,8 @@ class TestOrderFlowImbalanceAdjustment(unittest.TestCase):
 
     def test_a_one_sided_book_moves_by_one_half_spread(self):
         """
-        The touch can outlive one side of the book, since BBO also comes
-        from the ticker channel. The shift stays bounded there.
+        The touch can outlive one side of the book, since BBO arrives on
+        its own feed. The shift stays bounded there.
         """
         context = self.context([(99.0, 1.0)], [(101.0, 1.0)])
         one_sided = replace(context, asks=())
