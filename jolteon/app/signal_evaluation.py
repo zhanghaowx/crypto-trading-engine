@@ -31,7 +31,7 @@ def _display_name(column: str) -> str:
     if column == TOTAL_ADJUSTMENT_COLUMN:
         return TOTAL_ADJUSTMENT_LABEL
     slug = column.removeprefix("adjustments.")
-    return slug.replace("_", " ").capitalize()
+    return slug.replace("_", " ").title()
 
 
 def _forward_mid(
