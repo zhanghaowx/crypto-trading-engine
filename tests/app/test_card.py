@@ -46,6 +46,23 @@ def cards_script():
     )
 
 
+def detailed_card_script():
+    import streamlit as st
+
+    from jolteon.app.card import Card, render_cards
+
+    render_cards(
+        [
+            Card(
+                "Market Data",
+                ":material/show_chart:",
+                lambda: st.write("md"),
+                details=lambda: st.write("every tick"),
+            )
+        ]
+    )
+
+
 def test_card_grid_renders_every_item_in_a_bordered_container():
     at = AppTest.from_function(card_grid_script).run()
 
@@ -124,4 +141,119 @@ def test_every_card_renders_under_its_own_title():
 def test_a_cards_own_action_renders_beside_its_title():
     at = AppTest.from_function(cards_script).run()
 
-    assert [b.label for b in at.button] == ["Download"]
+    assert [b.label for b in at.button if b.label] == ["Download"]
+
+
+def test_every_card_carries_its_own_chrome():
+    at = AppTest.from_function(cards_script).run()
+
+    keys = [b.key for b in at.button]
+    for title in ("card-market-data", "card-orders-pnl"):
+        assert f"{title}-details" in keys
+        assert f"{title}-collapse" in keys
+        assert f"{title}-hide" in keys
+
+
+def test_a_card_collapses_to_its_title_and_expands_again():
+    at = AppTest.from_function(cards_script).run()
+
+    at.button(key="card-market-data-collapse").click().run()
+
+    assert not at.exception
+    assert [s.value for s in at.subheader] == ["Market Data", "Orders & PnL"]
+    assert "md" not in [m.value for m in at.markdown]
+    assert "pnl" in [m.value for m in at.markdown]
+
+    at.button(key="card-market-data-collapse").click().run()
+
+    assert "md" in [m.value for m in at.markdown]
+
+
+def test_collapsing_one_card_leaves_the_others_open():
+    at = AppTest.from_function(cards_script).run()
+
+    at.button(key="card-orders-pnl-collapse").click().run()
+
+    assert not at.exception
+    assert "md" in [m.value for m in at.markdown]
+    assert "pnl" not in [m.value for m in at.markdown]
+
+
+def test_the_details_icon_opens_the_card_in_a_modal():
+    at = AppTest.from_function(cards_script).run()
+
+    assert not at.get("dialog")
+
+    at.button(key="card-market-data-details").click().run()
+
+    assert not at.exception
+    assert at.get("dialog")
+    # The card's own content, once on the page and once in the modal.
+    assert [m.value for m in at.markdown].count("md") == 2
+
+
+def test_the_modal_stays_open_across_a_refresh():
+    """The pages cards render on rerun on a timer. A modal opened straight
+    from the button's return value would close again on the first refresh
+    after it was opened."""
+    at = AppTest.from_function(cards_script).run()
+
+    at.button(key="card-market-data-details").click().run()
+    at.run()
+
+    assert not at.exception
+    assert at.get("dialog")
+
+
+def test_a_card_with_details_shows_those_instead_of_its_content():
+    at = AppTest.from_function(detailed_card_script).run()
+
+    at.button(key="card-market-data-details").click().run()
+
+    assert not at.exception
+    values = [m.value for m in at.markdown]
+    assert "every tick" in values
+    assert values.count("md") == 1
+
+
+def test_the_close_icon_hides_a_card_and_offers_it_back():
+    at = AppTest.from_function(cards_script).run()
+
+    at.button(key="card-market-data-hide").click().run()
+
+    assert not at.exception
+    assert [s.value for s in at.subheader] == ["Orders & PnL"]
+    assert at.button(key="card-unhide").label == "Show Market Data"
+
+    at.button(key="card-unhide").click().run()
+
+    assert [s.value for s in at.subheader] == ["Market Data", "Orders & PnL"]
+
+
+def test_a_hidden_card_stays_hidden_across_a_refresh():
+    at = AppTest.from_function(cards_script).run()
+
+    at.button(key="card-market-data-hide").click().run()
+    at.run()
+
+    assert not at.exception
+    assert [s.value for s in at.subheader] == ["Orders & PnL"]
+
+
+def test_nothing_is_offered_back_while_every_card_is_showing():
+    at = AppTest.from_function(cards_script).run()
+
+    assert not at.exception
+    assert "card-unhide" not in [b.key for b in at.button]
+
+
+def test_hiding_a_card_closes_the_modal_it_had_open():
+    """Nothing draws a hidden card, so a modal left open on one could
+    never be dismissed - its card is no longer there to render it."""
+    at = AppTest.from_function(cards_script).run()
+
+    at.button(key="card-market-data-details").click().run()
+    at.button(key="card-market-data-hide").click().run()
+
+    assert not at.exception
+    assert not at.get("dialog")

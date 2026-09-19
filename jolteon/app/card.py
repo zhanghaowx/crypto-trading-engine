@@ -79,12 +79,20 @@ def surface_rule(keys: Iterable[str]) -> str:
 
 @dataclass(frozen=True)
 class Card:
-    """One titled card on a page, and what goes inside it."""
+    """One titled card on a page, and what goes inside it.
+
+    `actions` draws controls of the card's own onto the title row,
+    alongside the collapse, details and hide icons every card carries.
+    `details` is what the details icon opens in a modal; left out, the
+    modal shows the card's own content at a width it does not have to
+    squeeze into.
+    """
 
     title: str
     icon: str
     body: Callable[[], None]
     actions: Callable[[], None] | None = None
+    details: Callable[[], None] | None = None
 
 
 _CARD_CSS = (
@@ -116,26 +124,156 @@ def cards_rule(cards: Iterable[Card]) -> str:
     )
 
 
+# Where a reader's choices about a card live. Kept out of the widget keys
+# below so neither can shadow the other in session state.
+_HIDDEN = "_card_hidden"
+_DETAILS = "_card_details"
+
+
+def _collapsed_key(key: str) -> str:
+    return f"_card_collapsed_{key}"
+
+
+def _is_collapsed(key: str) -> bool:
+    return bool(st.session_state.get(_collapsed_key(key), False))
+
+
+def _hidden() -> set[str]:
+    return st.session_state.setdefault(_HIDDEN, set())
+
+
+# Each of these runs as a button's `on_click`, so the choice lands in
+# session state *before* the rerun - the rerun's own top-to-bottom pass
+# then draws the card the reader just asked for rather than the one they
+# clicked on.
+def _toggle_collapsed(key: str) -> None:
+    st.session_state[_collapsed_key(key)] = not _is_collapsed(key)
+
+
+def _open_details(key: str) -> None:
+    st.session_state[_DETAILS] = key
+
+
+def _close_details() -> None:
+    st.session_state.pop(_DETAILS, None)
+
+
+def _hide(key: str) -> None:
+    _hidden().add(key)
+    if st.session_state.get(_DETAILS) == key:
+        _close_details()
+
+
+def _unhide_all() -> None:
+    _hidden().clear()
+
+
+def _details_dialog(spec: Card) -> None:
+    """
+    The card's content in a modal of its own, wide enough for the tables
+    and charts a card has to squeeze.
+
+    Opened from session state rather than straight from the button's own
+    return value: the pages this renders on refresh on a timer, and a
+    modal opened by a click alone would close again on the first refresh
+    after it.
+    """
+    body = spec.details or spec.body
+    st.dialog(
+        spec.title,
+        icon=spec.icon,
+        width="large",
+        on_dismiss=_close_details,
+    )(body)()
+
+
+def _chrome(spec: Card, key: str) -> None:
+    collapsed = _is_collapsed(key)
+    with st.container(
+        horizontal=True,
+        horizontal_alignment="right",
+        vertical_alignment="center",
+        gap="small",
+        key=f"card-chrome-{slug(spec.title)}",
+    ):
+        if spec.actions is not None:
+            spec.actions()
+        st.button(
+            "",
+            icon=":material/open_in_full:",
+            key=f"{key}-details",
+            help="Open this card in a window of its own.",
+            type="tertiary",
+            on_click=_open_details,
+            args=(key,),
+        )
+        st.button(
+            "",
+            icon=(
+                ":material/keyboard_arrow_down:"
+                if collapsed
+                else ":material/keyboard_arrow_up:"
+            ),
+            key=f"{key}-collapse",
+            help="Expand this card." if collapsed else "Collapse this card.",
+            type="tertiary",
+            on_click=_toggle_collapsed,
+            args=(key,),
+        )
+        st.button(
+            "",
+            icon=":material/close:",
+            key=f"{key}-hide",
+            help="Hide this card until the page is reloaded.",
+            type="tertiary",
+            on_click=_hide,
+            args=(key,),
+        )
+
+
 def card(spec: Card) -> None:
-    with st.container(border=True, key=card_key(spec.title)):
-        if spec.actions is None:
+    key = card_key(spec.title)
+    if key in _hidden():
+        return
+    with st.container(border=True, key=key):
+        # The chrome shares the title's row instead of pushing the card's
+        # content down to make room for it.
+        title_col, chrome_col = st.columns([2, 1], vertical_alignment="center")
+        with title_col:
             st.subheader(spec.title, icon=spec.icon)
-        else:
-            # A card's own action sits on the title's row instead of
-            # pushing the card's content down to make room for it.
-            title_col, actions_col = st.columns(
-                [8, 1], vertical_alignment="center"
-            )
-            with title_col:
-                st.subheader(spec.title, icon=spec.icon)
-            with actions_col:
-                spec.actions()
-        spec.body()
+        with chrome_col:
+            _chrome(spec, key)
+        if not _is_collapsed(key):
+            spec.body()
+    if st.session_state.get(_DETAILS) == key:
+        _details_dialog(spec)
+
+
+def _unhide_control(cards: list[Card]) -> None:
+    """
+    The way back to a card the reader has closed.
+
+    Without one a card hidden on a page that refreshes on a timer is
+    unreachable until the whole dashboard is reloaded, which is a steep
+    price for a click on an icon the size of this one.
+    """
+    hidden = [spec for spec in cards if card_key(spec.title) in _hidden()]
+    if not hidden:
+        return
+    with st.container(horizontal=True, horizontal_alignment="center"):
+        st.button(
+            f"Show {', '.join(spec.title for spec in hidden)}",
+            icon=":material/visibility:",
+            key="card-unhide",
+            type="tertiary",
+            on_click=_unhide_all,
+        )
 
 
 def render_cards(cards: list[Card]) -> None:
     for spec in cards:
         card(spec)
+    _unhide_control(cards)
 
 
 GRID_GAP = "1rem"
