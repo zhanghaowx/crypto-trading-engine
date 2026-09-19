@@ -2,33 +2,14 @@
 
 import re
 from pathlib import Path
-from typing import Callable, Literal, TypeVar
+from typing import Callable, Literal
 
-import altair as alt
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 from pandas.io.formats.style import Styler
 
 from jolteon.app.data import database_exists
-
-# Cards (the bordered section containers) sit on the page's grey canvas
-# (`backgroundColor` in .streamlit/config.toml) and would otherwise be
-# transparent, leaving the whole page one flat sheet. There is no native
-# container background option, so cards are painted with scoped CSS keyed to
-# their container - the same escape hatch health.py uses to tint its tiles.
-CARD_BACKGROUND = "#FFFFFF"
-
-# Untitled UI's shadow-xs token - a near-invisible lift, since the card's
-# own border (borderColor in config.toml) already separates it from the
-# canvas.
-CARD_SHADOW = "0px 1px 2px rgba(0, 0, 0, 0.05)"
-
-# Vega charts also default to the app background, which drops a green slab
-# into an otherwise white card, so they get the card's own background. The
-# top padding keeps the highest series (the dashed quote rules, say) off the
-# content directly above the chart.
-CHART_TOP_PADDING = 20
 
 BadgeColor = Literal[
     "red",
@@ -41,34 +22,6 @@ BadgeColor = Literal[
     "grey",
     "primary",
 ]
-
-
-ChartT = TypeVar("ChartT", bound=alt.TopLevelMixin)
-
-
-def style_chart(chart: ChartT) -> ChartT:
-    """
-    Give a chart the card's white ground and some headroom, so it reads as
-    part of the card rather than as a colored panel dropped into it. Also
-    drops the axis lines/ticks and the vertical gridlines (Untitled UI's
-    `CartesianGrid vertical={false}`, stroked in its neutral-100), leaving
-    only faint horizontal gridlines so the data reads over the chrome
-    instead of competing with it.
-    """
-    return (
-        chart.properties(
-            background=CARD_BACKGROUND,
-            padding={
-                "top": CHART_TOP_PADDING,
-                "left": 5,
-                "right": 5,
-                "bottom": 5,
-            },
-        )
-        .configure_view(strokeWidth=0)
-        .configure_axis(domain=False, ticks=False, grid=False)
-        .configure_axisY(grid=True, gridColor="#F5F5F5", gridDash=[0])
-    )
 
 
 POSITIVE_COLOR = "#16A34A"
@@ -197,152 +150,6 @@ def animated_metric(
         border=border,
         key=key,
     )
-
-
-def card_surface_rule(keys) -> str:
-    """
-    Returns: A style block painting the given container keys as cards.
-
-    Streamlit has no container background option, so every page that
-    wants a card to read as a white surface above the canvas rather than
-    a flat patch of it needs this same scoped rule.
-    """
-    selector = ", ".join(f".st-key-{key}" for key in keys)
-    if not selector:
-        return ""
-    return (
-        f"<style>{selector} {{ background-color: {CARD_BACKGROUND};"
-        f" box-shadow: {CARD_SHADOW}; }}</style>"
-    )
-
-
-Section = tuple[
-    str,
-    str,
-    Callable[[], None],
-    Callable[[], None] | None,
-]
-
-_SECTION_CARDS_CSS = (
-    Path(__file__).resolve().parent / "static" / "section_cards.css"
-).read_text()
-
-
-def section_key(title: str) -> str:
-    return f"card-{slug(title)}"
-
-
-def section_surface_rule(titles) -> str:
-    """
-    Returns: A style block painting each section titled in `titles` as a
-    card and animating the height it settles at.
-
-    Emitted before any section renders, not after: Streamlit streams
-    elements to the browser as the script runs rather than painting the
-    whole page at once, so a card's own container can reach the DOM
-    several beats before the rule painting it white would, showing the
-    canvas underneath for a moment before it snaps to white.
-    """
-    keys = [section_key(title) for title in titles]
-    if not keys:
-        return ""
-    selector = ", ".join(f".st-key-{key}" for key in keys)
-    return card_surface_rule(keys) + (
-        f"<style>{_SECTION_CARDS_CSS % {'selector': selector}}</style>"
-    )
-
-
-def section(
-    title: str,
-    icon: str,
-    render_fn: Callable[[], None],
-    actions: Callable[[], None] | None = None,
-) -> None:
-    with st.container(border=True, key=section_key(title)):
-        if actions is None:
-            st.subheader(title, icon=icon)
-        else:
-            # A section's own action sits on the title's row instead of
-            # pushing the section's content down to make room for it.
-            title_col, actions_col = st.columns(
-                [8, 1], vertical_alignment="center"
-            )
-            with title_col:
-                st.subheader(title, icon=icon)
-            with actions_col:
-                actions()
-        render_fn()
-
-
-def render_sections(sections: list[Section]) -> None:
-    for title, icon, render_fn, actions in sections:
-        section(title, icon, render_fn, actions)
-
-
-CARD_GRID_GAP = "1rem"
-
-
-def card_grid_rule(key: str, columns: int, min_width: int) -> str:
-    """
-    Returns: A style block laying the cards inside the container keyed
-    `key` out as a masonry - at most `columns` across, none narrower than
-    `min_width`, and each only as tall as its own content.
-
-    `st.columns` fixes the number of cards per row whatever the window is
-    wide enough for, and pads every row out to its tallest card; a
-    multi-column layout has no rows to pad, so cards of uneven height
-    (parameter groups, say) pack flush under each other and the count per
-    row follows the available width.
-    """
-    return (
-        f"<style>"
-        f".st-key-{key} {{ display: block;"
-        f" columns: {columns} {min_width}px;"
-        f" column-gap: {CARD_GRID_GAP}; }}"
-        # `contain` keeps a card's own reflow out of the column balancing:
-        # without it, editing one widget relayouts every card in the grid,
-        # which is most of the latency behind a click on this page.
-        f".st-key-{key} > * {{ break-inside: avoid;"
-        f" contain: layout style;"
-        f" margin-bottom: {CARD_GRID_GAP}; }}"
-        f"</style>"
-    )
-
-
-def card_grid(
-    items,
-    *,
-    key: str,
-    columns: int = 3,
-    min_width: int = 320,
-    key_fn=None,
-):
-    """
-    Lay `items` out as a responsive masonry of bordered cards (see
-    `card_grid_rule`), at most `columns` across. Yields each item with its
-    own bordered container already open, so the caller just renders
-    content into it - handy for pages (risk limits, health) where the
-    number of cards grows over time.
-
-    `key` keys the container the whole grid lives in, which is what the
-    layout rule is scoped to, so it has to be unique within a page.
-
-    `key_fn`, if given, computes a stable container `key` from each item,
-    letting the caller target individual cards with scoped CSS (e.g. via
-    `.st-key-<key>`) - such as coloring a card by status.
-    """
-    items = list(items)
-    if not items:
-        return
-    # Ahead of the container: a rule arriving after the cards have reached
-    # the browser leaves them stacked in one column for a moment first.
-    st.html(card_grid_rule(key, min(columns, len(items)), min_width))
-    with st.container(key=key):
-        for item in items:
-            with st.container(
-                border=True, key=key_fn(item) if key_fn else None
-            ):
-                yield item
 
 
 def _shift_page(state_key: str, delta: int, page_count: int) -> None:

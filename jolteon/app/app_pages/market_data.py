@@ -1,7 +1,8 @@
 import altair as alt
 import streamlit as st
 
-from jolteon.app.components import animated_metric, style_chart, warn_if_no_db
+from jolteon.app.card import style_chart
+from jolteon.app.components import animated_metric, warn_if_no_db
 from jolteon.app.data import (
     as_datetime,
     read_latest_per_group,

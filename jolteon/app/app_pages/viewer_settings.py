@@ -4,7 +4,7 @@ from typing import Iterator, Literal
 
 import streamlit as st
 
-from jolteon.app.components import card_surface_rule
+from jolteon.app.card import surface_rule
 
 # Every one of these is read by the Live page, which does not render the
 # widget that holds it. Without session persistence the value is dropped
@@ -38,7 +38,7 @@ def _setting(label: str, help_text: str) -> Iterator[None]:
 
 
 def render() -> None:
-    st.html(card_surface_rule([_CARD_KEY]) + _rows_rule())
+    st.html(surface_rule([_CARD_KEY]) + _rows_rule())
     with st.container(border=True, key=_CARD_KEY):
         with _setting(
             "Auto-refresh", "Reload the Live page on the interval below."
