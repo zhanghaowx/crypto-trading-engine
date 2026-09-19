@@ -66,7 +66,7 @@ class PublicFeed(IMarketDataFeed):
         return frozenset(
             {
                 Channel.MARKET_TRADE,
-                Channel.TICKER,
+                Channel.BBO,
                 Channel.ORDER_BOOK,
                 Channel.INSTRUMENT,
             }
@@ -220,8 +220,8 @@ class PublicFeed(IMarketDataFeed):
         elif event == "depthUpdate":
             await self._apply_depth(payload)
         elif {"b", "B", "a", "A"}.issubset(payload):
-            self.events.ticker.send(
-                self.events.ticker,
+            self.events.bbo.send(
+                self.events.bbo,
                 bbo=BBO(
                     symbol=self._symbol,
                     bid_price=float(payload["b"]),

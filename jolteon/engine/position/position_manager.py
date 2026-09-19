@@ -44,7 +44,7 @@ class PositionManager(SignalSubscriber):
         )
         return self.pnl + mark_to_market
 
-    @subscribe("ticker_feed")
+    @subscribe("bbo_feed")
     def on_bbo(self, _: str, bbo: BBO):
         self._mark_prices[bbo.symbol] = (bbo.bid_price + bbo.ask_price) / 2
 

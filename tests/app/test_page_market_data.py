@@ -66,7 +66,7 @@ def test_renders_metrics_and_chart_from_recorded_data(populated_db_path):
 
 
 def test_shows_quote_metrics_without_market_data(tmp_path):
-    """No ticker_feed row yet, but an order was already placed: the
+    """No bbo_feed row yet, but an order was already placed: the
     Buy/Sell Quote metrics should still render alongside the info
     message."""
     db_path = str(tmp_path / "quotes_only.sqlite")
@@ -101,11 +101,11 @@ def test_sell_quote_is_colored_red(tmp_path):
     db_path = str(tmp_path / "both_sides.sqlite")
     conn = sqlite3.connect(db_path)
     conn.execute(
-        "CREATE TABLE ticker_feed "
+        "CREATE TABLE bbo_feed "
         "(timestamp REAL, symbol TEXT, bid_price REAL, ask_price REAL)"
     )
     conn.execute(
-        "INSERT INTO ticker_feed VALUES (1700000000, 'BTC-USD', 100.0, 101.0)"
+        "INSERT INTO bbo_feed VALUES (1700000000, 'BTC-USD', 100.0, 101.0)"
     )
     conn.execute(
         'CREATE TABLE "order" '

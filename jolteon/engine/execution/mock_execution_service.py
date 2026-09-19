@@ -95,7 +95,7 @@ class MockExecutionService(Heartbeater, SignalSubscriber):
     def on_cancel_order(self, sender: object, cancel_order: CancelOrder):
         self._resting_orders.pop(cancel_order.client_order_id, None)
 
-    @subscribe("ticker_feed")
+    @subscribe("bbo_feed")
     def on_bbo(self, sender: object, bbo: BBO):
         self._latest_bbo[bbo.symbol] = bbo
 

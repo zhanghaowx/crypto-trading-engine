@@ -269,7 +269,7 @@ def pnl_by_symbol(
     held: the cash spent buying it shows up as an outflow with nothing
     offsetting it. Held inventory is marked at the latest mid price too, to
     match PositionManager.total_pnl in the engine. `latest_mid` is the last
-    `ticker_feed` row per symbol (see `read_latest_per_group`), not the
+    `bbo_feed` row per symbol (see `read_latest_per_group`), not the
     whole table - a mark price only ever needs the current one.
     """
     signed_qty = fills["fill_qty"].where(
@@ -604,7 +604,7 @@ def render() -> None:
     if fills.empty:
         st.info("No fills yet.")
     else:
-        latest_mid = read_latest_per_group(db_path, "ticker_feed", "symbol")
+        latest_mid = read_latest_per_group(db_path, "bbo_feed", "symbol")
         _render_pnl(fills, latest_mid)
 
     st.divider()

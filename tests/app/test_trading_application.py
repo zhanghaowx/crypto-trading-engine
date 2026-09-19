@@ -34,7 +34,7 @@ class SubscribingFairPriceModel(IFairPriceModel, SignalSubscriber):
     def _calculate(self, context: BookSnapshot) -> FairPrice:
         return FairPrice(bid=0.0, ask=0.0)
 
-    @subscribe("ticker_feed")
+    @subscribe("bbo_feed")
     def on_bbo(self, _: str, bbo: BBO):
         self.ticks_seen += 1
 
@@ -43,7 +43,7 @@ class _Venue(SignalSubscriber):
     def __init__(self):
         self.latest_bbo: BBO | None = None
 
-    @subscribe("ticker_feed")
+    @subscribe("bbo_feed")
     def on_bbo(self, _: str, bbo: BBO):
         self.latest_bbo = bbo
 
@@ -72,7 +72,7 @@ class TestTradingApplicationDisconnect(unittest.TestCase):
             ask_price=102.0,
             ask_quantity=1.0,
         )
-        signal("ticker_feed").send("mock_sender", bbo=tick)
+        signal("bbo_feed").send("mock_sender", bbo=tick)
 
         self.assertIsNone(stopped_venue.latest_bbo)
         self.assertEqual(tick, running_venue.latest_bbo)
@@ -93,7 +93,7 @@ class TestTradingApplicationFairPriceModel(unittest.TestCase):
         app = self._make_app(model)
 
         app.connect_all()
-        signal("ticker_feed").send(
+        signal("bbo_feed").send(
             "mock_sender",
             bbo=BBO(
                 symbol="BTC/USD",

@@ -354,10 +354,10 @@ def test_hides_inventory_buckets_when_inventory_before_is_unset():
     assert _render_inventory_buckets(fills) is None
 
 
-def test_marks_inventory_at_zero_without_a_ticker_feed(tmp_path):
-    # Fills exist but no ticker_feed data has been recorded yet, so there
+def test_marks_inventory_at_zero_without_a_bbo_feed(tmp_path):
+    # Fills exist but no bbo_feed data has been recorded yet, so there
     # is no mid price to mark held inventory against.
-    db_path = str(tmp_path / "no_ticker_feed.sqlite")
+    db_path = str(tmp_path / "no_bbo_feed.sqlite")
     conn = sqlite3.connect(db_path)
     conn.execute(
         "CREATE TABLE decorated_order_fill "

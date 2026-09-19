@@ -99,12 +99,11 @@ def populated_db_path(tmp_path) -> str:
         )
 
         conn.execute(
-            "CREATE TABLE ticker_feed "
+            "CREATE TABLE bbo_feed "
             "(timestamp REAL, symbol TEXT, bid_price REAL, ask_price REAL)"
         )
         conn.execute(
-            "INSERT INTO ticker_feed VALUES "
-            "(1700000000, 'BTC-USD', 100.0, 101.0)"
+            "INSERT INTO bbo_feed VALUES (1700000000, 'BTC-USD', 100.0, 101.0)"
         )
 
         conn.execute(
@@ -185,11 +184,11 @@ class _Engines:
         conn = sqlite3.connect(recording)
         try:
             conn.execute(
-                "CREATE TABLE ticker_feed "
+                "CREATE TABLE bbo_feed "
                 "(timestamp REAL, symbol TEXT, bid_price REAL, ask_price REAL)"
             )
             conn.execute(
-                "INSERT INTO ticker_feed VALUES (1700000000, ?, 100.0, 101.0)",
+                "INSERT INTO bbo_feed VALUES (1700000000, ?, 100.0, 101.0)",
                 (symbol,),
             )
             conn.execute(
@@ -235,11 +234,11 @@ def recordings(tmp_path):
         conn = sqlite3.connect(path)
         try:
             conn.execute(
-                "CREATE TABLE ticker_feed "
+                "CREATE TABLE bbo_feed "
                 "(timestamp REAL, symbol TEXT, bid_price REAL, ask_price REAL)"
             )
             conn.execute(
-                "INSERT INTO ticker_feed VALUES (1700000000, ?, 100.0, 101.0)",
+                "INSERT INTO bbo_feed VALUES (1700000000, ?, 100.0, 101.0)",
                 (symbol,),
             )
             conn.commit()
