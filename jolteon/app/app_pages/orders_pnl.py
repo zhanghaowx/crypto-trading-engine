@@ -582,15 +582,15 @@ def render_header_actions() -> None:
     fills = read_table(st.session_state.db_path, "decorated_order_fill")
     if fills.empty:
         return
-    with st.container(horizontal=True, horizontal_alignment="right"):
-        st.download_button(
-            "",
-            data=fills.to_csv(index=False),
-            file_name="fills.csv",
-            mime="text/csv",
-            icon=":material/download:",
-            help="Download every fill as CSV, for analysis elsewhere.",
-        )
+    st.download_button(
+        "",
+        data=fills.to_csv(index=False),
+        file_name="fills.csv",
+        mime="text/csv",
+        icon=":material/download:",
+        type="tertiary",
+        help="Download every fill as CSV, for analysis elsewhere.",
+    )
 
 
 def render() -> None:

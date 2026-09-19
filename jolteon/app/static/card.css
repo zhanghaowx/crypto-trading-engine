@@ -6,3 +6,15 @@ html { interpolate-size: allow-keywords; }
 %(selector)s {
   transition: height 300ms ease, box-shadow 300ms ease;
 }
+
+/* The chrome stays quiet until its card is pointed at, so a page of cards
+   reads as the numbers on it rather than as rows of identical icons. */
+[class*="st-key-card-chrome-"] button {
+  opacity: 0.45;
+  transition: opacity 150ms ease;
+}
+
+%(selector)s:hover [class*="st-key-card-chrome-"] button,
+[class*="st-key-card-chrome-"]:focus-within button {
+  opacity: 1;
+}
