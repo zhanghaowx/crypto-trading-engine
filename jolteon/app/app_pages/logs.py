@@ -4,7 +4,7 @@ from datetime import datetime
 import pandas as pd
 import streamlit as st
 
-from jolteon.app.components import paginate, row_add_rule, row_key
+from jolteon.app.components import paginate, row_key
 from jolteon.app.data import as_datetime, engine_databases
 from jolteon.app.health_summary import errors as error_rows
 
@@ -117,7 +117,4 @@ def render() -> None:
         f"{_LEVEL_ACCENTS.get(level, '#8A8D91')}; padding-left: 8px; }}"
         for key, level in row_levels
     )
-    st.html(
-        f"<style>{row_add_rule('error')}{accent_rules}{_SQUARE_ROW_CSS}"
-        f"</style>"
-    )
+    st.html(f"<style>{accent_rules}{_SQUARE_ROW_CSS}</style>")
