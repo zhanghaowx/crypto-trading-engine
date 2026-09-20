@@ -45,25 +45,10 @@ _LADDER_CSS = (
 ).read_text()
 
 
-def rebuild(updates: pd.DataFrame, symbol: str) -> OrderBook | None:
-    """
-    Returns: The book as the last recorded update left it, or nothing at
-    all when no snapshot has been recorded to replay from.
-
-    Only the updates from the newest snapshot onward are applied: every
-    one before it is superseded by that snapshot, and a session's worth
-    of increments would otherwise be replayed on every refresh.
-    """
-    if updates.empty or "is_snapshot" not in updates.columns:
-        return None
-
-    ordered = updates.sort_values("sequence")
-    snapshots = ordered.index[ordered["is_snapshot"].astype(bool)]
-    if snapshots.empty:
-        return None
-
-    book = OrderBook(symbol)
-    for row in ordered.loc[snapshots[-1] :].itertuples():
+def _apply(book: OrderBook, rows, symbol: str) -> bool:
+    """Applies each recorded update to `book`, saying whether every one of
+    them could be read."""
+    for row in rows.itertuples():
         recorded = RecordedBookUpdate(
             symbol=symbol,
             model=row.model,
@@ -79,7 +64,82 @@ def rebuild(updates: pd.DataFrame, symbol: str) -> OrderBook | None:
         except ValueError:
             # A recording this dashboard cannot read - a later book model
             # than it knows about. Saying so beats taking the page down.
-            return None
+            return False
+    return True
+
+
+def rebuild(updates: pd.DataFrame, symbol: str) -> OrderBook | None:
+    """
+    Returns: The book as the last recorded update left it, or nothing at
+    all when no snapshot has been recorded to replay from.
+
+    Only the updates from the newest snapshot onward are applied: every
+    one before it is superseded by that snapshot.
+
+    Replayed in the order they were recorded rather than in order of the
+    sequence they carry. An engine numbers its updates from the start
+    each time it runs, and it records into the file the last run left
+    behind, so a session's sequences are only monotonic within one run.
+    """
+    if updates.empty or "is_snapshot" not in updates.columns:
+        return None
+
+    snapshots = updates["is_snapshot"].astype(bool).to_numpy().nonzero()[0]
+    if not len(snapshots):
+        return None
+
+    book = OrderBook(symbol)
+    if not _apply(book, updates.iloc[snapshots[-1] :], symbol):
+        return None
+    return book
+
+
+_CARRIED = "_order_book_carried"
+
+
+def book_now(
+    updates: pd.DataFrame, symbol: str, db_path: str
+) -> OrderBook | None:
+    """
+    Returns: The same book `rebuild` would, carried over from the last
+    refresh and brought up to date with only the updates recorded since.
+
+    A book moves constantly, so replaying a session's worth of updates
+    every few seconds is the single most expensive thing this page does -
+    and all but a handful of them were already applied last time.
+
+    What is carried is counted in rows rather than in the sequence the
+    updates carry, because that sequence starts again from the beginning
+    every time the engine does. The carried book is dropped and rebuilt
+    whenever it cannot be trusted to still describe this book: another
+    engine's recording, a recording that has grown shorter, or a fresh
+    snapshot among the new rows - which supersedes everything applied
+    before it, an engine restarting being the reason there is one.
+    """
+    if updates.empty or "is_snapshot" not in updates.columns:
+        return rebuild(updates, symbol)
+
+    total = len(updates)
+    carried = st.session_state.get(_CARRIED)
+    if carried is not None:
+        book, consumed, was = carried
+        tail = updates.iloc[consumed:]
+        if (
+            was == (db_path, symbol)
+            and total >= consumed
+            and not tail["is_snapshot"].astype(bool).any()
+        ):
+            if not _apply(book, tail, symbol):
+                st.session_state.pop(_CARRIED, None)
+                return None
+            st.session_state[_CARRIED] = (book, total, was)
+            return book
+
+    book = rebuild(updates, symbol)
+    if book is None:
+        st.session_state.pop(_CARRIED, None)
+        return None
+    st.session_state[_CARRIED] = (book, total, (db_path, symbol))
     return book
 
 
@@ -252,9 +312,10 @@ def render() -> None:
     db_path = st.session_state.db_path
     symbol = read_latest_per_group(db_path, "bbo_feed", "symbol")
     updates = read_table(db_path, "order_book_update_feed")
-    book = rebuild(
+    book = book_now(
         updates,
         str(symbol["symbol"].iloc[0]) if not symbol.empty else "",
+        db_path,
     )
     if book is None or not book.bbo():
         st.info("No order book recorded yet that this page can read.")
