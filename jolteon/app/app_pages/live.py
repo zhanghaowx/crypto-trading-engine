@@ -49,12 +49,14 @@ def _select_engine() -> None:
 
 cards = [
     Card(
+        "order-book",
         "Order Book",
         ":material/bar_chart:",
         order_book.render,
         width="half",
     ),
     Card(
+        "risk-limits",
         "Risk Limits",
         ":material/earthquake:",
         risk_limits.render,
@@ -62,6 +64,7 @@ cards = [
         width="half",
     ),
     Card(
+        "orders-pnl",
         "Orders & PnL",
         ":material/currency_bitcoin:",
         orders_pnl.render,
@@ -69,9 +72,13 @@ cards = [
         accent=orders_pnl.accent,
     ),
     Card(
-        "Trade Quality", ":material/target:", orders_pnl.render_trade_quality
+        "trade-quality",
+        "Trade Quality",
+        ":material/target:",
+        orders_pnl.render_trade_quality,
     ),
     Card(
+        "fair-price-signals",
         "Fair Price Signals",
         ":material/insights:",
         fair_price_signals.render,

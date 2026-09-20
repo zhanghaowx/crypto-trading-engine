@@ -35,12 +35,14 @@ def cards_script():
     render_cards(
         [
             Card(
+                "market-data",
                 "Market Data",
                 ":material/show_chart:",
                 lambda: st.write("md"),
                 details=lambda: st.write("every tick"),
             ),
             Card(
+                "orders-pnl",
                 "Orders & PnL",
                 ":material/currency_bitcoin:",
                 lambda: st.write("pnl"),
@@ -58,6 +60,7 @@ def detailed_card_script():
     render_cards(
         [
             Card(
+                "market-data",
                 "Market Data",
                 ":material/show_chart:",
                 lambda: st.write("md"),
@@ -111,15 +114,15 @@ def test_surface_rule_is_empty_when_there_are_no_cards():
     assert surface_rule([]) == ""
 
 
-def test_card_key_is_derived_from_the_title():
-    assert card_key("Fair Price Signals") == "card-fair-price-signals"
+def test_card_key_is_derived_from_the_cards_own_id():
+    assert card_key("fair-price-signals") == "card-fair-price-signals"
 
 
 def test_cards_rule_names_every_card():
     rule = cards_rule(
         [
-            Card("Health", ":material/monitor_heart:", lambda: None),
-            Card("Errors", ":material/error:", lambda: None),
+            Card("health", "Health", ":material/monitor_heart:", lambda: None),
+            Card("errors", "Errors", ":material/error:", lambda: None),
         ]
     )
 
@@ -134,8 +137,8 @@ def test_cards_rule_scopes_descendants_to_every_card_not_just_the_last():
     laid out sideways. `:is()` distributes them over all of them."""
     rule = cards_rule(
         [
-            Card("Health", ":material/monitor_heart:", lambda: None),
-            Card("Errors", ":material/error:", lambda: None),
+            Card("health", "Health", ":material/monitor_heart:", lambda: None),
+            Card("errors", "Errors", ":material/error:", lambda: None),
         ]
     )
 
@@ -293,12 +296,14 @@ def accented_cards_script():
     render_cards(
         [
             Card(
+                "market-data",
                 "Market Data",
                 ":material/show_chart:",
                 lambda: st.write("md"),
                 accent="blue",
             ),
             Card(
+                "risk-limits",
                 "Risk Limits",
                 ":material/earthquake:",
                 lambda: st.write("risk"),
@@ -319,6 +324,7 @@ def keyed_card_script():
     render_cards(
         [
             Card(
+                "market-data",
                 "Market Data",
                 ":material/show_chart:",
                 refresh,
@@ -401,18 +407,25 @@ def half_cards_script():
     render_cards(
         [
             Card(
+                "order-book",
                 "Order Book",
                 ":material/bar_chart:",
                 lambda: st.write("book"),
                 width="half",
             ),
             Card(
+                "risk-limits",
                 "Risk Limits",
                 ":material/earthquake:",
                 lambda: st.write("risk"),
                 width="half",
             ),
-            Card("Orders & PnL", ":material/paid:", lambda: st.write("pnl")),
+            Card(
+                "orders-pnl",
+                "Orders & PnL",
+                ":material/paid:",
+                lambda: st.write("pnl"),
+            ),
         ]
     )
 
@@ -455,8 +468,14 @@ def lone_half_card_script():
 
     render_cards(
         [
-            Card("Orders & PnL", ":material/paid:", lambda: st.write("pnl")),
             Card(
+                "orders-pnl",
+                "Orders & PnL",
+                ":material/paid:",
+                lambda: st.write("pnl"),
+            ),
+            Card(
+                "risk-limits",
                 "Risk Limits",
                 ":material/earthquake:",
                 lambda: st.write("risk"),
@@ -475,3 +494,60 @@ def test_a_half_card_with_no_partner_left_still_gets_drawn():
         ":material/earthquake: Risk Limits",
     ]
     assert "risk" in [m.value for m in at.markdown]
+
+
+def renamed_card_script():
+    import streamlit as st
+
+    from jolteon.app.card import Card, render_cards
+
+    render_cards(
+        [
+            Card(
+                "market-data",
+                st.session_state.get("title", "Market Data"),
+                ":material/show_chart:",
+                lambda: st.write("md"),
+            )
+        ]
+    )
+
+
+def test_a_card_renamed_keeps_the_identity_its_state_is_held_under():
+    """A title is what the card is called on the page. Hiding it, and
+    every other choice a reader makes about a card, is held under the
+    card's own id, so rewording the title does not lose them."""
+    at = AppTest.from_function(renamed_card_script).run()
+
+    at.button(key="card-market-data-hide").click().run()
+    assert not at.expander
+
+    at.session_state["title"] = "Market Prices"
+    at.run()
+
+    assert not at.exception
+    assert not at.expander
+    assert at.button(key="card-unhide").label == "Show Market Prices"
+
+
+def repeated_id_script():
+    import streamlit as st
+
+    from jolteon.app.card import Card, render_cards
+
+    render_cards(
+        [
+            Card("book", "Order Book", ":material/bar_chart:", lambda: None),
+            Card("book", "Depth", ":material/bar_chart:", lambda: st.write()),
+        ]
+    )
+
+
+def test_two_cards_may_not_answer_to_the_same_id():
+    """Sharing an id means sharing a container key and a hidden flag, so
+    hiding one would hide the other and Streamlit would refuse the second
+    card's widgets as duplicates of the first's."""
+    at = AppTest.from_function(repeated_id_script).run()
+
+    assert at.exception
+    assert "book" in at.exception[0].message

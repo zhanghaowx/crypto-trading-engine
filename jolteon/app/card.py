@@ -11,7 +11,7 @@ from typing import Callable, Iterable, Iterator, Literal
 
 import streamlit as st
 
-from jolteon.app.components import SEMANTIC_COLORS, BadgeColor, slug
+from jolteon.app.components import SEMANTIC_COLORS, BadgeColor
 
 # Cards sit on the page's grey canvas (`backgroundColor` in
 # .streamlit/config.toml) and would otherwise be transparent, leaving the
@@ -70,6 +70,12 @@ def accent_rule(key: str, accent: Accent) -> str:
 class Card:
     """One titled card on a page, and what goes inside it.
 
+    `id` is what the card is known by everywhere a name has to outlive
+    the words on screen: its container key, whether the reader has hidden
+    it, whether its details are open. The title is what the card is
+    called on the page and nothing else, so it can be reworded without
+    the reader's own choices about the card falling on the floor.
+
     `actions` draws controls of the card's own onto the title row,
     alongside the collapse, details and hide icons every card carries.
     `details` is what the card has to say beyond what it shows in
@@ -86,6 +92,7 @@ class Card:
     share a row.
     """
 
+    id: str
     title: str
     icon: str
     body: Callable[[], None]
@@ -100,8 +107,8 @@ _CARD_CSS = (
 ).read_text()
 
 
-def card_key(title: str) -> str:
-    return f"card-{slug(title)}"
+def card_key(card_id: str) -> str:
+    return f"card-{card_id}"
 
 
 def cards_rule(cards: Iterable[Card]) -> str:
@@ -115,7 +122,7 @@ def cards_rule(cards: Iterable[Card]) -> str:
     several beats before the rule painting it white would, showing the
     canvas underneath for a moment before it snaps to white.
     """
-    keys = [card_key(card.title) for card in cards]
+    keys = [card_key(card.id) for card in cards]
     if not keys:
         return ""
     # `:is(...)`, not a bare comma list: the rules below scope descendants
@@ -183,7 +190,7 @@ def _chrome(spec: Card, key: str) -> None:
         horizontal_alignment="right",
         vertical_alignment="center",
         gap="small",
-        key=f"card-chrome-{slug(spec.title)}",
+        key=f"card-chrome-{spec.id}",
     ):
         if spec.actions is not None:
             spec.actions()
@@ -213,7 +220,7 @@ def _chrome(spec: Card, key: str) -> None:
 def card(spec: Card) -> None:
     # Whether a card is hidden at all is settled by `_rows`, which drops
     # the hidden ones before pairing the rest into their rows.
-    key = card_key(spec.title)
+    key = card_key(spec.id)
     # A card's content is drawn in one place at a time: on the page, or
     # in the modal, never both. Anything inside it that keys a widget or
     # a container of its own - the risk gauges, the page through recent
@@ -253,7 +260,7 @@ def _unhide_control(cards: list[Card]) -> None:
     unreachable until the whole dashboard is reloaded, which is a steep
     price for a click on an icon the size of this one.
     """
-    hidden = [spec for spec in cards if card_key(spec.title) in _hidden()]
+    hidden = [spec for spec in cards if card_key(spec.id) in _hidden()]
     if not hidden:
         return
     with st.container(horizontal=True, horizontal_alignment="center"):
@@ -277,7 +284,7 @@ def _rows(cards: list[Card]) -> Iterator[list[Card]]:
     """
     row: list[Card] = []
     for spec in cards:
-        if card_key(spec.title) in _hidden():
+        if card_key(spec.id) in _hidden():
             continue
         if spec.width == "full":
             if row:
@@ -293,7 +300,20 @@ def _rows(cards: list[Card]) -> Iterator[list[Card]]:
         yield row
 
 
+def _require_unique_ids(cards: list[Card]) -> None:
+    """
+    Two cards sharing an id would share a container key, a hidden flag
+    and a details flag, so hiding one would hide the other and neither
+    would ever be drawn on its own.
+    """
+    ids = [spec.id for spec in cards]
+    repeated = {card_id for card_id in ids if ids.count(card_id) > 1}
+    if repeated:
+        raise ValueError(f"Cards share an id: {', '.join(sorted(repeated))}")
+
+
 def render_cards(cards: list[Card]) -> None:
+    _require_unique_ids(cards)
     for row in _rows(cards):
         if len(row) == 1:
             card(row[0])
