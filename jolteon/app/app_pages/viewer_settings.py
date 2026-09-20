@@ -63,21 +63,6 @@ def render() -> None:
                 label_visibility="collapsed",
                 persist_state=_PERSIST,
             )
-        st.divider()
-        with _setting(
-            "Chart window (minutes)",
-            "How much history Market Data's price chart and Risk "
-            "Limits' sparklines show.",
-        ):
-            st.slider(
-                "Chart window (minutes)",
-                1,
-                120,
-                key="chart_window_minutes",
-                width=_CONTROL_WIDTH,
-                label_visibility="collapsed",
-                persist_state=_PERSIST,
-            )
 
     if not Path(st.session_state.db_path).exists():
         st.warning(f"No database found at `{st.session_state.db_path}` yet.")

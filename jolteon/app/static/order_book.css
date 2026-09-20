@@ -1,0 +1,61 @@
+/* The book as a ladder: asks falling towards the spread, bids below it.
+   Each row's depth bar is a gradient on the row itself, so the shape of
+   the resting size reads behind the numbers rather than as a chart in a
+   column of its own. A book is a narrow thing to read - the ladder keeps
+   its own width rather than stretching across the card. */
+.jolteon-book {
+  width: 100%;
+  max-width: 560px;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: #15171C;
+}
+
+.jolteon-book th {
+  color: #667085;
+  font-size: 11px;
+  font-weight: 500;
+  text-align: right;
+  padding: 4px 12px;
+}
+
+.jolteon-book th:first-child,
+.jolteon-book td:first-child {
+  width: 16px;
+  padding-left: 2px;
+  padding-right: 0;
+}
+
+.jolteon-book td {
+  padding: 3px 12px;
+  text-align: right;
+}
+
+.jolteon-book-bid .jolteon-book-price { color: #16A34A; }
+.jolteon-book-ask .jolteon-book-price { color: #DC2626; }
+
+/* Where our own quote rests. The diamond carries the meaning; the
+   heavier row is what makes it findable without hunting for it. */
+.jolteon-book-resting { font-weight: 600; }
+
+.jolteon-book-ours {
+  color: #8B7EF0;
+  font-size: 11px;
+}
+
+.jolteon-book-spread td {
+  text-align: center;
+  padding: 8px 12px;
+  border-top: 1px solid #EAECF0;
+  border-bottom: 1px solid #EAECF0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.jolteon-book-spread span {
+  margin-left: 10px;
+  color: #667085;
+  font-size: 11px;
+  font-weight: 400;
+}

@@ -65,7 +65,6 @@ def test_init_settings_sets_session_state_defaults():
     assert at.session_state["root"] == "/tmp/jolteon"
     assert at.session_state["auto_refresh"] is True
     assert at.session_state["refresh_seconds"] == 5
-    assert at.session_state["chart_window_minutes"] == 15
 
 
 def test_init_settings_does_not_override_a_readers_own_settings():

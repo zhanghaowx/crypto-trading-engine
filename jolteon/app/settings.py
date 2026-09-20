@@ -57,9 +57,6 @@ def init_settings() -> None:
     st.session_state._default_params_db_path = default_params
     st.session_state.setdefault("auto_refresh", True)
     st.session_state.setdefault("refresh_seconds", 5)
-    # Shared by Market Data's price chart and Risk Limits' sparklines, so
-    # the two pages always show the same stretch of history.
-    st.session_state.setdefault("chart_window_minutes", 15)
 
 
 def _chosen_engine(root: str) -> EngineDatabase | None:

@@ -19,7 +19,6 @@ def _page(params_db_path, missing_db_path, engines) -> AppTest:
     at.session_state["root"] = engines.root
     at.session_state["auto_refresh"] = False
     at.session_state["refresh_seconds"] = 5
-    at.session_state["chart_window_minutes"] = 15
     return at
 
 

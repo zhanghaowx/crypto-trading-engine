@@ -40,13 +40,11 @@ def test_widgets_are_seeded_from_and_write_back_to_session_state(
     at.session_state["params_db_path"] = empty_db_path
     at.session_state["auto_refresh"] = True
     at.session_state["refresh_seconds"] = 5
-    at.session_state["chart_window_minutes"] = 15
     at.run()
 
     assert not at.exception
     assert at.toggle(key="auto_refresh").value is True
     assert at.slider(key="refresh_seconds").value == 5
-    assert at.slider(key="chart_window_minutes").value == 15
 
     at.toggle(key="auto_refresh").set_value(False).run()
 
@@ -58,7 +56,6 @@ def test_widgets_are_seeded_from_and_write_back_to_session_state(
 LIVE_PAGE_SETTINGS = (
     "auto_refresh",
     "refresh_seconds",
-    "chart_window_minutes",
 )
 
 
@@ -77,7 +74,6 @@ def test_every_setting_the_live_page_reads_survives_a_page_switch(
         at.session_state[key] = empty_db_path
     at.session_state["auto_refresh"] = True
     at.session_state["refresh_seconds"] = 5
-    at.session_state["chart_window_minutes"] = 15
     at.run()
 
     assert not at.exception
