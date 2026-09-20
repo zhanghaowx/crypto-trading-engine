@@ -1,4 +1,5 @@
 import sqlite3
+from unittest import mock
 
 import pandas as pd
 import pytest
@@ -324,24 +325,31 @@ def test_renders_inventory_buckets(tmp_path, table_lookup):
     assert buckets["Near neutral"]["Markout +100ms"] == "+$2.00"
 
 
-def test_hides_inventory_buckets_when_inventory_before_is_unset():
-    # inventory_before is present as a column but NaN on every fill, so
-    # no row falls into any bucket and stats comes back empty - nothing
-    # should be rendered, and no exception raised.
-    from jolteon.app.app_pages.orders_pnl import _render_inventory_buckets
+def test_a_fill_without_the_position_held_before_it_joins_no_bucket(tmp_path):
+    """A bucket says how we traded while holding that much, so a fill
+    recorded without the position held before it belongs to none of them
+    - rather than falling through every bound into the extreme one."""
+    from jolteon.app import aggregates
 
-    fills = pd.DataFrame(
-        {
-            "inventory_before": pd.array([float("nan")], dtype="float64"),
-            "side": ["BUY"],
-            "fill_price": [100.0],
-            "fair_price_at_fill": [100.0],
-            "fill_qty": [1.0],
-            "fee": [0.1],
-        }
-    )
+    db_path = str(tmp_path / "unset.sqlite")
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            "CREATE TABLE decorated_order_fill "
+            "(side TEXT, fill_price REAL, fair_price_at_fill REAL, "
+            "fill_qty REAL, fee REAL, inventory_before REAL, "
+            "fair_price_100ms REAL, fair_price_1s REAL, "
+            "fair_price_5s REAL, fair_price_30s REAL)"
+        )
+        conn.execute(
+            "INSERT INTO decorated_order_fill VALUES "
+            "('BUY', 100.0, 100.0, 1.0, 0.1, NULL, NULL, NULL, NULL, NULL)"
+        )
+        conn.commit()
+    finally:
+        conn.close()
 
-    assert _render_inventory_buckets(fills) is None
+    assert aggregates.inventory_buckets(db_path).empty
 
 
 def test_marks_inventory_at_zero_without_a_bbo_feed(tmp_path):
@@ -497,3 +505,150 @@ def test_accent_is_red_while_the_round_trips_are_down(tmp_path):
 
     assert not at.exception
     assert at.markdown[0].value == "red"
+
+
+def _pnl_db(tmp_path, name, fills) -> str:
+    db_path = str(tmp_path / name)
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            "CREATE TABLE decorated_order_fill "
+            "(transaction_timestamp REAL, side TEXT, fill_price REAL, "
+            "fill_qty REAL, fee REAL, symbol TEXT, "
+            "exchange_execution_id TEXT PRIMARY KEY)"
+        )
+        conn.executemany(
+            "INSERT INTO decorated_order_fill VALUES (?,?,?,?,?,?,?)", fills
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return db_path
+
+
+def _add_fills(db_path, fills) -> None:
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.executemany(
+            "INSERT INTO decorated_order_fill VALUES (?,?,?,?,?,?,?)", fills
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _realized_script():
+    import streamlit as st
+
+    from jolteon.app.app_pages.orders_pnl import realized_pnl_now
+
+    st.write(f"{realized_pnl_now(st.session_state['db_path']):.2f}")
+
+
+def test_realized_pnl_carries_over_and_takes_only_the_new_fills(tmp_path):
+    """A round trip closed across two refreshes has to be counted once,
+    by a refresh that only ever sees the second half of it."""
+    db_path = _pnl_db(
+        tmp_path,
+        "carry.sqlite",
+        [(1, "BUY", 100.0, 1.0, 0.0, "BTC-USD", "a")],
+    )
+
+    at = AppTest.from_function(_realized_script)
+    at.session_state["db_path"] = db_path
+    at.run()
+    # Bought and still holding: nothing has been realized.
+    assert at.markdown[-1].value == "0.00"
+
+    _add_fills(db_path, [(2, "SELL", 110.0, 1.0, 0.0, "BTC-USD", "b")])
+    at.run()
+
+    assert not at.exception
+    assert at.markdown[-1].value == "10.00"
+
+
+def test_realized_pnl_survives_a_table_longer_than_the_cache(tmp_path):
+    """
+    Regression test: realized PnL was walked over whatever the table
+    cache happened to be holding, which is the most recent rows only. The
+    fills that opened the position are the oldest of all, so once the
+    session outgrew the cache the walk started from the middle and the
+    figure was quietly wrong - 1000.00 against a true 5000.00 when this
+    was written.
+    """
+    opened = [
+        (i, "BUY", 100.0, 1.0, 0.0, "BTC-USD", f"b{i}") for i in range(500)
+    ]
+    closed = [
+        (500 + i, "SELL", 110.0, 1.0, 0.0, "BTC-USD", f"s{i}")
+        for i in range(500)
+    ]
+    db_path = _pnl_db(tmp_path, "long.sqlite", opened + closed)
+
+    at = AppTest.from_function(_realized_script)
+    at.session_state["db_path"] = db_path
+    with mock.patch("jolteon.app.data._MAX_CACHED_ROWS", 600):
+        at.run()
+
+    assert not at.exception
+    assert at.markdown[-1].value == "5000.00"
+
+
+def test_realized_pnl_starts_again_for_another_engines_recording(tmp_path):
+    """The round trips closed under one engine say nothing about
+    another's."""
+    first = _pnl_db(
+        tmp_path,
+        "btc.sqlite",
+        [
+            (1, "BUY", 100.0, 1.0, 0.0, "BTC-USD", "a"),
+            (2, "SELL", 110.0, 1.0, 0.0, "BTC-USD", "b"),
+        ],
+    )
+    second = _pnl_db(
+        tmp_path, "eth.sqlite", [(1, "BUY", 50.0, 1.0, 0.0, "ETH-USD", "a")]
+    )
+
+    at = AppTest.from_function(_realized_script)
+    at.session_state["db_path"] = first
+    at.run()
+    assert at.markdown[-1].value == "10.00"
+
+    at.session_state["db_path"] = second
+    at.run()
+
+    assert not at.exception
+    assert at.markdown[-1].value == "0.00"
+
+
+def test_realized_pnl_starts_again_when_the_recording_is_replaced(tmp_path):
+    """Row ids start over when a recording is replaced, and the round
+    trips carried from the old one never happened in the new."""
+    db_path = _pnl_db(
+        tmp_path,
+        "replaced.sqlite",
+        [
+            (1, "BUY", 100.0, 1.0, 0.0, "BTC-USD", "a"),
+            (2, "SELL", 110.0, 1.0, 0.0, "BTC-USD", "b"),
+        ],
+    )
+
+    at = AppTest.from_function(_realized_script)
+    at.session_state["db_path"] = db_path
+    at.run()
+    assert at.markdown[-1].value == "10.00"
+
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute("DELETE FROM decorated_order_fill")
+        conn.execute(
+            "INSERT INTO decorated_order_fill VALUES "
+            "(1, 'BUY', 100.0, 1.0, 0.0, 'BTC-USD', 'z')"
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    at.run()
+
+    assert not at.exception
+    assert at.markdown[-1].value == "0.00"

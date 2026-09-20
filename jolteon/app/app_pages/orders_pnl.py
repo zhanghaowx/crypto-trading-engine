@@ -1,19 +1,16 @@
 from collections.abc import Mapping
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 
-from jolteon.app import table
+from jolteon.app import aggregates, table
 from jolteon.app.analytics import (
     HORIZONS,
-    avg_fair_price_movement,
     compute_fill_edge,
     compute_markout,
-    fill_quality_by_side,
-    inventory_bucket_stats,
-    recorded_through,
     signed_cash_flow,
 )
 from jolteon.app.card import Accent
@@ -27,11 +24,19 @@ from jolteon.app.components import (
     sign_color,
     warn_if_no_db,
 )
-from jolteon.app.data import as_datetime, read_latest_per_group, read_table
+from jolteon.app.data import (
+    as_datetime,
+    max_rowid,
+    read_after,
+    read_latest_per_group,
+    read_table,
+)
 
 # The recorded tables grow without bound; fills are paginated rather than
 # read in full onto the page.
 PAGE_SIZE = 10
+
+FILLS = "decorated_order_fill"
 
 # Fill quantities are floats, so a position that has been fully closed out
 # rarely lands exactly on zero.
@@ -246,43 +251,11 @@ def render_fills_list(display: pd.DataFrame) -> None:
         st.html(f"<style>{_FILLS_TABLE_CSS}</style>")
 
 
-def _through(fills: pd.DataFrame) -> tuple[int, float, int]:
-    """What these fills amount to, as far as any derivation of them is
-    concerned - see `recorded_through`."""
-    return recorded_through(
-        fills,
-        time_column="transaction_timestamp",
-        backfilled=f"fair_price_{HORIZONS[-1]}",
-    )
-
-
-# Each of these walks a whole session's fills, which is most of what this
-# page costs to draw, and answers the same thing until another fill is
-# recorded or a markout horizon resolves. The fills themselves are passed
-# under a leading underscore so Streamlit leaves them unhashed - hashing
-# them costs a good part of what the caching saves - and `through` is the
-# key that actually decides a hit.
-@st.cache_data(show_spinner=False)
-def cached_realized_pnl(_fills: pd.DataFrame, through: tuple) -> float:
-    return realized_pnl(_fills)
-
-
-@st.cache_data(show_spinner=False)
-def cached_fill_quality(_fills: pd.DataFrame, through: tuple) -> pd.DataFrame:
-    return fill_quality_by_side(_fills)
-
-
-@st.cache_data(show_spinner=False)
-def cached_inventory_buckets(
-    _fills: pd.DataFrame, through: tuple
-) -> pd.DataFrame:
-    return inventory_bucket_stats(_fills)
-
-
 def pnl_by_symbol(
-    fills: pd.DataFrame, latest_mid: pd.DataFrame
+    totals: pd.DataFrame, latest_mid: pd.DataFrame
 ) -> pd.DataFrame:
-    """Position, net cash flow and mark-to-market PnL per symbol.
+    """`totals` - a position and a net cash flow per symbol, summed by
+    the recording - marked to market.
 
     Net cash flow alone looks worse than reality while inventory is still
     held: the cash spent buying it shows up as an outflow with nothing
@@ -291,22 +264,7 @@ def pnl_by_symbol(
     `bbo_feed` row per symbol (see `read_latest_per_group`), not the
     whole table - a mark price only ever needs the current one.
     """
-    signed_qty = fills["fill_qty"].where(
-        fills["side"] == "BUY", -fills["fill_qty"]
-    )
-    cash_flow = (-fills["fill_price"] * signed_qty) - fills["fee"]
-    by_symbol = (
-        pd.DataFrame(
-            {
-                "symbol": fills["symbol"],
-                "position": signed_qty,
-                "net_cash": cash_flow,
-            }
-        )
-        .groupby("symbol")
-        .sum()
-    )
-
+    by_symbol = totals.copy()
     if not latest_mid.empty:
         mark_price = pd.Series(
             ((latest_mid["bid_price"] + latest_mid["ask_price"]) / 2).values,
@@ -324,35 +282,49 @@ def pnl_by_symbol(
     return by_symbol
 
 
-def realized_pnl(fills: pd.DataFrame) -> float:
-    """Profit on the round-trips that have actually closed, on an
-    average-cost basis.
+@dataclass(frozen=True)
+class Realized:
+    """What the closed round trips have earned so far, and what each
+    symbol is still holding and at what average cost - everything needed
+    to carry on from here when more fills are recorded."""
+
+    total: float = 0.0
+    holdings: Mapping[str, tuple[float, float]] = field(default_factory=dict)
+
+
+def fold_fills(state: Realized, fills: pd.DataFrame) -> Realized:
+    """
+    `state` carried forward over `fills`, on an average-cost basis.
 
     Unlike net cash flow, acquiring inventory is not a loss here: a fill
-    only contributes once it is traded back out again. Fees are charged as
-    they are paid, so what is left over - total PnL minus this - is the
-    unrealized gain sitting in open inventory.
+    only contributes once it is traded back out again. Fees are charged
+    as they are paid, so what is left over - total PnL minus this - is
+    the unrealized gain sitting in open inventory.
+
+    Written as a fold rather than a walk over the whole table because
+    that is what lets a refresh pick up where the last one left off: a
+    session's fills are walked once between them, not once each.
     """
-    total = 0.0
+    total = state.total
+    holdings = dict(state.holdings)
     ordered = fills.sort_values(_time_column(fills, "transaction_timestamp"))
-    for _, symbol_fills in ordered.groupby("symbol"):
-        position, avg_cost = 0.0, 0.0
-        for fill in symbol_fills.itertuples():
-            signed = fill.fill_qty if fill.side == "BUY" else -fill.fill_qty
-            total -= fill.fee
+    for fill in ordered.itertuples():
+        position, avg_cost = holdings.get(fill.symbol, (0.0, 0.0))
+        signed = fill.fill_qty if fill.side == "BUY" else -fill.fill_qty
+        total -= fill.fee
 
-            opening = position == 0.0 or (position > 0) == (signed > 0)
-            if opening:
-                # Adding to the position: fold the fill into the average.
-                size = abs(position) + abs(signed)
-                avg_cost = (
-                    abs(position) * avg_cost + abs(signed) * fill.fill_price
-                ) / size
-                position += signed
-                continue
-
-            # Trading against the position realizes the difference between
-            # the fill price and the average cost of what it closes out.
+        opening = position == 0.0 or (position > 0) == (signed > 0)
+        if opening:
+            # Adding to the position: fold the fill into the average.
+            size = abs(position) + abs(signed)
+            avg_cost = (
+                abs(position) * avg_cost + abs(signed) * fill.fill_price
+            ) / size
+            position += signed
+        else:
+            # Trading against the position realizes the difference
+            # between the fill price and the average cost of what it
+            # closes out.
             closed = min(abs(signed), abs(position))
             direction = 1.0 if position > 0 else -1.0
             total += closed * (fill.fill_price - avg_cost) * direction
@@ -364,7 +336,44 @@ def realized_pnl(fills: pd.DataFrame) -> float:
                 avg_cost = fill.fill_price
             elif abs(position) <= POSITION_EPSILON:
                 position, avg_cost = 0.0, 0.0
-    return total
+        holdings[fill.symbol] = (position, avg_cost)
+    return Realized(total, holdings)
+
+
+def realized_pnl(fills: pd.DataFrame) -> float:
+    """Profit on the round trips that have actually closed, over `fills`
+    alone."""
+    return fold_fills(Realized(), fills).total
+
+
+_REALIZED = "_realized_pnl_carried"
+
+
+def realized_pnl_now(db_path: str) -> float:
+    """
+    Profit on the round trips closed over the whole recording.
+
+    Carried between refreshes: only the fills recorded since the last one
+    are folded in. Walking the session each time was the most expensive
+    thing this page did, and holding the session to walk it was what made
+    the figure wrong once the table outgrew what the dashboard keeps.
+
+    The carry is dropped when the recording it was built from is gone -
+    another engine's, or one whose row ids have started over.
+    """
+    carried = st.session_state.get(_REALIZED)
+    if carried is not None:
+        was, state, at = carried
+        if was != db_path or max_rowid(db_path, FILLS) < at:
+            carried = None
+    if carried is None:
+        state, at = Realized(), 0
+
+    fresh, now_at = read_after(db_path, FILLS, at)
+    if not fresh.empty:
+        state = fold_fills(state, fresh)
+    st.session_state[_REALIZED] = (db_path, state, now_at)
+    return state.total
 
 
 def _fmt_usd(value: float) -> str:
@@ -380,8 +389,10 @@ _SIDE_TINTS = {
 }
 
 
-def _render_pnl(fills: pd.DataFrame, latest_mid: pd.DataFrame) -> None:
-    by_symbol = pnl_by_symbol(fills, latest_mid)
+def _render_pnl(db_path: str, latest_mid: pd.DataFrame) -> None:
+    by_symbol = pnl_by_symbol(
+        aggregates.position_and_cash(db_path), latest_mid
+    )
 
     cols = iter(st.columns(5 + len(by_symbol)))
 
@@ -393,7 +404,7 @@ def _render_pnl(fills: pd.DataFrame, latest_mid: pd.DataFrame) -> None:
             color=sign_color(total_pnl),
             border=True,
         )
-    realized = cached_realized_pnl(fills, _through(fills))
+    realized = realized_pnl_now(db_path)
     with next(cols):
         metric(
             "Realized PnL",
@@ -418,7 +429,7 @@ def _render_pnl(fills: pd.DataFrame, latest_mid: pd.DataFrame) -> None:
     with next(cols):
         metric(
             "Fees paid",
-            fills["fee"].sum(),
+            aggregates.total_fees(db_path),
             border=True,
         )
     for symbol, row in by_symbol.iterrows():
@@ -478,9 +489,12 @@ def _shaded_table(
     )
 
 
-def _render_fair_price_movement(fills: pd.DataFrame) -> None:
+def _render_fair_price_movement(db_path: str) -> None:
+    movement = aggregates.avg_fair_price_movement(db_path)
+    if movement.empty:
+        return
+
     st.markdown("**Fair price movement**")
-    movement = avg_fair_price_movement(fills)
     columns = [f"+{horizon}" for horizon in HORIZONS]
     rows = pd.DataFrame([movement.values], columns=columns)
     column_help = {
@@ -495,14 +509,13 @@ def _render_fair_price_movement(fills: pd.DataFrame) -> None:
     _shaded_table(rows, columns, column_help)
 
 
-def _render_fill_quality(fills: pd.DataFrame) -> None:
+def _render_fill_quality(db_path: str) -> None:
     """BUY vs SELL execution quality (section 6)."""
-    needed = {"side", "fill_price", "fair_price_at_fill"}
-    if not needed.issubset(fills.columns):
+    by_side = aggregates.fill_quality_by_side(db_path)
+    if by_side.empty:
         return
 
     st.markdown("**Fill Quality**")
-    by_side = cached_fill_quality(fills, _through(fills)).sort_index()
     rows = pd.DataFrame(
         {
             "Side": by_side.index,
@@ -527,14 +540,10 @@ def _render_fill_quality(fills: pd.DataFrame) -> None:
     )
 
 
-def _render_inventory_buckets(fills: pd.DataFrame) -> None:
+def _render_inventory_buckets(db_path: str) -> None:
     """Whether fills made at extreme inventory levels look different from
     fills made near neutral (section 5)."""
-    needed = {"inventory_before", "side", "fill_price", "fair_price_at_fill"}
-    if not needed.issubset(fills.columns):
-        return
-
-    stats = cached_inventory_buckets(fills, _through(fills))
+    stats = aggregates.inventory_buckets(db_path)
     if stats.empty:
         return
 
@@ -563,10 +572,10 @@ def _render_inventory_buckets(fills: pd.DataFrame) -> None:
 def accent() -> Accent:
     """The card's edge color: green while the day is up, red while it is
     down, and nothing at all before the first fill."""
-    fills = read_table(st.session_state.db_path, "decorated_order_fill")
-    if fills.empty:
+    db_path = st.session_state.db_path
+    if not aggregates.any_fills(db_path):
         return None
-    return "green" if realized_pnl(fills) >= 0 else "red"
+    return "green" if realized_pnl_now(db_path) >= 0 else "red"
 
 
 def render_header_actions() -> None:
@@ -598,7 +607,7 @@ def render() -> None:
         st.info("No fills yet.")
     else:
         latest_mid = read_latest_per_group(db_path, "bbo_feed", "symbol")
-        _render_pnl(fills, latest_mid)
+        _render_pnl(db_path, latest_mid)
 
     st.divider()
 
@@ -626,12 +635,14 @@ def render_trade_quality() -> None:
     if not warn_if_no_db():
         return
 
-    fills = read_table(st.session_state.db_path, "decorated_order_fill")
-    if fills.empty:
+    # Every table on this card is one row per side or per bucket however
+    # many fills there are, so the recording works them out itself -
+    # nothing here holds a session's fills to average them.
+    db_path = st.session_state.db_path
+    if not aggregates.any_fills(db_path):
         st.info("No fills yet.")
         return
 
-    _render_fill_quality(fills)
-    _render_inventory_buckets(fills)
-    if f"fair_price_{HORIZONS[0]}" in fills.columns:
-        _render_fair_price_movement(fills)
+    _render_fill_quality(db_path)
+    _render_inventory_buckets(db_path)
+    _render_fair_price_movement(db_path)
