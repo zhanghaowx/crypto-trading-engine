@@ -15,7 +15,11 @@ import pandas as pd
 import streamlit as st
 
 from jolteon.app.components import warn_if_no_db
-from jolteon.app.data import read_latest_per_group, read_table
+from jolteon.app.data import (
+    last_rowid_where,
+    read_after,
+    read_latest_per_group,
+)
 from jolteon.engine.market_data.core.order_book import (
     OrderBook,
     PriceLevel,
@@ -23,6 +27,8 @@ from jolteon.engine.market_data.core.order_book import (
 )
 
 LEVELS = 10
+
+FEED = "order_book_update_feed"
 
 
 @dataclass(frozen=True)
@@ -68,78 +74,52 @@ def _apply(book: OrderBook, rows, symbol: str) -> bool:
     return True
 
 
-def rebuild(updates: pd.DataFrame, symbol: str) -> OrderBook | None:
-    """
-    Returns: The book as the last recorded update left it, or nothing at
-    all when no snapshot has been recorded to replay from.
-
-    Only the updates from the newest snapshot onward are applied: every
-    one before it is superseded by that snapshot.
-
-    Replayed in the order they were recorded rather than in order of the
-    sequence they carry. An engine numbers its updates from the start
-    each time it runs, and it records into the file the last run left
-    behind, so a session's sequences are only monotonic within one run.
-    """
-    if updates.empty or "is_snapshot" not in updates.columns:
-        return None
-
-    snapshots = updates["is_snapshot"].astype(bool).to_numpy().nonzero()[0]
-    if not len(snapshots):
-        return None
-
-    book = OrderBook(symbol)
-    if not _apply(book, updates.iloc[snapshots[-1] :], symbol):
-        return None
-    return book
-
-
 _CARRIED = "_order_book_carried"
 
 
-def book_now(
-    updates: pd.DataFrame, symbol: str, db_path: str
-) -> OrderBook | None:
+def book_now(db_path: str, symbol: str) -> OrderBook | None:
     """
-    Returns: The same book `rebuild` would, carried over from the last
-    refresh and brought up to date with only the updates recorded since.
+    Returns: The book as the recording leaves it, or nothing at all when
+    no snapshot has been recorded to replay from.
 
-    A book moves constantly, so replaying a session's worth of updates
-    every few seconds is the single most expensive thing this page does -
-    and all but a handful of them were already applied last time.
+    The book is carried between refreshes and only the updates recorded
+    since are applied to it. A book moves constantly, so replaying every
+    update since the snapshot each time would be the most expensive thing
+    this page does, and all but a handful were applied on the refresh
+    before.
 
-    What is carried is counted in rows rather than in the sequence the
-    updates carry, because that sequence starts again from the beginning
-    every time the engine does. The carried book is dropped and rebuilt
-    whenever it cannot be trusted to still describe this book: another
-    engine's recording, a recording that has grown shorter, or a fresh
-    snapshot among the new rows - which supersedes everything applied
-    before it, an engine restarting being the reason there is one.
+    The updates are read straight from the recording rather than through
+    the general table cache, which keeps only the most recent rows: a
+    session soon grows longer than that, and the snapshot the replay has
+    to start from is the oldest row of all.
+
+    The carried book is dropped whenever it cannot be trusted to still
+    describe this book: another engine's recording, or a fresh snapshot
+    among the new rows - an engine restarting being why there is one.
     """
-    if updates.empty or "is_snapshot" not in updates.columns:
-        return rebuild(updates, symbol)
-
-    total = len(updates)
     carried = st.session_state.get(_CARRIED)
     if carried is not None:
-        book, consumed, was = carried
-        tail = updates.iloc[consumed:]
-        if (
-            was == (db_path, symbol)
-            and total >= consumed
-            and not tail["is_snapshot"].astype(bool).any()
-        ):
-            if not _apply(book, tail, symbol):
-                st.session_state.pop(_CARRIED, None)
-                return None
-            st.session_state[_CARRIED] = (book, total, was)
-            return book
+        book, at, was = carried
+        if was == (db_path, symbol):
+            fresh, now_at = read_after(db_path, FEED, at)
+            if fresh.empty:
+                return book
+            if not fresh["is_snapshot"].astype(bool).any():
+                if not _apply(book, fresh, symbol):
+                    st.session_state.pop(_CARRIED, None)
+                    return None
+                st.session_state[_CARRIED] = (book, now_at, was)
+                return book
 
-    book = rebuild(updates, symbol)
-    if book is None:
-        st.session_state.pop(_CARRIED, None)
+    st.session_state.pop(_CARRIED, None)
+    snapshot = last_rowid_where(db_path, FEED, "is_snapshot")
+    if snapshot is None:
         return None
-    st.session_state[_CARRIED] = (book, total, (db_path, symbol))
+    rows, at = read_after(db_path, FEED, snapshot - 1)
+    book = OrderBook(symbol)
+    if not _apply(book, rows, symbol):
+        return None
+    st.session_state[_CARRIED] = (book, at, (db_path, symbol))
     return book
 
 
@@ -311,11 +291,8 @@ def render() -> None:
 
     db_path = st.session_state.db_path
     symbol = read_latest_per_group(db_path, "bbo_feed", "symbol")
-    updates = read_table(db_path, "order_book_update_feed")
     book = book_now(
-        updates,
-        str(symbol["symbol"].iloc[0]) if not symbol.empty else "",
-        db_path,
+        db_path, str(symbol["symbol"].iloc[0]) if not symbol.empty else ""
     )
     if book is None or not book.bbo():
         st.info("No order book recorded yet that this page can read.")
