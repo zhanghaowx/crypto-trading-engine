@@ -158,3 +158,33 @@ def test_accent_ignores_a_limit_with_no_maximum_to_use_up(tmp_path):
 
     assert not at.exception
     assert at.markdown[0].value == "green"
+
+
+def test_the_bar_fills_to_the_utilisation_and_marks_the_bands():
+    from jolteon.app.app_pages.risk_limits import utilisation_bar
+
+    bar = utilisation_bar(0.74, "orange")
+
+    assert "width:74.0%" in bar
+    assert "background:#E8873C" in bar
+    # A tick at each threshold the badge changes band at.
+    assert bar.count("jolteon-limit-tick") == 2
+    assert "left:70%" in bar and "left:90%" in bar
+
+
+def test_the_bar_never_overflows_its_track():
+    """A measure past its own limit still fills the track exactly once."""
+    from jolteon.app.app_pages.risk_limits import utilisation_bar
+
+    assert "width:100.0%" in utilisation_bar(1.8, "red")
+    assert "width:0.0%" in utilisation_bar(-0.2, "green")
+
+
+def test_a_limits_name_and_measure_read_as_words_and_short_numbers():
+    from jolteon.app.app_pages.risk_limits import _fmt_bound, _limit_title
+
+    assert _limit_title("order_frequency") == "Order Frequency"
+    # A recorded measure carries more decimals than a reader needs.
+    assert _fmt_bound(7.4457204) == "7.45"
+    assert _fmt_bound(10.0) == "10"
+    assert _fmt_bound(12345.6) == "12,346"
