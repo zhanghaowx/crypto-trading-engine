@@ -15,12 +15,19 @@ def _errors_accent() -> Accent:
 
 cards = [
     Card(
+        "health",
         "Health",
         ":material/monitor_heart:",
         engine_health.render,
         accent=_down_accent,
     ),
-    Card("Errors", ":material/error:", logs.render, accent=_errors_accent),
+    Card(
+        "errors",
+        "Errors",
+        ":material/error:",
+        logs.render,
+        accent=_errors_accent,
+    ),
 ]
 
 st.html(cards_rule(cards))
