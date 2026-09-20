@@ -9,6 +9,8 @@ from streamlit.testing.v1 import AppTest
 
 from jolteon.app.data import (
     count_matching,
+    last_rowid_where,
+    read_after,
     read_latest_per_group,
     read_latest_row,
     read_table,
@@ -400,3 +402,43 @@ def test_a_keyed_table_longer_than_the_cache_keeps_its_newest_rows(tmp_path):
 
     assert not at.exception
     assert at.markdown[-1].value == "4|2.0,3.0,4.0,5.0"
+
+
+def test_reading_after_a_row_holds_still_when_nothing_was_added():
+    """A refresh that finds no new rows must leave the caller's place in
+    the recording where it was."""
+    with tempfile.TemporaryDirectory() as folder:
+        db_path = str(Path(folder) / "feed.sqlite")
+        conn = sqlite3.connect(db_path)
+        with closing(conn):
+            conn.execute("CREATE TABLE feed (value REAL)")
+            conn.execute("INSERT INTO feed VALUES (1.0)")
+            conn.commit()
+
+        frame, at = read_after(db_path, "feed", 0)
+        assert list(frame["value"]) == [1.0]
+        assert at == 1
+
+        frame, still = read_after(db_path, "feed", at)
+        assert frame.empty
+        assert still == at
+
+
+def test_reading_a_recording_that_is_not_there_finds_nothing():
+    missing = str(Path(tempfile.gettempdir()) / "jolteon-absent.sqlite")
+
+    frame, at = read_after(missing, "feed", 0)
+    assert frame.empty
+    assert at == 0
+    assert last_rowid_where(missing, "feed", "flag") is None
+
+
+def test_a_table_the_recording_does_not_have_finds_nothing():
+    with tempfile.TemporaryDirectory() as folder:
+        db_path = str(Path(folder) / "empty.sqlite")
+        sqlite3.connect(db_path).close()
+
+        frame, at = read_after(db_path, "feed", 7)
+        assert frame.empty
+        assert at == 7
+        assert last_rowid_where(db_path, "feed", "flag") is None

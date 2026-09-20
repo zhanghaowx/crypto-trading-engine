@@ -1,11 +1,10 @@
 import json
 import re
 import sqlite3
+from unittest import mock
 
 import pandas as pd
 from streamlit.testing.v1 import AppTest
-
-from jolteon.app.app_pages.order_book import rebuild
 
 
 def _script():
@@ -95,50 +94,26 @@ def _book_db(tmp_path, name="book.sqlite", *, quotes=(), rows=None) -> str:
     return db_path
 
 
-def test_a_book_is_rebuilt_from_its_latest_snapshot():
-    """Everything before the newest snapshot is superseded by it, so a
-    level that was resting only in the older one must be gone."""
-    book = rebuild(
-        _updates(
-            [
-                (1, [(90.0, 9.0)], [(110.0, 9.0)], 1, "l2"),
-                (2, [(99.0, 2.0)], [(101.0, 3.0)], 1, "l2"),
-            ]
-        ),
-        "BTC-USD",
+def test_a_level_emptied_by_an_update_leaves_the_book(tmp_path):
+    """A quantity of zero means the level is gone, and the levels around
+    it close up."""
+    db_path = _book_db(
+        tmp_path,
+        "empties.sqlite",
+        rows=[(1, [(99.0, 2.0), (98.0, 1.0)], [(101.0, 3.0)], 1, "l2")],
     )
 
-    assert book is not None
-    assert [level.price for level in book.bids(5)] == [99.0]
-    assert [level.price for level in book.asks(5)] == [101.0]
+    at = AppTest.from_function(carry_script)
+    at.session_state["db_path"] = db_path
+    at.run()
+    assert at.markdown[-1].value == "99@2|98@1"
 
+    _append(db_path, [(2, [(98.0, 0.0)], [], 0, "l2")])
+    _append(db_path, [(3, [(97.5, 4.0)], [], 0, "l2")])
+    at.run()
 
-def test_increments_after_the_snapshot_are_applied_in_sequence():
-    book = rebuild(
-        _updates(
-            [
-                (1, [(99.0, 2.0), (98.0, 1.0)], [(101.0, 3.0)], 1, "l2"),
-                # A quantity of zero takes the level away.
-                (2, [(98.0, 0.0)], [], 0, "l2"),
-                (3, [(97.5, 4.0)], [], 0, "l2"),
-            ]
-        ),
-        "BTC-USD",
-    )
-
-    assert book is not None
-    assert [level.price for level in book.bids(5)] == [99.0, 97.5]
-
-
-def test_nothing_is_rebuilt_without_a_snapshot_to_replay_from():
-    assert rebuild(_updates([(1, [(99.0, 1.0)], [], 0, "l2")]), "X") is None
-    assert rebuild(pd.DataFrame(), "X") is None
-
-
-def test_a_book_model_this_page_cannot_read_is_not_guessed_at():
-    """A later book model must not be silently reduced to price levels -
-    the page says it cannot read the recording instead."""
-    assert rebuild(_updates([(1, [(99.0, 1.0)], [], 1, "l3")]), "X") is None
+    assert not at.exception
+    assert at.markdown[-1].value == "99@2|97.5@4"
 
 
 def test_shows_the_ladder_with_both_sides_and_the_spread(tmp_path):
@@ -265,153 +240,240 @@ def test_a_price_that_only_prints_the_same_still_marks_its_level(tmp_path):
     assert body.count("jolteon-book-resting") == 1
 
 
-def test_a_one_sided_book_shows_its_levels_without_a_spread():
+def test_a_one_sided_book_shows_its_levels_without_a_spread(tmp_path):
     """A venue can leave one side empty for a moment; the ladder still
     draws what is there rather than inventing a spread across nothing."""
-    from jolteon.app.app_pages.order_book import ladder_html
 
-    book = rebuild(_updates([(1, [(99.0, 2.0)], [], 1, "l2")]), "BTC-USD")
+    def script():
+        import streamlit as st
 
-    assert book is not None
-    html = ladder_html(book, {}).split("</style>", 1)[-1]
+        from jolteon.app.app_pages.order_book import book_now, ladder_html
+
+        book = book_now(st.session_state["db_path"], "BTC-USD")
+        st.write(ladder_html(book, {}).split("</style>", 1)[-1])
+
+    db_path = _book_db(
+        tmp_path, "oneside.sqlite", rows=[(1, [(99.0, 2.0)], [], 1, "l2")]
+    )
+    at = AppTest.from_function(script)
+    at.session_state["db_path"] = db_path
+    at.run()
+
+    assert not at.exception
+    html = at.markdown[-1].value
     assert "jolteon-book-bid" in html
     assert "jolteon-book-spread" not in html
 
 
+def _append(db_path, rows) -> None:
+    """More updates recorded, as a running engine does."""
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.executemany(
+            "INSERT INTO order_book_update_feed VALUES "
+            "(1700000000, 'BTC-USD', ?, 1, ?, ?, ?, ?, '2026-09-19T18:00:00')",
+            [
+                (model, sequence, _encode(bids), _encode(asks), snapshot)
+                for sequence, bids, asks, snapshot, model in rows
+            ],
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def carry_script():
-    """Two refreshes over one session, the second seeing more updates -
-    as the page does when it reruns on its timer."""
+    """One refresh of the page, reading whatever the recording holds."""
     import streamlit as st
 
     from jolteon.app.app_pages.order_book import book_now
-    from tests.app.test_page_order_book import _updates
 
-    rows = st.session_state["rows"]
-    seen = st.session_state.get("ticks", 0)
-    book = book_now(_updates(rows[: 1 + seen]), "BTC-USD", "engine.sqlite")
-    st.session_state["ticks"] = seen + 1
+    book = book_now(st.session_state["db_path"], "BTC-USD")
     st.write(
-        "|".join(
-            f"{level.price:g}@{level.quantity:g}" for level in book.bids(5)
-        )
+        "|".join(f"{lv.price:g}@{lv.quantity:g}" for lv in book.bids(5))
         if book
         else "none"
     )
 
 
-def _run_ticks(rows, ticks=2, **state):
-    at = AppTest.from_function(carry_script)
-    at.session_state["rows"] = rows
-    for key, value in state.items():
-        at.session_state[key] = value
-    at.run()
-    for _ in range(ticks - 1):
-        at.run()
-    return at
-
-
-def test_a_carried_book_takes_only_the_updates_it_has_not_seen():
-    at = _run_ticks(
-        [
-            (1, [(99.0, 2.0)], [(101.0, 3.0)], 1, "l2"),
-            (2, [(98.0, 1.0)], [], 0, "l2"),
-            (3, [(97.0, 4.0)], [], 0, "l2"),
-        ],
-        ticks=3,
+def test_a_carried_book_takes_only_the_updates_it_has_not_seen(tmp_path):
+    db_path = _book_db(
+        tmp_path,
+        "carry.sqlite",
+        rows=[(1, [(99.0, 2.0)], [(101.0, 3.0)], 1, "l2")],
     )
+
+    at = AppTest.from_function(carry_script)
+    at.session_state["db_path"] = db_path
+    at.run()
+    assert at.markdown[-1].value == "99@2"
+
+    _append(db_path, [(2, [(98.0, 1.0)], [], 0, "l2")])
+    at.run()
+    _append(db_path, [(3, [(97.0, 4.0)], [], 0, "l2")])
+    at.run()
 
     assert not at.exception
     # Every increment has landed exactly once, in order.
     assert at.markdown[-1].value == "99@2|98@1|97@4"
 
 
-def test_a_fresh_snapshot_throws_the_carried_book_away():
+def test_the_book_is_replayed_from_a_snapshot_older_than_the_table_cache(
+    tmp_path,
+):
+    """Regression test: the replay used to read the updates through the
+    general table cache, which keeps only the most recent rows. A session
+    soon grows past that, and the snapshot it has to start from is the
+    oldest row of all - so the book simply disappeared, saying it could
+    not be read."""
+    db_path = _book_db(
+        tmp_path,
+        "long.sqlite",
+        rows=[(1, [(99.0, 2.0)], [(101.0, 3.0)], 1, "l2")],
+    )
+    _append(
+        db_path,
+        [(i, [(98.0, float(i % 5 + 1))], [], 0, "l2") for i in range(2, 400)],
+    )
+
+    at = AppTest.from_function(carry_script)
+    at.session_state["db_path"] = db_path
+    with mock.patch("jolteon.app.data._MAX_CACHED_ROWS", 10):
+        at.run()
+
+    assert not at.exception
+    assert at.markdown[-1].value.startswith("99@2")
+
+
+def test_a_fresh_snapshot_throws_the_carried_book_away(tmp_path):
     """A snapshot supersedes everything applied before it, so carrying
     the old book forward would leave levels the venue has dropped."""
-    at = _run_ticks(
-        [
-            (1, [(99.0, 2.0), (98.0, 1.0)], [(101.0, 3.0)], 1, "l2"),
-            (2, [(50.0, 7.0)], [(60.0, 7.0)], 1, "l2"),
-        ],
-        ticks=2,
+    db_path = _book_db(
+        tmp_path,
+        "resnap.sqlite",
+        rows=[(1, [(99.0, 2.0), (98.0, 1.0)], [(101.0, 3.0)], 1, "l2")],
     )
+
+    at = AppTest.from_function(carry_script)
+    at.session_state["db_path"] = db_path
+    at.run()
+    assert at.markdown[-1].value == "99@2|98@1"
+
+    _append(db_path, [(2, [(50.0, 7.0)], [(60.0, 7.0)], 1, "l2")])
+    at.run()
 
     assert not at.exception
     assert at.markdown[-1].value == "50@7"
 
 
-def test_a_sequence_that_goes_backwards_rebuilds_from_scratch():
-    """An engine restarting numbers its updates from the beginning
-    again, and the book it is describing is a new one."""
-    at = _run_ticks(
-        [
-            (10, [(99.0, 2.0)], [(101.0, 3.0)], 1, "l2"),
-            (1, [(90.0, 5.0)], [(95.0, 5.0)], 1, "l2"),
-        ],
-        ticks=2,
-    )
-
-    assert not at.exception
-    assert at.markdown[-1].value == "90@5"
-
-
-def test_the_carried_book_belongs_to_the_engine_it_was_built_from():
+def test_the_carried_book_belongs_to_the_engine_it_was_built_from(tmp_path):
     """Switching symbol switches recording, and the book carried over
     from the last one describes a different market entirely."""
+    first = _book_db(
+        tmp_path, "btc.sqlite", rows=[(1, [(99.0, 2.0)], [], 1, "l2")]
+    )
+    second = _book_db(
+        tmp_path, "eth.sqlite", rows=[(1, [(5.0, 1.0)], [], 1, "l2")]
+    )
 
     def script():
         import streamlit as st
 
         from jolteon.app.app_pages.order_book import book_now
-        from tests.app.test_page_order_book import _updates
 
-        rows = [(1, [(99.0, 2.0)], [(101.0, 3.0)], 1, "l2")]
-        other = [(1, [(5.0, 1.0)], [(6.0, 1.0)], 1, "l2")]
-        first = book_now(_updates(rows), "BTC-USD", "btc.sqlite")
-        second = book_now(_updates(other), "ETH-USD", "eth.sqlite")
-        st.write(f"{first.bids(1)[0].price:g}/{second.bids(1)[0].price:g}")
+        one = book_now(st.session_state["first"], "BTC-USD")
+        two = book_now(st.session_state["second"], "ETH-USD")
+        st.write(f"{one.bids(1)[0].price:g}/{two.bids(1)[0].price:g}")
 
-    at = AppTest.from_function(script).run()
+    at = AppTest.from_function(script)
+    at.session_state["first"] = first
+    at.session_state["second"] = second
+    at.run()
 
     assert not at.exception
     assert at.markdown[-1].value == "99/5"
 
 
-def test_a_book_with_no_snapshot_to_replay_from_shows_nothing():
+def test_a_book_with_no_snapshot_to_replay_from_shows_nothing(tmp_path):
     """Updates alone cannot describe a book - there has to be a snapshot
     to apply them to."""
-    from jolteon.app.app_pages.order_book import book_now
+    db_path = _book_db(
+        tmp_path, "nosnap.sqlite", rows=[(1, [(99.0, 1.0)], [], 0, "l2")]
+    )
 
-    def script():
-        import streamlit as st
-
-        from jolteon.app.app_pages.order_book import book_now
-        from tests.app.test_page_order_book import _updates
-
-        rows = [(1, [(99.0, 1.0)], [], 0, "l2")]
-        st.write(
-            "none"
-            if book_now(_updates(rows), "X", "x.sqlite") is None
-            else "book"
-        )
-
-    at = AppTest.from_function(script).run()
+    at = AppTest.from_function(carry_script)
+    at.session_state["db_path"] = db_path
+    at.run()
 
     assert not at.exception
     assert at.markdown[-1].value == "none"
-    assert book_now is not None
 
 
-def test_a_carried_book_is_dropped_when_it_meets_an_unreadable_update():
+def test_a_carried_book_is_dropped_when_it_meets_an_unreadable_update(
+    tmp_path,
+):
     """A recording that starts carrying a book model this page does not
     know cannot be carried forward from the part that it did."""
-    at = _run_ticks(
-        [
-            (1, [(99.0, 2.0)], [(101.0, 3.0)], 1, "l2"),
-            (2, [(98.0, 1.0)], [], 0, "l3"),
-        ],
-        ticks=2,
+    db_path = _book_db(
+        tmp_path, "l3.sqlite", rows=[(1, [(99.0, 2.0)], [], 1, "l2")]
     )
+
+    at = AppTest.from_function(carry_script)
+    at.session_state["db_path"] = db_path
+    at.run()
+    assert at.markdown[-1].value == "99@2"
+
+    _append(db_path, [(2, [(98.0, 1.0)], [], 0, "l3")])
+    at.run()
+
+    assert not at.exception
+    assert at.markdown[-1].value == "none"
+
+
+def test_a_refresh_that_finds_no_new_updates_keeps_the_book_it_has(tmp_path):
+    """Between updates the book is unchanged, and re-reading a recording
+    that has not moved must not empty it."""
+    db_path = _book_db(
+        tmp_path, "quiet.sqlite", rows=[(1, [(99.0, 2.0)], [], 1, "l2")]
+    )
+
+    at = AppTest.from_function(carry_script)
+    at.session_state["db_path"] = db_path
+    at.run()
+    at.run()
+
+    assert not at.exception
+    assert at.markdown[-1].value == "99@2"
+
+
+def test_a_snapshot_of_an_empty_book_leaves_nothing_to_draw(tmp_path):
+    """A venue can snapshot a book with nothing resting in it. There is
+    a book, it simply has no levels, and the page says as much rather
+    than drawing an empty ladder."""
+    db_path = _book_db(
+        tmp_path, "emptysnap.sqlite", rows=[(1, [], [], 1, "l2")]
+    )
+
+    at = AppTest.from_function(carry_script)
+    at.session_state["db_path"] = db_path
+    at.run()
+
+    assert not at.exception
+    assert at.markdown[-1].value == ""
+
+
+def test_a_recording_that_opens_in_an_unreadable_model_is_not_guessed_at(
+    tmp_path,
+):
+    """A later book model must not be silently reduced to price levels -
+    the page says it cannot read the recording instead."""
+    db_path = _book_db(
+        tmp_path, "l3snap.sqlite", rows=[(1, [(99.0, 2.0)], [], 1, "l3")]
+    )
+
+    at = AppTest.from_function(carry_script)
+    at.session_state["db_path"] = db_path
+    at.run()
 
     assert not at.exception
     assert at.markdown[-1].value == "none"

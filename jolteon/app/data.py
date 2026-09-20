@@ -62,6 +62,56 @@ def _max_rowid(conn: sqlite3.Connection, table: str) -> int:
     return int(row[0]) if row and row[0] is not None else 0
 
 
+def last_rowid_where(db_path: str, table: str, column: str) -> int | None:
+    """
+    Returns: The row id of the last recorded row whose `column` is true,
+    or nothing where no row is.
+    """
+    if not database_exists(db_path):
+        return None
+    conn = sqlite3.connect(db_path)
+    try:
+        row = conn.execute(
+            f'SELECT MAX(rowid) FROM "{table}" WHERE "{column}"'
+        ).fetchone()
+    except (sqlite3.OperationalError, pd.errors.DatabaseError):
+        return None
+    finally:
+        conn.close()
+    return int(row[0]) if row and row[0] is not None else None
+
+
+def read_after(
+    db_path: str, table: str, rowid: int
+) -> tuple[pd.DataFrame, int]:
+    """
+    Returns: The rows recorded after `rowid`, oldest first, and the row
+    id of the last of them - `rowid` again where there are none.
+
+    Unlike `read_table` this holds nothing between calls and is bounded
+    by what the caller asks for, which is what a reader replaying a
+    recording from a point in it needs: the general cache keeps only the
+    most recent rows, and the row being replayed from is usually older
+    than that.
+    """
+    if not database_exists(db_path):
+        return pd.DataFrame(), rowid
+    conn = sqlite3.connect(db_path)
+    try:
+        frame = pd.read_sql(
+            f'SELECT rowid AS "{_ROWID}", * FROM "{table}" WHERE rowid > ?',
+            conn,
+            params=(rowid,),
+        )
+    except (sqlite3.OperationalError, pd.errors.DatabaseError):
+        return pd.DataFrame(), rowid
+    finally:
+        conn.close()
+    if frame.empty:
+        return frame, rowid
+    return frame.drop(columns=_ROWID), int(frame[_ROWID].iloc[-1])
+
+
 def read_table(db_path: str, table: str) -> pd.DataFrame:
     """
     Everything recorded in `table`.
