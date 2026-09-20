@@ -28,12 +28,14 @@
 .jolteon-book-ask .jolteon-book-price { color: #DC2626; }
 
 /* Where our own quote rests: the row is outlined, which reads at a
-   glance without spending a column on a marker or a word. `collapse`
-   above is what lets a border on the row itself draw at all. */
-.jolteon-book-resting {
-  border: 1px solid #8B7EF0;
-  font-weight: 600;
-}
+   glance without spending a column on a marker or a word. The outline
+   takes its own side's colour, the one the price beside it is already
+   drawn in. `collapse` above is what lets a border on the row itself
+   draw at all. */
+.jolteon-book-resting { font-weight: 600; }
+
+.jolteon-book-bid.jolteon-book-resting { border: 1px solid #16A34A; }
+.jolteon-book-ask.jolteon-book-resting { border: 1px solid #DC2626; }
 
 .jolteon-book-spread td {
   text-align: center;
@@ -49,11 +51,4 @@
   color: #667085;
   font-size: 11px;
   font-weight: 400;
-}
-
-/* Our own quote where the venue has no level at that price - a quote
-   inside the spread always lands here, and in paper trading every quote
-   does, since our orders never reach the venue's book. */
-.jolteon-book-alone td {
-  font-style: italic;
 }
