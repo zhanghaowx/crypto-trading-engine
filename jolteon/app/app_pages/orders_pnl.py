@@ -1,10 +1,10 @@
 from collections.abc import Mapping
 from datetime import datetime
-from typing import Any
 
 import pandas as pd
 import streamlit as st
 
+from jolteon.app import table
 from jolteon.app.analytics import (
     HORIZONS,
     avg_fair_price_movement,
@@ -23,7 +23,6 @@ from jolteon.app.components import (
     paginate,
     row_key,
     sign_color,
-    styled_table,
     warn_if_no_db,
 )
 from jolteon.app.data import as_datetime, read_latest_per_group, read_table
@@ -358,10 +357,6 @@ _SIDE_TINTS = {
 }
 
 
-def _shade_side(column: pd.Series) -> list[str]:
-    return [_SIDE_TINTS.get(value, "") for value in column]
-
-
 def _render_pnl(fills: pd.DataFrame, latest_mid: pd.DataFrame) -> None:
     by_symbol = pnl_by_symbol(fills, latest_mid)
 
@@ -450,10 +445,10 @@ def _markout_stats(stats: pd.DataFrame) -> dict[str, pd.Series]:
     }
 
 
-def _markout_column_config(context: str) -> dict[str, object]:
+def _markout_help(context: str) -> dict[str, str]:
     return {
-        f"Markout +{horizon}": st.column_config.NumberColumn(
-            help="How much the price moved in our favor, on average, "
+        f"Markout +{horizon}": (
+            "How much the price moved in our favor, on average, "
             f"{_HORIZON_PHRASES[horizon]} after {context}."
         )
         for horizon in HORIZONS
@@ -461,20 +456,22 @@ def _markout_column_config(context: str) -> dict[str, object]:
 
 
 def _shaded_table(
-    table: pd.DataFrame,
+    rows: pd.DataFrame,
     money_columns: list[str],
-    column_config: Mapping[str, Any],
+    column_help: Mapping[str, str],
     *,
     shade_side: bool = False,
 ) -> None:
-    styled = styled_table(table, money_columns, _fmt_usd)
-    if shade_side:
-        styled = styled.apply(_shade_side, subset=["Side"], axis=0)
-    st.dataframe(
-        styled,
-        hide_index=True,
-        width="stretch",
-        column_config=column_config,
+    table.render(
+        rows,
+        shaded_columns=money_columns,
+        format_fn=_fmt_usd,
+        column_help=column_help,
+        row_style=(
+            (lambda row: _SIDE_TINTS.get(row["Side"], ""))
+            if shade_side
+            else None
+        ),
     )
 
 
@@ -482,17 +479,17 @@ def _render_fair_price_movement(fills: pd.DataFrame) -> None:
     st.markdown("**Fair price movement**")
     movement = avg_fair_price_movement(fills)
     columns = [f"+{horizon}" for horizon in HORIZONS]
-    table = pd.DataFrame([movement.values], columns=columns)
-    column_config = {
-        f"+{horizon}": st.column_config.NumberColumn(
-            help="Average change in the fair price itself, "
+    rows = pd.DataFrame([movement.values], columns=columns)
+    column_help = {
+        f"+{horizon}": (
+            "Average change in the fair price itself, "
             f"{_HORIZON_PHRASES[horizon]} after a fill - a positive "
             "number means it tends to keep rising, negative means it "
             "tends to fall back."
         )
         for horizon in HORIZONS
     }
-    _shaded_table(table, columns, column_config)
+    _shaded_table(rows, columns, column_help)
 
 
 def _render_fill_quality(fills: pd.DataFrame) -> None:
@@ -503,7 +500,7 @@ def _render_fill_quality(fills: pd.DataFrame) -> None:
 
     st.markdown("**Fill Quality**")
     by_side = fill_quality_by_side(fills).sort_index()
-    table = pd.DataFrame(
+    rows = pd.DataFrame(
         {
             "Side": by_side.index,
             "Fills": by_side["fill_count"].astype(int),
@@ -511,18 +508,18 @@ def _render_fill_quality(fills: pd.DataFrame) -> None:
             **_markout_stats(by_side),
         }
     )
-    column_config = {
-        "Average edge": st.column_config.NumberColumn(
-            help="How far the fill price sat from fair value at the "
+    column_help = {
+        "Average edge": (
+            "How far the fill price sat from fair value at the "
             "moment of execution, in our favor, averaged across fills "
             "on this side."
         ),
-        **_markout_column_config("we filled"),
+        **_markout_help("we filled"),
     }
     _shaded_table(
-        table,
+        rows,
         ["Average edge", *_MARKOUT_COLUMNS],
-        column_config,
+        column_help,
         shade_side=True,
     )
 
@@ -539,7 +536,7 @@ def _render_inventory_buckets(fills: pd.DataFrame) -> None:
         return
 
     st.markdown("**Inventory Buckets**")
-    table = pd.DataFrame(
+    rows = pd.DataFrame(
         {
             "Inventory": stats.index,
             "Fills": stats["fill_count"].astype(int),
@@ -549,17 +546,15 @@ def _render_inventory_buckets(fills: pd.DataFrame) -> None:
             **_markout_stats(stats),
         }
     )
-    column_config = {
-        "Average edge": st.column_config.NumberColumn(
-            help="How far the fill price sat from fair value at the "
+    column_help = {
+        "Average edge": (
+            "How far the fill price sat from fair value at the "
             "moment of execution, in our favor, averaged across fills "
             "made while inventory was in this range."
         ),
-        **_markout_column_config(
-            "a fill made while inventory was in this range"
-        ),
+        **_markout_help("a fill made while inventory was in this range"),
     }
-    _shaded_table(table, ["Average edge", *_MARKOUT_COLUMNS], column_config)
+    _shaded_table(rows, ["Average edge", *_MARKOUT_COLUMNS], column_help)
 
 
 def accent() -> Accent:

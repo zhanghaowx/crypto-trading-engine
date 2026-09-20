@@ -5,7 +5,6 @@ from typing import Callable, Literal
 
 import pandas as pd
 import streamlit as st
-from pandas.io.formats.style import Styler
 
 from jolteon.app.data import database_exists
 
@@ -76,37 +75,6 @@ def hex_to_rgb(color: str) -> tuple[int, int, int]:
 
 POSITIVE_RGB = hex_to_rgb(POSITIVE_COLOR)
 NEGATIVE_RGB = hex_to_rgb(NEGATIVE_COLOR)
-
-
-def shade_cell(value: float, scale: float) -> str:
-    """A background tint for a signed cell, deeper the further `value`
-    sits from zero relative to `scale` (the column's own largest
-    magnitude) - so the standout numbers in a row of tightly-packed
-    figures read through color, not through font size."""
-    if pd.isna(value) or scale == 0:
-        return ""
-    intensity = min(abs(value) / scale, 1.0)
-    r, g, b = POSITIVE_RGB if value >= 0 else NEGATIVE_RGB
-    alpha = 0.10 + 0.35 * intensity
-    return f"background-color: rgba({r}, {g}, {b}, {alpha:.2f})"
-
-
-def shade_column(column: pd.Series) -> list[str]:
-    scale = column.abs().max()
-    return [shade_cell(value, scale) for value in column]
-
-
-def styled_table(
-    table: pd.DataFrame,
-    shaded_columns: list[str],
-    format_fn: Callable[[float], str],
-) -> Styler:
-    """`table`, formatted with `format_fn` and shaded by `shade_column` on
-    `shaded_columns` - the caller still owns rendering it (`st.dataframe`)
-    and can chain further `.apply()` calls (e.g. a side-specific tint)
-    before doing so."""
-    styled = table.style.format({col: format_fn for col in shaded_columns})
-    return styled.apply(shade_column, subset=shaded_columns, axis=0)
 
 
 def slug(text: str) -> str:

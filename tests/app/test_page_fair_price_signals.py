@@ -120,7 +120,7 @@ def _seed_evaluable_session(db_path: str, rows: int) -> None:
     conn.close()
 
 
-def test_renders_slope_and_correlation(tmp_path):
+def test_renders_slope_and_correlation(tmp_path, table_lookup):
     db_path = str(tmp_path / "evaluation.sqlite")
     _seed_evaluable_session(db_path, rows=_MIN_SAMPLES + 5)
 
@@ -129,8 +129,8 @@ def test_renders_slope_and_correlation(tmp_path):
     at.run()
 
     assert not at.exception
-    verdict = at.dataframe[0].value.set_index("Adjustment")
-    assert verdict.loc["Momentum", "Verdict"] == "Worth a weight"
+    verdict = table_lookup(at, 0, "Adjustment")
+    assert verdict["Momentum"]["Verdict"] == "Worth a weight"
 
     at = AppTest.from_function(_details_script)
     at.session_state["db_path"] = db_path
@@ -141,12 +141,12 @@ def test_renders_slope_and_correlation(tmp_path):
     assert "**Calibration (\u03b2)**" in markdown_values
     assert "**Reliability (\u03c1)**" in markdown_values
 
-    correlation = at.dataframe[0].value.set_index("Adjustment")
-    slope = at.dataframe[1].value.set_index("Adjustment")
+    correlation = table_lookup(at, 0, "Adjustment")
+    slope = table_lookup(at, 1, "Adjustment")
 
-    assert slope.loc["Momentum", "+1s"] == pytest.approx(1.0)
-    assert correlation.loc["Momentum", "+1s"] == pytest.approx(1.0)
-    assert slope.loc["Total", "+1s"] == pytest.approx(1.0)
+    assert slope["Momentum"]["+1s"] == "+1.00"
+    assert correlation["Momentum"]["+1s"] == "+1.00"
+    assert slope["Total"]["+1s"] == "+1.00"
 
 
 def test_shows_collecting_info_when_every_horizon_is_undersampled(tmp_path):
@@ -165,7 +165,7 @@ def test_shows_collecting_info_when_every_horizon_is_undersampled(tmp_path):
     ]
 
 
-def test_blanks_only_the_undersampled_horizons(tmp_path):
+def test_blanks_only_the_undersampled_horizons(tmp_path, table_lookup):
     """A 30s horizon never fills in on a short session, so it must show the
     placeholder while the 1s horizon beside it still shows its figure."""
     db_path = str(tmp_path / "partial.sqlite")
@@ -176,9 +176,9 @@ def test_blanks_only_the_undersampled_horizons(tmp_path):
     at.run()
 
     assert not at.exception
-    slope = at.dataframe[1].value.set_index("Adjustment")
-    assert pd.notna(slope.loc["Momentum", "+1s"])
-    assert pd.isna(slope.loc["Momentum", "+30s"])
+    slope = table_lookup(at, 1, "Adjustment")
+    assert slope["Momentum"]["+1s"] != _COLLECTING
+    assert slope["Momentum"]["+30s"] == _COLLECTING
 
 
 def _evaluated(correlation: float, n: int = _MIN_SAMPLES + 1) -> pd.DataFrame:
@@ -214,18 +214,18 @@ def test_verdict_waits_while_a_horizon_is_undersampled():
 
 
 def test_warn_style_tints_only_the_rows_carrying_a_warning():
-    column = pd.Series(
-        ["\u26a0\ufe0f No usable signal yet", "Worth a weight", _COLLECTING]
+    warned = _warn_style(
+        pd.Series({"Verdict": "\u26a0\ufe0f No usable signal yet"})
     )
-
-    warned, trusted, collecting = _warn_style(column)
+    trusted = _warn_style(pd.Series({"Verdict": "Worth a weight"}))
+    collecting = _warn_style(pd.Series({"Verdict": _COLLECTING}))
 
     assert "background-color" in warned
     assert trusted == ""
     assert collecting == ""
 
 
-def test_the_card_itself_carries_only_the_verdict(tmp_path):
+def test_the_card_itself_carries_only_the_verdict(tmp_path, tables):
     """The numbers moved into the card's details modal, so the card is
     the verdict alone rather than a verdict over a fold."""
     db_path = str(tmp_path / "verdict_only.sqlite")
@@ -237,11 +237,13 @@ def test_the_card_itself_carries_only_the_verdict(tmp_path):
 
     assert not at.exception
     assert [m.value for m in at.markdown] == ["**Verdict**"]
-    assert len(at.dataframe) == 1
+    assert len(tables(at)) == 1
     assert not at.expander
 
 
-def test_the_modal_says_why_when_there_is_nothing_to_show(empty_db_path):
+def test_the_modal_says_why_when_there_is_nothing_to_show(
+    empty_db_path, tables
+):
     """Opening the details before the engine has recorded anything shows
     the same explanation the card would, rather than an empty modal."""
     at = AppTest.from_function(_details_script)
@@ -249,5 +251,5 @@ def test_the_modal_says_why_when_there_is_nothing_to_show(empty_db_path):
     at.run()
 
     assert not at.exception
-    assert not at.dataframe
+    assert not tables(at)
     assert at.info[0].value == "No fair price adjustments recorded yet."

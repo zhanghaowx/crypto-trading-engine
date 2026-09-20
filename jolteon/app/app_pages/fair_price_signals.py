@@ -5,8 +5,9 @@ evidence a weight decision gets made from."""
 import pandas as pd
 import streamlit as st
 
+from jolteon.app import table
 from jolteon.app.analytics import HORIZONS
-from jolteon.app.components import NEGATIVE_RGB, styled_table, warn_if_no_db
+from jolteon.app.components import NEGATIVE_RGB, warn_if_no_db
 from jolteon.app.data import read_table
 from jolteon.app.signal_evaluation import evaluate_adjustments
 
@@ -103,34 +104,31 @@ def _verdict(rows: pd.DataFrame) -> str:
     return "Worth a weight"
 
 
-def _warn_style(column: pd.Series) -> list[str]:
+def _warn_style(row: pd.Series) -> str:
+    """A verdict worth acting on is tinted, so the rows that need reading
+    stand out from the ones that only say "fine"."""
     r, g, b = NEGATIVE_RGB
-    return [
-        f"background-color: rgba({r}, {g}, {b}, 0.12)"
-        if str(value).startswith(_WARNING.strip())
-        else ""
-        for value in column
-    ]
+    if str(row["Verdict"]).startswith(_WARNING.strip()):
+        return f"background-color: rgba({r}, {g}, {b}, 0.12)"
+    return ""
 
 
 def _render_verdict(evaluation: pd.DataFrame) -> None:
     st.markdown("**Verdict**", help=_VERDICT_HELP)
-    table = pd.DataFrame(
+    rows = pd.DataFrame(
         [
-            {"Adjustment": name, "Verdict": _verdict(rows)}
-            for name, rows in evaluation.groupby("adjustment", sort=False)
+            {"Adjustment": name, "Verdict": _verdict(group)}
+            for name, group in evaluation.groupby("adjustment", sort=False)
         ]
     )
-    styled = table.style.apply(_warn_style, subset=["Verdict"], axis=0)
-    st.dataframe(styled, hide_index=True, width="stretch")
+    table.render(rows, row_style=_warn_style)
 
 
 def _render_slope(evaluation: pd.DataFrame) -> None:
     st.markdown("**Calibration (β)**", help=_SLOPE_HELP)
-    table = _pivot(evaluation, "slope")
-    column_config = {
-        column: st.column_config.NumberColumn(
-            help="Regression slope of the market's actual forward move "
+    column_help = {
+        column: (
+            "Regression slope of the market's actual forward move "
             f"{_HORIZON_PHRASES[horizon]} later against this adjustment's "
             "own value at the time. 1.0 means correctly scaled, a "
             "smaller magnitude means the adjustment is oversized, and a "
@@ -139,18 +137,19 @@ def _render_slope(evaluation: pd.DataFrame) -> None:
         )
         for column, horizon in zip(_HORIZON_COLUMNS, HORIZONS)
     }
-    styled = styled_table(table, _HORIZON_COLUMNS, _fmt_ratio)
-    st.dataframe(
-        styled, hide_index=True, width="stretch", column_config=column_config
+    table.render(
+        _pivot(evaluation, "slope"),
+        shaded_columns=_HORIZON_COLUMNS,
+        format_fn=_fmt_ratio,
+        column_help=column_help,
     )
 
 
 def _render_correlation(evaluation: pd.DataFrame) -> None:
     st.markdown("**Reliability (ρ)**", help=_CORRELATION_HELP)
-    table = _pivot(evaluation, "correlation")
-    column_config = {
-        column: st.column_config.NumberColumn(
-            help="Correlation between this adjustment's value and the "
+    column_help = {
+        column: (
+            "Correlation between this adjustment's value and the "
             f"market's actual forward move {_HORIZON_PHRASES[horizon]} "
             "later. Near zero means the calibration beside it is likely "
             "noise regardless of its size; closer to +/-1 means it "
@@ -158,9 +157,11 @@ def _render_correlation(evaluation: pd.DataFrame) -> None:
         )
         for column, horizon in zip(_HORIZON_COLUMNS, HORIZONS)
     }
-    styled = styled_table(table, _HORIZON_COLUMNS, _fmt_ratio)
-    st.dataframe(
-        styled, hide_index=True, width="stretch", column_config=column_config
+    table.render(
+        _pivot(evaluation, "correlation"),
+        shaded_columns=_HORIZON_COLUMNS,
+        format_fn=_fmt_ratio,
+        column_help=column_help,
     )
 
 
