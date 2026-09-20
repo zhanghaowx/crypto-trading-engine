@@ -62,6 +62,20 @@ def _max_rowid(conn: sqlite3.Connection, table: str) -> int:
     return int(row[0]) if row and row[0] is not None else 0
 
 
+def max_rowid(db_path: str, table: str) -> int:
+    """The highest row id in `table`, or zero where the recording has no
+    such table to have one."""
+    if not database_exists(db_path):
+        return 0
+    conn = sqlite3.connect(db_path)
+    try:
+        return _max_rowid(conn, table)
+    except (sqlite3.OperationalError, pd.errors.DatabaseError):
+        return 0
+    finally:
+        conn.close()
+
+
 def last_rowid_where(db_path: str, table: str, column: str) -> int | None:
     """
     Returns: The row id of the last recorded row whose `column` is true,

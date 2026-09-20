@@ -10,6 +10,7 @@ from streamlit.testing.v1 import AppTest
 from jolteon.app.data import (
     count_matching,
     last_rowid_where,
+    max_rowid,
     read_after,
     read_latest_per_group,
     read_latest_row,
@@ -442,3 +443,27 @@ def test_a_table_the_recording_does_not_have_finds_nothing():
         assert frame.empty
         assert at == 7
         assert last_rowid_where(db_path, "feed", "flag") is None
+
+
+def test_the_highest_row_id_of_a_table_that_is_not_there_is_zero():
+    """A recording that has not been written yet, or one without the
+    table asked about, has no row to be the highest."""
+    missing = str(Path(tempfile.gettempdir()) / "jolteon-no-such.sqlite")
+    assert max_rowid(missing, "decorated_order_fill") == 0
+
+    with tempfile.TemporaryDirectory() as folder:
+        db_path = str(Path(folder) / "bare.sqlite")
+        sqlite3.connect(db_path).close()
+        assert max_rowid(db_path, "decorated_order_fill") == 0
+
+
+def test_the_highest_row_id_counts_up_with_the_rows():
+    with tempfile.TemporaryDirectory() as folder:
+        db_path = str(Path(folder) / "feed.sqlite")
+        conn = sqlite3.connect(db_path)
+        with closing(conn):
+            conn.execute("CREATE TABLE feed (value REAL)")
+            conn.executemany("INSERT INTO feed VALUES (?)", [(1.0,), (2.0,)])
+            conn.commit()
+
+        assert max_rowid(db_path, "feed") == 2
