@@ -48,12 +48,18 @@ def _select_engine() -> None:
 
 
 cards = [
-    Card("Order Book", ":material/bar_chart:", order_book.render),
+    Card(
+        "Order Book",
+        ":material/bar_chart:",
+        order_book.render,
+        width="half",
+    ),
     Card(
         "Risk Limits",
         ":material/earthquake:",
         risk_limits.render,
         accent=risk_limits.accent,
+        width="half",
     ),
     Card(
         "Orders & PnL",

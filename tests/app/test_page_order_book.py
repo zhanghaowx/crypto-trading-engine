@@ -164,8 +164,10 @@ def test_marks_the_venue_level_our_quote_shares_a_price_with(tmp_path):
 
     assert not at.exception
     body = _markup(at)
-    assert body.count("jolteon-book-ours") == 2
+    # The venue's own level is outlined rather than given a marker of
+    # its own, and keeps its size and running total.
     assert body.count("jolteon-book-resting") == 2
+    assert "jolteon-book-alone" not in body
 
 
 def test_nothing_is_marked_while_we_have_no_quotes_resting(tmp_path):
@@ -175,8 +177,8 @@ def test_nothing_is_marked_while_we_have_no_quotes_resting(tmp_path):
 
     assert not at.exception
     body = _markup(at)
-    assert "jolteon-book-ours" not in body
     assert "jolteon-book-resting" not in body
+    assert "jolteon-book-alone" not in body
 
 
 def test_says_so_when_no_book_has_been_recorded(empty_db_path):
@@ -229,9 +231,11 @@ def test_a_quote_between_levels_sits_between_them(tmp_path):
     assert prices[-3:] == ["99.00", "98.50", "98.00"]
 
 
-def test_a_quote_deeper_than_the_levels_shown_is_reported(tmp_path):
+def test_a_quote_beyond_the_levels_shown_sits_at_its_own_end(tmp_path):
     """Quoting wide enough to fall outside the shown depth would
-    otherwise read as having no quote resting at all."""
+    otherwise read as having no quote resting at all. The ladder runs in
+    price order, so a sell quote out there belongs at the top of it and a
+    buy quote at the bottom."""
     at = AppTest.from_function(_script)
     at.session_state["db_path"] = _book_db(
         tmp_path, "wide.sqlite", quotes=[("BUY", 1.0), ("SELL", 500.0)]
@@ -240,9 +244,10 @@ def test_a_quote_deeper_than_the_levels_shown_is_reported(tmp_path):
 
     assert not at.exception
     body = _markup(at)
-    assert body.count("jolteon-book-beyond") == 2
-    assert "rests beyond the 10 levels shown" in body
-    assert "1.00" in body and "500.00" in body
+    prices = re.findall(r'jolteon-book-price">([\d,.]+)<', body)
+    assert prices[0] == "500.00"
+    assert prices[-1] == "1.00"
+    assert body.count("jolteon-book-alone") == 2
 
 
 def test_a_price_that_only_prints_the_same_still_marks_its_level(tmp_path):
@@ -257,7 +262,7 @@ def test_a_price_that_only_prints_the_same_still_marks_its_level(tmp_path):
     assert not at.exception
     body = _markup(at)
     assert "jolteon-book-alone" not in body
-    assert body.count("jolteon-book-ours") == 1
+    assert body.count("jolteon-book-resting") == 1
 
 
 def test_a_one_sided_book_shows_its_levels_without_a_spread():
