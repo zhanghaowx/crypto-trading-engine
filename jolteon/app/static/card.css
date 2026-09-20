@@ -1,34 +1,45 @@
-/* A card is a bordered container holding one expander: the expander's
-   summary row is the card's title row, and its own chevron is the
-   collapse control. Folding a card is then the browser's doing - no
-   rerun, no re-read of the recording, no chart redraw - which is why the
-   body is always rendered rather than left out when a card is closed. */
+/* A card is a bordered container holding one expander: that expander's
+   summary row is the card's title row, and its chevron is the collapse
+   control. Folding a card is then the browser's own doing - no rerun, no
+   re-read of the recording, no chart redrawn - which is why the body is
+   always rendered rather than left out while a card is closed.
+
+   Every rule below reaches the card's own expander by its exact path
+   rather than as any descendant: cards hold expanders of their own (each
+   error on the Health page is one), and those must keep looking like
+   what they are rather than like a card title. */
 
 %(selector)s {
   position: relative;
   transition: box-shadow 300ms ease, border-color 300ms ease;
 }
 
-/* The expander brings its own border and its own tinted summary bar; the
-   card already has a border, and its header is part of the white
-   surface. */
-%(selector)s [data-testid="stExpander"] details,
-%(selector)s [data-testid="stExpander"] summary,
-%(selector)s [data-testid="stExpander"] summary:hover {
+/* The expander brings its own border, its own tinted summary bar and a
+   rule between the two; the card already has a border, and its title
+   sits on the same white surface as the content under it. */
+%(selector)s > [data-testid="stLayoutWrapper"] > [data-testid="stExpander"]
+  > details,
+%(selector)s > [data-testid="stLayoutWrapper"] > [data-testid="stExpander"]
+  > details > summary,
+%(selector)s > [data-testid="stLayoutWrapper"] > [data-testid="stExpander"]
+  > details > summary:hover,
+%(selector)s > [data-testid="stLayoutWrapper"] > [data-testid="stExpander"]
+  > details > [data-testid="stExpanderDetails"] {
   border: none;
   background: transparent;
 }
 
-/* Align the title with the content below it rather than with the
-   expander's own narrower gutter. */
-%(selector)s [data-testid="stExpander"] summary {
+/* The summary's own row: the title first, its chevron pushed to the far
+   end so it sits with the rest of the chrome. The gutter goes too, so
+   the title lines up with the content below it. */
+%(selector)s > [data-testid="stLayoutWrapper"] > [data-testid="stExpander"]
+  > details > summary {
   padding-left: 0;
   padding-right: 0;
 }
 
-/* The summary's own row: title first, chevron pushed to the far end so
-   it sits with the rest of the chrome. */
-%(selector)s [data-testid="stExpander"] summary > span {
+%(selector)s > [data-testid="stLayoutWrapper"] > [data-testid="stExpander"]
+  > details > summary > span {
   flex-direction: row-reverse;
   justify-content: space-between;
   width: 100%%;
@@ -36,24 +47,26 @@
 
 /* The title, as a card title rather than an expander label. The face is
    named here because Streamlit publishes no variable for the theme's
-   `headingFont`; it mirrors the one in .streamlit/config.toml. */
-%(selector)s [data-testid="stExpander"] summary p {
+   `headingFont`; it mirrors the one in .streamlit/config.toml, at that
+   theme's fourth heading step. */
+%(selector)s > [data-testid="stLayoutWrapper"] > [data-testid="stExpander"]
+  > details > summary p {
   font-family: "Space Grotesk", sans-serif;
-  font-size: 20px;
+  font-size: 17px;
   font-weight: 600;
 }
 
 /* The chrome is a later sibling of the expander, lifted onto the summary
    row. `right` leaves the chevron its place at the end of that row. */
 %(selector)s
-  [data-testid="stLayoutWrapper"]:has(> [class*="st-key-card-chrome-"]) {
+  > [data-testid="stLayoutWrapper"]:has(> [class*="st-key-card-chrome-"]) {
   position: absolute;
   /* An absolutely placed child anchors to the card's padding box, while
      the summary row starts a padding in from it - hence the offset, and
      the row's own height to centre on, so these icons land on the same
      line as the chevron and the title. */
   top: 1rem;
-  height: 2.5rem;
+  height: 2.25rem;
   right: 3rem;
   width: auto;
   display: flex;
@@ -61,19 +74,22 @@
 }
 
 /* Quiet until the card is pointed at, so a page of cards reads as the
-   numbers on it rather than as rows of identical icons. */
-/* The chevron only, not the card's own icon: the title carries that one
-   inside the label's markdown, so it is matched by `div`, while the
-   chevron is summary's own `span`. */
+   numbers on it rather than as rows of identical icons. The chevron
+   only, not the card's own icon: the title carries that one inside the
+   label's markdown, so it is matched by `div`, while the chevron is
+   summary's own `span`. */
 %(selector)s [class*="st-key-card-chrome-"] button,
-%(selector)s [data-testid="stExpander"] summary > span > span {
+%(selector)s > [data-testid="stLayoutWrapper"] > [data-testid="stExpander"]
+  > details > summary > span > span {
   opacity: 0.45;
   transition: opacity 150ms ease;
 }
 
 %(selector)s:hover [class*="st-key-card-chrome-"] button,
-%(selector)s:hover [data-testid="stExpander"] summary > span > span,
+%(selector)s:hover > [data-testid="stLayoutWrapper"]
+  > [data-testid="stExpander"] > details > summary > span > span,
 %(selector)s [class*="st-key-card-chrome-"]:focus-within button,
-%(selector)s [data-testid="stExpander"] summary:focus-visible > span > span {
+%(selector)s > [data-testid="stLayoutWrapper"] > [data-testid="stExpander"]
+  > details > summary:focus-visible > span > span {
   opacity: 1;
 }
