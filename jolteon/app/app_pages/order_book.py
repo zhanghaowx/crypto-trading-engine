@@ -124,15 +124,15 @@ def _our_row(quote: Quote, side: str) -> str:
     quoting inside the spread puts us at a price the book has no level
     at, and in paper trading our orders never reach the venue's book at
     all."""
-    size = "–" if quote.quantity is None else f"{quote.quantity:,.4f}"
+    size = "\u2013" if quote.quantity is None else f"{quote.quantity:,.4f}"
     return (
         f'<tr class="jolteon-book-row jolteon-book-{side} '
         f'jolteon-book-resting jolteon-book-alone">'
-        f'<td class="jolteon-book-mark">'
-        f'<span class="jolteon-book-ours">◆</span></td>'
         f'<td class="jolteon-book-price">{quote.price:,.2f}</td>'
         f"<td>{size}</td>"
-        f"<td>ours</td>"
+        # Our own order is no part of the venue's resting depth, so it
+        # has no running total to carry.
+        f"<td>\u2013</td>"
         f"</tr>"
     )
 
@@ -145,7 +145,6 @@ def _ladder_row(
     ours: bool,
 ) -> str:
     fill = (cumulative / deepest * 100) if deepest else 0.0
-    mark = '<span class="jolteon-book-ours">◆</span>' if ours else ""
     classes = f"jolteon-book-row jolteon-book-{side}"
     if ours:
         classes += " jolteon-book-resting"
@@ -159,7 +158,6 @@ def _ladder_row(
     )
     return (
         f'<tr class="{classes}" style="{bar}">'
-        f'<td class="jolteon-book-mark">{mark}</td>'
         f'<td class="jolteon-book-price">{level.price:,.2f}</td>'
         f"<td>{level.quantity:,.4f}</td>"
         f"<td>{cumulative:,.4f}</td>"
@@ -172,14 +170,15 @@ def _side_rows(
     deepest: float,
     side: str,
     quote: Quote | None,
-) -> tuple[list[str], bool]:
+) -> list[str]:
     """
-    Returns: One side's rows, best price first, and whether our own quote
-    turned out to sit deeper than the levels shown.
+    Returns: One side's rows, best price first.
 
     Our quote marks the level it rests at where the venue has one at that
     price, and takes a row of its own where it does not - which is what a
-    quote inside the spread always does.
+    quote inside the spread always does. A quote further out than the
+    levels shown keeps its place in the price order, at the far end of
+    its own side, rather than dropping out of the ladder entirely.
     """
     ahead = (
         (lambda ours, theirs: ours > theirs)
@@ -198,7 +197,9 @@ def _side_rows(
                 rows.append(_our_row(quote, side))
                 placed = True
         rows.append(_ladder_row(level, total, deepest, side, False))
-    return rows, not placed
+    if quote is not None and not placed:
+        rows.append(_our_row(quote, side))
+    return rows
 
 
 def ladder_html(book: OrderBook, quotes: dict[str, Quote]) -> str:
@@ -213,26 +214,20 @@ def ladder_html(book: OrderBook, quotes: dict[str, Quote]) -> str:
         [total for _, total in bids] + [total for _, total in asks] + [0.0]
     )
 
-    ask_side, ask_missing = _side_rows(
-        asks, deepest, "ask", quotes.get("SELL")
-    )
-    bid_side, bid_missing = _side_rows(bids, deepest, "bid", quotes.get("BUY"))
     # Asks are built best price first and shown the other way up, so the
-    # spread sits between the two sides' best prices.
-    ask_rows = "".join(reversed(ask_side))
-    bid_rows = "".join(bid_side)
-    beyond = [
-        side
-        for side, missing in (("SELL", ask_missing), ("BUY", bid_missing))
-        if missing
-    ]
+    # spread sits between the two sides' best prices - and a sell quote
+    # beyond the levels shown, appended last, lands at the very top.
+    ask_rows = "".join(
+        reversed(_side_rows(asks, deepest, "ask", quotes.get("SELL")))
+    )
+    bid_rows = "".join(_side_rows(bids, deepest, "bid", quotes.get("BUY")))
 
     best_bid, best_ask = book.best_bid(), book.best_ask()
     if best_bid and best_ask:
         spread = best_ask.price - best_bid.price
         mid = (best_ask.price + best_bid.price) / 2
         middle = (
-            f'<tr class="jolteon-book-spread"><td colspan="4">'
+            f'<tr class="jolteon-book-spread"><td colspan="3">'
             f"{mid:,.2f}"
             f"<span>spread {spread:,.2f}"
             f" ({spread / mid * 1e4:,.1f} bps)</span>"
@@ -241,23 +236,12 @@ def ladder_html(book: OrderBook, quotes: dict[str, Quote]) -> str:
     else:
         middle = ""
 
-    # A quote further out than the levels shown would otherwise simply be
-    # absent, which reads as having no quote resting at all.
-    notes = "".join(
-        f'<tr class="jolteon-book-beyond"><td colspan="4">'
-        f"Our {'sell' if side == 'SELL' else 'buy'} quote at "
-        f"{quotes[side].price:,.2f} rests beyond the {LEVELS} levels shown"
-        f"</td></tr>"
-        for side in beyond
-    )
-
     return (
         f"<style>{_LADDER_CSS}</style>"
         f'<table class="jolteon-book">'
-        f"<thead><tr><th></th><th>Price</th><th>Size</th>"
+        f"<thead><tr><th>Price</th><th>Size</th>"
         f"<th>Total</th></tr></thead>"
-        f"<tbody>{ask_rows}{middle}{bid_rows}</tbody>"
-        f"<tfoot>{notes}</tfoot></table>"
+        f"<tbody>{ask_rows}{middle}{bid_rows}</tbody></table>"
     )
 
 
@@ -278,8 +262,8 @@ def render() -> None:
 
     st.html(ladder_html(book, our_quotes(db_path)))
     st.caption(
-        "The diamond marks where our own quote rests - on the venue's own"
-        " level where it shares a price with one, on a line of its own"
-        " where it does not. Total is everything resting at a level and"
-        " ahead of it."
+        "The outlined row is where our own quote rests - the venue's own"
+        " level where it shares a price with one, a line of its own where"
+        " it does not. Total is everything resting at a level and ahead"
+        " of it."
     )

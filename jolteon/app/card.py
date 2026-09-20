@@ -7,7 +7,7 @@ the way a group of them lays out all live here rather than in each page.
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Iterable
+from typing import Callable, Iterable, Iterator, Literal
 
 import streamlit as st
 
@@ -45,6 +45,8 @@ def surface_rule(keys: Iterable[str]) -> str:
 
 Accent = BadgeColor | None
 
+CardWidth = Literal["full", "half"]
+
 # What a card's accent is worth saying with: enough of the card's left
 # edge to catch the eye from across the page, and no more, so the card
 # still reads as the white surface it is.
@@ -78,6 +80,10 @@ class Card:
     something that changes - a limit going from comfortable to nearly
     breached - gives a function instead of a color, which is called each
     time the card is drawn.
+
+    `width` is how much of the page's own width a card asks for. Half
+    cards pair up with the next half card on the page, so two of them
+    share a row.
     """
 
     title: str
@@ -86,6 +92,7 @@ class Card:
     actions: Callable[[], None] | None = None
     details: Callable[[], None] | None = None
     accent: Accent | Callable[[], Accent] = None
+    width: CardWidth = "full"
 
 
 _CARD_CSS = (
@@ -202,9 +209,9 @@ def _chrome(spec: Card, key: str) -> None:
 
 
 def card(spec: Card) -> None:
+    # Whether a card is hidden at all is settled by `_rows`, which drops
+    # the hidden ones before pairing the rest into their rows.
     key = card_key(spec.title)
-    if key in _hidden():
-        return
     # A card's content is drawn in one place at a time: on the page, or
     # in the modal, never both. Anything inside it that keys a widget or
     # a container of its own - the risk gauges, the page through recent
@@ -255,9 +262,41 @@ def _unhide_control(cards: list[Card]) -> None:
         )
 
 
-def render_cards(cards: list[Card]) -> None:
+def _rows(cards: list[Card]) -> Iterator[list[Card]]:
+    """
+    The cards grouped into the rows they are drawn in: a full-width card
+    on a row of its own, half-width cards two to a row.
+
+    Hidden cards are left out before the pairing rather than after, so
+    closing one of a pair promotes the next card up beside its partner
+    instead of leaving a gap where it was.
+    """
+    row: list[Card] = []
     for spec in cards:
-        card(spec)
+        if card_key(spec.title) in _hidden():
+            continue
+        if spec.width == "full":
+            if row:
+                yield row
+                row = []
+            yield [spec]
+            continue
+        row.append(spec)
+        if len(row) == 2:
+            yield row
+            row = []
+    if row:
+        yield row
+
+
+def render_cards(cards: list[Card]) -> None:
+    for row in _rows(cards):
+        if len(row) == 1:
+            card(row[0])
+            continue
+        for column, spec in zip(st.columns(len(row)), row):
+            with column:
+                card(spec)
     _unhide_control(cards)
 
 
