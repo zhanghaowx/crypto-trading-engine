@@ -17,7 +17,7 @@ def test_dashboard_renders_every_section_on_one_page(dashboard):
 
     assert not at.exception
     assert _card_titles(at) == [
-        "Market Data",
+        "Order Book",
         "Risk Limits",
         "Orders & PnL",
         "Trade Quality",
@@ -54,7 +54,6 @@ def test_parameters_page_holds_the_viewer_settings(dashboard):
     assert not at.exception
     assert at.toggle(key="auto_refresh")
     assert at.slider(key="refresh_seconds")
-    assert at.slider(key="chart_window_minutes")
 
 
 def test_parameters_page_does_not_render_the_live_sections(dashboard):
@@ -62,7 +61,7 @@ def test_parameters_page_does_not_render_the_live_sections(dashboard):
     at.switch_page("app_pages/parameters.py").run()
 
     assert not at.exception
-    assert "Market Data" not in _card_titles(at)
+    assert "Order Book" not in _card_titles(at)
 
 
 def test_health_has_a_page_of_its_own(dashboard):

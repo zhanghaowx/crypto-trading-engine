@@ -2,7 +2,7 @@ import streamlit as st
 
 from jolteon.app.app_pages import (
     fair_price_signals,
-    market_data,
+    order_book,
     orders_pnl,
     risk_limits,
 )
@@ -48,7 +48,7 @@ def _select_engine() -> None:
 
 
 cards = [
-    Card("Market Data", ":material/show_chart:", market_data.render),
+    Card("Order Book", ":material/bar_chart:", order_book.render),
     Card(
         "Risk Limits",
         ":material/earthquake:",

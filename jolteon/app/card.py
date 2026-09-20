@@ -7,9 +7,8 @@ the way a group of them lays out all live here rather than in each page.
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Iterable, TypeVar
+from typing import Callable, Iterable
 
-import altair as alt
 import streamlit as st
 
 from jolteon.app.components import SEMANTIC_COLORS, BadgeColor, slug
@@ -25,39 +24,6 @@ BACKGROUND = "#FFFFFF"
 # own border (borderColor in config.toml) already separates it from the
 # canvas.
 SHADOW = "0px 1px 2px rgba(0, 0, 0, 0.05)"
-
-# Vega charts also default to the app background, which drops a green slab
-# into an otherwise white card, so they get the card's own background. The
-# top padding keeps the highest series (the dashed quote rules, say) off the
-# content directly above the chart.
-CHART_TOP_PADDING = 20
-
-ChartT = TypeVar("ChartT", bound=alt.TopLevelMixin)
-
-
-def style_chart(chart: ChartT) -> ChartT:
-    """
-    Give a chart the card's white ground and some headroom, so it reads as
-    part of the card rather than as a colored panel dropped into it. Also
-    drops the axis lines/ticks and the vertical gridlines (Untitled UI's
-    `CartesianGrid vertical={false}`, stroked in its neutral-100), leaving
-    only faint horizontal gridlines so the data reads over the chrome
-    instead of competing with it.
-    """
-    return (
-        chart.properties(
-            background=BACKGROUND,
-            padding={
-                "top": CHART_TOP_PADDING,
-                "left": 5,
-                "right": 5,
-                "bottom": 5,
-            },
-        )
-        .configure_view(strokeWidth=0)
-        .configure_axis(domain=False, ticks=False, grid=False)
-        .configure_axisY(grid=True, gridColor="#F5F5F5", gridDash=[0])
-    )
 
 
 def surface_rule(keys: Iterable[str]) -> str:
