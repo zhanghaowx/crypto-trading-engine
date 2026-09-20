@@ -30,12 +30,16 @@
 /* Where our own quote rests: the row is outlined, which reads at a
    glance without spending a column on a marker or a word. The outline
    takes its own side's colour, the one the price beside it is already
-   drawn in. `collapse` above is what lets a border on the row itself
-   draw at all. */
-.jolteon-book-resting { font-weight: 600; }
+   drawn in. An outline rather than a border: collapsed borders are
+   resolved against the neighbouring cell's, and the spread row's own
+   grey rule won that fight wherever our quote sat next to it. */
+.jolteon-book-resting {
+  font-weight: 600;
+  outline-offset: -1px;
+}
 
-.jolteon-book-bid.jolteon-book-resting { border: 1px solid #16A34A; }
-.jolteon-book-ask.jolteon-book-resting { border: 1px solid #DC2626; }
+.jolteon-book-bid.jolteon-book-resting { outline: 1px solid #16A34A; }
+.jolteon-book-ask.jolteon-book-resting { outline: 1px solid #DC2626; }
 
 .jolteon-book-spread td {
   text-align: center;
