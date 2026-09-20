@@ -1,0 +1,10 @@
+/* Page numbers as circles. The theme gives every button a fully rounded
+   radius, which makes a wide button a pill and a narrow one - a single
+   digit - a vertical ellipse; matching the width to the height is what
+   rounds them. A page number wide enough to need more room still gets
+   it, and reads as a pill rather than a clipped circle. */
+[class*="st-key-pagination-"] button {
+  min-width: 38px;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}

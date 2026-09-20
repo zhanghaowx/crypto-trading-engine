@@ -151,3 +151,27 @@ def test_paginate_previous_returns_to_the_first_page():
 def test_slug_keeps_only_what_a_css_class_can_carry():
     assert slug("Orders & PnL") == "orders-pnl"
     assert slug("BTC/USD") == "btc-usd"
+
+
+def test_pagination_carries_the_rule_that_rounds_its_page_numbers():
+    """A page number is narrower than the button is tall, and the theme's
+    fully rounded radius turns that into a vertical ellipse rather than a
+    circle - a width to match the height is what rounds it. The rule is
+    scoped to the controls' own container, so it travels with them."""
+    at = AppTest.from_function(paginate_script)
+    at.session_state["total_rows"] = 25
+    at.run()
+
+    assert not at.exception
+    styles = "".join(element.body for element in at.get("html"))
+    assert '[class*="st-key-pagination-"] button' in styles
+    assert "min-width" in styles
+
+
+def test_nothing_is_styled_when_there_are_no_pages_to_turn():
+    at = AppTest.from_function(paginate_script)
+    at.session_state["total_rows"] = 10
+    at.run()
+
+    assert not at.exception
+    assert not at.get("html")

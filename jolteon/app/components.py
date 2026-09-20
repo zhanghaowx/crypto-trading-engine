@@ -1,6 +1,7 @@
 """Shared UI helpers used by more than one dashboard page."""
 
 import re
+from pathlib import Path
 from typing import Callable, Literal
 
 import pandas as pd
@@ -75,6 +76,11 @@ def hex_to_rgb(color: str) -> tuple[int, int, int]:
 
 POSITIVE_RGB = hex_to_rgb(POSITIVE_COLOR)
 NEGATIVE_RGB = hex_to_rgb(NEGATIVE_COLOR)
+
+
+_PAGINATION_CSS = (
+    Path(__file__).resolve().parent / "static" / "pagination.css"
+).read_text()
 
 
 def slug(text: str) -> str:
@@ -165,11 +171,13 @@ def paginate(
         # separately-gutter columns - `st.columns` always spaces its columns
         # apart, which reads fine for unrelated content but pulls buttons
         # that belong right next to each other too far apart.
+        st.html(f"<style>{_PAGINATION_CSS}</style>")
         with st.container(
             horizontal=True,
             horizontal_alignment="center",
             vertical_alignment="center",
             gap="small",
+            key=f"pagination-{key}",
         ):
             st.button(
                 "",
