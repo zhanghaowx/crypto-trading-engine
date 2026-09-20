@@ -13,6 +13,7 @@ from jolteon.app.analytics import (
     compute_markout,
     fill_quality_by_side,
     inventory_bucket_stats,
+    recorded_through,
     signed_cash_flow,
 )
 from jolteon.app.card import Accent
@@ -245,6 +246,39 @@ def render_fills_list(display: pd.DataFrame) -> None:
         st.html(f"<style>{_FILLS_TABLE_CSS}</style>")
 
 
+def _through(fills: pd.DataFrame) -> tuple[int, float, int]:
+    """What these fills amount to, as far as any derivation of them is
+    concerned - see `recorded_through`."""
+    return recorded_through(
+        fills,
+        time_column="transaction_timestamp",
+        backfilled=f"fair_price_{HORIZONS[-1]}",
+    )
+
+
+# Each of these walks a whole session's fills, which is most of what this
+# page costs to draw, and answers the same thing until another fill is
+# recorded or a markout horizon resolves. The fills themselves are passed
+# under a leading underscore so Streamlit leaves them unhashed - hashing
+# them costs a good part of what the caching saves - and `through` is the
+# key that actually decides a hit.
+@st.cache_data(show_spinner=False)
+def cached_realized_pnl(_fills: pd.DataFrame, through: tuple) -> float:
+    return realized_pnl(_fills)
+
+
+@st.cache_data(show_spinner=False)
+def cached_fill_quality(_fills: pd.DataFrame, through: tuple) -> pd.DataFrame:
+    return fill_quality_by_side(_fills)
+
+
+@st.cache_data(show_spinner=False)
+def cached_inventory_buckets(
+    _fills: pd.DataFrame, through: tuple
+) -> pd.DataFrame:
+    return inventory_bucket_stats(_fills)
+
+
 def pnl_by_symbol(
     fills: pd.DataFrame, latest_mid: pd.DataFrame
 ) -> pd.DataFrame:
@@ -359,7 +393,7 @@ def _render_pnl(fills: pd.DataFrame, latest_mid: pd.DataFrame) -> None:
             color=sign_color(total_pnl),
             border=True,
         )
-    realized = realized_pnl(fills)
+    realized = cached_realized_pnl(fills, _through(fills))
     with next(cols):
         metric(
             "Realized PnL",
@@ -468,7 +502,7 @@ def _render_fill_quality(fills: pd.DataFrame) -> None:
         return
 
     st.markdown("**Fill Quality**")
-    by_side = fill_quality_by_side(fills).sort_index()
+    by_side = cached_fill_quality(fills, _through(fills)).sort_index()
     rows = pd.DataFrame(
         {
             "Side": by_side.index,
@@ -500,7 +534,7 @@ def _render_inventory_buckets(fills: pd.DataFrame) -> None:
     if not needed.issubset(fills.columns):
         return
 
-    stats = inventory_bucket_stats(fills)
+    stats = cached_inventory_buckets(fills, _through(fills))
     if stats.empty:
         return
 
@@ -572,10 +606,16 @@ def render() -> None:
     if fills.empty:
         st.info("No fills yet.")
     else:
-        display, show_pagination = paginate(
-            fills_table(fills), key="recent-fills", page_size=PAGE_SIZE
+        # Paged before the display columns are worked out, not after:
+        # every one of them - the edge, the cash flow, a markout per
+        # horizon - was being computed for a whole session's fills to
+        # show the ten on screen.
+        page, show_pagination = paginate(
+            _newest_first(fills, "transaction_timestamp"),
+            key="recent-fills",
+            page_size=PAGE_SIZE,
         )
-        render_fills_list(display)
+        render_fills_list(fills_table(page))
         show_pagination()
 
 

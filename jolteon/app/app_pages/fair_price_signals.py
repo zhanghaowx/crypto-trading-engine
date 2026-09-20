@@ -6,10 +6,22 @@ import pandas as pd
 import streamlit as st
 
 from jolteon.app import table
-from jolteon.app.analytics import HORIZONS
+from jolteon.app.analytics import HORIZONS, recorded_through
 from jolteon.app.components import NEGATIVE_RGB, warn_if_no_db
 from jolteon.app.data import read_table
 from jolteon.app.signal_evaluation import evaluate_adjustments
+
+
+# Scoring every recorded adjustment against what the price went on to do
+# is the whole cost of this card, and answers the same until more of
+# either is recorded. The frames go unhashed (a leading underscore);
+# `through` is the key. See `recorded_through`.
+@st.cache_data(show_spinner=False)
+def cached_evaluation(
+    _adjustments: pd.DataFrame, _fair_price: pd.DataFrame, through: tuple
+) -> pd.DataFrame:
+    return evaluate_adjustments(_adjustments, _fair_price)
+
 
 _HORIZON_PHRASES = {
     "100ms": "100 milliseconds",
@@ -181,7 +193,14 @@ def _evaluation() -> pd.DataFrame | None:
         return None
 
     fair_price = read_table(db_path, "fair_price")
-    evaluation = evaluate_adjustments(adjustments, fair_price)
+    evaluation = cached_evaluation(
+        adjustments,
+        fair_price,
+        (
+            recorded_through(adjustments, time_column="timestamp"),
+            recorded_through(fair_price, time_column="timestamp"),
+        ),
+    )
     if evaluation.empty:
         st.info("Waiting for fair price data to evaluate against.")
         return None

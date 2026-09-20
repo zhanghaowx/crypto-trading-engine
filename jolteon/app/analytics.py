@@ -174,3 +174,33 @@ def inventory_bucket_stats(
             ).mean()
         rows[label] = row
     return pd.DataFrame.from_dict(rows, orient="index")
+
+
+def recorded_through(
+    frame: pd.DataFrame, *, time_column: str, backfilled: str | None = None
+) -> tuple[int, float, int]:
+    """
+    Returns: A cheap stand-in for what a recorded table holds - how many
+    rows it has, how far through the session its last one is, and how
+    many of `backfilled` have been filled in since.
+
+    This is what a derivation over the table is cached under. Hashing the
+    table itself costs about thirty milliseconds for a session's fills,
+    which is a good part of what caching the derivation is there to save.
+
+    `backfilled` names a column the engine fills in after the fact - a
+    markout horizon only resolves once that long has passed - so a table
+    whose length and latest row are unchanged may still have grown newer
+    figures inside it.
+    """
+    if frame.empty:
+        return (0, 0.0, 0)
+    latest = (
+        float(frame[time_column].iloc[-1]) if time_column in frame else 0.0
+    )
+    filled = (
+        int(frame[backfilled].notna().sum())
+        if backfilled and backfilled in frame
+        else 0
+    )
+    return (len(frame), latest, filled)
