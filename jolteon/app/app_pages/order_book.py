@@ -261,9 +261,3 @@ def render() -> None:
         return
 
     st.html(ladder_html(book, our_quotes(db_path)))
-    st.caption(
-        "The outlined row is where our own quote rests - the venue's own"
-        " level where it shares a price with one, a line of its own where"
-        " it does not. Total is everything resting at a level and ahead"
-        " of it."
-    )

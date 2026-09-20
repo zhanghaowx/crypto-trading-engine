@@ -64,7 +64,6 @@ def test_renders_pnl_and_recent_fills(populated_db_path):
     assert metrics["Total PnL"] == ":green[0.90]"
     assert metrics["Inventory value"] == "100.50"
     assert metrics["BTC-USD position"] == "1.0"
-    assert metrics["BTC-USD mark price"] == "100.50"
     # Recent fills renders as a row list, not st.dataframe (a canvas-drawn
     # grid, whose cells can't be styled per side) - check for the header
     # and the one fill's own values instead of a dataframe.
@@ -370,7 +369,7 @@ def test_marks_inventory_at_zero_without_a_bbo_feed(tmp_path):
     metrics = _metrics(at)
     # No mark price available, so total PnL falls back to net cash alone.
     assert metrics["Net cash flow"] == metrics["Total PnL"]
-    assert metrics["BTC-USD mark price"] == "-"
+    assert "BTC-USD mark price" not in metrics
 
 
 def _fills(*trades) -> pd.DataFrame:
