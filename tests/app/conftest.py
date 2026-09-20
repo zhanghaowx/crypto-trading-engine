@@ -1,5 +1,6 @@
 import sqlite3
 import time
+from html.parser import HTMLParser
 from pathlib import Path
 
 import pytest
@@ -11,6 +12,94 @@ from jolteon.engine.core.storage import paths
 _DASHBOARD_PATH = str(
     Path(__file__).resolve().parents[2] / "jolteon" / "app" / "dashboard.py"
 )
+
+
+class _TableReader(HTMLParser):
+    """Reads the tables `jolteon.app.table` renders back out of an app's
+    HTML, so a test can assert on what a reader would actually see.
+
+    The tables are plain HTML rather than `st.dataframe`, which AppTest
+    exposes directly - so they arrive as one `html` element each and have
+    to be parsed. `pandas.read_html` would need lxml, which this project
+    does not depend on.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.tables: list[dict] = []
+        self._cell: list[str] | None = None
+        self._row: list[str] = []
+        self._styles: list[str] = []
+        self._in_help = False
+
+    def handle_starttag(self, tag, attrs):
+        attributes = dict(attrs)
+        if tag == "table":
+            self.tables.append({"columns": [], "rows": [], "styles": []})
+        elif tag == "span" and "jolteon-help" in attributes.get("class", ""):
+            # The help marker's "?" is chrome, not part of the label.
+            self._in_help = True
+            self.tables[-1].setdefault("help", {})
+        elif tag in ("td", "th"):
+            self._cell = []
+            self._styles.append(attributes.get("style", ""))
+        elif tag == "tr":
+            self._row, self._styles = [], []
+
+    def handle_endtag(self, tag):
+        if tag == "span":
+            self._in_help = False
+        elif tag in ("td", "th") and self._cell is not None:
+            self._row.append("".join(self._cell).strip())
+            self._cell = None
+        elif tag == "tr" and self._row:
+            table = self.tables[-1]
+            if not table["columns"]:
+                table["columns"] = self._row
+            else:
+                table["rows"].append(self._row)
+                table["styles"].append(self._styles)
+            self._row = []
+
+    def handle_data(self, data):
+        if self._cell is not None and not self._in_help:
+            self._cell.append(data)
+
+
+def _read_tables(html: str) -> list[dict]:
+    reader = _TableReader()
+    reader.feed(html)
+    return [t for t in reader.tables if t["columns"]]
+
+
+@pytest.fixture
+def tables():
+    """Every table an app rendered, in order, as
+    `{"columns", "rows", "styles"}` - and a lookup by a keyed column."""
+
+    def read(at) -> list[dict]:
+        found: list[dict] = []
+        for element in at.get("html"):
+            found.extend(_read_tables(element.body))
+        return found
+
+    return read
+
+
+@pytest.fixture
+def table_lookup(tables):
+    """One table's rows keyed by the value in `key_column`, each row a
+    dict of column name to the text a reader sees."""
+
+    def lookup(at, index: int, key_column: str) -> dict[str, dict[str, str]]:
+        table = tables(at)[index]
+        columns = table["columns"]
+        position = columns.index(key_column)
+        return {
+            row[position]: dict(zip(columns, row)) for row in table["rows"]
+        }
+
+    return lookup
 
 
 @pytest.fixture(autouse=True)

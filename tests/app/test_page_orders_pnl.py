@@ -138,7 +138,9 @@ def test_fills_table_uses_readable_headers_and_drops_opaque_ids(
     assert "taker_order_id" not in display
 
 
-def test_renders_fill_quality_by_side_and_fair_price_movement(tmp_path):
+def test_renders_fill_quality_by_side_and_fair_price_movement(
+    tmp_path, tables, table_lookup
+):
     db_path = str(tmp_path / "fill_quality.sqlite")
     conn = sqlite3.connect(db_path)
     conn.execute(
@@ -222,26 +224,27 @@ def test_renders_fill_quality_by_side_and_fair_price_movement(tmp_path):
     assert "**Fill Quality**" in markdown_values
     assert "**Fair price movement**" in markdown_values
 
-    fill_quality = at.dataframe[0].value.set_index("Side")
-    assert fill_quality.loc["BUY", "Fills"] == 2
-    assert fill_quality.loc["BUY", "Average edge"] == pytest.approx(0.0)
-    assert fill_quality.loc["BUY", "Markout +100ms"] == pytest.approx(0.0)
-    assert fill_quality.loc["SELL", "Fills"] == 1
-    assert fill_quality.loc["SELL", "Average edge"] == pytest.approx(2.0)
-    assert fill_quality.loc["SELL", "Markout +100ms"] == pytest.approx(5.0)
+    fill_quality = table_lookup(at, 0, "Side")
+    assert fill_quality["BUY"]["Fills"] == "2"
+    assert fill_quality["BUY"]["Average edge"] == "+$0.00"
+    assert fill_quality["BUY"]["Markout +100ms"] == "+$0.00"
+    assert fill_quality["SELL"]["Fills"] == "1"
+    assert fill_quality["SELL"]["Average edge"] == "+$2.00"
+    assert fill_quality["SELL"]["Markout +100ms"] == "+$5.00"
     # No fill has a 1s/5s/30s fair price backfilled yet.
-    assert pd.isna(fill_quality.loc["BUY", "Markout +1s"])
+    assert fill_quality["BUY"]["Markout +1s"] == "–"
 
     # Fair price movement is side-independent: (102-101) + (98-99) +
     # (105-108) averaged across all three fills = -1. It's the third
     # table on the page - fill quality, then inventory buckets (this
     # schema has inventory_before too), then this one.
-    fair_price_movement = at.dataframe[2].value
-    assert fair_price_movement.loc[0, "+100ms"] == pytest.approx(-1.0)
-    assert pd.isna(fair_price_movement.loc[0, "+1s"])
+    movement = tables(at)[2]
+    row = dict(zip(movement["columns"], movement["rows"][0]))
+    assert row["+100ms"] == "-$1.00"
+    assert row["+1s"] == "–"
 
 
-def test_renders_inventory_buckets(tmp_path):
+def test_renders_inventory_buckets(tmp_path, table_lookup):
     db_path = str(tmp_path / "inventory_buckets.sqlite")
     conn = sqlite3.connect(db_path)
     conn.execute(
@@ -309,19 +312,17 @@ def test_renders_inventory_buckets(tmp_path):
 
     # Fill quality (BUY/SELL, one each) is the first table on the page;
     # inventory buckets is the second.
-    buckets = at.dataframe[1].value.set_index("Inventory")
-    assert "Strongly short" in buckets.index
-    assert "Near neutral" in buckets.index
-    assert "Strongly long" not in buckets.index
+    buckets = table_lookup(at, 1, "Inventory")
+    assert "Strongly short" in buckets
+    assert "Near neutral" in buckets
+    assert "Strongly long" not in buckets
 
-    assert buckets.loc["Strongly short", "Fills"] == 1
-    assert buckets.loc["Strongly short", "BUY"] == 1
-    assert buckets.loc["Strongly short", "SELL"] == 0
-    assert buckets.loc["Strongly short", "Markout +100ms"] == (
-        pytest.approx(3.0)
-    )
-    assert buckets.loc["Near neutral", "Fills"] == 1
-    assert buckets.loc["Near neutral", "Markout +100ms"] == pytest.approx(2.0)
+    assert buckets["Strongly short"]["Fills"] == "1"
+    assert buckets["Strongly short"]["BUY"] == "1"
+    assert buckets["Strongly short"]["SELL"] == "0"
+    assert buckets["Strongly short"]["Markout +100ms"] == "+$3.00"
+    assert buckets["Near neutral"]["Fills"] == "1"
+    assert buckets["Near neutral"]["Markout +100ms"] == "+$2.00"
 
 
 def test_hides_inventory_buckets_when_inventory_before_is_unset():
