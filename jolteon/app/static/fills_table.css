@@ -1,0 +1,56 @@
+/* Recent fills. Fourteen columns of figures, so the type is a step
+   below the page's and the rows are packed tight: the table is read by
+   scanning down a column, which a row's own height only gets in the way
+   of. Every gap Streamlit puts between stacked elements has to be
+   closed by hand, since each cell is an element of its own rather than
+   a cell in a table. */
+[class*="st-key-row-fill-"] {
+  border-bottom: 1px solid #F0F0EE;
+  padding: 0;
+}
+
+/* Streamlit's markdown element reports almost no height of its own and
+   lets its text overflow, so a row left to size itself around one comes
+   out shorter than the words in it and the rule below lands through
+   them. Giving the row a height of its own settles that, and settles it
+   at the same height for every row, which is what lines the rules up
+   down the table. */
+[class*="st-key-row-fill-"] > [data-testid="stLayoutWrapper"],
+[class*="st-key-fills-table-header"] > [data-testid="stLayoutWrapper"] {
+  min-height: 22px;
+  align-items: center;
+}
+
+[class*="st-key-row-fill-"] p,
+[class*="st-key-fills-table-header"] p {
+  font-size: 12px;
+  line-height: 1.35;
+  margin: 0;
+  white-space: nowrap;
+}
+
+/* The row is a stack of one horizontal block; neither needs the gap
+   Streamlit gives it, nor the padding around each element. */
+[class*="st-key-row-fill-"] [data-testid="stVerticalBlock"],
+[class*="st-key-row-fill-"] [data-testid="stHorizontalBlock"],
+[class*="st-key-fills-table-header"] [data-testid="stHorizontalBlock"] {
+  gap: 0.25rem;
+}
+
+[class*="st-key-row-fill-"] [data-testid="stElementContainer"] {
+  padding: 3px 0;
+}
+
+[class*="st-key-fills-table-header"] p {
+  font-weight: 500;
+  font-size: 11px;
+  color: #667085;
+}
+
+/* A badge carries its own generous padding, which sets the row's height
+   on its own once everything beside it has been brought in. */
+[class*="st-key-row-fill-"] [data-testid="stBadge"] {
+  font-size: 11px;
+  padding: 0 6px;
+  line-height: 1.4;
+}

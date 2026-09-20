@@ -1,5 +1,6 @@
 from collections.abc import Mapping
 from datetime import datetime
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
@@ -154,27 +155,15 @@ _FILL_COLUMNS: list[tuple[str, float]] = [
 # SELL rows are scannable at a glance in the fills list.
 _SIDE_BADGE_COLORS: dict[str, BadgeColor] = {"BUY": "green", "SELL": "red"}
 
-_FILL_ROW_CSS = """
-[class*="st-key-row-fill-"] {
-  border-bottom: 1px solid #E5E5E5;
-  padding: 6px 0;
-}
-"""
-
-_FILL_HEADER_CSS = """
-[class*="st-key-fills-table-header"] p {
-  font-weight: 500;
-  font-size: 0.8rem;
-  color: #525252;
-  margin: 0;
-}
-"""
+_FILLS_TABLE_CSS = (
+    Path(__file__).resolve().parents[1] / "static" / "fills_table.css"
+).read_text()
 
 
 def _fill_identity(row: pd.Series) -> str:
     """A fill's own stable identity - not its position in the recent
-    list, which shifts as newer fills arrive and push it down - so an
-    unchanged row keeps its key, and its animation, across reruns."""
+    list, which shifts as newer fills arrive and push it down - so a row
+    already on screen keeps its key, and its DOM node, across reruns."""
     trade = row.get("Trade")
     if trade:
         return str(trade)
@@ -226,9 +215,9 @@ def _render_fill_cell(col, label: str, value) -> None:
 def render_fills_list(display: pd.DataFrame) -> None:
     """
     Recent fills as a list of rows a human can read at a glance, each in
-    its own container keyed by the fill's own identity - not `st.dataframe`
-    (a canvas-drawn grid, not real per-row DOM), which can't play a
-    per-row entrance animation when a new fill arrives.
+    its own container keyed by the fill's own identity - not
+    `st.dataframe`, a canvas-drawn grid whose cells cannot carry a badge
+    or be coloured by the sign of what is in them.
     """
     present = [
         (label, weight)
@@ -253,7 +242,7 @@ def render_fills_list(display: pd.DataFrame) -> None:
                 for col, label in zip(st.columns(weights), labels):
                     _render_fill_cell(col, label, row[label])
 
-        st.html(f"<style>{_FILL_ROW_CSS}{_FILL_HEADER_CSS}</style>")
+        st.html(f"<style>{_FILLS_TABLE_CSS}</style>")
 
 
 def pnl_by_symbol(
@@ -360,7 +349,7 @@ _SIDE_TINTS = {
 def _render_pnl(fills: pd.DataFrame, latest_mid: pd.DataFrame) -> None:
     by_symbol = pnl_by_symbol(fills, latest_mid)
 
-    cols = iter(st.columns(5 + 2 * len(by_symbol)))
+    cols = iter(st.columns(5 + len(by_symbol)))
 
     total_pnl = by_symbol["total_pnl"].sum()
     with next(cols):
@@ -406,26 +395,6 @@ def _render_pnl(fills: pd.DataFrame, latest_mid: pd.DataFrame) -> None:
                 decimals=None,
                 border=True,
             )
-        mark = row["mark_price"]
-        mark_help = (
-            "The current mid price, halfway between the best bid "
-            "and the best ask."
-        )
-        with next(cols):
-            if pd.isna(mark):
-                st.metric(
-                    f"{symbol} mark price",
-                    "-",
-                    border=True,
-                    help=mark_help,
-                )
-            else:
-                metric(
-                    f"{symbol} mark price",
-                    float(mark),
-                    border=True,
-                    help=mark_help,
-                )
 
 
 _HORIZON_PHRASES = {
@@ -623,8 +592,6 @@ def render_trade_quality() -> None:
         return
 
     _render_fill_quality(fills)
-    st.divider()
     _render_inventory_buckets(fills)
-    st.divider()
     if f"fair_price_{HORIZONS[0]}" in fills.columns:
         _render_fair_price_movement(fills)
