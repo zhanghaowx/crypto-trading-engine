@@ -72,9 +72,9 @@ class Card:
 
     `actions` draws controls of the card's own onto the title row,
     alongside the collapse, details and hide icons every card carries.
-    `details` is what the details icon opens in a modal; left out, the
-    modal shows the card's own content at a width it does not have to
-    squeeze into.
+    `details` is what the card has to say beyond what it shows in
+    place. Give it and the card carries a "more" icon that opens it in a
+    modal; leave it out and the card carries no such icon.
 
     `accent` stripes the card's left edge. A card whose color says
     something that changes - a limit going from comfortable to nearly
@@ -159,23 +159,22 @@ def _unhide_all() -> None:
     _hidden().clear()
 
 
-def _details_dialog(spec: Card) -> None:
+def _details_dialog(spec: Card, details: Callable[[], None]) -> None:
     """
-    The card's content in a modal of its own, wide enough for the tables
-    and charts a card has to squeeze.
+    What the card has to say beyond what it shows in place, in a modal
+    of its own - wide enough for the tables a card has to squeeze.
 
     Opened from session state rather than straight from the button's own
     return value: the pages this renders on refresh on a timer, and a
     modal opened by a click alone would close again on the first refresh
     after it.
     """
-    body = spec.details or spec.body
     st.dialog(
         spec.title,
         icon=spec.icon,
         width="large",
         on_dismiss=_close_details,
-    )(body)()
+    )(details)()
 
 
 def _chrome(spec: Card, key: str) -> None:
@@ -188,15 +187,18 @@ def _chrome(spec: Card, key: str) -> None:
     ):
         if spec.actions is not None:
             spec.actions()
-        st.button(
-            "",
-            icon=":material/open_in_full:",
-            key=f"{key}-details",
-            help="Open this card in a window of its own.",
-            type="tertiary",
-            on_click=_open_details,
-            args=(key,),
-        )
+        # Only where there is something more to show: an icon on a card
+        # that has nothing behind it promises a detail that is not there.
+        if spec.details is not None:
+            st.button(
+                "",
+                icon=":material/more_horiz:",
+                key=f"{key}-details",
+                help="Show more detail.",
+                type="tertiary",
+                on_click=_open_details,
+                args=(key,),
+            )
         st.button(
             "",
             icon=":material/close:",
@@ -217,7 +219,9 @@ def card(spec: Card) -> None:
     # a container of its own - the risk gauges, the page through recent
     # fills - would otherwise be asked for twice in the same run, which
     # Streamlit refuses.
-    in_modal = st.session_state.get(_DETAILS) == key
+    in_modal = (
+        spec.details is not None and st.session_state.get(_DETAILS) == key
+    )
     accent = spec.accent() if callable(spec.accent) else spec.accent
     # With the card's own container rather than with the page's other
     # rules: an accent that reports on live data is only known once the
@@ -237,8 +241,8 @@ def card(spec: Card) -> None:
         # expander's own summary row by `card.css`, and a later sibling
         # wins the stacking order without needing a z-index.
         _chrome(spec, key)
-    if in_modal:
-        _details_dialog(spec)
+    if in_modal and spec.details is not None:
+        _details_dialog(spec, spec.details)
 
 
 def _unhide_control(cards: list[Card]) -> None:
