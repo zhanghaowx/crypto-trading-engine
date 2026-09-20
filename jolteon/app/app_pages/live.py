@@ -66,7 +66,10 @@ cards = [
         "Trade Quality", ":material/target:", orders_pnl.render_trade_quality
     ),
     Card(
-        "Fair Price Signals", ":material/insights:", fair_price_signals.render
+        "Fair Price Signals",
+        ":material/insights:",
+        fair_price_signals.render,
+        details=fair_price_signals.render_details,
     ),
 ]
 

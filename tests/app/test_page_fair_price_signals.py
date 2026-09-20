@@ -13,9 +13,18 @@ from jolteon.app.app_pages.fair_price_signals import (
 
 
 def _script():
+    """The card's own body: the verdict, and nothing else."""
     from jolteon.app.app_pages import fair_price_signals
 
     fair_price_signals.render()
+
+
+def _details_script():
+    """What the card's details modal shows: the numbers the verdict is
+    drawn from, which the card itself no longer carries."""
+    from jolteon.app.app_pages import fair_price_signals
+
+    fair_price_signals.render_details()
 
 
 def _create_adjustments_table(conn: sqlite3.Connection) -> None:
@@ -120,15 +129,21 @@ def test_renders_slope_and_correlation(tmp_path):
     at.run()
 
     assert not at.exception
+    verdict = at.dataframe[0].value.set_index("Adjustment")
+    assert verdict.loc["Momentum", "Verdict"] == "Worth a weight"
+
+    at = AppTest.from_function(_details_script)
+    at.session_state["db_path"] = db_path
+    at.run()
+
+    assert not at.exception
     markdown_values = [m.value for m in at.markdown]
     assert "**Calibration (\u03b2)**" in markdown_values
     assert "**Reliability (\u03c1)**" in markdown_values
 
-    verdict = at.dataframe[0].value.set_index("Adjustment")
-    correlation = at.dataframe[1].value.set_index("Adjustment")
-    slope = at.dataframe[2].value.set_index("Adjustment")
+    correlation = at.dataframe[0].value.set_index("Adjustment")
+    slope = at.dataframe[1].value.set_index("Adjustment")
 
-    assert verdict.loc["Momentum", "Verdict"] == "Worth a weight"
     assert slope.loc["Momentum", "+1s"] == pytest.approx(1.0)
     assert correlation.loc["Momentum", "+1s"] == pytest.approx(1.0)
     assert slope.loc["Total", "+1s"] == pytest.approx(1.0)
@@ -156,12 +171,12 @@ def test_blanks_only_the_undersampled_horizons(tmp_path):
     db_path = str(tmp_path / "partial.sqlite")
     _seed_evaluable_session(db_path, rows=_MIN_SAMPLES + 5)
 
-    at = AppTest.from_function(_script)
+    at = AppTest.from_function(_details_script)
     at.session_state["db_path"] = db_path
     at.run()
 
     assert not at.exception
-    slope = at.dataframe[2].value.set_index("Adjustment")
+    slope = at.dataframe[1].value.set_index("Adjustment")
     assert pd.notna(slope.loc["Momentum", "+1s"])
     assert pd.isna(slope.loc["Momentum", "+30s"])
 
@@ -208,3 +223,31 @@ def test_warn_style_tints_only_the_rows_carrying_a_warning():
     assert "background-color" in warned
     assert trusted == ""
     assert collecting == ""
+
+
+def test_the_card_itself_carries_only_the_verdict(tmp_path):
+    """The numbers moved into the card's details modal, so the card is
+    the verdict alone rather than a verdict over a fold."""
+    db_path = str(tmp_path / "verdict_only.sqlite")
+    _seed_evaluable_session(db_path, rows=_MIN_SAMPLES + 5)
+
+    at = AppTest.from_function(_script)
+    at.session_state["db_path"] = db_path
+    at.run()
+
+    assert not at.exception
+    assert [m.value for m in at.markdown] == ["**Verdict**"]
+    assert len(at.dataframe) == 1
+    assert not at.expander
+
+
+def test_the_modal_says_why_when_there_is_nothing_to_show(empty_db_path):
+    """Opening the details before the engine has recorded anything shows
+    the same explanation the card would, rather than an empty modal."""
+    at = AppTest.from_function(_details_script)
+    at.session_state["db_path"] = empty_db_path
+    at.run()
+
+    assert not at.exception
+    assert not at.dataframe
+    assert at.info[0].value == "No fair price adjustments recorded yet."

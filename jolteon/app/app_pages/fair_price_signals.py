@@ -164,31 +164,50 @@ def _render_correlation(evaluation: pd.DataFrame) -> None:
     )
 
 
-def render() -> None:
+def _evaluation() -> pd.DataFrame | None:
+    """
+    Returns: How each adjustment has scored against what the price went
+    on to do, or nothing at all when too little has been recorded to say
+    - having already said on screen which of those it is.
+    """
     if not warn_if_no_db():
-        return
+        return None
 
     db_path = st.session_state.db_path
     adjustments = read_table(db_path, "fair_price_adjustment")
     if adjustments.empty:
         st.info("No fair price adjustments recorded yet.")
-        return
+        return None
 
     fair_price = read_table(db_path, "fair_price")
     evaluation = evaluate_adjustments(adjustments, fair_price)
     if evaluation.empty:
         st.info("Waiting for fair price data to evaluate against.")
-        return
+        return None
 
     if (evaluation["n"] < _MIN_SAMPLES).all():
         st.info(
             "Collecting data - no horizon has enough samples to evaluate "
             "against yet."
         )
-        return
+        return None
 
-    _render_verdict(evaluation)
-    with st.expander("Show the numbers"):
-        _render_correlation(evaluation)
-        st.divider()
-        _render_slope(evaluation)
+    return evaluation
+
+
+def render() -> None:
+    evaluation = _evaluation()
+    if evaluation is not None:
+        _render_verdict(evaluation)
+
+
+def render_details() -> None:
+    """The correlations and slopes the verdict is drawn from. They are
+    the card's details rather than something to unfold under it: the
+    tables are wide, and the modal gives them room the card cannot."""
+    evaluation = _evaluation()
+    if evaluation is None:
+        return
+    _render_correlation(evaluation)
+    st.divider()
+    _render_slope(evaluation)

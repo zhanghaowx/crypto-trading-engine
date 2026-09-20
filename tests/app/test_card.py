@@ -137,8 +137,10 @@ def test_cards_rule_scopes_descendants_to_every_card_not_just_the_last():
     )
 
     scope = ":is(.st-key-card-health, .st-key-card-errors)"
-    assert f'{scope} [data-testid="stExpander"] details' in rule
     assert f"{scope} [class*=" in rule
+    assert rule.count(scope) > 1
+    # Never a bare comma list in front of a descendant part.
+    assert ".st-key-card-errors [data-testid" not in rule
 
 
 def test_cards_rule_is_empty_without_cards():
