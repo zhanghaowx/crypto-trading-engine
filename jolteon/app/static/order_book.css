@@ -59,3 +59,24 @@
   font-size: 11px;
   font-weight: 400;
 }
+
+/* Our own quote where the venue has no level at that price - a quote
+   inside the spread always lands here, and in paper trading every quote
+   does, since our orders never reach the venue's book. */
+.jolteon-book-alone td {
+  font-style: italic;
+}
+
+.jolteon-book-alone td:last-child {
+  color: #8B7EF0;
+  font-style: normal;
+  font-size: 11px;
+}
+
+.jolteon-book-beyond td {
+  padding: 8px 12px;
+  color: #667085;
+  font-size: 11px;
+  text-align: center;
+  border-top: 1px solid #EAECF0;
+}

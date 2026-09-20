@@ -1,4 +1,5 @@
 import json
+import re
 import sqlite3
 
 import pandas as pd
@@ -11,6 +12,13 @@ def _script():
     from jolteon.app.app_pages import order_book
 
     order_book.render()
+
+
+def _markup(at) -> str:
+    """The ladder's markup, without the stylesheet that ships in the same
+    block - the CSS names every class the markup does, so counting class
+    names across the whole thing counts the rules too."""
+    return at.get("html")[-1].body.split("</style>", 1)[-1]
 
 
 def _encode(levels) -> str:
@@ -74,11 +82,11 @@ def _book_db(tmp_path, name="book.sqlite", *, quotes=(), rows=None) -> str:
         )
         conn.execute(
             'CREATE TABLE "order" '
-            "(timestamp REAL, side TEXT, price REAL, symbol TEXT, "
-            "client_order_id TEXT)"
+            "(timestamp REAL, side TEXT, price REAL, quantity REAL, "
+            "symbol TEXT, client_order_id TEXT)"
         )
         conn.executemany(
-            'INSERT INTO "order" VALUES (1700000000, ?, ?, "BTC-USD", ?)',
+            'INSERT INTO "order" VALUES (1700000000, ?, ?, 0.5, "BTC-USD", ?)',
             [(side, price, str(i)) for i, (side, price) in enumerate(quotes)],
         )
         conn.commit()
@@ -139,7 +147,7 @@ def test_shows_the_ladder_with_both_sides_and_the_spread(tmp_path):
     at.run()
 
     assert not at.exception
-    body = at.get("html")[-1].body
+    body = _markup(at)
     assert "jolteon-book-bid" in body and "jolteon-book-ask" in body
     assert "100.00" in body  # the mid, between 99 and 101
     assert "spread 2.00" in body
@@ -147,7 +155,7 @@ def test_shows_the_ladder_with_both_sides_and_the_spread(tmp_path):
     assert "3.0000" in body and "4.5000" in body
 
 
-def test_marks_the_level_our_own_quote_rests_at(tmp_path):
+def test_marks_the_venue_level_our_quote_shares_a_price_with(tmp_path):
     at = AppTest.from_function(_script)
     at.session_state["db_path"] = _book_db(
         tmp_path, "quoted.sqlite", quotes=[("BUY", 98.0), ("SELL", 102.0)]
@@ -155,10 +163,9 @@ def test_marks_the_level_our_own_quote_rests_at(tmp_path):
     at.run()
 
     assert not at.exception
-    body = at.get("html")[-1].body
-    # The markup, not the stylesheet that ships in the same block.
-    assert body.count('<span class="jolteon-book-ours">') == 2
-    assert body.count('jolteon-book-resting"') == 2
+    body = _markup(at)
+    assert body.count("jolteon-book-ours") == 2
+    assert body.count("jolteon-book-resting") == 2
 
 
 def test_nothing_is_marked_while_we_have_no_quotes_resting(tmp_path):
@@ -167,9 +174,9 @@ def test_nothing_is_marked_while_we_have_no_quotes_resting(tmp_path):
     at.run()
 
     assert not at.exception
-    body = at.get("html")[-1].body
-    assert '<span class="jolteon-book-ours">' not in body
-    assert 'jolteon-book-resting"' not in body
+    body = _markup(at)
+    assert "jolteon-book-ours" not in body
+    assert "jolteon-book-resting" not in body
 
 
 def test_says_so_when_no_book_has_been_recorded(empty_db_path):
@@ -190,6 +197,69 @@ def test_warns_when_the_database_is_missing(missing_db_path):
     assert at.warning
 
 
+def test_a_quote_inside_the_spread_takes_a_row_of_its_own(tmp_path):
+    """Regression test: the diamond used to need our price to equal a
+    venue level exactly. A market maker quoting inside the touch sits in
+    the gap where the book has no level at all, so nothing was marked -
+    and in paper trading, where our orders never reach the venue's book,
+    that was every quote."""
+    at = AppTest.from_function(_script)
+    at.session_state["db_path"] = _book_db(
+        tmp_path, "inside.sqlite", quotes=[("BUY", 99.5), ("SELL", 100.5)]
+    )
+    at.run()
+
+    assert not at.exception
+    body = _markup(at)
+    assert body.count("jolteon-book-alone") == 2
+    assert "99.50" in body and "100.50" in body
+
+
+def test_a_quote_between_levels_sits_between_them(tmp_path):
+    at = AppTest.from_function(_script)
+    at.session_state["db_path"] = _book_db(
+        tmp_path, "between.sqlite", quotes=[("BUY", 98.5)]
+    )
+    at.run()
+
+    assert not at.exception
+    body = _markup(at)
+    prices = re.findall(r'jolteon-book-price">([\d,.]+)<', body)
+    # Bids run 99.00, 98.00; ours at 98.50 belongs between them.
+    assert prices[-3:] == ["99.00", "98.50", "98.00"]
+
+
+def test_a_quote_deeper_than_the_levels_shown_is_reported(tmp_path):
+    """Quoting wide enough to fall outside the shown depth would
+    otherwise read as having no quote resting at all."""
+    at = AppTest.from_function(_script)
+    at.session_state["db_path"] = _book_db(
+        tmp_path, "wide.sqlite", quotes=[("BUY", 1.0), ("SELL", 500.0)]
+    )
+    at.run()
+
+    assert not at.exception
+    body = _markup(at)
+    assert body.count("jolteon-book-beyond") == 2
+    assert "rests beyond the 10 levels shown" in body
+    assert "1.00" in body and "500.00" in body
+
+
+def test_a_price_that_only_prints_the_same_still_marks_its_level(tmp_path):
+    """Our order's price and the venue's level reach the recording by
+    different routes, so they are compared with a tolerance."""
+    at = AppTest.from_function(_script)
+    at.session_state["db_path"] = _book_db(
+        tmp_path, "nearly.sqlite", quotes=[("BUY", 99.0 + 1e-13)]
+    )
+    at.run()
+
+    assert not at.exception
+    body = _markup(at)
+    assert "jolteon-book-alone" not in body
+    assert body.count("jolteon-book-ours") == 1
+
+
 def test_a_one_sided_book_shows_its_levels_without_a_spread():
     """A venue can leave one side empty for a moment; the ladder still
     draws what is there rather than inventing a spread across nothing."""
@@ -198,6 +268,6 @@ def test_a_one_sided_book_shows_its_levels_without_a_spread():
     book = rebuild(_updates([(1, [(99.0, 2.0)], [], 1, "l2")]), "BTC-USD")
 
     assert book is not None
-    html = ladder_html(book, {})
-    assert 'class="jolteon-book-row jolteon-book-bid"' in html
-    assert '<tr class="jolteon-book-spread">' not in html
+    html = ladder_html(book, {}).split("</style>", 1)[-1]
+    assert "jolteon-book-bid" in html
+    assert "jolteon-book-spread" not in html

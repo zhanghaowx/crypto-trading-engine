@@ -7,6 +7,8 @@ book written out level by level widens its table every time the book
 moves - and leaves the dashboard to do the assembling.
 """
 
+import math
+from dataclasses import dataclass
 from pathlib import Path
 
 import pandas as pd
@@ -21,6 +23,16 @@ from jolteon.engine.market_data.core.order_book import (
 )
 
 LEVELS = 10
+
+
+@dataclass(frozen=True)
+class Quote:
+    """One of our own resting orders, as the ladder places it. The size
+    is what the order was placed for, and is not always recorded."""
+
+    price: float
+    quantity: float | None = None
+
 
 # The depth bar's tint per side, matching the price colour beside it.
 _DEPTH_TINT = {
@@ -82,17 +94,47 @@ def _rows(levels: list[PriceLevel]) -> list[tuple[PriceLevel, float]]:
     return paired
 
 
-def _quote_prices(db_path: str) -> dict[str, float]:
-    """The price of our own latest order on each side, which is what the
-    ladder marks so a reader can see where we are resting."""
+def our_quotes(db_path: str) -> dict[str, Quote]:
+    """Our own latest order on each side, which is what the ladder places
+    so a reader can see where we are resting."""
     quotes = read_latest_per_group(db_path, "order", "side")
     if quotes.empty or "price" not in quotes.columns:
         return {}
+    sized = "quantity" in quotes.columns
     return {
-        str(row.side): float(row.price)
+        str(row.side): Quote(
+            float(row.price),
+            float(row.quantity) if sized and pd.notna(row.quantity) else None,
+        )
         for row in quotes.itertuples()
         if pd.notna(row.price)
     }
+
+
+def _same_price(one: float, other: float) -> bool:
+    """Whether two recorded prices name the same level. Compared with a
+    tolerance rather than exactly: our order's price and the venue's
+    level reach the recording by different routes, and two floats that
+    print the same need not be the same float."""
+    return math.isclose(one, other, rel_tol=1e-9, abs_tol=0.0)
+
+
+def _our_row(quote: Quote, side: str) -> str:
+    """Our quote on a line of its own, for where no one else is resting -
+    quoting inside the spread puts us at a price the book has no level
+    at, and in paper trading our orders never reach the venue's book at
+    all."""
+    size = "–" if quote.quantity is None else f"{quote.quantity:,.4f}"
+    return (
+        f'<tr class="jolteon-book-row jolteon-book-{side} '
+        f'jolteon-book-resting jolteon-book-alone">'
+        f'<td class="jolteon-book-mark">'
+        f'<span class="jolteon-book-ours">◆</span></td>'
+        f'<td class="jolteon-book-price">{quote.price:,.2f}</td>'
+        f"<td>{size}</td>"
+        f"<td>ours</td>"
+        f"</tr>"
+    )
 
 
 def _ladder_row(
@@ -125,11 +167,45 @@ def _ladder_row(
     )
 
 
-def ladder_html(book: OrderBook, quotes: dict[str, float]) -> str:
+def _side_rows(
+    paired: list[tuple[PriceLevel, float]],
+    deepest: float,
+    side: str,
+    quote: Quote | None,
+) -> tuple[list[str], bool]:
+    """
+    Returns: One side's rows, best price first, and whether our own quote
+    turned out to sit deeper than the levels shown.
+
+    Our quote marks the level it rests at where the venue has one at that
+    price, and takes a row of its own where it does not - which is what a
+    quote inside the spread always does.
+    """
+    ahead = (
+        (lambda ours, theirs: ours > theirs)
+        if side == "bid"
+        else (lambda ours, theirs: ours < theirs)
+    )
+    rows: list[str] = []
+    placed = quote is None
+    for level, total in paired:
+        if quote is not None and not placed:
+            if _same_price(level.price, quote.price):
+                rows.append(_ladder_row(level, total, deepest, side, True))
+                placed = True
+                continue
+            if ahead(quote.price, level.price):
+                rows.append(_our_row(quote, side))
+                placed = True
+        rows.append(_ladder_row(level, total, deepest, side, False))
+    return rows, not placed
+
+
+def ladder_html(book: OrderBook, quotes: dict[str, Quote]) -> str:
     """
     Returns: The book as a ladder - asks falling towards the spread,
     bids below it - each level backed by a bar the width of everything
-    resting at it and ahead of it, and our own resting price marked.
+    resting at it and ahead of it, and our own quote placed in it.
     """
     bids = _rows(book.bids(LEVELS))
     asks = _rows(book.asks(LEVELS))
@@ -137,18 +213,19 @@ def ladder_html(book: OrderBook, quotes: dict[str, float]) -> str:
         [total for _, total in bids] + [total for _, total in asks] + [0.0]
     )
 
-    ask_rows = "".join(
-        _ladder_row(
-            level, total, deepest, "ask", level.price == quotes.get("SELL")
-        )
-        for level, total in reversed(asks)
+    ask_side, ask_missing = _side_rows(
+        asks, deepest, "ask", quotes.get("SELL")
     )
-    bid_rows = "".join(
-        _ladder_row(
-            level, total, deepest, "bid", level.price == quotes.get("BUY")
-        )
-        for level, total in bids
-    )
+    bid_side, bid_missing = _side_rows(bids, deepest, "bid", quotes.get("BUY"))
+    # Asks are built best price first and shown the other way up, so the
+    # spread sits between the two sides' best prices.
+    ask_rows = "".join(reversed(ask_side))
+    bid_rows = "".join(bid_side)
+    beyond = [
+        side
+        for side, missing in (("SELL", ask_missing), ("BUY", bid_missing))
+        if missing
+    ]
 
     best_bid, best_ask = book.best_bid(), book.best_ask()
     if best_bid and best_ask:
@@ -164,12 +241,23 @@ def ladder_html(book: OrderBook, quotes: dict[str, float]) -> str:
     else:
         middle = ""
 
+    # A quote further out than the levels shown would otherwise simply be
+    # absent, which reads as having no quote resting at all.
+    notes = "".join(
+        f'<tr class="jolteon-book-beyond"><td colspan="4">'
+        f"Our {'sell' if side == 'SELL' else 'buy'} quote at "
+        f"{quotes[side].price:,.2f} rests beyond the {LEVELS} levels shown"
+        f"</td></tr>"
+        for side in beyond
+    )
+
     return (
         f"<style>{_LADDER_CSS}</style>"
         f'<table class="jolteon-book">'
         f"<thead><tr><th></th><th>Price</th><th>Size</th>"
         f"<th>Total</th></tr></thead>"
-        f"<tbody>{ask_rows}{middle}{bid_rows}</tbody></table>"
+        f"<tbody>{ask_rows}{middle}{bid_rows}</tbody>"
+        f"<tfoot>{notes}</tfoot></table>"
     )
 
 
@@ -188,8 +276,10 @@ def render() -> None:
         st.info("No order book recorded yet that this page can read.")
         return
 
-    st.html(ladder_html(book, _quote_prices(db_path)))
+    st.html(ladder_html(book, our_quotes(db_path)))
     st.caption(
-        "The diamond marks the level our own quote is resting at. Total is"
-        " everything resting at a level and ahead of it."
+        "The diamond marks where our own quote rests - on the venue's own"
+        " level where it shares a price with one, on a line of its own"
+        " where it does not. Total is everything resting at a level and"
+        " ahead of it."
     )
