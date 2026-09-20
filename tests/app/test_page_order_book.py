@@ -477,3 +477,46 @@ def test_a_recording_that_opens_in_an_unreadable_model_is_not_guessed_at(
 
     assert not at.exception
     assert at.markdown[-1].value == "none"
+
+
+def test_a_refresh_reads_only_what_was_recorded_since_the_last_one(tmp_path):
+    """
+    The cost of a refresh must not grow with the session. This is the
+    property the table cache was standing in for, and it holds here
+    without one: the first draw reads from the snapshot, and every
+    refresh after reads only the updates added since.
+    """
+    db_path = _book_db(
+        tmp_path,
+        "reads.sqlite",
+        rows=[(1, [(99.0, 2.0)], [(101.0, 3.0)], 1, "l2")],
+    )
+    _append(
+        db_path,
+        [(i, [(98.0, float(i % 5 + 1))], [], 0, "l2") for i in range(2, 500)],
+    )
+
+    from jolteon.app.app_pages import order_book
+
+    read_sizes: list[int] = []
+    real = order_book.read_after
+
+    def counting(db, table, rowid):
+        frame, at = real(db, table, rowid)
+        read_sizes.append(len(frame))
+        return frame, at
+
+    at = AppTest.from_function(carry_script)
+    at.session_state["db_path"] = db_path
+    with mock.patch.object(order_book, "read_after", counting):
+        at.run()
+        first = list(read_sizes)
+        _append(db_path, [(500, [(97.0, 1.0)], [], 0, "l2")])
+        at.run()
+        refreshed = read_sizes[len(first) :]
+
+    assert not at.exception
+    # The first draw replays the session: snapshot plus its 498 updates.
+    assert sum(first) == 499
+    # The refresh reads the one update recorded since, not the session.
+    assert sum(refreshed) == 1
