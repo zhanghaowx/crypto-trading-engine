@@ -5,6 +5,8 @@ from contextlib import closing
 from pathlib import Path
 from unittest import mock
 
+from streamlit.testing.v1 import AppTest
+
 from jolteon.app.data import (
     count_matching,
     read_latest_per_group,
@@ -294,3 +296,107 @@ class TestCountMatching(unittest.TestCase):
         )
 
         self.assertEqual(0, found)
+
+
+def keyed_table_script():
+    import streamlit as st
+
+    from jolteon.app.data import read_table
+
+    fills = read_table(st.session_state.db_path, "decorated_order_fill")
+    st.write(f"{len(fills)}|" + ",".join(str(v) for v in fills["fee"]))
+
+
+def _keyed_db(tmp_path, rows) -> str:
+    db_path = str(tmp_path / "keyed.sqlite")
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            "CREATE TABLE decorated_order_fill "
+            "(exchange_execution_id TEXT PRIMARY KEY, fee REAL)"
+        )
+        conn.executemany(
+            "INSERT INTO decorated_order_fill VALUES (?, ?)", rows
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return db_path
+
+
+def _write(db_path, sql, params=()):
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(sql, params)
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def test_a_rewritten_row_in_a_keyed_table_is_read_again(tmp_path):
+    """A fill is rewritten in place as its markouts resolve, so a keyed
+    table's recent rows have to be read again rather than carried over
+    from the last refresh."""
+    db_path = _keyed_db(tmp_path, [("a", 1.0), ("b", 2.0)])
+
+    at = AppTest.from_function(keyed_table_script)
+    at.session_state["db_path"] = db_path
+    at.run()
+    assert at.markdown[-1].value == "2|1.0,2.0"
+
+    _write(
+        db_path,
+        "UPDATE decorated_order_fill SET fee = 9.0 WHERE "
+        "exchange_execution_id = 'b'",
+    )
+    at.run()
+
+    assert not at.exception
+    assert at.markdown[-1].value == "2|1.0,9.0"
+
+
+def test_rows_added_to_a_keyed_table_arrive(tmp_path):
+    db_path = _keyed_db(tmp_path, [("a", 1.0)])
+
+    at = AppTest.from_function(keyed_table_script)
+    at.session_state["db_path"] = db_path
+    at.run()
+    assert at.markdown[-1].value == "1|1.0"
+
+    _write(db_path, "INSERT INTO decorated_order_fill VALUES ('b', 2.0)")
+    at.run()
+
+    assert not at.exception
+    assert at.markdown[-1].value == "2|1.0,2.0"
+
+
+def test_a_replaced_keyed_recording_is_read_from_scratch(tmp_path):
+    """Row ids start over when the recording is replaced, and the rows
+    held from the old one describe a session that is gone."""
+    db_path = _keyed_db(tmp_path, [("a", 1.0), ("b", 2.0), ("c", 3.0)])
+
+    at = AppTest.from_function(keyed_table_script)
+    at.session_state["db_path"] = db_path
+    at.run()
+    assert at.markdown[-1].value == "3|1.0,2.0,3.0"
+
+    _write(db_path, "DELETE FROM decorated_order_fill")
+    _write(db_path, "INSERT INTO decorated_order_fill VALUES ('z', 7.0)")
+    at.run()
+
+    assert not at.exception
+    assert at.markdown[-1].value == "1|7.0"
+
+
+def test_a_keyed_table_longer_than_the_cache_keeps_its_newest_rows(tmp_path):
+    """The cache is bounded, so a recording that outgrows it holds the
+    most recent rows rather than the first ones read."""
+    db_path = _keyed_db(tmp_path, [(str(i), float(i)) for i in range(6)])
+
+    at = AppTest.from_function(keyed_table_script)
+    at.session_state["db_path"] = db_path
+    with mock.patch("jolteon.app.data._MAX_CACHED_ROWS", 4):
+        at.run()
+
+    assert not at.exception
+    assert at.markdown[-1].value == "4|2.0,3.0,4.0,5.0"

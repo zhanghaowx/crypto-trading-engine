@@ -29,6 +29,12 @@ _ROWID = "_jolteon_rowid"
 # table.
 _MAX_CACHED_ROWS = 100_000
 
+# How far back a keyed table is re-read for rows the engine may have
+# rewritten. A fill is rewritten only while its markouts resolve, over
+# the longest horizon of thirty seconds, so this is generous even for an
+# engine filling many times a second.
+_REWRITABLE_ROWS = 5_000
+
 
 def reset_table_cache() -> None:
     """Forget every row read so far, so the next read starts from scratch."""
@@ -76,11 +82,37 @@ def read_table(db_path: str, table: str) -> pd.DataFrame:
     try:
         if _has_primary_key(conn, table):
             # A row under a primary key can be rewritten in place, and an
-            # update leaves the row id untouched, so there is no cursor to
-            # carry. These tables are bounded by their key's cardinality
-            # rather than tick rate.
-            frame = pd.read_sql(f'SELECT * FROM "{table}"', conn)
-            cursor = 0
+            # update leaves the row id untouched - so a cursor alone would
+            # carry stale copies of the rows that changed. Only the recent
+            # ones do change: a fill is rewritten while its markouts
+            # resolve, and the longest horizon is half a minute. So the
+            # tail is read again and the rest is kept, which holds the
+            # cost flat instead of re-reading the session every refresh.
+            top = _max_rowid(conn, table)
+            if cursor > top:
+                # The recording was replaced and the row ids started over.
+                frame, cursor = pd.DataFrame(), 0
+            settled = (
+                frame[frame[_ROWID] <= top - _REWRITABLE_ROWS]
+                if _ROWID in frame.columns
+                else pd.DataFrame()
+            )
+            fresh = pd.read_sql(
+                f'SELECT rowid AS "{_ROWID}", * FROM "{table}" '
+                f"WHERE rowid > ?",
+                conn,
+                params=(max(top - _REWRITABLE_ROWS, 0),),
+            )
+            frame = (
+                fresh
+                if settled.empty
+                else pd.concat([settled, fresh], ignore_index=True)
+            )
+            cursor = top
+            if len(frame) > _MAX_CACHED_ROWS:
+                frame = frame.iloc[-_MAX_CACHED_ROWS:].reset_index(drop=True)
+            cache[(db_path, table)] = (frame, cursor)
+            return frame.drop(columns=_ROWID).copy(deep=False)
         else:
             if cursor > _max_rowid(conn, table):
                 # The recording was replaced and the row ids started over
