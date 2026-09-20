@@ -172,30 +172,36 @@ def nav_alert_rule(current: HealthSummary) -> str:
     return f"<style>{_ALERT_DOT_CSS if current.alerts else ''}</style>"
 
 
-_NAV_SUMMARY = "_health_summary_the_nav_drew"
+_NAV_ALERTING = "_whether_the_nav_drew_an_alert"
 
 
 def nav_drawn(current: HealthSummary) -> None:
-    st.session_state[_NAV_SUMMARY] = current
+    st.session_state[_NAV_ALERTING] = bool(current.alerts)
 
 
 def redraw_nav_if_stale(root: str) -> None:
     """
-    Asks for a full rerun when what the navigation says has gone out of
+    Asks for a full rerun when what the navigation shows has gone out of
     date.
 
     Navigation is built by the entrypoint, and a fragment rerunning on
     its own timer never re-runs that, so a page refreshing itself would
-    otherwise leave the Health item reading whatever it said when the
-    reader arrived.
+    otherwise leave the Health item without the dot it should be
+    wearing, or wearing one it should have dropped.
+
+    What the navigation shows is a dot or no dot, so whether there is
+    anything to alert about is all that is compared. Comparing the whole
+    summary instead tore down and rebuilt the entire page every time an
+    engine logged an error - once every few seconds on a busy one - to
+    redraw a dot that was already there.
 
     What was found is recorded as drawn before the rerun rather than
-    after it: the entrypoint stores the same summary again a moment
+    after it: the entrypoint records the same answer again a moment
     later, and recording it here is what makes this one rerun per change
     instead of one per refresh.
     """
-    current = summary(root)
-    drawn = st.session_state.get(_NAV_SUMMARY)
-    nav_drawn(current)
-    if drawn is not None and drawn != current:
+    alerting = bool(summary(root).alerts)
+    drawn = st.session_state.get(_NAV_ALERTING)
+    st.session_state[_NAV_ALERTING] = alerting
+    if drawn is not None and drawn != alerting:
         st.rerun(scope="app")

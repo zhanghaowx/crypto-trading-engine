@@ -242,3 +242,70 @@ def nav_script_without_drawing():
 
     st.session_state["runs"] = st.session_state.get("runs", 0) + 1
     redraw_nav_if_stale(st.session_state.root)
+
+
+def growing_errors_script():
+    import streamlit as st
+
+    from jolteon.app.health_summary import (
+        HealthSummary,
+        nav_drawn,
+        redraw_nav_if_stale,
+    )
+
+    st.session_state["runs"] = st.session_state.get("runs", 0) + 1
+    if st.session_state["runs"] == 1:
+        # The nav already carries its dot: one error was showing when it
+        # was drawn, and more have been logged since.
+        nav_drawn(HealthSummary(down=(), errors=1))
+    redraw_nav_if_stale(st.session_state.root)
+
+
+def test_more_of_an_alert_already_showing_does_not_redraw_the_page(engines):
+    """
+    Regression test: the navigation shows a dot or no dot, so a rising
+    error count changes nothing about it. Comparing the whole summary
+    reran the entire page every time an engine logged an error, which on
+    a busy one is every few seconds - tearing down every card, re-reading
+    the recording and redrawing every chart to no visible effect.
+    """
+    engines.add(
+        "BTC/USD",
+        heartbeats=[(time.time(), "MD", 1, "Streaming")],
+        logs=[
+            (str(time.time()), "jolteon", "ERROR", "f.py", "1", "one"),
+            (str(time.time()), "jolteon", "ERROR", "f.py", "2", "two"),
+            (str(time.time()), "jolteon", "ERROR", "f.py", "3", "three"),
+        ],
+    )
+
+    at = _read(engines, growing_errors_script)
+
+    assert not at.exception
+    assert at.session_state["runs"] == 1
+
+
+def alert_cleared_script():
+    import streamlit as st
+
+    from jolteon.app.health_summary import (
+        HealthSummary,
+        nav_drawn,
+        redraw_nav_if_stale,
+    )
+
+    st.session_state["runs"] = st.session_state.get("runs", 0) + 1
+    if st.session_state["runs"] == 1:
+        nav_drawn(HealthSummary(down=("BTC/USD · MD",), errors=4))
+    redraw_nav_if_stale(st.session_state.root)
+
+
+def test_the_nav_is_redrawn_when_the_last_alert_clears(engines):
+    """The dot has to come off as well as go on, so the page is rerun
+    once when nothing is left to alert about."""
+    engines.add("BTC/USD", heartbeats=[(time.time(), "MD", 1, "Streaming")])
+
+    at = _read(engines, alert_cleared_script)
+
+    assert not at.exception
+    assert at.session_state["runs"] == 2
