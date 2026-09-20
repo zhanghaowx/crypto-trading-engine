@@ -2,6 +2,11 @@
 # off-white) with a solid black sidebar panel, inspired by a bright,
 # card-driven crypto dashboard reference.
 
+[server]
+# Launching the dashboard should not also take over a browser window: the
+# reader already has one open, or is on another machine entirely.
+headless = true
+
 [theme]
 base = "light"
 primaryColor = "#15171C"             # Near-black - pill buttons, active elements
