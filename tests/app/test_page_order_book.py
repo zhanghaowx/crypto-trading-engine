@@ -276,3 +276,142 @@ def test_a_one_sided_book_shows_its_levels_without_a_spread():
     html = ladder_html(book, {}).split("</style>", 1)[-1]
     assert "jolteon-book-bid" in html
     assert "jolteon-book-spread" not in html
+
+
+def carry_script():
+    """Two refreshes over one session, the second seeing more updates -
+    as the page does when it reruns on its timer."""
+    import streamlit as st
+
+    from jolteon.app.app_pages.order_book import book_now
+    from tests.app.test_page_order_book import _updates
+
+    rows = st.session_state["rows"]
+    seen = st.session_state.get("ticks", 0)
+    book = book_now(_updates(rows[: 1 + seen]), "BTC-USD", "engine.sqlite")
+    st.session_state["ticks"] = seen + 1
+    st.write(
+        "|".join(
+            f"{level.price:g}@{level.quantity:g}" for level in book.bids(5)
+        )
+        if book
+        else "none"
+    )
+
+
+def _run_ticks(rows, ticks=2, **state):
+    at = AppTest.from_function(carry_script)
+    at.session_state["rows"] = rows
+    for key, value in state.items():
+        at.session_state[key] = value
+    at.run()
+    for _ in range(ticks - 1):
+        at.run()
+    return at
+
+
+def test_a_carried_book_takes_only_the_updates_it_has_not_seen():
+    at = _run_ticks(
+        [
+            (1, [(99.0, 2.0)], [(101.0, 3.0)], 1, "l2"),
+            (2, [(98.0, 1.0)], [], 0, "l2"),
+            (3, [(97.0, 4.0)], [], 0, "l2"),
+        ],
+        ticks=3,
+    )
+
+    assert not at.exception
+    # Every increment has landed exactly once, in order.
+    assert at.markdown[-1].value == "99@2|98@1|97@4"
+
+
+def test_a_fresh_snapshot_throws_the_carried_book_away():
+    """A snapshot supersedes everything applied before it, so carrying
+    the old book forward would leave levels the venue has dropped."""
+    at = _run_ticks(
+        [
+            (1, [(99.0, 2.0), (98.0, 1.0)], [(101.0, 3.0)], 1, "l2"),
+            (2, [(50.0, 7.0)], [(60.0, 7.0)], 1, "l2"),
+        ],
+        ticks=2,
+    )
+
+    assert not at.exception
+    assert at.markdown[-1].value == "50@7"
+
+
+def test_a_sequence_that_goes_backwards_rebuilds_from_scratch():
+    """An engine restarting numbers its updates from the beginning
+    again, and the book it is describing is a new one."""
+    at = _run_ticks(
+        [
+            (10, [(99.0, 2.0)], [(101.0, 3.0)], 1, "l2"),
+            (1, [(90.0, 5.0)], [(95.0, 5.0)], 1, "l2"),
+        ],
+        ticks=2,
+    )
+
+    assert not at.exception
+    assert at.markdown[-1].value == "90@5"
+
+
+def test_the_carried_book_belongs_to_the_engine_it_was_built_from():
+    """Switching symbol switches recording, and the book carried over
+    from the last one describes a different market entirely."""
+
+    def script():
+        import streamlit as st
+
+        from jolteon.app.app_pages.order_book import book_now
+        from tests.app.test_page_order_book import _updates
+
+        rows = [(1, [(99.0, 2.0)], [(101.0, 3.0)], 1, "l2")]
+        other = [(1, [(5.0, 1.0)], [(6.0, 1.0)], 1, "l2")]
+        first = book_now(_updates(rows), "BTC-USD", "btc.sqlite")
+        second = book_now(_updates(other), "ETH-USD", "eth.sqlite")
+        st.write(f"{first.bids(1)[0].price:g}/{second.bids(1)[0].price:g}")
+
+    at = AppTest.from_function(script).run()
+
+    assert not at.exception
+    assert at.markdown[-1].value == "99/5"
+
+
+def test_a_book_with_no_snapshot_to_replay_from_shows_nothing():
+    """Updates alone cannot describe a book - there has to be a snapshot
+    to apply them to."""
+    from jolteon.app.app_pages.order_book import book_now
+
+    def script():
+        import streamlit as st
+
+        from jolteon.app.app_pages.order_book import book_now
+        from tests.app.test_page_order_book import _updates
+
+        rows = [(1, [(99.0, 1.0)], [], 0, "l2")]
+        st.write(
+            "none"
+            if book_now(_updates(rows), "X", "x.sqlite") is None
+            else "book"
+        )
+
+    at = AppTest.from_function(script).run()
+
+    assert not at.exception
+    assert at.markdown[-1].value == "none"
+    assert book_now is not None
+
+
+def test_a_carried_book_is_dropped_when_it_meets_an_unreadable_update():
+    """A recording that starts carrying a book model this page does not
+    know cannot be carried forward from the part that it did."""
+    at = _run_ticks(
+        [
+            (1, [(99.0, 2.0)], [(101.0, 3.0)], 1, "l2"),
+            (2, [(98.0, 1.0)], [], 0, "l3"),
+        ],
+        ticks=2,
+    )
+
+    assert not at.exception
+    assert at.markdown[-1].value == "none"
