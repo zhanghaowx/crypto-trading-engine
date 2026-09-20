@@ -35,7 +35,10 @@ def cards_script():
     render_cards(
         [
             Card(
-                "Market Data", ":material/show_chart:", lambda: st.write("md")
+                "Market Data",
+                ":material/show_chart:",
+                lambda: st.write("md"),
+                details=lambda: st.write("every tick"),
             ),
             Card(
                 "Orders & PnL",
@@ -172,8 +175,10 @@ def test_every_card_carries_its_own_chrome():
 
     keys = [b.key for b in at.button]
     for title in ("card-market-data", "card-orders-pnl"):
-        assert f"{title}-details" in keys
         assert f"{title}-hide" in keys
+    # Only the card with something more to show carries the "more" icon.
+    assert "card-market-data-details" in keys
+    assert "card-orders-pnl-details" not in keys
 
 
 def test_collapsing_is_the_expanders_own_doing():
@@ -203,9 +208,10 @@ def test_the_details_icon_opens_the_card_in_a_modal():
 
     assert not at.exception
     assert at.get("dialog")
-    # The card's content moves into the modal rather than being drawn in
-    # both places at once.
-    assert [m.value for m in at.markdown].count("md") == 1
+    # What the modal shows is the card's details, and the card's own
+    # content steps aside while it is open.
+    assert "every tick" in [m.value for m in at.markdown]
+    assert "md" not in [m.value for m in at.markdown]
 
 
 def test_the_modal_stays_open_across_a_refresh():
@@ -307,17 +313,25 @@ def keyed_card_script():
 
     from jolteon.app.card import Card, render_cards
 
-    def body() -> None:
-        st.write("md")
+    def refresh() -> None:
         st.button("Refresh", key="market-data-refresh")
 
-    render_cards([Card("Market Data", ":material/show_chart:", body)])
+    render_cards(
+        [
+            Card(
+                "Market Data",
+                ":material/show_chart:",
+                refresh,
+                details=refresh,
+            )
+        ]
+    )
 
 
-def test_a_card_whose_content_keys_a_widget_still_opens_in_a_modal():
-    """Regression test: the modal draws the card's own content, so a card
-    that keys anything inside it - the risk gauges, the page through
-    recent fills - was asked for that key twice in the same run, which
+def test_a_card_whose_details_key_what_its_content_does_still_opens():
+    """Regression test: a card's content steps aside while its details
+    are open, so details built from the same renderers - keying the same
+    widgets - are not asked for those keys twice in one run, which
     Streamlit refuses."""
     at = AppTest.from_function(keyed_card_script).run()
 
@@ -325,9 +339,14 @@ def test_a_card_whose_content_keys_a_widget_still_opens_in_a_modal():
 
     assert not at.exception
     assert at.get("dialog")
-    # Drawn in the modal rather than on the page, not in both.
-    assert [m.value for m in at.markdown].count("md") == 1
     assert len([b for b in at.button if b.key == "market-data-refresh"]) == 1
+
+
+def test_a_card_with_nothing_more_to_show_carries_no_more_icon():
+    at = AppTest.from_function(half_cards_script).run()
+
+    assert not at.exception
+    assert not [b for b in at.button if (b.key or "").endswith("-details")]
 
 
 def test_accent_rule_stripes_the_named_card_in_the_theme_color():
