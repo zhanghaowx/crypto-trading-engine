@@ -87,11 +87,12 @@ st.html(cards_rule(cards))
 _select_engine()
 
 # `run_every` reruns just this fragment on a timer without blocking the
-# session - the previous `time.sleep` + `st.rerun()` loop did block it,
-# which let a periodic refresh race with a widget interaction inside it
-# (e.g. paging through Recent fills): the two reruns' element streams
-# could interleave and leave stale rows behind. Re-applying the
-# decorator every run picks up live changes to the auto-refresh setting.
+# session. One fragment for the whole page rather than one per card:
+# each fragment costs its own round trip and its own pass over the
+# frontend, and five of them staggered leave the app looking busy more
+# than twice as much of the time as one that redraws the lot at once.
+# Re-applying the decorator every run picks up live changes to the
+# auto-refresh setting.
 _refresh_seconds = (
     st.session_state.refresh_seconds if st.session_state.auto_refresh else None
 )
