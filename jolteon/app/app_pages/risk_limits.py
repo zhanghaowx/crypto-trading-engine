@@ -1,3 +1,4 @@
+import math
 from pathlib import Path
 
 import streamlit as st
@@ -46,12 +47,21 @@ def accent() -> Accent:
 
 
 def _fmt_bound(value: float) -> str:
-    """A limit's bound or its measured value, short enough to read at a
+    """
+    A limit's bound or its measured value, short enough to read at a
     glance - a recorded measure carries far more decimals than anyone
-    checking a limit against it needs."""
+    checking a limit against it needs.
+
+    Three significant figures rather than two decimal places: a limit
+    measured in coins runs to thousandths, and rounding 0.0056 to "0.01"
+    made the bar beside it look wrong when it was the number that was.
+    """
+    if not value:
+        return "0"
     if abs(value) >= 100:
         return f"{value:,.0f}"
-    return f"{value:.2f}".rstrip("0").rstrip(".")
+    decimals = max(0, 2 - math.floor(math.log10(abs(value))))
+    return f"{value:,.{decimals}f}".rstrip("0").rstrip(".")
 
 
 def utilisation_bar(utilization: float, color: BadgeColor) -> str:

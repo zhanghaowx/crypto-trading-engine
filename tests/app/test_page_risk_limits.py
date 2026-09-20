@@ -186,3 +186,15 @@ def test_a_limits_name_and_measure_read_as_words_and_short_numbers():
     assert _fmt_bound(7.4457204) == "7.45"
     assert _fmt_bound(10.0) == "10"
     assert _fmt_bound(12345.6) == "12,346"
+
+
+def test_a_measure_far_below_one_keeps_the_figures_that_matter():
+    """Regression test: two decimal places turned a 0.0056 inventory
+    against a 0.04 limit into "0.01 of 0.04", which reads as a quarter
+    used where the bar beside it correctly said 14%."""
+    from jolteon.app.app_pages.risk_limits import _fmt_bound
+
+    assert _fmt_bound(0.0056) == "0.0056"
+    assert _fmt_bound(0.04) == "0.04"
+    assert _fmt_bound(0.000012) == "0.000012"
+    assert _fmt_bound(0.0) == "0"
