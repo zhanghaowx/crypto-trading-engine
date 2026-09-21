@@ -5,13 +5,16 @@ from contextlib import closing
 from pathlib import Path
 from unittest import mock
 
+import pandas as pd
 from streamlit.testing.v1 import AppTest
 
 from jolteon.app.data import (
     count_matching,
+    ensure_fair_price_lookup_index,
     last_rowid_where,
     max_rowid,
     read_after,
+    read_fair_prices_for_fills,
     read_latest_per_group,
     read_latest_row,
     read_table,
@@ -337,9 +340,8 @@ def _write(db_path, sql, params=()):
 
 
 def test_a_rewritten_row_in_a_keyed_table_is_read_again(tmp_path):
-    """A fill is rewritten in place as its markouts resolve, so a keyed
-    table's recent rows have to be read again rather than carried over
-    from the last refresh."""
+    """A keyed row may be rewritten in place, so recent rows have to be
+    read again rather than blindly carried over from the last refresh."""
     db_path = _keyed_db(tmp_path, [("a", 1.0), ("b", 2.0)])
 
     at = AppTest.from_function(keyed_table_script)
@@ -467,3 +469,159 @@ def test_the_highest_row_id_counts_up_with_the_rows():
             conn.commit()
 
         assert max_rowid(db_path, "feed") == 2
+
+
+def test_reads_only_fair_prices_needed_for_visible_fill_markouts(tmp_path):
+    db_path = str(tmp_path / "prices.sqlite")
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            "CREATE TABLE fair_price ("
+            "timestamp REAL, symbol TEXT, model TEXT, "
+            "bid_fair_price REAL, ask_fair_price REAL)"
+        )
+        conn.executemany(
+            "INSERT INTO fair_price VALUES (?, ?, ?, ?, ?)",
+            [
+                (1.0, "BTC/USD", "AdjustedFairPriceModel", 99.0, 101.0),
+                (9.5, "BTC/USD", "AdjustedFairPriceModel", 100.0, 102.0),
+                (10.0, "BTC/USD", "MidPriceFairPriceModel", 500.0, 502.0),
+                (11.0, "ETH/USD", "AdjustedFairPriceModel", 50.0, 52.0),
+                (40.5, "BTC/USD", "AdjustedFairPriceModel", 103.0, 105.0),
+                (50.0, "BTC/USD", "AdjustedFairPriceModel", 104.0, 106.0),
+            ],
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    fills = pd.DataFrame(
+        [
+            {
+                "timestamp": 10.0,
+                "symbol": "BTC/USD",
+                "fair_price_model": "AdjustedFairPriceModel",
+            }
+        ]
+    )
+    rows = read_fair_prices_for_fills(
+        db_path,
+        fills,
+        max_horizon_seconds=30.0,
+        max_lag_seconds=1.0,
+    )
+
+    assert list(rows["timestamp"]) == [9.5, 40.5]
+    assert set(rows["model"]) == {"AdjustedFairPriceModel"}
+    assert set(rows["symbol"]) == {"BTC/USD"}
+
+
+def test_fair_prices_are_not_read_without_a_fill_to_read_them_for(tmp_path):
+    db_path = str(tmp_path / "fair.sqlite")
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            "CREATE TABLE fair_price (timestamp REAL, symbol TEXT, "
+            "model TEXT, bid_fair_price REAL, ask_fair_price REAL)"
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    unusable = pd.DataFrame(
+        [{"timestamp": None, "symbol": None, "fair_price_model": None}]
+    )
+
+    assert read_fair_prices_for_fills(
+        db_path, unusable, max_horizon_seconds=30.0, max_lag_seconds=1.0
+    ).empty
+
+
+def test_fair_prices_from_a_recording_without_the_table_are_nothing(tmp_path):
+    """A recording made before fair prices were recorded should leave the
+    markout columns empty rather than take the page down."""
+    db_path = str(tmp_path / "no_fair_price.sqlite")
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute("CREATE TABLE other (x REAL)")
+        conn.commit()
+    finally:
+        conn.close()
+
+    fills = pd.DataFrame(
+        [
+            {
+                "timestamp": 10.0,
+                "symbol": "BTC/USD",
+                "fair_price_model": "MidPriceFairPriceModel",
+            }
+        ]
+    )
+
+    assert read_fair_prices_for_fills(
+        db_path, fills, max_horizon_seconds=30.0, max_lag_seconds=1.0
+    ).empty
+
+
+def test_the_fair_price_index_is_made_once_and_survives_a_locked_recording(
+    tmp_path,
+):
+    missing = str(tmp_path / "absent.sqlite")
+    assert not ensure_fair_price_lookup_index(missing)
+
+    db_path = str(tmp_path / "indexed.sqlite")
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            "CREATE TABLE fair_price (timestamp REAL, symbol TEXT, "
+            "model TEXT, bid_fair_price REAL, ask_fair_price REAL)"
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    assert ensure_fair_price_lookup_index(db_path)
+    # Asked a second time, the answer comes from what this process
+    # already did rather than from the recording.
+    assert ensure_fair_price_lookup_index(db_path)
+
+    conn = sqlite3.connect(db_path)
+    try:
+        names = {
+            row[0]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'index'"
+            )
+        }
+    finally:
+        conn.close()
+    assert "jolteon_fair_price_lookup" in names
+
+
+def test_a_recording_with_no_fair_prices_cannot_be_indexed(tmp_path):
+    db_path = str(tmp_path / "unindexable.sqlite")
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute("CREATE TABLE other (x REAL)")
+        conn.commit()
+    finally:
+        conn.close()
+
+    assert not ensure_fair_price_lookup_index(db_path)
+
+
+def test_fair_prices_are_not_read_for_fills_that_name_no_model(tmp_path):
+    db_path = str(tmp_path / "prices.sqlite")
+
+    assert read_fair_prices_for_fills(
+        db_path,
+        pd.DataFrame(),
+        max_horizon_seconds=30.0,
+        max_lag_seconds=1.0,
+    ).empty
+    assert read_fair_prices_for_fills(
+        db_path,
+        pd.DataFrame([{"timestamp": 10.0, "symbol": "BTC/USD"}]),
+        max_horizon_seconds=30.0,
+        max_lag_seconds=1.0,
+    ).empty
