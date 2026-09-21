@@ -184,8 +184,12 @@ def _analysis_cte(run_id: str | None) -> tuple[str, tuple]:
         derived.append(f"{price} AS {_horizon_price(horizon)}")
 
     run, params = _run_clause(run_id, "f.run_id")
+    # MATERIALIZED, emphatically: left to itself SQLite folds this into
+    # whatever selects from it, and every derived column above is a
+    # lookup per fill scanned - so a figure that names one twice pays for
+    # the whole join twice.
     return (
-        "WITH derived_fill AS ("
+        "WITH derived_fill AS MATERIALIZED ("
         f"SELECT f.*, {', '.join(derived)} "
         f'FROM "{FILLS}" f {_where(run)}'
         ") ",
