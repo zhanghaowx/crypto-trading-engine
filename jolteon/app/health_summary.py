@@ -184,6 +184,10 @@ def redraw_nav_if_stale(root: str) -> None:
     Asks for a full rerun when what the navigation shows has gone out of
     date.
 
+    This is a deliberate whole-app rerun, and it fires
+    only on the change itself - an engine's first error, or its last one
+    ageing out - never on a refresh that found nothing new.
+
     Navigation is built by the entrypoint, and a fragment rerunning on
     its own timer never re-runs that, so a page refreshing itself would
     otherwise leave the Health item without the dot it should be
@@ -205,3 +209,19 @@ def redraw_nav_if_stale(root: str) -> None:
     st.session_state[_NAV_ALERTING] = alerting
     if drawn is not None and drawn != alerting:
         st.rerun(scope="app")
+
+
+def _check_nav() -> None:
+    redraw_nav_if_stale(st.session_state.root)
+
+
+def watch_nav(run_every: float | None) -> None:
+    """
+    Keeps the navigation's alert dot in step with the engines, on a timer
+    of its own.
+
+    Its own fragment rather than a card's: what the dot reports on is
+    every engine at once, so no one card on the page owns it, and a card
+    that the reader has hidden would take the dot's timer down with it.
+    """
+    st.fragment(_check_nav, run_every=run_every)()

@@ -41,7 +41,7 @@ def render() -> None:
     st.html(surface_rule([_CARD_KEY]) + _rows_rule())
     with st.container(border=True, key=_CARD_KEY):
         with _setting(
-            "Auto-refresh", "Reload the Live page on the interval below."
+            "Auto-refresh", "Refresh visible cards on the interval below."
         ):
             st.toggle(
                 "Auto-refresh",
@@ -52,7 +52,7 @@ def render() -> None:
         st.divider()
         with _setting(
             "Refresh interval (seconds)",
-            "How long the Live page waits before reloading.",
+            "The default interval for visible Live and Health cards.",
         ):
             st.slider(
                 "Refresh interval (seconds)",

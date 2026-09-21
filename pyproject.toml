@@ -46,7 +46,7 @@ dev = [
     "poethepoet",
 ]
 ui = [
-    "streamlit",
+    "streamlit>=1.63.0",
 ]
 
 [tool.uv]

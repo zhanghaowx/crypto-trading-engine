@@ -652,3 +652,55 @@ def test_realized_pnl_starts_again_when_the_recording_is_replaced(tmp_path):
 
     assert not at.exception
     assert at.markdown[-1].value == "0.00"
+
+
+def _orders_card_script():
+    from jolteon.app.app_pages import orders_pnl
+    from jolteon.app.card import Card, render_cards
+
+    render_cards(
+        [
+            Card(
+                "orders-pnl",
+                "Orders & PnL",
+                ":material/currency_bitcoin:",
+                orders_pnl.render,
+                load=orders_pnl.load,
+                actions=orders_pnl.render_header_actions,
+                accent=orders_pnl.accent,
+            )
+        ]
+    )
+
+
+def test_card_shares_one_data_load_across_body_accent_and_download(
+    populated_db_path,
+):
+    from jolteon.app.app_pages import orders_pnl
+
+    at = AppTest.from_function(_orders_card_script)
+    at.session_state["db_path"] = populated_db_path
+    at.session_state["auto_refresh"] = False
+    with (
+        mock.patch.object(orders_pnl, "load", wraps=orders_pnl.load) as load,
+        mock.patch.object(
+            orders_pnl,
+            "read_table",
+            wraps=orders_pnl.read_table,
+        ) as read,
+        mock.patch.object(
+            orders_pnl,
+            "realized_pnl_now",
+            wraps=orders_pnl.realized_pnl_now,
+        ) as realized,
+    ):
+        at.run()
+        assert not at.exception
+        assert not at.error
+        assert load.call_count == read.call_count == realized.call_count == 1
+        assert _metrics(at)["Realized PnL"] == ":red[-0.10]"
+        assert len(at.get("download_button")) == 1
+        at.button(key="card-orders-pnl-refresh").click().run()
+        assert not at.exception
+        assert not at.error
+        assert load.call_count == read.call_count == realized.call_count == 2
