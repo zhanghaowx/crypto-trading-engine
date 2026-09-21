@@ -2,6 +2,7 @@ import sqlite3
 import time
 from pathlib import Path
 
+from jolteon.app.health_summary import HEARTBEAT_TIMEOUT_SECONDS
 from jolteon.engine.core.storage import paths
 
 
@@ -236,8 +237,7 @@ def test_the_reader_cannot_choose_no_symbol_at_all(
     assert at.segmented_control[0].proto.required
 
 
-def test_live_page_shows_the_latest_engine_run(dashboard, engines):
-    recording = engines.add("BTC/USD")
+def _record_open_run(recording: str, started_at: float) -> None:
     conn = sqlite3.connect(recording)
     try:
         conn.execute(
@@ -247,12 +247,20 @@ def test_live_page_shows_the_latest_engine_run(dashboard, engines):
         )
         conn.execute(
             "INSERT INTO engine_run VALUES "
-            "('20260920T120000Z-deadbeef', 'Kraken', 'BTC/USD', "
-            "1790424000, NULL)"
+            "('20260920T120000Z-deadbeef', 'Kraken', 'BTC/USD', ?, NULL)",
+            (started_at,),
         )
         conn.commit()
     finally:
         conn.close()
+
+
+def test_live_page_shows_the_latest_engine_run(dashboard, engines):
+    now = time.time()
+    recording = engines.add(
+        "BTC/USD", heartbeats=[(now, "MarketMaking", 1, "All good")]
+    )
+    _record_open_run(recording, started_at=now - 3600)
 
     dashboard.session_state["root"] = engines.root
     at = dashboard.run()
@@ -261,5 +269,24 @@ def test_live_page_shows_the_latest_engine_run(dashboard, engines):
     assert at.session_state["engine_run"].run_id == "20260920T120000Z-deadbeef"
     assert any(
         "Run `deadbeef`" in caption.value and "Running" in caption.value
+        for caption in at.caption
+    )
+
+
+def test_live_page_calls_a_run_whose_engine_went_quiet_interrupted(
+    dashboard, engines
+):
+    stale = time.time() - (HEARTBEAT_TIMEOUT_SECONDS + 1)
+    recording = engines.add(
+        "BTC/USD", heartbeats=[(stale, "MarketMaking", 1, "All good")]
+    )
+    _record_open_run(recording, started_at=stale - 3600)
+
+    dashboard.session_state["root"] = engines.root
+    at = dashboard.run()
+
+    assert not at.exception
+    assert any(
+        "Run `deadbeef`" in caption.value and "Interrupted" in caption.value
         for caption in at.caption
     )

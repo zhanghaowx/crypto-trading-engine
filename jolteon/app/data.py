@@ -326,7 +326,15 @@ def _recorded_datetime(value) -> datetime | None:
 
 
 def engine_runs(db_path: str) -> list[RecordedEngineRun]:
-    """Every recorded run, newest first, with interruption made explicit."""
+    """Every recorded run, newest first, as "stopped", "interrupted" or
+    "open".
+
+    A run with no recorded end that a later run supersedes was
+    interrupted: one engine trades one symbol, so the next run starting
+    is proof this one is gone. The newest such run is only "open" - a
+    process that dies never records its own end, so the recording alone
+    cannot tell it from one still going.
+    """
     if not database_exists(db_path):
         return []
     conn = sqlite3.connect(db_path)
@@ -347,7 +355,7 @@ def engine_runs(db_path: str) -> list[RecordedEngineRun]:
         if ended is not None:
             status = "stopped"
         elif position == 0:
-            status = "running"
+            status = "open"
         else:
             status = "interrupted"
         started = _recorded_datetime(row["started_at"])

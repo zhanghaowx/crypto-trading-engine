@@ -1,12 +1,17 @@
+import sqlite3
 import time
+from dataclasses import replace
+from datetime import datetime, timezone
 
 from streamlit.testing.v1 import AppTest
 
+from jolteon.app.data import RecordedEngineRun
 from jolteon.app.health_summary import (
     HEARTBEAT_TIMEOUT_SECONDS,
     HealthSummary,
     is_down,
     nav_alert_rule,
+    resolve_run,
 )
 
 
@@ -20,6 +25,83 @@ def test_a_sender_past_the_timeout_is_down():
     anything tighter flags a running engine on nearly every refresh.
     """
     assert is_down(HEARTBEAT_TIMEOUT_SECONDS + 1)
+
+
+def _open_run(started_ago: float) -> RecordedEngineRun:
+    return RecordedEngineRun(
+        run_id="run-a",
+        exchange="Kraken",
+        symbol="BTC/USD",
+        started_at=datetime.fromtimestamp(
+            time.time() - started_ago, tz=timezone.utc
+        ),
+        ended_at=None,
+        status="open",
+    )
+
+
+def _recording_with_heartbeat(tmp_path, seconds_ago: float | None) -> str:
+    db_path = str(tmp_path / "engine.sqlite")
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute("CREATE TABLE heartbeat (timestamp REAL, sender TEXT)")
+        if seconds_ago is not None:
+            conn.execute(
+                "INSERT INTO heartbeat VALUES (?, 'MarketMaking')",
+                (time.time() - seconds_ago,),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+    return db_path
+
+
+def test_an_open_run_still_heartbeating_is_running(tmp_path):
+    db_path = _recording_with_heartbeat(tmp_path, seconds_ago=1.0)
+
+    resolved = resolve_run(db_path, _open_run(started_ago=3600.0))
+
+    assert resolved.status == "running"
+
+
+def test_an_open_run_gone_quiet_is_interrupted(tmp_path):
+    """
+    A killed process never records its own end, so the recording alone
+    would show it running forever. Silence is the only signal there is.
+    """
+    db_path = _recording_with_heartbeat(
+        tmp_path, seconds_ago=HEARTBEAT_TIMEOUT_SECONDS + 1
+    )
+
+    resolved = resolve_run(db_path, _open_run(started_ago=3600.0))
+
+    assert resolved.status == "interrupted"
+
+
+def test_an_engine_that_has_not_heartbeat_yet_is_still_starting_up(tmp_path):
+    db_path = _recording_with_heartbeat(tmp_path, seconds_ago=None)
+
+    resolved = resolve_run(db_path, _open_run(started_ago=1.0))
+
+    assert resolved.status == "running"
+
+
+def test_an_engine_that_never_heartbeat_at_all_is_interrupted(tmp_path):
+    db_path = _recording_with_heartbeat(tmp_path, seconds_ago=None)
+
+    resolved = resolve_run(
+        db_path, _open_run(started_ago=HEARTBEAT_TIMEOUT_SECONDS + 1)
+    )
+
+    assert resolved.status == "interrupted"
+
+
+def test_a_settled_status_is_left_alone(tmp_path):
+    db_path = _recording_with_heartbeat(tmp_path, seconds_ago=1.0)
+    stopped = replace(_open_run(started_ago=1.0), status="stopped")
+
+    assert resolve_run(db_path, stopped) is stopped
+    assert resolve_run(db_path, None) is None
 
 
 def _read(engines, script) -> AppTest:
