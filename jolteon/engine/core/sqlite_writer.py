@@ -342,9 +342,8 @@ class SQLiteWriter:
             assignments = ", ".join(
                 f"{_quote(c)}=excluded.{_quote(c)}"
                 for c in columns
-                # The primary key names the original event. Rewriting it
-                # may enrich that event (for example, a fill's markouts),
-                # but must never move it into the process doing the update.
+                # A rewrite may enrich the event the key names, but
+                # must never move it into the run doing the rewriting.
                 if c not in {effective_key, "run_id"}
             )
             if assignments:
