@@ -704,3 +704,181 @@ def test_card_shares_one_data_load_across_body_accent_and_download(
         assert not at.exception
         assert not at.error
         assert load.call_count == read.call_count == realized.call_count == 2
+
+
+YESTERDAY = "2023-11-13"
+TODAY = "2023-11-14"
+
+# Midnight UTC opening each of those days.
+_OPENS = {YESTERDAY: 1699833600.0, TODAY: 1699920000.0}
+
+
+def _two_day_recording(tmp_path, name="two-days.sqlite") -> str:
+    """A coin bought yesterday at 100 and still held today, with the
+    market up to 130 by today."""
+    db_path = str(tmp_path / name)
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            "CREATE TABLE decorated_order_fill "
+            "(timestamp REAL, transaction_timestamp REAL, side TEXT, "
+            "fill_price REAL, fill_qty REAL, fee REAL, symbol TEXT, "
+            "session_id TEXT, exchange_execution_id TEXT PRIMARY KEY, "
+            "fair_price_at_fill REAL)"
+        )
+        conn.executemany(
+            "INSERT INTO decorated_order_fill VALUES (?,?,?,?,?,?,?,?,?,?)",
+            [
+                (
+                    _OPENS[YESTERDAY] + 60,
+                    _OPENS[YESTERDAY] + 60,
+                    "BUY",
+                    100.0,
+                    1.0,
+                    0.0,
+                    "BTC-USD",
+                    YESTERDAY,
+                    "a",
+                    100.0,
+                ),
+                (
+                    _OPENS[TODAY] + 60,
+                    _OPENS[TODAY] + 60,
+                    "SELL",
+                    130.0,
+                    1.0,
+                    0.0,
+                    "BTC-USD",
+                    TODAY,
+                    "b",
+                    130.0,
+                ),
+            ],
+        )
+        conn.execute(
+            "CREATE TABLE bbo_feed "
+            "(timestamp REAL, symbol TEXT, bid_price REAL, ask_price REAL)"
+        )
+        conn.executemany(
+            "INSERT INTO bbo_feed VALUES (?, 'BTC-USD', ?, ?)",
+            [
+                (_OPENS[YESTERDAY] + 60, 99.5, 100.5),
+                (_OPENS[TODAY] - 60, 99.5, 100.5),
+                (_OPENS[TODAY] + 60, 129.5, 130.5),
+            ],
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return db_path
+
+
+def _session_script():
+    from jolteon.app.app_pages import orders_pnl
+
+    orders_pnl.render()
+
+
+def test_the_card_reports_on_the_session_chosen(tmp_path):
+    at = AppTest.from_function(_session_script)
+    at.session_state["db_path"] = _two_day_recording(tmp_path)
+    at.session_state["session_id"] = TODAY
+    at.run()
+
+    assert not at.exception
+    metrics = _metrics(at)
+    # Today sold the coin at 130 having carried it in at 100.
+    assert metrics["Inventory carried in"] == "100.00"
+    assert metrics["Inventory value"] == "0.00"
+    assert metrics["Total PnL"] == ":green[30.00]"
+
+
+def test_the_card_reports_the_other_session_on_its_own(tmp_path):
+    at = AppTest.from_function(_session_script)
+    at.session_state["db_path"] = _two_day_recording(tmp_path)
+    at.session_state["session_id"] = YESTERDAY
+    at.run()
+
+    assert not at.exception
+    metrics = _metrics(at)
+    assert metrics["Inventory carried in"] == "0.00"
+    # Bought at 100 and still worth about that by the end of the day.
+    assert metrics["Inventory value"] == "100.00"
+    assert metrics["Total PnL"] == ":green[0.00]"
+
+
+def test_only_the_session_chosen_shows_in_the_fills_list(tmp_path):
+    at = AppTest.from_function(_session_script)
+    at.session_state["db_path"] = _two_day_recording(tmp_path)
+    at.session_state["session_id"] = TODAY
+    at.run()
+
+    assert not at.exception
+    sides = [m.value for m in at.markdown if m.value in ("BUY", "SELL")]
+    assert "BUY" not in sides
+
+
+def _session_realized_script():
+    import streamlit as st
+
+    from jolteon.app.app_pages.orders_pnl import realized_pnl_now
+
+    db_path = st.session_state["db_path"]
+    for session in ("2023-11-13", "2023-11-14", None):
+        st.write(f"{realized_pnl_now(db_path, session):.2f}")
+
+
+def test_realized_pnl_is_counted_in_the_session_that_closed_the_trip(
+    tmp_path,
+):
+    """The round trip opened yesterday and closed today, so today is the
+    day that realized it - and neither day may count it twice."""
+    at = AppTest.from_function(_session_realized_script)
+    at.session_state["db_path"] = _two_day_recording(tmp_path)
+    at.run()
+
+    assert not at.exception
+    assert [m.value for m in at.markdown] == ["0.00", "30.00", "30.00"]
+
+
+def test_a_session_with_inventory_but_no_fill_still_has_a_pnl(tmp_path):
+    """A day that opens holding coin earns or loses on it as the market
+    moves, with no fill of its own to show for it."""
+    db_path = str(tmp_path / "quiet-day.sqlite")
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            "CREATE TABLE decorated_order_fill "
+            "(timestamp REAL, transaction_timestamp REAL, side TEXT, "
+            "fill_price REAL, fill_qty REAL, fee REAL, symbol TEXT, "
+            "session_id TEXT, exchange_execution_id TEXT PRIMARY KEY)"
+        )
+        conn.execute(
+            "INSERT INTO decorated_order_fill VALUES "
+            "(?,?,'BUY',100.0,1.0,0.0,'BTC-USD',?,'a')",
+            (_OPENS[YESTERDAY] + 60, _OPENS[YESTERDAY] + 60, YESTERDAY),
+        )
+        conn.execute(
+            "CREATE TABLE bbo_feed "
+            "(timestamp REAL, symbol TEXT, bid_price REAL, ask_price REAL)"
+        )
+        conn.executemany(
+            "INSERT INTO bbo_feed VALUES (?, 'BTC-USD', ?, ?)",
+            [
+                (_OPENS[TODAY] - 60, 99.5, 100.5),
+                (_OPENS[TODAY] + 60, 129.5, 130.5),
+            ],
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    at = AppTest.from_function(_session_script)
+    at.session_state["db_path"] = db_path
+    at.session_state["session_id"] = TODAY
+    at.run()
+
+    assert not at.exception
+    metrics = _metrics(at)
+    assert metrics["Total PnL"] == ":green[30.00]"
+    assert "No fills yet." in [i.value for i in at.info]

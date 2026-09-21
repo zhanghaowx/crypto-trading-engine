@@ -6,7 +6,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from jolteon.app import aggregates, table
+from jolteon.app import aggregates, settings, table
 from jolteon.app.analytics import (
     HORIZONS,
     compute_fill_edge,
@@ -28,7 +28,6 @@ from jolteon.app.data import (
     as_datetime,
     max_rowid,
     read_after,
-    read_latest_per_group,
     read_table,
 )
 
@@ -251,45 +250,21 @@ def render_fills_list(display: pd.DataFrame) -> None:
         st.html(f"<style>{_FILLS_TABLE_CSS}</style>")
 
 
-def pnl_by_symbol(
-    totals: pd.DataFrame, latest_mid: pd.DataFrame
-) -> pd.DataFrame:
-    """`totals` - a position and a net cash flow per symbol, summed by
-    the recording - marked to market.
-
-    Net cash flow alone looks worse than reality while inventory is still
-    held: the cash spent buying it shows up as an outflow with nothing
-    offsetting it. Held inventory is marked at the latest mid price too, to
-    match PositionManager.total_pnl in the engine. `latest_mid` is the last
-    `bbo_feed` row per symbol (see `read_latest_per_group`), not the
-    whole table - a mark price only ever needs the current one.
-    """
-    by_symbol = totals.copy()
-    if not latest_mid.empty:
-        mark_price = pd.Series(
-            ((latest_mid["bid_price"] + latest_mid["ask_price"]) / 2).values,
-            index=latest_mid["symbol"],
-        )
-    else:
-        mark_price = pd.Series(dtype=float)
-    by_symbol["mark_price"] = by_symbol.index.map(mark_price)
-    by_symbol["inventory_value"] = by_symbol["position"] * by_symbol[
-        "mark_price"
-    ].fillna(0)
-    by_symbol["total_pnl"] = (
-        by_symbol["net_cash"] + by_symbol["inventory_value"]
-    )
-    return by_symbol
-
-
 @dataclass(frozen=True)
 class Realized:
     """What the closed round trips have earned so far, and what each
     symbol is still holding and at what average cost - everything needed
-    to carry on from here when more fills are recorded."""
+    to carry on from here when more fills are recorded.
+
+    `by_session` splits the same total by the trading session each round
+    trip closed in. Realized profit adds up, so a session's own share is
+    what the fills recorded under its id contributed - counted as they
+    are folded rather than by walking the recording again per session.
+    """
 
     total: float = 0.0
     holdings: Mapping[str, tuple[float, float]] = field(default_factory=dict)
+    by_session: Mapping[str, float] = field(default_factory=dict)
 
 
 def fold_fills(state: Realized, fills: pd.DataFrame) -> Realized:
@@ -307,8 +282,10 @@ def fold_fills(state: Realized, fills: pd.DataFrame) -> Realized:
     """
     total = state.total
     holdings = dict(state.holdings)
+    by_session: dict[str, float] = dict(state.by_session)
     ordered = fills.sort_values(_time_column(fills, "transaction_timestamp"))
     for fill in ordered.itertuples():
+        before = total
         position, avg_cost = holdings.get(fill.symbol, (0.0, 0.0))
         signed = fill.fill_qty if fill.side == "BUY" else -fill.fill_qty
         total -= fill.fee
@@ -337,7 +314,13 @@ def fold_fills(state: Realized, fills: pd.DataFrame) -> Realized:
             elif abs(position) <= POSITION_EPSILON:
                 position, avg_cost = 0.0, 0.0
         holdings[fill.symbol] = (position, avg_cost)
-    return Realized(total, holdings)
+        # A table recorded before fills named their session has no
+        # session to tally under, the same way `_optional` lets a column
+        # be absent - and the total over the recording stands either way.
+        session = getattr(fill, "session_id", None)
+        if session is not None:
+            by_session[session] = by_session.get(session, 0.0) + total - before
+    return Realized(total, holdings, by_session)
 
 
 def realized_pnl(fills: pd.DataFrame) -> float:
@@ -349,14 +332,19 @@ def realized_pnl(fills: pd.DataFrame) -> float:
 _REALIZED = "_realized_pnl_carried"
 
 
-def realized_pnl_now(db_path: str) -> float:
+def realized_pnl_now(db_path: str, session_id: str | None = None) -> float:
     """
-    Profit on the round trips closed over the whole recording.
+    Profit on the round trips closed in `session_id`, or over the whole
+    recording where no session is named.
 
     Carried between refreshes: only the fills recorded since the last one
-    are folded in. Walking the session each time was the most expensive
-    thing this page did, and holding the session to walk it was what made
-    the figure wrong once the table outgrew what the dashboard keeps.
+    are folded in. Walking the recording each time was the most expensive
+    thing this page did, and holding it to walk it was what made the
+    figure wrong once the table outgrew what the dashboard keeps.
+
+    One fold serves every session, because a fill only ever adds to the
+    session it traded in - so switching the session on screen costs
+    nothing and reads the recording no further.
 
     The carry is dropped when the recording it was built from is gone -
     another engine's, or one whose row ids have started over.
@@ -373,7 +361,9 @@ def realized_pnl_now(db_path: str) -> float:
     if not fresh.empty:
         state = fold_fills(state, fresh)
     st.session_state[_REALIZED] = (db_path, state, now_at)
-    return state.total
+    if session_id is None:
+        return state.total
+    return state.by_session.get(session_id, 0.0)
 
 
 def _fmt_usd(value: float) -> str:
@@ -392,7 +382,7 @@ _SIDE_TINTS = {
 def _render_pnl(model: "OrdersModel") -> None:
     by_symbol = model.pnl
 
-    cols = iter(st.columns(5 + len(by_symbol)))
+    cols = iter(st.columns(6 + len(by_symbol)))
 
     total_pnl = by_symbol["total_pnl"].sum()
     with next(cols):
@@ -401,6 +391,12 @@ def _render_pnl(model: "OrdersModel") -> None:
             total_pnl,
             color=sign_color(total_pnl),
             border=True,
+            help=(
+                "What this trading session earned: the cash its fills "
+                "moved, fees included, plus what the inventory is worth "
+                "now, less what the inventory carried in was worth when "
+                "the session opened."
+            ),
         )
     realized = model.realized
     with next(cols):
@@ -420,9 +416,25 @@ def _render_pnl(model: "OrdersModel") -> None:
         )
     with next(cols):
         metric(
+            "Inventory carried in",
+            by_symbol["opening_inventory_value"].sum(),
+            border=True,
+            help=(
+                "What the position held when this session opened was "
+                "worth at the last price of the session before it. It is "
+                "subtracted so that inventory neither earns nor loses "
+                "anything merely by crossing midnight."
+            ),
+        )
+    with next(cols):
+        metric(
             "Inventory value",
             by_symbol["inventory_value"].sum(),
             border=True,
+            help=(
+                "What the position is worth at the last price recorded "
+                "in this session."
+            ),
         )
     with next(cols):
         metric(
@@ -487,8 +499,8 @@ def _shaded_table(
     )
 
 
-def _render_fair_price_movement(db_path: str) -> None:
-    movement = aggregates.avg_fair_price_movement(db_path)
+def _render_fair_price_movement(db_path: str, session_id: str | None) -> None:
+    movement = aggregates.avg_fair_price_movement(db_path, session_id)
     if movement.empty:
         return
 
@@ -507,9 +519,9 @@ def _render_fair_price_movement(db_path: str) -> None:
     _shaded_table(rows, columns, column_help)
 
 
-def _render_fill_quality(db_path: str) -> None:
+def _render_fill_quality(db_path: str, session_id: str | None) -> None:
     """BUY vs SELL execution quality (section 6)."""
-    by_side = aggregates.fill_quality_by_side(db_path)
+    by_side = aggregates.fill_quality_by_side(db_path, session_id)
     if by_side.empty:
         return
 
@@ -538,10 +550,10 @@ def _render_fill_quality(db_path: str) -> None:
     )
 
 
-def _render_inventory_buckets(db_path: str) -> None:
+def _render_inventory_buckets(db_path: str, session_id: str | None) -> None:
     """Whether fills made at extreme inventory levels look different from
     fills made near neutral (section 5)."""
-    stats = aggregates.inventory_buckets(db_path)
+    stats = aggregates.inventory_buckets(db_path, session_id)
     if stats.empty:
         return
 
@@ -569,7 +581,8 @@ def _render_inventory_buckets(db_path: str) -> None:
 
 @dataclass(frozen=True)
 class OrdersModel:
-    """One refresh's fills and PnL, shared by the card's renderers."""
+    """One refresh's fills and PnL for one trading session, shared by the
+    card's renderers."""
 
     fills: pd.DataFrame
     pnl: pd.DataFrame
@@ -577,17 +590,25 @@ class OrdersModel:
     fees: float = 0.0
 
 
+def session_fills(fills: pd.DataFrame, session_id: str | None) -> pd.DataFrame:
+    """Only the fills that traded in `session_id` - every one of them
+    where no session is named."""
+    if session_id is None or "session_id" not in fills.columns:
+        return fills
+    return fills[fills["session_id"] == session_id]
+
+
 def load() -> OrdersModel:
     db_path = st.session_state.db_path
-    fills = read_table(db_path, FILLS)
-    if fills.empty:
-        return OrdersModel(fills, pd.DataFrame())
-    latest_mid = read_latest_per_group(db_path, "bbo_feed", "symbol")
+    session_id = settings.session_id()
+    # The whole PnL is asked for whether or not the session filled: a day
+    # that opens holding coin earns or loses on it as the market moves,
+    # with no fill of its own to show for it.
     return OrdersModel(
-        fills,
-        pnl_by_symbol(aggregates.position_and_cash(db_path), latest_mid),
-        realized_pnl_now(db_path),
-        aggregates.total_fees(db_path),
+        session_fills(read_table(db_path, FILLS), session_id),
+        aggregates.session_pnl(db_path, session_id),
+        realized_pnl_now(db_path, session_id),
+        aggregates.total_fees(db_path, session_id),
     )
 
 
@@ -595,7 +616,7 @@ def accent(model: "OrdersModel | None" = None) -> Accent:
     """The card's edge color: green while the day is up, red while it is
     down, and nothing at all before the first fill."""
     model = load() if model is None else model
-    if model.fills.empty:
+    if model.pnl.empty:
         return None
     return "green" if model.realized >= 0 else "red"
 
@@ -626,7 +647,7 @@ def render(model: "OrdersModel | None" = None) -> None:
     model = load() if model is None else model
     fills = model.fills
 
-    if fills.empty:
+    if model.pnl.empty:
         st.info("No fills yet.")
     else:
         _render_pnl(model)
@@ -661,10 +682,11 @@ def render_trade_quality() -> None:
     # many fills there are, so the recording works them out itself -
     # nothing here holds a session's fills to average them.
     db_path = st.session_state.db_path
-    if not aggregates.any_fills(db_path):
+    session_id = settings.session_id()
+    if not aggregates.any_fills(db_path, session_id):
         st.info("No fills yet.")
         return
 
-    _render_fill_quality(db_path)
-    _render_inventory_buckets(db_path)
-    _render_fair_price_movement(db_path)
+    _render_fill_quality(db_path, session_id)
+    _render_inventory_buckets(db_path, session_id)
+    _render_fair_price_movement(db_path, session_id)

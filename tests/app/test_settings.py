@@ -7,7 +7,7 @@ from streamlit.testing.v1 import AppTest
 
 from jolteon.app import data
 from jolteon.app.data import engine_databases
-from jolteon.app.settings import SYMBOL, parse_args
+from jolteon.app.settings import SESSION, SESSION_ID, SYMBOL, parse_args
 from jolteon.engine.core.storage import paths
 
 
@@ -97,6 +97,92 @@ def _recording(root, symbol: str) -> str:
     finally:
         conn.close()
     return path
+
+
+def _record_sessions(db_path: str, session_ids) -> None:
+    """The trading sessions an engine left behind in its recording."""
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            "CREATE TABLE trading_session_run "
+            "(session_run_id TEXT PRIMARY KEY, session_id TEXT, "
+            "run_id TEXT, exchange TEXT, symbol TEXT, "
+            "first_seen_at REAL, last_seen_at REAL)"
+        )
+        conn.executemany(
+            "INSERT INTO trading_session_run VALUES (?,?,'run-a',?,?,0,0)",
+            [
+                (f"{session}@run-a", session, "Kraken", "BTC/USD")
+                for session in session_ids
+            ],
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def test_starts_on_the_latest_session_recorded(tmp_path):
+    path = _recording(tmp_path, "BTC/USD")
+    _record_sessions(path, ["2023-11-13", "2023-11-14"])
+
+    at = AppTest.from_function(script)
+    at.session_state["root"] = str(tmp_path)
+    at.run()
+
+    assert not at.exception
+    assert at.session_state[SESSION_ID] == "2023-11-14"
+
+
+def test_keeps_the_session_the_reader_chose(tmp_path):
+    path = _recording(tmp_path, "BTC/USD")
+    _record_sessions(path, ["2023-11-13", "2023-11-14"])
+
+    at = AppTest.from_function(script)
+    at.session_state["root"] = str(tmp_path)
+    at.session_state[SESSION] = "2023-11-13"
+    at.run()
+
+    assert not at.exception
+    assert at.session_state[SESSION_ID] == "2023-11-13"
+
+
+def test_reads_the_session_a_link_names(tmp_path):
+    path = _recording(tmp_path, "BTC/USD")
+    _record_sessions(path, ["2023-11-13", "2023-11-14"])
+
+    at = AppTest.from_function(script)
+    at.session_state["root"] = str(tmp_path)
+    at.query_params[SESSION] = "2023-11-13"
+    at.run()
+
+    assert not at.exception
+    assert at.session_state[SESSION_ID] == "2023-11-13"
+
+
+def test_falls_back_when_the_recording_never_held_that_session(tmp_path):
+    """Another engine may have traded days this one did not, and the
+    reader's choice travels with them from engine to engine."""
+    path = _recording(tmp_path, "BTC/USD")
+    _record_sessions(path, ["2023-11-14"])
+
+    at = AppTest.from_function(script)
+    at.session_state["root"] = str(tmp_path)
+    at.session_state[SESSION] = "2023-11-13"
+    at.run()
+
+    assert not at.exception
+    assert at.session_state[SESSION_ID] == "2023-11-14"
+
+
+def test_a_recording_that_holds_no_session_names_none(tmp_path):
+    _recording(tmp_path, "BTC/USD")
+
+    at = AppTest.from_function(script)
+    at.session_state["root"] = str(tmp_path)
+    at.run()
+
+    assert not at.exception
+    assert at.session_state[SESSION_ID] is None
 
 
 def _exchange_recording(root, exchange: str, symbol: str) -> str:

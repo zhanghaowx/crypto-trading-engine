@@ -4,12 +4,22 @@ import argparse
 
 import streamlit as st
 
+from jolteon.app import aggregates
 from jolteon.app.data import EngineDatabase, engine_databases
 from jolteon.engine.core.storage import paths
 
 # The stable exchange-and-symbol engine key used by widgets and URLs.
 ENGINE = "engine"
 SYMBOL = ENGINE
+
+# Which trading session the figures on screen are of. A recording holds
+# a session per day it has been running, so this is the reader's own
+# choice of accounting window and never "everything in the file".
+SESSION = "session"
+
+# Where the resolved session lands for every page to read, kept apart
+# from the picker's own key so neither can shadow the other.
+SESSION_ID = "session_id"
 
 # Whether anything that redraws itself on a timer does so, and how long
 # it waits between passes. Both are the reader's own, set on the
@@ -62,8 +72,36 @@ def init_settings() -> None:
     ):
         st.session_state.params_db_path = default_params
     st.session_state._default_params_db_path = default_params
+    st.session_state[SESSION_ID] = _chosen_session(st.session_state.db_path)
     st.session_state.setdefault(AUTO_REFRESH, True)
     st.session_state.setdefault(REFRESH_SECONDS, DEFAULT_REFRESH_SECONDS)
+
+
+def session_id() -> str | None:
+    """
+    Returns: The trading session the figures on screen are of, and
+    nothing at all for a recording that holds no session yet.
+    """
+    return st.session_state.get(SESSION_ID)
+
+
+def _chosen_session(db_path: str) -> str | None:
+    """
+    Returns: The session the reader picked, the latest one recorded while
+    they have picked none, and nothing at all under a recording that
+    holds none.
+
+    Resolved on every run rather than remembered, for the same reason the
+    engine is: a reader who picked yesterday and then switched to another
+    engine that never traded yesterday must not be left reading a session
+    that recording does not hold.
+    """
+    available = aggregates.sessions(db_path)
+    if available.empty:
+        return None
+    recorded = [str(one) for one in available["session_id"]]
+    chosen = st.session_state.get(SESSION) or st.query_params.get(SESSION)
+    return chosen if chosen in recorded else recorded[0]
 
 
 def refresh_interval() -> float | None:

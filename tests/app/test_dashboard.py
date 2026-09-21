@@ -2,6 +2,7 @@ import sqlite3
 import time
 from pathlib import Path
 
+from jolteon.app.settings import SESSION_ID
 from jolteon.engine.core.storage import paths
 
 
@@ -234,3 +235,92 @@ def test_the_reader_cannot_choose_no_symbol_at_all(
     at = dashboard.run()
 
     assert at.segmented_control[0].proto.required
+
+
+def _record_sessions(db_path: str, session_ids) -> None:
+    """The trading sessions an engine left behind in its recording."""
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            "CREATE TABLE trading_session_run "
+            "(session_run_id TEXT PRIMARY KEY, session_id TEXT, "
+            "run_id TEXT, exchange TEXT, symbol TEXT, "
+            "first_seen_at REAL, last_seen_at REAL)"
+        )
+        conn.executemany(
+            "INSERT INTO trading_session_run VALUES (?,?,'run-a',?,?,0,0)",
+            [
+                (f"{session}@run-a", session, "Kraken", "BTC/USD")
+                for session in session_ids
+            ],
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def test_offers_no_session_to_choose_while_one_day_is_recorded(
+    dashboard, tmp_path, recordings
+):
+    dashboard.session_state["root"] = str(tmp_path)
+    _record_sessions(recordings["BTC/USD"], ["2023-11-14"])
+    at = dashboard.run()
+
+    assert not at.exception
+    assert len(at.selectbox) == 0
+
+
+def test_offers_every_trading_session_newest_first(
+    dashboard, tmp_path, recordings
+):
+    dashboard.session_state["root"] = str(tmp_path)
+    _record_sessions(recordings["BTC/USD"], ["2023-11-13", "2023-11-14"])
+    at = dashboard.run()
+
+    assert not at.exception
+    assert at.selectbox[0].options == ["2023-11-14", "2023-11-13"]
+    assert at.session_state[SESSION_ID] == "2023-11-14"
+
+
+def test_choosing_a_session_reports_on_that_day(
+    dashboard, tmp_path, recordings
+):
+    dashboard.session_state["root"] = str(tmp_path)
+    _record_sessions(recordings["BTC/USD"], ["2023-11-13", "2023-11-14"])
+    at = dashboard.run()
+
+    at.selectbox[0].select("2023-11-13").run()
+
+    assert not at.exception
+    assert at.session_state[SESSION_ID] == "2023-11-13"
+
+
+def test_the_session_survives_a_page_switch(dashboard, tmp_path, recordings):
+    """The picker is drawn on the Live page alone, and a widget's value
+    is dropped while the widget is not rendered."""
+    dashboard.session_state["root"] = str(tmp_path)
+    _record_sessions(recordings["BTC/USD"], ["2023-11-13", "2023-11-14"])
+    at = dashboard.run()
+    at.selectbox[0].select("2023-11-13").run()
+
+    at.switch_page("app_pages/parameters.py").run()
+    at.switch_page("app_pages/live.py").run()
+
+    assert not at.exception
+    assert at.session_state[SESSION_ID] == "2023-11-13"
+    assert at.selectbox[0].value == "2023-11-13"
+
+
+def test_switching_engine_lets_go_of_a_session_it_never_traded(
+    dashboard, tmp_path, recordings
+):
+    dashboard.session_state["root"] = str(tmp_path)
+    _record_sessions(recordings["BTC/USD"], ["2023-11-13", "2023-11-14"])
+    _record_sessions(recordings["ETH/USD"], ["2023-11-14", "2023-11-15"])
+    at = dashboard.run()
+    at.selectbox[0].select("2023-11-13").run()
+
+    at.segmented_control[0].set_value("kraken:ETH/USD").run()
+
+    assert not at.exception
+    assert at.session_state[SESSION_ID] == "2023-11-15"

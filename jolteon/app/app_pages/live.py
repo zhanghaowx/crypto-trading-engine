@@ -1,5 +1,6 @@
 import streamlit as st
 
+from jolteon.app import aggregates
 from jolteon.app.app_pages import (
     fair_price_signals,
     order_book,
@@ -9,7 +10,7 @@ from jolteon.app.app_pages import (
 from jolteon.app.card import Card, cards_rule, render_cards
 from jolteon.app.data import engine_databases
 from jolteon.app.health_summary import watch_nav
-from jolteon.app.settings import ENGINE, refresh_interval
+from jolteon.app.settings import ENGINE, SESSION, refresh_interval
 
 
 def _select_engine() -> None:
@@ -44,6 +45,42 @@ def _select_engine() -> None:
         bind="query-params",
         persist_state="session",
         label_visibility="collapsed",
+    )
+
+
+def _select_session() -> None:
+    """
+    Which trading session the cards below report on.
+
+    A recording goes on accumulating across restarts and across days, so
+    the figures on screen have to say which day they are of. The newest
+    is offered first and is what a reader who picks nothing gets.
+    Nothing is offered while the recording holds only one session, since
+    there is nothing to choose between.
+    """
+    recorded = aggregates.sessions(st.session_state.db_path)
+    if len(recorded) < 2:
+        return
+    options = [str(one) for one in recorded["session_id"]]
+
+    # Another engine's recording may hold none of the days this one did,
+    # and a picker cannot be built around a value its options lack.
+    if st.session_state.get(SESSION) not in options:
+        st.session_state.pop(SESSION, None)
+
+    st.selectbox(
+        "Trading session",
+        options=options,
+        key=SESSION,
+        # The binding carries the day in the URL, so a link names the
+        # session it was copied from, and `persist_state` is what keeps
+        # it through a switch to another page and back.
+        bind="query-params",
+        persist_state="session",
+        help=(
+            "Which UTC day the figures below cover. Inventory and orders "
+            "carry across midnight; only the accounting starts again."
+        ),
     )
 
 
@@ -89,10 +126,11 @@ cards = [
 
 st.html(cards_rule(cards))
 
-# Outside the cards' own fragments: they read whichever engine this
-# picks, so it has to be settled before any of them run, and choosing
-# another engine is meant to invalidate every one of them at once.
+# Outside the cards' own fragments: they read whichever engine and
+# whichever session these pick, so both have to be settled before any of
+# them run, and choosing again is meant to invalidate every one at once.
 _select_engine()
+_select_session()
 
 # Each card refreshes itself on a timer of its own (see `card.card`), so
 # there is no page-wide fragment here to redraw the lot.
