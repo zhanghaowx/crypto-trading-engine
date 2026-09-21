@@ -163,14 +163,9 @@ uv run poe dashboard
 Use the sidebar to select an exchange, symbol, and recorded session. Runtime
 parameters are edited from the Parameters page.
 
-Live and Health cards refresh independently. Use a card's refresh icon to
-reload just that card, including when auto-refresh is off. Hiding a card
-suspends its timer, data loading, and rendering; **Show …** resumes it.
-Collapsing a card is visual only and leaves its refresh active. A failed
-card shows an error with a retry action while other cards keep working.
-
-The [card execution contract](CARD_EXECUTION.md) describes shared loading,
-per-card performance metrics, and the remaining whole-page reruns.
+Use a card's refresh icon to refresh it even when auto-refresh is off.
+Hiding a card pauses its updates; **Show …** resumes them. Collapsing a
+card only folds it away and leaves its updates running.
 
 ### Docker
 
