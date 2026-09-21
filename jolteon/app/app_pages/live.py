@@ -7,13 +7,13 @@ from jolteon.app.app_pages import (
     risk_limits,
 )
 from jolteon.app.card import Card, cards_rule, render_cards
-from jolteon.app.data import engine_databases, latest_engine_run
+from jolteon.app.data import engine_databases
 from jolteon.app.health_summary import watch_nav
-from jolteon.app.settings import ENGINE, refresh_interval
+from jolteon.app.settings import ENGINE, current_run, refresh_interval
 
 
 def _render_run_scope() -> None:
-    run = latest_engine_run(st.session_state.db_path)
+    run = current_run()
     if run is None:
         return
     short_id = run.run_id.rsplit("-", 1)[-1]

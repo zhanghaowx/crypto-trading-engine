@@ -9,7 +9,7 @@ from jolteon.app import table
 from jolteon.app.analytics import HORIZONS, recorded_through
 from jolteon.app.components import NEGATIVE_RGB, warn_if_no_db
 from jolteon.app.data import read_run_table
-from jolteon.app.settings import RUN_ID
+from jolteon.app.settings import current_run_id
 from jolteon.app.signal_evaluation import evaluate_adjustments
 
 
@@ -188,7 +188,7 @@ def _evaluation() -> pd.DataFrame | None:
         return None
 
     db_path = st.session_state.db_path
-    run_id = st.session_state.get(RUN_ID)
+    run_id = current_run_id()
     adjustments = read_run_table(db_path, "fair_price_adjustment", run_id)
     if adjustments.empty:
         st.info("No fair price adjustments recorded yet.")
