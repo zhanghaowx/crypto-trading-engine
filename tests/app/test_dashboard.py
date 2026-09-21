@@ -234,3 +234,32 @@ def test_the_reader_cannot_choose_no_symbol_at_all(
     at = dashboard.run()
 
     assert at.segmented_control[0].proto.required
+
+
+def test_live_page_shows_the_latest_engine_run(dashboard, engines):
+    recording = engines.add("BTC/USD")
+    conn = sqlite3.connect(recording)
+    try:
+        conn.execute(
+            "CREATE TABLE engine_run "
+            "(run_id TEXT PRIMARY KEY, exchange TEXT, symbol TEXT, "
+            "started_at REAL, ended_at REAL)"
+        )
+        conn.execute(
+            "INSERT INTO engine_run VALUES "
+            "('20260920T120000Z-deadbeef', 'Kraken', 'BTC/USD', "
+            "1790424000, NULL)"
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    dashboard.session_state["root"] = engines.root
+    at = dashboard.run()
+
+    assert not at.exception
+    assert at.session_state["run_id"] == "20260920T120000Z-deadbeef"
+    assert any(
+        "Run `deadbeef`" in caption.value and "Running" in caption.value
+        for caption in at.caption
+    )

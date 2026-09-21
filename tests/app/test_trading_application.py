@@ -1,5 +1,7 @@
+import sqlite3
 import tempfile
 import unittest
+from contextlib import closing
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -77,6 +79,50 @@ class TestTradingApplicationDisconnect(unittest.TestCase):
         self.assertIsNone(stopped_venue.latest_bbo)
         self.assertEqual(tick, running_venue.latest_bbo)
         running.disconnect_all()
+
+
+class TestTradingApplicationEngineRun(unittest.TestCase):
+    def _make_app(self, folder: str, name: str) -> TradingApplication:
+        return TradingApplication(
+            symbol="BTC/USD",
+            exchange="Binance.US",
+            database_name=f"{folder}/{name}.sqlite",
+            logfile_name=f"{folder}/{name}.log",
+        )
+
+    def test_each_application_gets_a_unique_run_id(self):
+        with tempfile.TemporaryDirectory() as folder:
+            first = self._make_app(folder, "first")
+            second = self._make_app(folder, "second")
+            try:
+                self.assertNotEqual(
+                    first._engine_run.run_id, second._engine_run.run_id
+                )
+            finally:
+                first._signal_recorder.close()
+                second._signal_recorder.close()
+
+    def test_graceful_stop_records_the_run_end(self):
+        with tempfile.TemporaryDirectory() as folder:
+            app = self._make_app(folder, "recorded")
+            run_id = app._engine_run.run_id
+            app._connect_signals()
+            app.stop()
+            app._signal_recorder.close()
+
+            with closing(sqlite3.connect(f"{folder}/recorded.sqlite")) as conn:
+                rows = conn.execute(
+                    "SELECT run_id, exchange, symbol, started_at, ended_at "
+                    "FROM engine_run"
+                ).fetchall()
+
+        self.assertEqual(1, len(rows))
+        recorded = rows[0]
+        self.assertEqual(run_id, recorded[0])
+        self.assertEqual("Binance.US", recorded[1])
+        self.assertEqual("BTC/USD", recorded[2])
+        self.assertIsNotNone(recorded[3])
+        self.assertIsNotNone(recorded[4])
 
 
 class TestTradingApplicationFairPriceModel(unittest.TestCase):

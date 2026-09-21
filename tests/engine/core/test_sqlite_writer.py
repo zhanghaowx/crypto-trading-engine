@@ -152,6 +152,21 @@ class TestSQLiteWriter(unittest.TestCase):
 
         self.assertEqual([(1, "second")], self.query("SELECT k, v FROM t"))
 
+    def test_primary_key_update_preserves_original_run_id(self):
+        self.writer.put(
+            "t", {"k": 1, "v": "first", "run_id": "run-a"}, primary_key="k"
+        )
+        self.writer.flush()
+        self.writer.put(
+            "t", {"k": 1, "v": "second", "run_id": "run-b"}, primary_key="k"
+        )
+        self.writer.flush()
+
+        self.assertEqual(
+            [(1, "second", "run-a")],
+            self.query("SELECT k, v, run_id FROM t"),
+        )
+
     def test_primary_key_coalesces_within_one_batch(self):
         """
         Repeated updates of one key queued together collapse to a single

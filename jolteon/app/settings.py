@@ -4,12 +4,17 @@ import argparse
 
 import streamlit as st
 
-from jolteon.app.data import EngineDatabase, engine_databases
+from jolteon.app.data import (
+    EngineDatabase,
+    engine_databases,
+    latest_engine_run,
+)
 from jolteon.engine.core.storage import paths
 
 # The stable exchange-and-symbol engine key used by widgets and URLs.
 ENGINE = "engine"
 SYMBOL = ENGINE
+RUN_ID = "run_id"
 
 # Whether anything that redraws itself on a timer does so, and how long
 # it waits between passes. Both are the reader's own, set on the
@@ -49,6 +54,8 @@ def init_settings() -> None:
     st.session_state.log_db_path = args.log_db or (
         engine.log_path if engine else ""
     )
+    run = latest_engine_run(st.session_state.db_path)
+    st.session_state[RUN_ID] = run.run_id if run else None
 
     default_params = paths.parameter_store(
         st.session_state.root, engine.exchange if engine else "Kraken"

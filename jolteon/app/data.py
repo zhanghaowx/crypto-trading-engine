@@ -6,6 +6,7 @@ talks to the running engine directly.
 
 import sqlite3
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -106,7 +107,7 @@ def last_rowid_where(db_path: str, table: str, column: str) -> int | None:
 
 
 def read_after(
-    db_path: str, table: str, rowid: int
+    db_path: str, table: str, rowid: int, run_id: str | None = None
 ) -> tuple[pd.DataFrame, int]:
     """
     Returns: The rows recorded after `rowid`, oldest first, and the row
@@ -122,10 +123,13 @@ def read_after(
         return pd.DataFrame(), rowid
     conn = sqlite3.connect(db_path)
     try:
+        run_clause = " AND run_id = ?" if run_id is not None else ""
+        params = (rowid, run_id) if run_id is not None else (rowid,)
         frame = pd.read_sql(
-            f'SELECT rowid AS "{_ROWID}", * FROM "{table}" WHERE rowid > ?',
+            f'SELECT rowid AS "{_ROWID}", * FROM "{table}" '
+            f"WHERE rowid > ?{run_clause}",
             conn,
-            params=(rowid,),
+            params=params,
         )
     except (sqlite3.OperationalError, pd.errors.DatabaseError):
         return pd.DataFrame(), rowid
@@ -304,6 +308,83 @@ def read_fair_prices_for_fills(
 
 
 @dataclass(frozen=True)
+class RecordedEngineRun:
+    """One EngineRun as the dashboard reads it back from a recording."""
+
+    run_id: str
+    exchange: str
+    symbol: str
+    started_at: datetime
+    ended_at: datetime | None
+    status: str
+
+
+def _recorded_datetime(value) -> datetime | None:
+    if value is None or pd.isna(value):
+        return None
+    return datetime.fromtimestamp(float(value), tz=timezone.utc)
+
+
+def engine_runs(db_path: str) -> list[RecordedEngineRun]:
+    """Every recorded run, newest first, with interruption made explicit."""
+    if not database_exists(db_path):
+        return []
+    conn = sqlite3.connect(db_path)
+    try:
+        rows = pd.read_sql(
+            "SELECT run_id, exchange, symbol, started_at, ended_at "
+            'FROM "engine_run" ORDER BY started_at DESC, rowid DESC',
+            conn,
+        )
+    except (sqlite3.OperationalError, pd.errors.DatabaseError):
+        return []
+    finally:
+        conn.close()
+
+    result = []
+    for position, (_, row) in enumerate(rows.iterrows()):
+        ended = _recorded_datetime(row["ended_at"])
+        if ended is not None:
+            status = "stopped"
+        elif position == 0:
+            status = "running"
+        else:
+            status = "interrupted"
+        started = _recorded_datetime(row["started_at"])
+        if started is None:
+            continue
+        result.append(
+            RecordedEngineRun(
+                run_id=str(row["run_id"]),
+                exchange=str(row["exchange"]),
+                symbol=str(row["symbol"]),
+                started_at=started,
+                ended_at=ended,
+                status=status,
+            )
+        )
+    return result
+
+
+def latest_engine_run(db_path: str) -> RecordedEngineRun | None:
+    """The newest engine process recorded in this database."""
+    runs = engine_runs(db_path)
+    return runs[0] if runs else None
+
+
+def read_run_table(
+    db_path: str, table: str, run_id: str | None
+) -> pd.DataFrame:
+    """A cached table restricted to one engine run when one is known."""
+    frame = read_table(db_path, table)
+    if run_id is None:
+        return frame
+    if "run_id" not in frame.columns:
+        return frame.iloc[0:0].copy(deep=False)
+    return frame[frame["run_id"] == run_id].copy(deep=False)
+
+
+@dataclass(frozen=True)
 class EngineDatabase:
     """One engine recording identified by exchange and canonical symbol."""
 
@@ -434,7 +515,10 @@ def count_matching(
 
 
 def read_latest_per_group(
-    db_path: str, table: str, group_column: str
+    db_path: str,
+    table: str,
+    group_column: str,
+    run_id: str | None = None,
 ) -> pd.DataFrame:
     """
     The most recently recorded row of `table` for each distinct value of
@@ -446,10 +530,14 @@ def read_latest_per_group(
 
     conn = sqlite3.connect(db_path)
     try:
+        where = " WHERE run_id = ?" if run_id is not None else ""
+        params = (run_id,) if run_id is not None else ()
         frame = pd.read_sql(
             f'SELECT * FROM "{table}" WHERE rowid IN '
-            f'(SELECT MAX(rowid) FROM "{table}" GROUP BY "{group_column}")',
+            f'(SELECT MAX(rowid) FROM "{table}"{where} '
+            f'GROUP BY "{group_column}")',
             conn,
+            params=params,
         )
     except (sqlite3.OperationalError, pd.errors.DatabaseError):
         return pd.DataFrame()

@@ -253,3 +253,83 @@ def test_the_modal_says_why_when_there_is_nothing_to_show(
     assert not at.exception
     assert not tables(at)
     assert at.info[0].value == "No fair price adjustments recorded yet."
+
+
+def test_signal_evaluation_uses_only_the_current_run(tmp_path):
+    db_path = str(tmp_path / "two-runs.sqlite")
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            "CREATE TABLE fair_price_adjustment "
+            "(timestamp REAL, symbol TEXT, base_fair_price REAL, "
+            '"adjustments.momentum" REAL, total_adjustment REAL, '
+            "clamped INTEGER, run_id TEXT)"
+        )
+        conn.execute(
+            "CREATE TABLE fair_price "
+            "(timestamp REAL, symbol TEXT, model TEXT, bid_fair_price REAL, "
+            "ask_fair_price REAL, run_id TEXT)"
+        )
+        adjustments = []
+        mids = []
+        for i in range(_MIN_SAMPLES + 5):
+            timestamp = 1000.0 + i
+            signal = 1.0 if i % 2 == 0 else -1.0
+            adjustments.append(
+                (
+                    timestamp,
+                    "BTC-USD",
+                    100.0,
+                    signal,
+                    signal,
+                    0,
+                    "run-a",
+                )
+            )
+            mids.append(
+                (
+                    timestamp + 1,
+                    "BTC-USD",
+                    "MidPriceFairPriceModel",
+                    100.0 + signal,
+                    100.0 + signal,
+                    "run-a",
+                )
+            )
+        for i in range(2):
+            timestamp = 2000.0 + i
+            adjustments.append(
+                (timestamp, "BTC-USD", 100.0, 1.0, 1.0, 0, "run-b")
+            )
+            mids.append(
+                (
+                    timestamp + 1,
+                    "BTC-USD",
+                    "MidPriceFairPriceModel",
+                    101.0,
+                    101.0,
+                    "run-b",
+                )
+            )
+        conn.executemany(
+            "INSERT INTO fair_price_adjustment VALUES (?,?,?,?,?,?,?)",
+            adjustments,
+        )
+        conn.executemany(
+            "INSERT INTO fair_price VALUES (?,?,?,?,?,?)",
+            mids,
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    at = AppTest.from_function(_script)
+    at.session_state["db_path"] = db_path
+    at.session_state["run_id"] = "run-b"
+    at.run()
+
+    assert not at.exception
+    assert [i.value for i in at.info] == [
+        "Collecting data - no horizon has enough samples to evaluate "
+        "against yet."
+    ]

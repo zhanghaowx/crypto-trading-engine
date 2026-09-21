@@ -516,7 +516,10 @@ def _realized_script():
 
     from jolteon.app.app_pages.orders_pnl import realized_pnl_now
 
-    st.write(f"{realized_pnl_now(st.session_state['db_path']):.2f}")
+    value = realized_pnl_now(
+        st.session_state["db_path"], st.session_state.get("run_id")
+    )
+    st.write(f"{value:.2f}")
 
 
 def test_realized_pnl_carries_over_and_takes_only_the_new_fills(tmp_path):
@@ -659,8 +662,8 @@ def test_card_shares_one_data_load_across_body_accent_and_download(
         mock.patch.object(orders_pnl, "load", wraps=orders_pnl.load) as load,
         mock.patch.object(
             orders_pnl,
-            "read_table",
-            wraps=orders_pnl.read_table,
+            "read_run_table",
+            wraps=orders_pnl.read_run_table,
         ) as read,
         mock.patch.object(
             orders_pnl,
@@ -723,3 +726,38 @@ def test_recent_fill_derives_edge_and_markout_from_fair_price_table(tmp_path):
     assert ":green[+$0.90]" in markdown_values
     # The +100ms target is exactly the second observation, mid 102.
     assert ":green[+$2.00]" in markdown_values
+
+
+def test_realized_pnl_is_scoped_to_the_current_engine_run(tmp_path):
+    db_path = str(tmp_path / "runs.sqlite")
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            "CREATE TABLE decorated_order_fill "
+            "(transaction_timestamp REAL, side TEXT, fill_price REAL, "
+            "fill_qty REAL, fee REAL, symbol TEXT, "
+            "exchange_execution_id TEXT PRIMARY KEY, run_id TEXT)"
+        )
+        conn.executemany(
+            "INSERT INTO decorated_order_fill VALUES (?,?,?,?,?,?,?,?)",
+            [
+                (1, "BUY", 100.0, 1.0, 0.0, "BTC-USD", "a", "run-a"),
+                (2, "SELL", 110.0, 1.0, 0.0, "BTC-USD", "b", "run-a"),
+                (3, "BUY", 100.0, 1.0, 0.0, "BTC-USD", "c", "run-b"),
+            ],
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    at = AppTest.from_function(_realized_script)
+    at.session_state["db_path"] = db_path
+    at.session_state["run_id"] = "run-a"
+    at.run()
+    assert at.markdown[-1].value == "10.00"
+
+    at.session_state["run_id"] = "run-b"
+    at.run()
+
+    assert not at.exception
+    assert at.markdown[-1].value == "0.00"

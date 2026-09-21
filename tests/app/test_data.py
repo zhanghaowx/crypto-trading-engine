@@ -10,13 +10,16 @@ from streamlit.testing.v1 import AppTest
 
 from jolteon.app.data import (
     count_matching,
+    engine_runs,
     ensure_fair_price_lookup_index,
     last_rowid_where,
+    latest_engine_run,
     max_rowid,
     read_after,
     read_fair_prices_for_fills,
     read_latest_per_group,
     read_latest_row,
+    read_run_table,
     read_table,
     reset_table_cache,
 )
@@ -625,3 +628,95 @@ def test_fair_prices_are_not_read_for_fills_that_name_no_model(tmp_path):
         max_horizon_seconds=30.0,
         max_lag_seconds=1.0,
     ).empty
+
+
+def test_engine_runs_identify_latest_stopped_and_interrupted(tmp_path):
+    db_path = str(tmp_path / "runs.sqlite")
+    with closing(sqlite3.connect(db_path)) as conn:
+        conn.execute(
+            "CREATE TABLE engine_run "
+            "(run_id TEXT PRIMARY KEY, exchange TEXT, symbol TEXT, "
+            "started_at REAL, ended_at REAL)"
+        )
+        conn.executemany(
+            "INSERT INTO engine_run VALUES (?, 'Binance.US', 'BTC/USD', ?, ?)",
+            [
+                ("run-a", 1.0, None),
+                ("run-b", 2.0, 3.0),
+                ("run-c", 4.0, None),
+            ],
+        )
+        conn.commit()
+
+    runs = engine_runs(db_path)
+
+    assert [run.run_id for run in runs] == ["run-c", "run-b", "run-a"]
+    assert [run.status for run in runs] == [
+        "running",
+        "stopped",
+        "interrupted",
+    ]
+    assert latest_engine_run(db_path) == runs[0]
+
+
+def test_latest_engine_run_is_absent_without_run_metadata(tmp_path):
+    db_path = str(tmp_path / "empty.sqlite")
+    sqlite3.connect(db_path).close()
+
+    assert latest_engine_run(db_path) is None
+
+
+def test_read_run_table_returns_only_the_named_run(tmp_path):
+    db_path = str(tmp_path / "events.sqlite")
+    with closing(sqlite3.connect(db_path)) as conn:
+        conn.execute("CREATE TABLE event (run_id TEXT, value INTEGER)")
+        conn.executemany(
+            "INSERT INTO event VALUES (?, ?)",
+            [("run-a", 1), ("run-b", 2)],
+        )
+        conn.commit()
+
+    frame = read_run_table(db_path, "event", "run-b")
+
+    assert list(frame["value"]) == [2]
+
+
+def test_read_after_can_be_scoped_to_a_run(tmp_path):
+    db_path = str(tmp_path / "after.sqlite")
+    with closing(sqlite3.connect(db_path)) as conn:
+        conn.execute("CREATE TABLE event (run_id TEXT, value INTEGER)")
+        conn.executemany(
+            "INSERT INTO event VALUES (?, ?)",
+            [("run-a", 1), ("run-b", 2), ("run-b", 3)],
+        )
+        conn.commit()
+
+    frame, at = read_after(db_path, "event", 0, run_id="run-b")
+
+    assert list(frame["value"]) == [2, 3]
+    assert at == 3
+
+
+def test_latest_per_group_can_be_scoped_to_a_run(tmp_path):
+    db_path = str(tmp_path / "latest-run.sqlite")
+    with closing(sqlite3.connect(db_path)) as conn:
+        conn.execute(
+            'CREATE TABLE "order" (run_id TEXT, side TEXT, price REAL)'
+        )
+        conn.executemany(
+            'INSERT INTO "order" VALUES (?, ?, ?)',
+            [
+                ("run-a", "BUY", 1.0),
+                ("run-b", "BUY", 2.0),
+                ("run-a", "SELL", 3.0),
+                ("run-b", "SELL", 4.0),
+            ],
+        )
+        conn.commit()
+
+    frame = read_latest_per_group(db_path, "order", "side", run_id="run-b")
+
+    assert dict(zip(frame["side"], frame["price"])) == {
+        "BUY": 2.0,
+        "SELL": 4.0,
+    }

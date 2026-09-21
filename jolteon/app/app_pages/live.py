@@ -7,9 +7,25 @@ from jolteon.app.app_pages import (
     risk_limits,
 )
 from jolteon.app.card import Card, cards_rule, render_cards
-from jolteon.app.data import engine_databases
+from jolteon.app.data import engine_databases, latest_engine_run
 from jolteon.app.health_summary import watch_nav
 from jolteon.app.settings import ENGINE, refresh_interval
+
+
+def _render_run_scope() -> None:
+    run = latest_engine_run(st.session_state.db_path)
+    if run is None:
+        return
+    short_id = run.run_id.rsplit("-", 1)[-1]
+    label = {
+        "running": "Running",
+        "stopped": "Stopped",
+        "interrupted": "Interrupted",
+    }[run.status]
+    st.caption(
+        f"Run `{short_id}` · started "
+        f"{run.started_at:%Y-%m-%d %H:%M:%S} UTC · {label}"
+    )
 
 
 def _select_engine() -> None:
@@ -93,6 +109,7 @@ st.html(cards_rule(cards))
 # picks, so it has to be settled before any of them run, and choosing
 # another engine is meant to invalidate every one of them at once.
 _select_engine()
+_render_run_scope()
 
 # Each card refreshes itself on a timer of its own (see `card.card`), so
 # there is no page-wide fragment here to redraw the lot.
