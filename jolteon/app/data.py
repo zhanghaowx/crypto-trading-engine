@@ -23,7 +23,7 @@ _CACHE_KEY = "_table_cache"
 # Alias for the row id, named so it cannot collide with a recorded column.
 _ROWID = "_jolteon_rowid"
 
-# A session left open long enough would otherwise grow this cache forever;
+# A viewer left open long enough would otherwise grow this cache forever;
 # past this many rows, the oldest are dropped in favor of a bounded
 # footprint, the same trade-off SQLiteHandler already makes for the logs
 # table.
@@ -131,10 +131,10 @@ def read_table(db_path: str, table: str) -> pd.DataFrame:
     Everything recorded in `table`.
 
     The engine appends as it runs, so each refresh reads only the rows
-    added since the last one and reuses what this session already holds.
-    Read whole every time, a dashboard left open would re-read the entire
-    session's recording every few seconds, on the same machine the engine
-    is trading from, and the cost would climb all day.
+    added since the last one and reuses what this viewer already holds.
+    Read whole every time, a dashboard left open would re-read the whole
+    recording every few seconds, on the same machine the engine is
+    trading from, and the cost would climb all day.
     """
     if not database_exists(db_path):
         return pd.DataFrame()
@@ -151,7 +151,7 @@ def read_table(db_path: str, table: str) -> pd.DataFrame:
             # ones do change: a fill is rewritten while its markouts
             # resolve, and the longest horizon is half a minute. So the
             # tail is read again and the rest is kept, which holds the
-            # cost flat instead of re-reading the session every refresh.
+            # cost flat instead of re-reading the recording every refresh.
             top = _max_rowid(conn, table)
             if cursor > top:
                 # The recording was replaced and the row ids started over.
@@ -297,7 +297,7 @@ def read_latest_row(db_path: str, table: str) -> pd.Series | None:
 
     Reads only that one row from disk instead of going through `read_table`,
     for callers that only ever look at the tail - `read_table` would hold
-    every row the session has seen just to answer that.
+    every row this viewer has seen just to answer that.
     """
     if not database_exists(db_path):
         return None

@@ -1,4 +1,11 @@
-"""Path conventions for recordings, logs, and parameter stores."""
+"""Path conventions for recordings, logs, and parameter stores.
+
+A recording is a durable container, not a period of trading: `live.sqlite`
+outlives the process that opened it and goes on accumulating across
+restarts and across days. `mode` below picks which of an instrument's
+recordings is meant - the one live trading writes, or the one a replay
+does - and never how much of it is being asked about.
+"""
 
 from pathlib import Path
 
@@ -45,27 +52,27 @@ def recording(
     root: str,
     exchange: object,
     symbol: str | None = None,
-    session: str = LIVE,
+    mode: str = LIVE,
 ) -> str:
-    return str(symbol_directory(root, exchange, symbol) / f"{session}.sqlite")
+    return str(symbol_directory(root, exchange, symbol) / f"{mode}.sqlite")
 
 
 def log_file(
     root: str,
     exchange: object,
     symbol: str | None = None,
-    session: str = LIVE,
+    mode: str = LIVE,
 ) -> str:
-    return str(symbol_directory(root, exchange, symbol) / f"{session}.log")
+    return str(symbol_directory(root, exchange, symbol) / f"{mode}.log")
 
 
 def log_database(
     root: str,
     exchange: object,
     symbol: str | None = None,
-    session: str = LIVE,
+    mode: str = LIVE,
 ) -> str:
-    return f"{log_file(root, exchange, symbol, session)}.sqlite"
+    return f"{log_file(root, exchange, symbol, mode)}.sqlite"
 
 
 def parameter_store(root: str, exchange: object = "Kraken") -> str:

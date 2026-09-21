@@ -181,11 +181,11 @@ def recorded_through(
 ) -> tuple[int, float, int]:
     """
     Returns: A cheap stand-in for what a recorded table holds - how many
-    rows it has, how far through the session its last one is, and how
+    rows it has, how far through the recording its last one is, and how
     many of `backfilled` have been filled in since.
 
     This is what a derivation over the table is cached under. Hashing the
-    table itself costs about thirty milliseconds for a session's fills,
+    table itself costs about thirty milliseconds for a recording's fills,
     which is a good part of what caching the derivation is there to save.
 
     `backfilled` names a column the engine fills in after the fact - a

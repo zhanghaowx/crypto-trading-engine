@@ -39,7 +39,8 @@ def _forward_mid(
 ) -> pd.Series:
     """The next base-model mid recorded at or after `horizon_seconds` past
     each adjustment row's own timestamp, matched per symbol - NaN where no
-    such mid has been recorded yet (the session hasn't run that far)."""
+    such mid has been recorded yet (the recording doesn't reach that
+    far)."""
     mid = fair_price[fair_price["model"] == MID_MODEL].copy()
     mid["mid"] = (mid["bid_fair_price"] + mid["ask_fair_price"]) / 2
     mid = mid[["symbol", "timestamp", "mid"]].sort_values("timestamp")

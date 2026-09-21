@@ -88,7 +88,7 @@ class TradingApplication(SignalManager):
         use_parameter_service(self._parameter_service)
 
         # Made here rather than by whoever picked the paths, so the
-        # first session on a new symbol writes into a directory that
+        # first engine on a new symbol writes into a directory that
         # exists whatever built it.
         self._create_output_directories(database_name, logfile_name)
 

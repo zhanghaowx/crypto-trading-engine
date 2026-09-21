@@ -86,8 +86,8 @@ async def main():
         "--root",
         default=paths.DEFAULT_ROOT,
         help=(
-            "Directory every session writes under. Each symbol gets a "
-            "directory of its own inside it, holding that session's "
+            "Directory every engine writes under. Each symbol gets a "
+            "directory of its own inside it, holding that symbol's "
             "recording and its log."
         ),
     )
@@ -143,7 +143,7 @@ async def main():
     Application = exchange.application
     fee_schedule = exchange.fee_schedule
 
-    # Every file a session writes goes under its own symbol's directory,
+    # Every file an engine writes goes under its own symbol's directory,
     # or a second engine would interleave its rows into the first one's
     # database.
     params_db = (
@@ -202,7 +202,7 @@ async def main():
         strategy = None
         fair_price_model = None
         health_monitor = HealthMonitor()
-        # Only a live session polls. A replay installs fake time and has
+        # Only a live engine polls. A replay installs fake time and has
         # to produce the same result twice, which it cannot if a
         # dashboard can retune it halfway through.
         parameter_service = (

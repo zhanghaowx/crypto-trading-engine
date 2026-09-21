@@ -1,5 +1,5 @@
 """Fair Price Signals: how well each registered fair price adjustment has
-predicted the market's actual forward move, so far this session - the
+predicted the market's actual forward move, over the whole recording - the
 evidence a weight decision gets made from."""
 
 import pandas as pd
