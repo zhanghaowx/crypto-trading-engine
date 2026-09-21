@@ -438,6 +438,25 @@ class TestMarks:
         ] == pytest.approx(105.0)
         assert aggregates.marks_at(db_path)["BTC-USD"] == pytest.approx(130.0)
 
+    def test_the_mark_follows_the_time_on_the_row_not_the_write_order(
+        self, tmp_path
+    ):
+        """A recording appended to out of order - repaired by hand, or
+        written by an older engine - would otherwise be marked at
+        whatever reached the file last."""
+        db_path = _recording(tmp_path, [], name="out-of-order.sqlite")
+        _record_bbo(
+            db_path,
+            [
+                (_OPENS[TODAY] - 60, 105.0),
+                (_OPENS[YESTERDAY] + 60, 100.0),
+            ],
+        )
+
+        assert aggregates.marks_at(db_path, _OPENS[TODAY])[
+            "BTC-USD"
+        ] == pytest.approx(105.0)
+
     def test_a_recording_with_no_prices_marks_nothing(self, tmp_path):
         db_path = _recording(tmp_path, [], name="unpriced.sqlite")
 

@@ -20,6 +20,7 @@ the market maker's favour - written here as SQL rather than as pandas:
 """
 
 import sqlite3
+import time
 
 import pandas as pd
 import streamlit as st
@@ -94,9 +95,21 @@ def _answer(
 
 
 def _query(
-    db_path: str, sql: str, params: tuple = (), table: str = FILLS
+    db_path: str,
+    sql: str,
+    params: tuple = (),
+    table: str = FILLS,
+    settled: bool = False,
 ) -> pd.DataFrame:
-    return _answer(db_path, sql, params, max_rowid(db_path, table))
+    """
+    `settled` is for a question whose answer the recording can no longer
+    change - what the market was last seen at before a moment already
+    past. Held against how far the recording has got, such an answer
+    would be worked out again on every refresh for no reason.
+    """
+    return _answer(
+        db_path, sql, params, 0 if settled else max_rowid(db_path, table)
+    )
 
 
 def _session_clause(session_id: str | None) -> tuple[str, tuple]:
@@ -336,16 +349,31 @@ def marks_at(db_path: str, moment: float | None = None) -> pd.Series:
     a session: what the market was last seen at, which is the same thing
     the engine marks its own position to.
     """
-    at = "" if moment is None else "WHERE timestamp < ?"
-    binding = () if moment is None else (moment,)
-    rows = _query(
-        db_path,
-        f"SELECT symbol, (bid_price + ask_price) / 2.0 AS mark "
-        f'FROM "{BBO}" WHERE rowid IN '
-        f'(SELECT MAX(rowid) FROM "{BBO}" {at} GROUP BY symbol)',
-        binding,
-        table=BBO,
-    )
+    if moment is None:
+        # No moment to be before, so the last row recorded is the answer
+        # and the row ids alone can find it.
+        rows = _query(
+            db_path,
+            f"SELECT symbol, (bid_price + ask_price) / 2.0 AS mark "
+            f'FROM "{BBO}" WHERE rowid IN '
+            f'(SELECT MAX(rowid) FROM "{BBO}" GROUP BY symbol)',
+            table=BBO,
+        )
+    else:
+        # Ordered by the time on the row rather than by the order it was
+        # written in: a recording written to out of order - one repaired
+        # by hand, or one an older engine appended to - would otherwise
+        # mark a session at whatever was added to the file last.
+        rows = _query(
+            db_path,
+            f"SELECT symbol, mark FROM (SELECT symbol, "
+            f"(bid_price + ask_price) / 2.0 AS mark, ROW_NUMBER() OVER "
+            f"(PARTITION BY symbol ORDER BY timestamp DESC, rowid DESC) "
+            f'AS rank FROM "{BBO}" WHERE timestamp < ?) WHERE rank = 1',
+            (moment,),
+            table=BBO,
+            settled=moment <= time.time(),
+        )
     if rows.empty:
         return pd.Series(dtype=float)
     return pd.to_numeric(rows.set_index("symbol")["mark"], errors="coerce")
@@ -379,7 +407,13 @@ def session_pnl(db_path: str, session_id: str | None = None) -> pd.DataFrame:
     else:
         opens, closes = trading_session_window(session_id)
         opening_mark = marks_at(db_path, opens.timestamp())
-        closing_mark = marks_at(db_path, closes.timestamp())
+        # A session still being traded has not reached its own end, so
+        # its closing mark is the latest price there is - asked for as
+        # such, which costs the recording a row rather than a scan.
+        closing_mark = marks_at(
+            db_path,
+            None if closes.timestamp() > time.time() else closes.timestamp(),
+        )
 
     priced = totals.copy()
     priced["opening_mark"] = priced.index.map(opening_mark)

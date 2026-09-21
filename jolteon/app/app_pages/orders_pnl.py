@@ -405,6 +405,14 @@ def _render_pnl(model: "OrdersModel") -> None:
             realized,
             color=sign_color(realized),
             border=True,
+            help=(
+                "What the round trips closed in this session earned over "
+                "what the inventory actually cost, which for inventory "
+                "carried in is a price from an earlier session. Total "
+                "PnL values that same inventory at the price it came in "
+                "at instead, so the two differ by whatever it gained or "
+                "lost before this session opened."
+            ),
         )
     net_cash = by_symbol["net_cash"].sum()
     with next(cols):

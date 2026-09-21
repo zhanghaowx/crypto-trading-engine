@@ -91,6 +91,7 @@ def test_shows_every_run_that_traded_the_session(one_engine, table_lookup):
     at = _page(one_engine).run()
 
     assert not at.exception
+    assert f"**Trading session {TODAY}**" in [m.value for m in at.markdown]
     rows = table_lookup(at, 0, "Run")
     assert set(rows) == {"morning", "afternoon"}
     assert rows["afternoon"]["Outcome"] == "Stopped"
@@ -138,6 +139,7 @@ def test_names_each_engine_while_more_than_one_has_traded(engines):
 
     assert not at.exception
     assert [m.value for m in at.markdown if m.value.startswith("**")] == [
+        f"**Trading session {TODAY}**",
         "**Kraken · BTC/USD**",
         "**Kraken · ETH/USD**",
     ]

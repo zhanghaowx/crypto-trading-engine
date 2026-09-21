@@ -72,6 +72,9 @@ def _select_session() -> None:
         "Trading session",
         options=options,
         key=SESSION,
+        # A day is eight characters wide; left to fill the page the
+        # picker reads as a banner rather than as one small choice.
+        width=220,
         # The binding carries the day in the URL, so a link names the
         # session it was copied from, and `persist_state` is what keeps
         # it through a switch to another page and back.

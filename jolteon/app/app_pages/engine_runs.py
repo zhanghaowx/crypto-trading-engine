@@ -70,6 +70,9 @@ def render() -> None:
         st.info("No trading session recorded yet.")
         return
 
+    # Named here because the day is chosen on another page: without it a
+    # reader has no way of knowing which day these runs are of.
+    st.markdown(f"**Trading session {session_id}**")
     for engine in engines:
         if len(engines) > 1:
             st.markdown(f"**{engine.label}**")
