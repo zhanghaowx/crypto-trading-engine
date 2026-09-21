@@ -148,8 +148,21 @@ service. Reconstructing a fill after restart produces the same identity;
 this does not implement restart recovery or persistent exactly-once event
 delivery. Polling still uses the configured retry budget.
 
-Post-trade records are keyed by `unique_trade_id`, both for pending markouts
-and as the `decorated_order_fill` primary key.
+Post-trade fills are recorded once under `unique_trade_id`, which is also the
+`decorated_order_fill` primary key. Each fill names the fair-price model the
+strategy quoted it against. Fair value and markouts are derived later by
+joining those immutable fills to the recorded `fair_price` series on that
+model, so adding an analysis horizon does not schedule work in the trading
+engine or require a new recording.
+
+A fair price is only joined to a fill if it was observed close enough to the
+moment being measured, capped by the horizon itself - so a quiet book leaves
+a markout missing rather than reporting a one-second move as a
+hundred-millisecond one. Because the engine records without declaring any
+indexes, the dashboard creates an index on `fair_price (symbol, model,
+timestamp)` the first time it derives markouts from a recording; without it
+each fill scans the whole series and the join is quadratic in the length of
+the session.
 
 ### Dashboard
 
