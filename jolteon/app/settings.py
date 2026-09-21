@@ -10,6 +10,7 @@ from jolteon.app.data import (
     engine_databases,
     latest_engine_run,
 )
+from jolteon.app.health_summary import resolve_run
 from jolteon.engine.core.storage import paths
 
 # The stable exchange-and-symbol engine key used by widgets and URLs.
@@ -55,7 +56,8 @@ def init_settings() -> None:
     st.session_state.log_db_path = args.log_db or (
         engine.log_path if engine else ""
     )
-    st.session_state[RUN] = latest_engine_run(st.session_state.db_path)
+    db_path = st.session_state.db_path
+    st.session_state[RUN] = resolve_run(db_path, latest_engine_run(db_path))
 
     default_params = paths.parameter_store(
         st.session_state.root, engine.exchange if engine else "Kraken"

@@ -652,7 +652,7 @@ def test_engine_runs_identify_latest_stopped_and_interrupted(tmp_path):
 
     assert [run.run_id for run in runs] == ["run-c", "run-b", "run-a"]
     assert [run.status for run in runs] == [
-        "running",
+        "open",
         "stopped",
         "interrupted",
     ]

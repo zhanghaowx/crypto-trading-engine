@@ -8,7 +8,7 @@ symbol along.
 """
 
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import pandas as pd
@@ -17,9 +17,11 @@ import streamlit as st
 from jolteon.app.data import (
     SCAN_SECONDS,
     EngineDatabase,
+    RecordedEngineRun,
     count_matching,
     engine_databases,
     read_latest_per_group,
+    read_latest_row,
     read_table,
 )
 
@@ -43,6 +45,27 @@ ERROR_LEVELS = ("ERROR", "CRITICAL")
 def is_down(seconds_since_seen: float) -> bool:
     """Whether a sender has gone quiet for long enough to call it dead."""
     return seconds_since_seen > HEARTBEAT_TIMEOUT_SECONDS
+
+
+def resolve_run(
+    db_path: str, run: RecordedEngineRun | None
+) -> RecordedEngineRun | None:
+    """The same run, with an "open" status settled into "running" or
+    "interrupted" by whether its engine is still heartbeating.
+
+    Measured from the run's own start as well as its last heartbeat, so
+    an engine that has only just come up is not called interrupted for
+    the seconds before its first one arrives.
+    """
+    if run is None or run.status != "open":
+        return run
+
+    last = read_latest_row(db_path, "heartbeat")
+    seen = run.started_at.timestamp()
+    if last is not None:
+        seen = max(seen, float(last["timestamp"]))
+    quiet = is_down(time.time() - seen)
+    return replace(run, status="interrupted" if quiet else "running")
 
 
 @st.cache_data(ttl=SCAN_SECONDS, show_spinner=False)
