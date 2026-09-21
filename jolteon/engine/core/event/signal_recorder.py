@@ -22,9 +22,9 @@ class SignalRecorder:
     only work done there is flattening the payload and handing it to
     `SQLiteWriter`, which does the SQL on a thread of its own.
 
-    Every row is stamped with the engine run that produced it. A caller
-    normally supplies that run id; standalone recorder users get one of
-    their own so recorded rows never lack runtime identity.
+    Every row is stamped with the engine run that produced it. A
+    recorder made without one mints its own, so rows recorded outside an
+    engine still say which process wrote them.
     """
 
     def __init__(self, database_name: str, run_id: str | None = None):
@@ -133,9 +133,7 @@ class SignalRecorder:
             if "timestamp" not in row_data:
                 row_data["timestamp"] = time_manager().now().timestamp()
 
-            # A payload that already carries an identity (notably the
-            # EngineRun row itself) keeps it; every other event gets the
-            # recorder's process identity.
+            # The EngineRun row carries its own; nothing else does.
             row_data.setdefault("run_id", self._run_id)
 
             primary_key = getattr(data, "PRIMARY_KEY", None)

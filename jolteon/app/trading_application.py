@@ -180,8 +180,8 @@ class TradingApplication(SignalManager):
         # Before the recorder is disconnected and flushed, so the last
         # thing the poller published still reaches the database.
         self._parameter_service.stop()
-        # Record the end before the recorder disconnects. If the process is
-        # killed, this update never happens and the open run remains visible.
+        # Killed rather than stopped, the engine never gets here and the
+        # run keeps no end - which is what marks it interrupted.
         self._engine_run.ended_at = time_manager().now()
         self._send_engine_run()
         self._disconnect_signals()
