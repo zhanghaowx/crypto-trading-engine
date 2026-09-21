@@ -106,9 +106,9 @@ The application creates one `HealthMonitor` and passes it to each service.
 Receiving that monitor makes the service part of the trading-health decision;
 there is no separate registry or `required_for_trading` flag.
 
-### Where a session writes
+### Where an engine writes
 
-Everything a session writes is scoped first by exchange and then by canonical
+Everything an engine writes is scoped first by exchange and then by canonical
 symbol. Two venues trading BTC/USD therefore never share a database or parameter
 store:
 
@@ -117,7 +117,7 @@ store:
   kraken/
     parameters.sqlite     # tuning shared by Kraken engines
     BTC-USD/
-      live.sqlite         # every signal the session recorded
+      live.sqlite         # every signal this symbol's engines recorded
       live.log            # and its log, mirrored into live.log.sqlite
   binance-us/
     parameters.sqlite     # separate venue-specific tuning
@@ -129,8 +129,44 @@ store:
 `--root` moves all of it somewhere else. A replay writes `replay.sqlite` beside the
 live recording for the same exchange and symbol, plus a profiler trace at
 `/tmp/jolteon.stat`. The dashboard still reads recordings written under the old
-`<root>/<symbol>/` layout as legacy Kraken sessions; new runs always use the
+`<root>/<symbol>/` layout as legacy Kraken recordings; new runs always use the
 exchange-first layout.
+
+### Recordings, trading sessions and engine runs
+
+A recording is a durable container, not a period of trading. `live.sqlite`
+outlives the process that opened it and goes on accumulating across restarts
+and across days, so three things are kept apart:
+
+```
+Recording            one live.sqlite, which may hold many days
+  Trading session    one UTC calendar day, e.g. "2026-09-20"
+    Engine run       one process, from start to stop or crash
+```
+
+A **trading session** is the accounting window: PnL, fills, fees, markouts and
+inventory buckets are all measured over one. It is an accounting boundary and
+nothing else — at midnight UTC no order is cancelled, no inventory flattened
+and no signal reset, so a position held at midnight is still held at a minute
+past. Session PnL therefore accounts for inventory carried in:
+
+```
+PnL = cash the session's fills moved, fees included
+    + inventory held at the close, marked
+    - inventory carried in at the open, marked
+```
+
+Both marks are the last mid price recorded on their own side of the boundary,
+which is what the engine marks its own position to. Opening inventory is
+worked out from the fills recorded under the earlier sessions, so a process
+that starts at noon still reports the morning's position as the afternoon's
+opening one.
+
+An **engine run** is one process lifetime. Several runs may trade one session,
+and one run may span several sessions. Every recorded row carries both a
+`session_id` and a `run_id`, so a restart inside a day adds to that day's
+figures rather than splitting them, while the Health page can still show which
+runs traded a session and how each one left it.
 
 ### Live fill identity
 
@@ -160,8 +196,9 @@ It polls the SQLite file, so you can watch a live run or open an old one:
 uv run poe dashboard
 ```
 
-Use the sidebar to select an exchange, symbol, and recorded session. Runtime
-parameters are edited from the Parameters page.
+Use the sidebar to select an exchange and symbol, and the picker above the
+cards to select a trading session. Runtime parameters are edited from the
+Parameters page.
 
 Use a card's refresh icon to refresh it even when auto-refresh is off.
 Hiding a card pauses its updates; **Show …** resumes them. Collapsing a
