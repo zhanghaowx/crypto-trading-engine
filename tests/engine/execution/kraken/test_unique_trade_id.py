@@ -1,11 +1,10 @@
 """Regression coverage for issue #64, using captured-shape REST responses."""
 
-import asyncio
 import copy
 import sqlite3
 from dataclasses import replace
 from datetime import datetime, timezone
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -13,7 +12,6 @@ from jolteon.engine.core.event.signal_recorder import SignalRecorder
 from jolteon.engine.core.side import MarketSide
 from jolteon.engine.execution.kraken.execution_service import ExecutionService
 from jolteon.engine.execution.unique_trade_id import unique_trade_id
-from jolteon.engine.market_data.core.bbo import BBO
 from jolteon.engine.market_data.core.order import Order, OrderType
 from jolteon.engine.post_trade.post_trade_service import PostTradeService
 
@@ -208,7 +206,7 @@ def test_trade_lookup_respects_twenty_id_limit(venue):
 
 
 @pytest.mark.parametrize("same_order", [True, False])
-def test_markouts_and_sqlite_primary_key_keep_fills_separate(
+def test_sqlite_primary_key_keeps_immutable_fills_separate(
     venue, tmp_path, same_order
 ):
     service, order, orders, executions, fills = venue
@@ -222,71 +220,35 @@ def test_markouts_and_sqlite_primary_key_keep_fills_separate(
         orders["O2"] = order_status(["T2"], volume="0.5")
         executions["T2"]["ordertxid"] = "O2"
         service._get_fills(["O1", "O2"], order)
+
     db = str(tmp_path / "recording.sqlite")
+    post_trade = PostTradeService()
+    recorder = SignalRecorder(db)
+    recorder.start_recording()
+    try:
+        for fill in fills:
+            post_trade.on_fill("test", fill)
+    finally:
+        recorder.close()
 
-    async def measure():
-        post_trade = PostTradeService()
-        records = []
-
-        def receive(_, decorated_order_fill):
-            records.append(copy.copy(decorated_order_fill))
-
-        post_trade.decorated_order_fill_event.connect(receive)
-        recorder = SignalRecorder(db)
-        recorder.start_recording()
-        try:
-            bbo = BBO(
-                symbol="BTC/USD",
-                bid_price=99,
-                ask_price=101,
-                bid_quantity=1,
-                ask_quantity=1,
-            )
-            post_trade.on_bbo("test", bbo)
-            loop = asyncio.get_running_loop()
-            with patch.object(loop, "call_later") as schedule:
-                for fill in fills:
-                    post_trade.on_fill("test", fill)
-            assert len(post_trade._pending_fills) == 2
-            callbacks = schedule.call_args_list
-            assert len(callbacks) == 8
-            # Execute each fill's callbacks at different prices. No sleeps.
-            for index, call in enumerate(callbacks):
-                price = 110 + index
-                post_trade.on_bbo(
-                    "test",
-                    replace(bbo, bid_price=price - 1, ask_price=price + 1),
-                )
-                _, callback, key, field = call.args
-                callback(key, field)
-            assert not post_trade._pending_fills
-            latest = {record.unique_trade_id: record for record in records}
-            assert latest[fills[0].unique_trade_id].fair_price_30s == 113
-            assert latest[fills[1].unique_trade_id].fair_price_30s == 117
-            assert latest[fills[0].unique_trade_id].fair_price_100ms == 110
-            assert latest[fills[1].unique_trade_id].fair_price_100ms == 114
-        finally:
-            recorder.close()
-            post_trade.decorated_order_fill_event.disconnect(receive)
-
-    asyncio.run(measure())
     with sqlite3.connect(db) as connection:
         rows = connection.execute(
             "SELECT unique_trade_id, exchange, exchange_order_id, "
-            "exchange_execution_id, client_order_id, fair_price_30s "
+            "exchange_execution_id, client_order_id, fair_price_model "
             "FROM decorated_order_fill ORDER BY exchange_execution_id"
         ).fetchall()
-        assert len(rows) == 2
-        for index, row in enumerate(rows):
-            fill = fills[index]
-            assert row == (
-                fill.unique_trade_id,
-                "Kraken",
-                fill.exchange_order_id,
-                f"T{index + 1}",
-                "123",
-                113 + 4 * index,
-            )
+
+    assert len(rows) == 2
+    for index, row in enumerate(rows):
+        fill = fills[index]
+        assert row == (
+            fill.unique_trade_id,
+            "Kraken",
+            fill.exchange_order_id,
+            f"T{index + 1}",
+            "123",
+            "MidPriceFairPriceModel",
+        )
 
 
 def test_identity_encoding_has_no_separator_collisions():

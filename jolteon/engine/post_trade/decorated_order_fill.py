@@ -4,8 +4,16 @@ from datetime import datetime
 from jolteon.engine.core.side import MarketSide
 
 
-@dataclass
+@dataclass(frozen=True)
 class DecoratedOrderFill:
+    """Immutable execution facts used by post-trade analytics.
+
+    Fair value and markouts are deliberately not stored here. They are
+    derived later from this fill and the recorded fair-price series, so a
+    recording can be analyzed at arbitrary horizons without scheduling
+    callbacks while the engine is running.
+    """
+
     PRIMARY_KEY = "unique_trade_id"
 
     unique_trade_id: str
@@ -18,9 +26,5 @@ class DecoratedOrderFill:
     side: MarketSide
     fill_price: float
     fill_qty: float
-    fair_price_at_fill: float
     fee: float
-    fair_price_100ms: float | None = None
-    fair_price_1s: float | None = None
-    fair_price_5s: float | None = None
-    fair_price_30s: float | None = None
+    fair_price_model: str
