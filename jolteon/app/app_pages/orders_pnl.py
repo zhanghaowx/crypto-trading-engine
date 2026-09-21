@@ -389,10 +389,8 @@ _SIDE_TINTS = {
 }
 
 
-def _render_pnl(db_path: str, latest_mid: pd.DataFrame) -> None:
-    by_symbol = pnl_by_symbol(
-        aggregates.position_and_cash(db_path), latest_mid
-    )
+def _render_pnl(model: "OrdersModel") -> None:
+    by_symbol = model.pnl
 
     cols = iter(st.columns(5 + len(by_symbol)))
 
@@ -404,7 +402,7 @@ def _render_pnl(db_path: str, latest_mid: pd.DataFrame) -> None:
             color=sign_color(total_pnl),
             border=True,
         )
-    realized = realized_pnl_now(db_path)
+    realized = model.realized
     with next(cols):
         metric(
             "Realized PnL",
@@ -429,7 +427,7 @@ def _render_pnl(db_path: str, latest_mid: pd.DataFrame) -> None:
     with next(cols):
         metric(
             "Fees paid",
-            aggregates.total_fees(db_path),
+            model.fees,
             border=True,
         )
     for symbol, row in by_symbol.iterrows():
@@ -569,20 +567,45 @@ def _render_inventory_buckets(db_path: str) -> None:
     _shaded_table(rows, ["Average edge", *_MARKOUT_COLUMNS], column_help)
 
 
-def accent() -> Accent:
+@dataclass(frozen=True)
+class OrdersModel:
+    """One refresh's fills and PnL, shared by the card's renderers."""
+
+    fills: pd.DataFrame
+    pnl: pd.DataFrame
+    realized: float = 0.0
+    fees: float = 0.0
+
+
+def load() -> OrdersModel:
+    db_path = st.session_state.db_path
+    fills = read_table(db_path, FILLS)
+    if fills.empty:
+        return OrdersModel(fills, pd.DataFrame())
+    latest_mid = read_latest_per_group(db_path, "bbo_feed", "symbol")
+    return OrdersModel(
+        fills,
+        pnl_by_symbol(aggregates.position_and_cash(db_path), latest_mid),
+        realized_pnl_now(db_path),
+        aggregates.total_fees(db_path),
+    )
+
+
+def accent(model: "OrdersModel | None" = None) -> Accent:
     """The card's edge color: green while the day is up, red while it is
     down, and nothing at all before the first fill."""
-    db_path = st.session_state.db_path
-    if not aggregates.any_fills(db_path):
+    model = load() if model is None else model
+    if model.fills.empty:
         return None
-    return "green" if realized_pnl_now(db_path) >= 0 else "red"
+    return "green" if model.realized >= 0 else "red"
 
 
-def render_header_actions() -> None:
+def render_header_actions(model: "OrdersModel | None" = None) -> None:
     """A download icon for the card title's own row - every raw fill as
     a CSV file, the fastest way to get this page's data out for analysis
     elsewhere. A no-op until there are fills to download."""
-    fills = read_table(st.session_state.db_path, "decorated_order_fill")
+    model = load() if model is None else model
+    fills = model.fills
     if fills.empty:
         return
     st.download_button(
@@ -596,18 +619,17 @@ def render_header_actions() -> None:
     )
 
 
-def render() -> None:
+def render(model: "OrdersModel | None" = None) -> None:
     if not warn_if_no_db():
         return
 
-    db_path = st.session_state.db_path
-    fills = read_table(db_path, "decorated_order_fill")
+    model = load() if model is None else model
+    fills = model.fills
 
     if fills.empty:
         st.info("No fills yet.")
     else:
-        latest_mid = read_latest_per_group(db_path, "bbo_feed", "symbol")
-        _render_pnl(db_path, latest_mid)
+        _render_pnl(model)
 
     st.divider()
 

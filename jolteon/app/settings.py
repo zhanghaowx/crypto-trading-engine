@@ -11,6 +11,13 @@ from jolteon.engine.core.storage import paths
 ENGINE = "engine"
 SYMBOL = ENGINE
 
+# Whether anything that redraws itself on a timer does so, and how long
+# it waits between passes. Both are the reader's own, set on the
+# Parameters page and read wherever something refreshes.
+AUTO_REFRESH = "auto_refresh"
+REFRESH_SECONDS = "refresh_seconds"
+DEFAULT_REFRESH_SECONDS = 5
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
@@ -55,8 +62,19 @@ def init_settings() -> None:
     ):
         st.session_state.params_db_path = default_params
     st.session_state._default_params_db_path = default_params
-    st.session_state.setdefault("auto_refresh", True)
-    st.session_state.setdefault("refresh_seconds", 5)
+    st.session_state.setdefault(AUTO_REFRESH, True)
+    st.session_state.setdefault(REFRESH_SECONDS, DEFAULT_REFRESH_SECONDS)
+
+
+def refresh_interval() -> float | None:
+    """
+    Returns: How long anything that redraws itself on a timer waits
+    between passes, and nothing at all while the reader has auto-refresh
+    switched off.
+    """
+    if not st.session_state.get(AUTO_REFRESH, True):
+        return None
+    return st.session_state.get(REFRESH_SECONDS, DEFAULT_REFRESH_SECONDS)
 
 
 def _chosen_engine(root: str) -> EngineDatabase | None:

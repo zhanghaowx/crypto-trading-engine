@@ -8,8 +8,8 @@ from jolteon.app.app_pages import (
 )
 from jolteon.app.card import Card, cards_rule, render_cards
 from jolteon.app.data import engine_databases
-from jolteon.app.health_summary import redraw_nav_if_stale
-from jolteon.app.settings import ENGINE
+from jolteon.app.health_summary import watch_nav
+from jolteon.app.settings import ENGINE, refresh_interval
 
 
 def _select_engine() -> None:
@@ -68,6 +68,7 @@ cards = [
         "Orders & PnL",
         ":material/currency_bitcoin:",
         orders_pnl.render,
+        load=orders_pnl.load,
         actions=orders_pnl.render_header_actions,
         accent=orders_pnl.accent,
     ),
@@ -88,26 +89,12 @@ cards = [
 
 st.html(cards_rule(cards))
 
-# Outside the refreshing fragment: the cards below read whichever
-# engine this picks, so it has to be settled before they run, and a
-# selector redrawn on every refresh would fight the reader for it.
+# Outside the cards' own fragments: they read whichever engine this
+# picks, so it has to be settled before any of them run, and choosing
+# another engine is meant to invalidate every one of them at once.
 _select_engine()
 
-# `run_every` reruns just this fragment on a timer without blocking the
-# session. One fragment for the whole page rather than one per card:
-# each fragment costs its own round trip and its own pass over the
-# frontend, and five of them staggered leave the app looking busy more
-# than twice as much of the time as one that redraws the lot at once.
-# Re-applying the decorator every run picks up live changes to the
-# auto-refresh setting.
-_refresh_seconds = (
-    st.session_state.refresh_seconds if st.session_state.auto_refresh else None
-)
-
-
-def _refresh(cards: list[Card]) -> None:
-    render_cards(cards)
-    redraw_nav_if_stale(st.session_state.root)
-
-
-st.fragment(_refresh, run_every=_refresh_seconds)(cards)
+# Each card refreshes itself on a timer of its own (see `card.card`), so
+# there is no page-wide fragment here to redraw the lot.
+render_cards(cards)
+watch_nav(refresh_interval())

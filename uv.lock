@@ -600,7 +600,7 @@ dev = [
     { name = "pytest-cov" },
     { name = "ruff" },
 ]
-ui = [{ name = "streamlit" }]
+ui = [{ name = "streamlit", specifier = ">=1.63.0" }]
 
 [[package]]
 name = "jsonschema"
