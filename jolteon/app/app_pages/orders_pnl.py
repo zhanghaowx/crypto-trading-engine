@@ -34,8 +34,9 @@ from jolteon.app.data import (
     read_after,
     read_fair_prices_for_fills,
     read_latest_per_group,
-    read_table,
+    read_run_table,
 )
+from jolteon.app.settings import RUN_ID
 
 # The recorded tables grow without bound; fills are paginated rather than
 # read in full onto the page.
@@ -374,7 +375,7 @@ def realized_pnl(fills: pd.DataFrame) -> float:
 _REALIZED = "_realized_pnl_carried"
 
 
-def realized_pnl_now(db_path: str) -> float:
+def realized_pnl_now(db_path: str, run_id: str | None = None) -> float:
     """
     Profit on the round trips closed over the whole recording.
 
@@ -388,16 +389,20 @@ def realized_pnl_now(db_path: str) -> float:
     """
     carried = st.session_state.get(_REALIZED)
     if carried is not None:
-        was, state, at = carried
-        if was != db_path or max_rowid(db_path, FILLS) < at:
+        was, was_run, state, at = carried
+        if (
+            was != db_path
+            or was_run != run_id
+            or max_rowid(db_path, FILLS) < at
+        ):
             carried = None
     if carried is None:
         state, at = Realized(), 0
 
-    fresh, now_at = read_after(db_path, FILLS, at)
+    fresh, now_at = read_after(db_path, FILLS, at, run_id=run_id)
     if not fresh.empty:
         state = fold_fills(state, fresh)
-    st.session_state[_REALIZED] = (db_path, state, now_at)
+    st.session_state[_REALIZED] = (db_path, run_id, state, now_at)
     return state.total
 
 
@@ -512,8 +517,10 @@ def _shaded_table(
     )
 
 
-def _render_fair_price_movement(db_path: str) -> None:
-    movement = aggregates.avg_fair_price_movement(db_path)
+def _render_fair_price_movement(
+    db_path: str, run_id: str | None = None
+) -> None:
+    movement = aggregates.avg_fair_price_movement(db_path, run_id)
     if movement.empty:
         return
 
@@ -532,9 +539,9 @@ def _render_fair_price_movement(db_path: str) -> None:
     _shaded_table(rows, columns, column_help)
 
 
-def _render_fill_quality(db_path: str) -> None:
+def _render_fill_quality(db_path: str, run_id: str | None = None) -> None:
     """BUY vs SELL execution quality (section 6)."""
-    by_side = aggregates.fill_quality_by_side(db_path)
+    by_side = aggregates.fill_quality_by_side(db_path, run_id)
     if by_side.empty:
         return
 
@@ -563,10 +570,10 @@ def _render_fill_quality(db_path: str) -> None:
     )
 
 
-def _render_inventory_buckets(db_path: str) -> None:
+def _render_inventory_buckets(db_path: str, run_id: str | None = None) -> None:
     """Whether fills made at extreme inventory levels look different from
     fills made near neutral (section 5)."""
-    stats = aggregates.inventory_buckets(db_path)
+    stats = aggregates.inventory_buckets(db_path, run_id=run_id)
     if stats.empty:
         return
 
@@ -604,15 +611,20 @@ class OrdersModel:
 
 def load() -> OrdersModel:
     db_path = st.session_state.db_path
-    fills = read_table(db_path, FILLS)
+    run_id = st.session_state.get(RUN_ID)
+    fills = read_run_table(db_path, FILLS, run_id)
     if fills.empty:
         return OrdersModel(fills, pd.DataFrame())
-    latest_mid = read_latest_per_group(db_path, "bbo_feed", "symbol")
+    latest_mid = read_latest_per_group(
+        db_path, "bbo_feed", "symbol", run_id=run_id
+    )
     return OrdersModel(
         fills,
-        pnl_by_symbol(aggregates.position_and_cash(db_path), latest_mid),
-        realized_pnl_now(db_path),
-        aggregates.total_fees(db_path),
+        pnl_by_symbol(
+            aggregates.position_and_cash(db_path, run_id), latest_mid
+        ),
+        realized_pnl_now(db_path, run_id),
+        aggregates.total_fees(db_path, run_id),
     )
 
 
@@ -687,10 +699,11 @@ def render_trade_quality() -> None:
     # many fills there are, so the recording works them out itself -
     # nothing here holds a session's fills to average them.
     db_path = st.session_state.db_path
-    if not aggregates.any_fills(db_path):
+    run_id = st.session_state.get(RUN_ID)
+    if not aggregates.any_fills(db_path, run_id):
         st.info("No fills yet.")
         return
 
-    _render_fill_quality(db_path)
-    _render_inventory_buckets(db_path)
-    _render_fair_price_movement(db_path)
+    _render_fill_quality(db_path, run_id)
+    _render_inventory_buckets(db_path, run_id)
+    _render_fair_price_movement(db_path, run_id)

@@ -8,7 +8,8 @@ import streamlit as st
 from jolteon.app import table
 from jolteon.app.analytics import HORIZONS, recorded_through
 from jolteon.app.components import NEGATIVE_RGB, warn_if_no_db
-from jolteon.app.data import read_table
+from jolteon.app.data import read_run_table
+from jolteon.app.settings import RUN_ID
 from jolteon.app.signal_evaluation import evaluate_adjustments
 
 
@@ -187,12 +188,13 @@ def _evaluation() -> pd.DataFrame | None:
         return None
 
     db_path = st.session_state.db_path
-    adjustments = read_table(db_path, "fair_price_adjustment")
+    run_id = st.session_state.get(RUN_ID)
+    adjustments = read_run_table(db_path, "fair_price_adjustment", run_id)
     if adjustments.empty:
         st.info("No fair price adjustments recorded yet.")
         return None
 
-    fair_price = read_table(db_path, "fair_price")
+    fair_price = read_run_table(db_path, "fair_price", run_id)
     evaluation = cached_evaluation(
         adjustments,
         fair_price,

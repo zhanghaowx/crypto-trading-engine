@@ -90,7 +90,9 @@ _STALE_SECONDS = 30
 
 
 @st.cache_data(ttl=_STALE_SECONDS, show_spinner=False)
-def _answer(db_path: str, sql: str, through: int) -> pd.DataFrame:
+def _answer(
+    db_path: str, sql: str, params: tuple, through: int
+) -> pd.DataFrame:
     """
     The rows `sql` returns, or nothing where the recording cannot answer
     it - an older one may not have the columns a newer payload writes.
@@ -104,19 +106,32 @@ def _answer(db_path: str, sql: str, through: int) -> pd.DataFrame:
         return pd.DataFrame()
     conn = sqlite3.connect(db_path)
     try:
-        return pd.read_sql(sql, conn)
+        return pd.read_sql(sql, conn, params=params)
     except (sqlite3.OperationalError, pd.errors.DatabaseError):
         return pd.DataFrame()
     finally:
         conn.close()
 
 
-def _query(db_path: str, sql: str) -> pd.DataFrame:
+def _query(db_path: str, sql: str, params: tuple = ()) -> pd.DataFrame:
     # Keyed on fills alone, not on fair prices too: fair prices arrive
     # continuously, so counting them would change the key on every refresh
     # and never let an answer stand. `_STALE_SECONDS` is what covers the
     # horizons that resolve without a new fill.
-    return _answer(db_path, sql, max_rowid(db_path, FILLS))
+    return _answer(db_path, sql, params, max_rowid(db_path, FILLS))
+
+
+def _run_clause(
+    run_id: str | None, column: str = "run_id"
+) -> tuple[str, tuple]:
+    if run_id is None:
+        return "", ()
+    return f"{column} = ?", (run_id,)
+
+
+def _where(*conditions: str) -> str:
+    kept = [condition for condition in conditions if condition]
+    return f"WHERE {' AND '.join(kept)}" if kept else ""
 
 
 def _fair_price_at(target: str, *, tolerance: float, future: bool) -> str:
@@ -143,9 +158,17 @@ def _fair_price_at(target: str, *, tolerance: float, future: bool) -> str:
     )
 
 
-def _analysis_cte() -> str:
+def _analysis_cte(run_id: str | None) -> tuple[str, tuple]:
     """One per-fill relation carrying the joined fair prices, shared by
-    every markout aggregate below."""
+    every markout aggregate below.
+
+    The run is filtered here rather than on the relation this builds:
+    every derived column is a lookup made per fill scanned, so filtering
+    afterwards would pay for the joins of every fill ever recorded. The
+    fair prices joined to are left unfiltered - they observe the market
+    rather than the run, and a fill near the end of one run measures its
+    forward horizons against what the next run recorded.
+    """
     fill_time = f"f.{FILL_TIME}"
     at_fill = _fair_price_at(
         fill_time, tolerance=_AT_FILL_TOLERANCE, future=False
@@ -160,11 +183,13 @@ def _analysis_cte() -> str:
         )
         derived.append(f"{price} AS {_horizon_price(horizon)}")
 
+    run, params = _run_clause(run_id, "f.run_id")
     return (
         "WITH derived_fill AS ("
         f"SELECT f.*, {', '.join(derived)} "
-        f'FROM "{FILLS}" f'
-        ") "
+        f'FROM "{FILLS}" f {_where(run)}'
+        ") ",
+        params,
     )
 
 
@@ -179,25 +204,34 @@ def _numeric(frame: pd.DataFrame) -> pd.DataFrame:
     return frame.apply(pd.to_numeric, errors="coerce")
 
 
-def any_fills(db_path: str) -> bool:
+def any_fills(db_path: str, run_id: str | None = None) -> bool:
     """Whether the recording holds a fill at all - asked of the recording
     rather than of a table read into memory to be measured."""
-    rows = _query(db_path, f'SELECT 1 FROM "{FILLS}" LIMIT 1')
+    run, params = _run_clause(run_id)
+    rows = _query(
+        db_path,
+        f'SELECT 1 FROM "{FILLS}" {_where(run)} LIMIT 1',
+        params,
+    )
     return not rows.empty
 
 
-def fill_quality_by_side(db_path: str) -> pd.DataFrame:
+def fill_quality_by_side(
+    db_path: str, run_id: str | None = None
+) -> pd.DataFrame:
     """Fill count, average edge, and average gross and fee-adjusted
     markout at each horizon, broken out by BUY against SELL - whether one
     side of the market is systematically worse than the other, indexed by
     side."""
     ensure_fair_price_lookup_index(db_path)
+    cte, params = _analysis_cte(run_id)
     rows = _query(
         db_path,
-        _analysis_cte() + "SELECT side, COUNT(*) AS fill_count, "
+        cte + "SELECT side, COUNT(*) AS fill_count, "
         f"AVG({_EDGE}) AS avg_edge, AVG(fee) AS avg_fee, "
         f"{_markout_columns()} "
         "FROM derived_fill GROUP BY side ORDER BY side",
+        params,
     )
     return _numeric(rows.set_index("side")) if not rows.empty else rows
 
@@ -207,7 +241,7 @@ _SIGNED_QTY = f"{_DIRECTION} * fill_qty"
 _CASH = f"-1 * {_SIGNED_QTY} * fill_price - fee"
 
 
-def position_and_cash(db_path: str) -> pd.DataFrame:
+def position_and_cash(db_path: str, run_id: str | None = None) -> pd.DataFrame:
     """
     What each symbol is holding and what its fills have moved in cash,
     indexed by symbol.
@@ -217,18 +251,25 @@ def position_and_cash(db_path: str) -> pd.DataFrame:
     fills a dashboard happens to be holding is a position that quietly
     starts from the middle of the session.
     """
+    run, params = _run_clause(run_id)
     rows = _query(
         db_path,
         f"SELECT symbol, SUM({_SIGNED_QTY}) AS position, "
         f"SUM({_CASH}) AS net_cash "
-        f'FROM "{FILLS}" GROUP BY symbol ORDER BY symbol',
+        f'FROM "{FILLS}" {_where(run)} GROUP BY symbol ORDER BY symbol',
+        params,
     )
     return _numeric(rows.set_index("symbol")) if not rows.empty else rows
 
 
-def total_fees(db_path: str) -> float:
+def total_fees(db_path: str, run_id: str | None = None) -> float:
     """Every fee paid over the session."""
-    rows = _query(db_path, f'SELECT SUM(fee) AS fees FROM "{FILLS}"')
+    run, params = _run_clause(run_id)
+    rows = _query(
+        db_path,
+        f'SELECT SUM(fee) AS fees FROM "{FILLS}" {_where(run)}',
+        params,
+    )
     if rows.empty or pd.isna(rows.iloc[0]["fees"]):
         return 0.0
     return float(rows.iloc[0]["fees"])
@@ -253,7 +294,9 @@ def _bucket_case(boundaries: tuple[Bucket, ...]) -> tuple[str, str]:
 
 
 def inventory_buckets(
-    db_path: str, boundaries: tuple[Bucket, ...] = DEFAULT_INVENTORY_BUCKETS
+    db_path: str,
+    boundaries: tuple[Bucket, ...] = DEFAULT_INVENTORY_BUCKETS,
+    run_id: str | None = None,
 ) -> pd.DataFrame:
     """
     Fill count, the BUY/SELL split, average edge, markout and net cash
@@ -267,9 +310,10 @@ def inventory_buckets(
     """
     ensure_fair_price_lookup_index(db_path)
     label, rank = _bucket_case(boundaries)
+    cte, params = _analysis_cte(run_id)
     rows = _query(
         db_path,
-        _analysis_cte() + f"SELECT {label} AS bucket, {rank} AS rank, "
+        cte + f"SELECT {label} AS bucket, {rank} AS rank, "
         "COUNT(*) AS fill_count, "
         "SUM(CASE side WHEN 'BUY' THEN 1 ELSE 0 END) AS buy_count, "
         "SUM(CASE side WHEN 'SELL' THEN 1 ELSE 0 END) AS sell_count, "
@@ -282,13 +326,16 @@ def inventory_buckets(
         # last one and read as having been made at the extreme.
         "FROM derived_fill WHERE inventory_before IS NOT NULL "
         "GROUP BY bucket, rank ORDER BY rank",
+        params,
     )
     if rows.empty:
         return rows
     return _numeric(rows.drop(columns="rank").set_index("bucket"))
 
 
-def avg_fair_price_movement(db_path: str) -> pd.Series:
+def avg_fair_price_movement(
+    db_path: str, run_id: str | None = None
+) -> pd.Series:
     """
     Average signed change in the fair price itself at each horizon,
     across every fill, indexed by horizon label.
@@ -301,9 +348,8 @@ def avg_fair_price_movement(db_path: str) -> pd.Series:
     moved = ", ".join(
         f'AVG({_horizon_price(h)} - {_AT_FILL}) AS "{h}"' for h in HORIZONS
     )
-    rows = _query(
-        db_path, _analysis_cte() + f"SELECT {moved} FROM derived_fill"
-    )
+    cte, params = _analysis_cte(run_id)
+    rows = _query(db_path, cte + f"SELECT {moved} FROM derived_fill", params)
     if rows.empty:
         return pd.Series(dtype=float)
     return pd.to_numeric(rows.iloc[0], errors="coerce")

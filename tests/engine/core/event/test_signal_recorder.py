@@ -25,7 +25,9 @@ class TestSignalRecorder(unittest.IsolatedAsyncioTestCase):
         )
         self.signal_a = signal("signal_a")
         self.signal_b = signal("signal_b")
-        self.signal_recorder = SignalRecorder(self.database_filepath)
+        self.signal_recorder = SignalRecorder(
+            self.database_filepath, run_id="test-run"
+        )
 
         def receiver_a(sender, **kwargs):
             pass
@@ -56,7 +58,20 @@ class TestSignalRecorder(unittest.IsolatedAsyncioTestCase):
 
     def assert_recorded(self, table: str, expected: list[dict]):
         recorded = self.rows(table).to_dict(orient="records")
+        for row in recorded:
+            self.assertEqual("test-run", row.pop("run_id"))
         self.assertEqual(expected, recorded)
+
+    async def test_payload_run_id_is_not_overwritten(self):
+        class Payload:
+            def __init__(self):
+                self.run_id = "origin-run"
+                self.value = 1
+
+        self.signal_a.send(self.signal_a, payload=Payload())
+
+        recorded = self.rows("signal_a").iloc[0]
+        self.assertEqual("origin-run", recorded["run_id"])
 
     async def test_connect(self):
         """

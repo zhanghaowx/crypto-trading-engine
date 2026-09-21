@@ -7,6 +7,7 @@ from typing import Any
 import flatdict
 from blinker import NamedSignal
 
+from jolteon.engine.core.engine_run import engine_run_id
 from jolteon.engine.core.event.signal import signal_namespace
 from jolteon.engine.core.sqlite_writer import SQLiteWriter
 from jolteon.engine.core.time.time_manager import time_manager
@@ -20,10 +21,15 @@ class SignalRecorder:
     Recording sits directly in the path of the market data thread, so the
     only work done there is flattening the payload and handing it to
     `SQLiteWriter`, which does the SQL on a thread of its own.
+
+    Every row is stamped with the engine run that produced it. A caller
+    normally supplies that run id; standalone recorder users get one of
+    their own so recorded rows never lack runtime identity.
     """
 
-    def __init__(self, database_name: str):
+    def __init__(self, database_name: str, run_id: str | None = None):
         self._database_name = database_name
+        self._run_id = run_id or engine_run_id(time_manager().now())
         self._writer = SQLiteWriter(database_name)
 
         atexit.register(self._stop_quietly)
@@ -126,6 +132,11 @@ class SignalRecorder:
             # as time series
             if "timestamp" not in row_data:
                 row_data["timestamp"] = time_manager().now().timestamp()
+
+            # A payload that already carries an identity (notably the
+            # EngineRun row itself) keeps it; every other event gets the
+            # recorder's process identity.
+            row_data.setdefault("run_id", self._run_id)
 
             primary_key = getattr(data, "PRIMARY_KEY", None)
             self._writer.put(name, row_data, primary_key)

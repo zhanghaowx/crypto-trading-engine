@@ -309,3 +309,75 @@ def test_derived_markout_does_not_bridge_a_long_fair_price_gap(tmp_path):
 
     assert by_side.loc["BUY", "avg_edge"] == pytest.approx(1.0)
     assert pd.isna(by_side.loc["BUY", "avg_markout_1s"])
+
+
+def _run_recording(tmp_path, fills) -> str:
+    """`_recording`, with each fill naming the run that made it."""
+    db_path = str(Path(tmp_path) / "runs.sqlite")
+    fill_rows, fair_rows = [], []
+    for index, (run_id, side, price, fair, fee, qty, at_1s) in enumerate(
+        fills
+    ):
+        timestamp = index * _FILL_SPACING
+        fill_rows.append(
+            (timestamp, side, price, fee, qty, 0.0, "BTC-USD", MODEL, run_id)
+        )
+        fair_rows.extend(_observations(timestamp, "BTC-USD", fair, at_1s))
+
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            f"CREATE TABLE decorated_order_fill ({_FILL_COLUMNS}, run_id TEXT)"
+        )
+        conn.executemany(
+            "INSERT INTO decorated_order_fill "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            fill_rows,
+        )
+        conn.execute(f"CREATE TABLE fair_price ({_FAIR_COLUMNS})")
+        conn.executemany(
+            "INSERT INTO fair_price VALUES (?, ?, ?, ?, ?)", fair_rows
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return db_path
+
+
+def test_run_scoped_aggregates_exclude_previous_engine_runs(tmp_path):
+    db_path = _run_recording(
+        tmp_path,
+        [
+            ("run-a", "BUY", 100.0, 101.0, 5.0, 2.0, 103.0),
+            ("run-b", "SELL", 110.0, 108.0, 0.25, 1.0, 105.0),
+        ],
+    )
+
+    totals = aggregates.position_and_cash(db_path, "run-b")
+    quality = aggregates.fill_quality_by_side(db_path, "run-b")
+
+    assert totals.loc["BTC-USD", "position"] == pytest.approx(-1.0)
+    assert aggregates.total_fees(db_path, "run-b") == pytest.approx(0.25)
+    assert quality["fill_count"].sum() == 1
+    assert quality.index.tolist() == ["SELL"]
+    assert aggregates.any_fills(db_path, "run-b")
+    assert not aggregates.any_fills(db_path, "missing-run")
+
+
+def test_run_scoped_markouts_measure_only_the_named_run(tmp_path):
+    db_path = _run_recording(
+        tmp_path,
+        [
+            ("run-a", "BUY", 100.0, 101.0, 0.0, 1.0, 120.0),
+            ("run-b", "BUY", 100.0, 101.0, 0.0, 1.0, 103.0),
+        ],
+    )
+
+    quality = aggregates.fill_quality_by_side(db_path, "run-b")
+    movement = aggregates.avg_fair_price_movement(db_path, "run-b")
+    buckets = aggregates.inventory_buckets(db_path, run_id="run-b")
+
+    # run-a's fill moved 19 in its favour; averaging both would show it.
+    assert quality.loc["BUY", "avg_markout_1s"] == pytest.approx(3.0)
+    assert movement["1s"] == pytest.approx(2.0)
+    assert buckets["fill_count"].sum() == 1
