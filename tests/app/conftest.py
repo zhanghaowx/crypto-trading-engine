@@ -211,15 +211,14 @@ def populated_db_path(tmp_path) -> str:
             "CREATE TABLE decorated_order_fill "
             "(timestamp REAL, transaction_timestamp REAL, side TEXT, "
             "fill_price REAL, fill_qty REAL, fee REAL, symbol TEXT, "
-            "exchange_execution_id TEXT PRIMARY KEY, fair_price_at_fill REAL, "
+            "exchange_execution_id TEXT PRIMARY KEY, "
             "inventory_before REAL, inventory_after REAL, "
-            "fair_price_100ms REAL, fair_price_1s REAL, fair_price_5s REAL, "
-            "fair_price_30s REAL)"
+            "fair_price_model TEXT)"
         )
         conn.execute(
             "INSERT INTO decorated_order_fill VALUES "
             "(1700000000, 1700000000, 'BUY', 99.5, 1.0, 0.1, 'BTC-USD', 2, "
-            "100.0, 0.0, 1.0, NULL, NULL, NULL, NULL)"
+            "0.0, 1.0, 'MidPriceFairPriceModel')"
         )
 
         conn.execute(
@@ -250,6 +249,9 @@ def populated_db_path(tmp_path) -> str:
         )
         conn.execute(
             "INSERT INTO fair_price VALUES "
+            # Mid 100.0 at the fill, so a BUY at 99.5 has a favorable edge.
+            "(1700000000, 'BTC-USD', 'MidPriceFairPriceModel', 99.5, "
+            "100.5), "
             "(1700000000.1, 'BTC-USD', 'MidPriceFairPriceModel', 100.3, "
             "100.7), "
             "(1700000001, 'BTC-USD', 'MidPriceFairPriceModel', 100.5, 101.5)"

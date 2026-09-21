@@ -5,7 +5,11 @@ import pandas as pd
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from jolteon.app.app_pages.orders_pnl import fills_table, realized_pnl
+from jolteon.app.app_pages.orders_pnl import (
+    _derive_visible_markouts,
+    fills_table,
+    realized_pnl,
+)
 from jolteon.app.data import read_table
 
 
@@ -114,7 +118,10 @@ def test_fills_table_uses_readable_headers_and_drops_opaque_ids(
 ):
     fills = read_table(populated_db_path, "decorated_order_fill")
 
-    display = fills_table(fills)
+    # The page derives fair prices for the visible page before rendering
+    # it; edge and markout are columns of that derivation, not of the
+    # recorded fill.
+    display = fills_table(_derive_visible_markouts(populated_db_path, fills))
 
     # decorated_order_fill carries no client_order_id, so "Order" isn't
     # rendered - `_optional` drops whatever column the table doesn't have.
@@ -138,82 +145,95 @@ def test_fills_table_uses_readable_headers_and_drops_opaque_ids(
     assert "taker_order_id" not in display
 
 
+MODEL = "MidPriceFairPriceModel"
+
+# Fills are spaced far enough apart that one fill's observations can never
+# be joined to the fill before or after it, whatever the horizon.
+_FILL_SPACING = 100.0
+
+
+def _markout_recording(db_path, fills):
+    """A recording of `fills` and the fair-price series they join to.
+
+    Each fill is (side, fill_price, fee, inventory_before, inventory_after,
+    fair_at_fill, fair_at_100ms): one observation at the fill itself and
+    one a hundred milliseconds later, so only the shortest horizon
+    resolves.
+    """
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            "CREATE TABLE decorated_order_fill "
+            "(timestamp REAL, transaction_timestamp REAL, side TEXT, "
+            "fill_price REAL, fill_qty REAL, fee REAL, symbol TEXT, "
+            "exchange_execution_id TEXT PRIMARY KEY, "
+            "inventory_before REAL, inventory_after REAL, "
+            "fair_price_model TEXT)"
+        )
+        conn.execute(
+            "CREATE TABLE fair_price "
+            "(timestamp REAL, symbol TEXT, model TEXT, "
+            "bid_fair_price REAL, ask_fair_price REAL)"
+        )
+        for index, fill in enumerate(fills):
+            (
+                side,
+                price,
+                fee,
+                inventory_before,
+                inventory_after,
+                fair_at_fill,
+                fair_at_100ms,
+            ) = fill
+            timestamp = 1700000000 + index * _FILL_SPACING
+            conn.execute(
+                "INSERT INTO decorated_order_fill VALUES "
+                "(?,?,?,?,?,?,?,?,?,?,?)",
+                (
+                    timestamp,
+                    timestamp,
+                    side,
+                    price,
+                    1.0,
+                    fee,
+                    "BTC-USD",
+                    index + 1,
+                    inventory_before,
+                    inventory_after,
+                    MODEL,
+                ),
+            )
+            conn.executemany(
+                "INSERT INTO fair_price VALUES (?, 'BTC-USD', ?, ?, ?)",
+                [
+                    (timestamp, MODEL, fair_at_fill - 1.0, fair_at_fill + 1.0),
+                    (
+                        timestamp + 0.1,
+                        MODEL,
+                        fair_at_100ms - 1.0,
+                        fair_at_100ms + 1.0,
+                    ),
+                ],
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def test_renders_fill_quality_by_side_and_fair_price_movement(
     tmp_path, tables, table_lookup
 ):
     db_path = str(tmp_path / "fill_quality.sqlite")
-    conn = sqlite3.connect(db_path)
-    conn.execute(
-        "CREATE TABLE decorated_order_fill "
-        "(timestamp REAL, transaction_timestamp REAL, side TEXT, "
-        "fill_price REAL, fill_qty REAL, fee REAL, symbol TEXT, "
-        "exchange_execution_id TEXT PRIMARY KEY, fair_price_at_fill REAL, "
-        "inventory_before REAL, inventory_after REAL, "
-        "fair_price_100ms REAL, fair_price_1s REAL, fair_price_5s REAL, "
-        "fair_price_30s REAL)"
+    _markout_recording(
+        db_path,
+        [
+            # BUY favorable then adverse, averaging to a $0 edge and markout.
+            ("BUY", 100.0, 0.1, 0.0, 1.0, 101.0, 102.0),
+            ("BUY", 100.0, 0.2, 1.0, 2.0, 99.0, 98.0),
+            # SELL, favorable on both edge and markout.
+            ("SELL", 110.0, 0.05, 2.0, 1.0, 108.0, 105.0),
+        ],
     )
-    rows = [
-        # BUY favorable then adverse, averaging to a $0 edge and markout.
-        (
-            1700000000,
-            1700000000,
-            "BUY",
-            100.0,
-            1.0,
-            0.1,
-            "BTC-USD",
-            1,
-            101.0,
-            0.0,
-            1.0,
-            102.0,
-            None,
-            None,
-            None,
-        ),
-        (
-            1700000001,
-            1700000001,
-            "BUY",
-            100.0,
-            1.0,
-            0.2,
-            "BTC-USD",
-            2,
-            99.0,
-            1.0,
-            2.0,
-            98.0,
-            None,
-            None,
-            None,
-        ),
-        # SELL, favorable on both edge and markout.
-        (
-            1700000002,
-            1700000002,
-            "SELL",
-            110.0,
-            1.0,
-            0.05,
-            "BTC-USD",
-            3,
-            108.0,
-            2.0,
-            1.0,
-            105.0,
-            None,
-            None,
-            None,
-        ),
-    ]
-    conn.executemany(
-        "INSERT INTO decorated_order_fill VALUES "
-        "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        rows,
-    )
-    conn.commit()
-    conn.close()
 
     at = AppTest.from_function(_script)
     at.session_state["db_path"] = db_path
@@ -246,61 +266,15 @@ def test_renders_fill_quality_by_side_and_fair_price_movement(
 
 def test_renders_inventory_buckets(tmp_path, table_lookup):
     db_path = str(tmp_path / "inventory_buckets.sqlite")
-    conn = sqlite3.connect(db_path)
-    conn.execute(
-        "CREATE TABLE decorated_order_fill "
-        "(timestamp REAL, transaction_timestamp REAL, side TEXT, "
-        "fill_price REAL, fill_qty REAL, fee REAL, symbol TEXT, "
-        "exchange_execution_id TEXT PRIMARY KEY, fair_price_at_fill REAL, "
-        "inventory_before REAL, inventory_after REAL, "
-        "fair_price_100ms REAL, fair_price_1s REAL, fair_price_5s REAL, "
-        "fair_price_30s REAL)"
+    _markout_recording(
+        db_path,
+        [
+            # Strongly short: one BUY.
+            ("BUY", 100.0, 0.1, -0.6, -0.5, 100.0, 103.0),
+            # Near neutral: one SELL.
+            ("SELL", 100.0, 0.2, 0.0, -1.0, 100.0, 98.0),
+        ],
     )
-    rows = [
-        # Strongly short: one BUY.
-        (
-            1700000000,
-            1700000000,
-            "BUY",
-            100.0,
-            1.0,
-            0.1,
-            "BTC-USD",
-            1,
-            100.0,
-            -0.6,
-            -0.5,
-            103.0,
-            None,
-            None,
-            None,
-        ),
-        # Near neutral: one SELL.
-        (
-            1700000001,
-            1700000001,
-            "SELL",
-            100.0,
-            1.0,
-            0.2,
-            "BTC-USD",
-            2,
-            100.0,
-            0.0,
-            -1.0,
-            98.0,
-            None,
-            None,
-            None,
-        ),
-    ]
-    conn.executemany(
-        "INSERT INTO decorated_order_fill VALUES "
-        "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        rows,
-    )
-    conn.commit()
-    conn.close()
 
     at = AppTest.from_function(_script)
     at.session_state["db_path"] = db_path
@@ -704,3 +678,48 @@ def test_card_shares_one_data_load_across_body_accent_and_download(
         assert not at.exception
         assert not at.error
         assert load.call_count == read.call_count == realized.call_count == 2
+
+
+def test_recent_fill_derives_edge_and_markout_from_fair_price_table(tmp_path):
+    db_path = str(tmp_path / "derived-recent-fill.sqlite")
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            "CREATE TABLE decorated_order_fill ("
+            "unique_trade_id TEXT PRIMARY KEY, timestamp REAL, "
+            "transaction_timestamp REAL, client_order_id TEXT, "
+            "exchange_execution_id TEXT, side TEXT, fill_price REAL, "
+            "fill_qty REAL, fee REAL, symbol TEXT, fair_price_model TEXT)"
+        )
+        conn.execute(
+            "INSERT INTO decorated_order_fill VALUES "
+            "('fill-1', 10.0, 10.0, 'order-1', 'exec-1', 'BUY', "
+            "100.0, 1.0, 0.1, 'BTC/USD', 'AdjustedFairPriceModel')"
+        )
+        conn.execute(
+            "CREATE TABLE fair_price ("
+            "timestamp REAL, symbol TEXT, model TEXT, "
+            "bid_fair_price REAL, ask_fair_price REAL)"
+        )
+        conn.executemany(
+            "INSERT INTO fair_price VALUES (?, 'BTC/USD', "
+            "'AdjustedFairPriceModel', ?, ?)",
+            [
+                (9.9, 100.0, 102.0),
+                (10.1, 101.0, 103.0),
+            ],
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    at = AppTest.from_function(_script)
+    at.session_state["db_path"] = db_path
+    at.run()
+
+    assert not at.exception
+    markdown_values = [m.value for m in at.markdown]
+    # Fair at fill is 101, so the one-BTC fill keeps $1 less its $0.10 fee.
+    assert ":green[+$0.90]" in markdown_values
+    # The +100ms target is exactly the second observation, mid 102.
+    assert ":green[+$2.00]" in markdown_values

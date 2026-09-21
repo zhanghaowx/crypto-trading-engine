@@ -8,9 +8,12 @@ import streamlit as st
 
 from jolteon.app import aggregates, table
 from jolteon.app.analytics import (
+    DEFAULT_MAX_FAIR_PRICE_LAG_SECONDS,
     HORIZONS,
     compute_fill_edge,
     compute_markout,
+    derive_fill_markouts,
+    horizon_seconds,
     signed_cash_flow,
 )
 from jolteon.app.card import Accent
@@ -26,8 +29,10 @@ from jolteon.app.components import (
 )
 from jolteon.app.data import (
     as_datetime,
+    ensure_fair_price_lookup_index,
     max_rowid,
     read_after,
+    read_fair_prices_for_fills,
     read_latest_per_group,
     read_table,
 )
@@ -106,6 +111,26 @@ def _markout_columns(fills: pd.DataFrame) -> dict[str, pd.Series | None]:
             else None
         )
     return columns
+
+
+def _derive_visible_markouts(
+    db_path: str, fills: pd.DataFrame
+) -> pd.DataFrame:
+    """Enrich only the visible fill page with timestamp-derived markouts.
+
+    The card shows one page at a time, so the fair-price series is read
+    for the window those fills span rather than for the whole session.
+    """
+    ensure_fair_price_lookup_index(db_path)
+    fair_prices = read_fair_prices_for_fills(
+        db_path,
+        fills,
+        max_horizon_seconds=max(
+            horizon_seconds(horizon) for horizon in HORIZONS
+        ),
+        max_lag_seconds=DEFAULT_MAX_FAIR_PRICE_LAG_SECONDS,
+    )
+    return derive_fill_markouts(fills, fair_prices)
 
 
 def fills_table(fills: pd.DataFrame) -> pd.DataFrame:
@@ -646,6 +671,7 @@ def render(model: "OrdersModel | None" = None) -> None:
             key="recent-fills",
             page_size=PAGE_SIZE,
         )
+        page = _derive_visible_markouts(st.session_state.db_path, page)
         render_fills_list(fills_table(page))
         show_pagination()
 
