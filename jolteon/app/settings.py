@@ -6,6 +6,7 @@ import streamlit as st
 
 from jolteon.app.data import (
     EngineDatabase,
+    RecordedEngineRun,
     engine_databases,
     latest_engine_run,
 )
@@ -14,7 +15,7 @@ from jolteon.engine.core.storage import paths
 # The stable exchange-and-symbol engine key used by widgets and URLs.
 ENGINE = "engine"
 SYMBOL = ENGINE
-RUN_ID = "run_id"
+RUN = "engine_run"
 
 # Whether anything that redraws itself on a timer does so, and how long
 # it waits between passes. Both are the reader's own, set on the
@@ -54,8 +55,7 @@ def init_settings() -> None:
     st.session_state.log_db_path = args.log_db or (
         engine.log_path if engine else ""
     )
-    run = latest_engine_run(st.session_state.db_path)
-    st.session_state[RUN_ID] = run.run_id if run else None
+    st.session_state[RUN] = latest_engine_run(st.session_state.db_path)
 
     default_params = paths.parameter_store(
         st.session_state.root, engine.exchange if engine else "Kraken"
@@ -71,6 +71,16 @@ def init_settings() -> None:
     st.session_state._default_params_db_path = default_params
     st.session_state.setdefault(AUTO_REFRESH, True)
     st.session_state.setdefault(REFRESH_SECONDS, DEFAULT_REFRESH_SECONDS)
+
+
+def current_run() -> RecordedEngineRun | None:
+    """The engine run every figure on the page is scoped to."""
+    return st.session_state.get(RUN)
+
+
+def current_run_id() -> str | None:
+    run = current_run()
+    return run.run_id if run else None
 
 
 def refresh_interval() -> float | None:

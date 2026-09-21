@@ -10,6 +10,7 @@ from jolteon.app.app_pages.fair_price_signals import (
     _verdict,
     _warn_style,
 )
+from tests.app.conftest import scoped_run
 
 
 def _script():
@@ -325,7 +326,7 @@ def test_signal_evaluation_uses_only_the_current_run(tmp_path):
 
     at = AppTest.from_function(_script)
     at.session_state["db_path"] = db_path
-    at.session_state["run_id"] = "run-b"
+    at.session_state["engine_run"] = scoped_run("run-b")
     at.run()
 
     assert not at.exception

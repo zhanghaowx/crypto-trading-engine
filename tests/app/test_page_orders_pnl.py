@@ -517,7 +517,7 @@ def _realized_script():
     from jolteon.app.app_pages.orders_pnl import realized_pnl_now
 
     value = realized_pnl_now(
-        st.session_state["db_path"], st.session_state.get("run_id")
+        st.session_state["db_path"], st.session_state.get("scoped_run_id")
     )
     st.write(f"{value:.2f}")
 
@@ -752,11 +752,11 @@ def test_realized_pnl_is_scoped_to_the_current_engine_run(tmp_path):
 
     at = AppTest.from_function(_realized_script)
     at.session_state["db_path"] = db_path
-    at.session_state["run_id"] = "run-a"
+    at.session_state["scoped_run_id"] = "run-a"
     at.run()
     assert at.markdown[-1].value == "10.00"
 
-    at.session_state["run_id"] = "run-b"
+    at.session_state["scoped_run_id"] = "run-b"
     at.run()
 
     assert not at.exception

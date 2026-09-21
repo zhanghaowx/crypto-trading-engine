@@ -7,8 +7,9 @@ from streamlit.testing.v1 import AppTest
 
 from jolteon.app import data
 from jolteon.app.data import engine_databases
-from jolteon.app.settings import SYMBOL, parse_args
+from jolteon.app.settings import RUN, SYMBOL, parse_args
 from jolteon.engine.core.storage import paths
+from tests.app.conftest import scoped_run
 
 
 def script():
@@ -304,3 +305,23 @@ def test_lets_go_of_an_engine_that_has_stopped(tmp_path):
 
     assert not at.exception
     assert at.session_state["db_path"] == btc
+
+
+def test_the_run_a_page_is_scoped_to_is_the_one_it_was_given():
+    at = AppTest.from_function(_run_id_script)
+    at.run()
+    assert at.markdown[0].value == "none"
+
+    at.session_state[RUN] = scoped_run("run-b")
+    at.run()
+
+    assert not at.exception
+    assert at.markdown[0].value == "run-b"
+
+
+def _run_id_script():
+    import streamlit as st
+
+    from jolteon.app.settings import current_run_id
+
+    st.write(current_run_id() or "none")

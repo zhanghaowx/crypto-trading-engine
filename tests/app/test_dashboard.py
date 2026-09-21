@@ -258,7 +258,7 @@ def test_live_page_shows_the_latest_engine_run(dashboard, engines):
     at = dashboard.run()
 
     assert not at.exception
-    assert at.session_state["run_id"] == "20260920T120000Z-deadbeef"
+    assert at.session_state["engine_run"].run_id == "20260920T120000Z-deadbeef"
     assert any(
         "Run `deadbeef`" in caption.value and "Running" in caption.value
         for caption in at.caption

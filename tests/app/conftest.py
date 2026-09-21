@@ -1,5 +1,6 @@
 import sqlite3
 import time
+from datetime import datetime, timezone
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -7,7 +8,21 @@ import pytest
 import streamlit as st
 from streamlit.testing.v1 import AppTest
 
+from jolteon.app.data import RecordedEngineRun
 from jolteon.engine.core.storage import paths
+
+
+def scoped_run(run_id: str, status: str = "running") -> RecordedEngineRun:
+    """The run a page test is looking at, as `settings.RUN` holds it."""
+    return RecordedEngineRun(
+        run_id=run_id,
+        exchange="Kraken",
+        symbol="BTC/USD",
+        started_at=datetime(2026, 9, 20, tzinfo=timezone.utc),
+        ended_at=None,
+        status=status,
+    )
+
 
 _DASHBOARD_PATH = str(
     Path(__file__).resolve().parents[2] / "jolteon" / "app" / "dashboard.py"

@@ -36,7 +36,7 @@ from jolteon.app.data import (
     read_latest_per_group,
     read_run_table,
 )
-from jolteon.app.settings import RUN_ID
+from jolteon.app.settings import current_run_id
 
 # The recorded tables grow without bound; fills are paginated rather than
 # read in full onto the page.
@@ -611,7 +611,7 @@ class OrdersModel:
 
 def load() -> OrdersModel:
     db_path = st.session_state.db_path
-    run_id = st.session_state.get(RUN_ID)
+    run_id = current_run_id()
     fills = read_run_table(db_path, FILLS, run_id)
     if fills.empty:
         return OrdersModel(fills, pd.DataFrame())
@@ -699,7 +699,7 @@ def render_trade_quality() -> None:
     # many fills there are, so the recording works them out itself -
     # nothing here holds a session's fills to average them.
     db_path = st.session_state.db_path
-    run_id = st.session_state.get(RUN_ID)
+    run_id = current_run_id()
     if not aggregates.any_fills(db_path, run_id):
         st.info("No fills yet.")
         return
