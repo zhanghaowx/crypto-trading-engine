@@ -130,6 +130,52 @@ class TestTradingApplicationFairPriceModel(unittest.TestCase):
         self.assertEqual(HealthState.HEALTHY, app._health_monitor.state)
 
 
+class TestTradingApplicationRunIdentity(unittest.TestCase):
+    def setUp(self):
+        self.app = TradingApplication(
+            symbol="BTC/USD",
+            database_name=f"{tempfile.gettempdir()}/test_identity.sqlite",
+            logfile_name=f"{tempfile.gettempdir()}/test_identity.log",
+        )
+        self.recorded: list = []
+        for name in ("engine_run", "recording_metadata"):
+            signal(name).connect(self._record)
+
+    def tearDown(self):
+        for name in ("engine_run", "recording_metadata"):
+            signal(name).disconnect(self._record)
+
+    def _record(self, sender, **payload):
+        self.recorded.append((sender.name, *payload.values()))
+
+    def _payloads(self, name: str) -> list:
+        return [payload for sent, payload in self.recorded if sent == name]
+
+    def test_starting_names_the_recording_and_the_run(self):
+        self.app._connect_signals()
+        self.app._disconnect_signals()
+
+        recording = self._payloads("recording_metadata")[0]
+        self.assertEqual("Kraken", recording.exchange)
+        self.assertEqual("BTC/USD", recording.symbol)
+
+        run = self._payloads("engine_run")[0]
+        self.assertEqual(self.app._engine_run.run_id, run.run_id)
+        self.assertIsNone(run.ended_at)
+
+    def test_stopping_records_when_the_run_ended(self):
+        self.app._connect_signals()
+
+        self.app.stop()
+
+        self.assertIsNotNone(self._payloads("engine_run")[-1].ended_at)
+
+    def test_the_recorder_stamps_rows_with_this_run(self):
+        self.assertEqual(
+            self.app._engine_run.run_id, self.app._signal_recorder._run_id
+        )
+
+
 class TestTradingApplicationRunStart(unittest.IsolatedAsyncioTestCase):
     def _make_app(self):
         return TradingApplication(

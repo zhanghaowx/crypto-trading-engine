@@ -8,6 +8,11 @@ import flatdict
 from blinker import NamedSignal
 
 from jolteon.engine.core.event.signal import signal_namespace
+from jolteon.engine.core.session.engine_run import engine_run_id
+from jolteon.engine.core.session.trading_session import (
+    trading_session_id,
+    trading_session_id_at,
+)
 from jolteon.engine.core.sqlite_writer import SQLiteWriter
 from jolteon.engine.core.time.time_manager import time_manager
 
@@ -20,10 +25,16 @@ class SignalRecorder:
     Recording sits directly in the path of the market data thread, so the
     only work done there is flattening the payload and handing it to
     `SQLiteWriter`, which does the SQL on a thread of its own.
+
+    Every row is stamped with the engine run that produced it and the
+    trading session it belongs to, so a recording spanning several days
+    and several restarts can be read back a session at a time without
+    anything having to guess where one ended and the next began.
     """
 
-    def __init__(self, database_name: str):
+    def __init__(self, database_name: str, run_id: str | None = None):
         self._database_name = database_name
+        self._run_id = run_id or engine_run_id(time_manager().now())
         self._writer = SQLiteWriter(database_name)
 
         atexit.register(self._stop_quietly)
@@ -127,8 +138,27 @@ class SignalRecorder:
             if "timestamp" not in row_data:
                 row_data["timestamp"] = time_manager().now().timestamp()
 
+            row_data["run_id"] = self._run_id
+            if row_data.get("session_id") is None:
+                row_data["session_id"] = self._session_of(row_data)
+
             primary_key = getattr(data, "PRIMARY_KEY", None)
             self._writer.put(name, row_data, primary_key)
+
+    @staticmethod
+    def _session_of(row_data: dict) -> str:
+        """
+        Returns: Which trading session the row belongs to.
+
+        A payload knowing when its event really happened - a fill
+        rewritten for half a minute as its markouts resolve - is taken at
+        its word, since the recorder's own clock would put it in the next
+        session. A timestamp that is not a moment leaves only that clock.
+        """
+        moment = row_data.get("timestamp")
+        if isinstance(moment, (int, float)) and not isinstance(moment, bool):
+            return trading_session_id_at(moment)
+        return trading_session_id(time_manager().now())
 
     @staticmethod
     def _to_dict(obj: Any):

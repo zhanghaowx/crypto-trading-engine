@@ -17,6 +17,10 @@ from jolteon.engine.core.event.signal import signal
 from jolteon.engine.core.event.signal_recorder import SignalRecorder
 from jolteon.engine.core.time.time_manager import time_manager
 
+RUN_ID = "20240101T000000Z-testrun"
+
+_ENVELOPE = ("run_id", "session_id")
+
 
 class TestSignalRecorder(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
@@ -25,7 +29,9 @@ class TestSignalRecorder(unittest.IsolatedAsyncioTestCase):
         )
         self.signal_a = signal("signal_a")
         self.signal_b = signal("signal_b")
-        self.signal_recorder = SignalRecorder(self.database_filepath)
+        self.signal_recorder = SignalRecorder(
+            self.database_filepath, run_id=RUN_ID
+        )
 
         def receiver_a(sender, **kwargs):
             pass
@@ -55,7 +61,16 @@ class TestSignalRecorder(unittest.IsolatedAsyncioTestCase):
                 return pd.DataFrame()
 
     def assert_recorded(self, table: str, expected: list[dict]):
-        recorded = self.rows(table).to_dict(orient="records")
+        """Assert on what the payload itself put in the row.
+
+        Every row also carries the run and session it was recorded under
+        (see `test_every_row_names_its_run_and_session`), which says
+        nothing about the payload being tested here.
+        """
+        recorded = [
+            {k: v for k, v in row.items() if k not in _ENVELOPE}
+            for row in self.rows(table).to_dict(orient="records")
+        ]
         self.assertEqual(expected, recorded)
 
     async def test_connect(self):
@@ -291,6 +306,30 @@ class TestSignalRecorder(unittest.IsolatedAsyncioTestCase):
         self.signal_a.send(self.signal_a, payload=Payload())
 
         self.assert_recorded("signal_a", [{"timestamp": "Hello"}])
+
+    async def test_every_row_names_its_run_and_session(self):
+        """A recording outlives the process that opened it and may hold
+        weeks, so a row that does not say which run wrote it or which day
+        it belongs to cannot be read back as either."""
+        with freeze_time("2024-01-01 12:00:00"):
+            self.signal_a.send(self.signal_a, payload={"value": 1})
+
+        recorded = self.rows("signal_a").to_dict(orient="records")
+
+        self.assertEqual(RUN_ID, recorded[0]["run_id"])
+        self.assertEqual("2024-01-01", recorded[0]["session_id"])
+
+    async def test_a_payload_naming_its_own_session_keeps_it(self):
+        """A fill is rewritten for half a minute after it happened, and
+        either side of midnight the recorder's own clock would file the
+        rewrite under the next day."""
+        with freeze_time("2024-01-02 00:00:10"):
+            self.signal_a.send(
+                self.signal_a,
+                payload={"value": 1, "session_id": "2024-01-01"},
+            )
+
+        self.assertEqual("2024-01-01", self.rows("signal_a")["session_id"][0])
 
     async def test_handle_payload_update_schema(self):
         """

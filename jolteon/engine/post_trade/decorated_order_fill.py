@@ -9,6 +9,7 @@ class DecoratedOrderFill:
     PRIMARY_KEY = "unique_trade_id"
 
     unique_trade_id: str
+    session_id: str
     client_order_id: str
     exchange: str
     exchange_order_id: str

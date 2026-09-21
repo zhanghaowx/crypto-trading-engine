@@ -2,6 +2,7 @@ import asyncio
 
 from jolteon.engine.core.event.signal import signal, subscribe
 from jolteon.engine.core.event.signal_subscriber import SignalSubscriber
+from jolteon.engine.core.session.trading_session import trading_session_id
 from jolteon.engine.market_data.core.bbo import BBO
 from jolteon.engine.market_data.core.book_snapshot import BookSnapshot
 from jolteon.engine.market_data.core.trade import Trade
@@ -41,6 +42,10 @@ class PostTradeService(SignalSubscriber):
 
         record = DecoratedOrderFill(
             unique_trade_id=trade.unique_trade_id,
+            # Named from when the trade happened, not from when this row
+            # is written: a fill is rewritten for half a minute after the
+            # fact, which either side of midnight names another day.
+            session_id=trading_session_id(trade.transaction_time),
             client_order_id=trade.client_order_id,
             exchange=trade.exchange,
             exchange_order_id=trade.exchange_order_id,

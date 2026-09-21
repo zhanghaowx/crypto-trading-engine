@@ -46,6 +46,7 @@ class TestPostTradeService(unittest.IsolatedAsyncioTestCase):
         quantity: float,
         symbol: str = "BTC/USD",
         fee: float = 0.1,
+        transaction_time: datetime | None = None,
     ):
         return Trade(
             exchange_trade_id=exchange_trade_id,
@@ -57,7 +58,7 @@ class TestPostTradeService(unittest.IsolatedAsyncioTestCase):
             price=price,
             fee=fee,
             quantity=quantity,
-            transaction_time=datetime.now(pytz.utc),
+            transaction_time=transaction_time or datetime.now(pytz.utc),
             exchange="Mock",
             exchange_order_id=str(exchange_trade_id),
             exchange_execution_id=str(exchange_trade_id),
@@ -97,6 +98,47 @@ class TestPostTradeService(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(record.fair_price_1s)
         self.assertIsNone(record.fair_price_5s)
         self.assertIsNone(record.fair_price_30s)
+
+    async def test_a_fill_belongs_to_the_session_it_happened_in(self):
+        self.post_trade_service.on_bbo("_", self.create_bbo(99.0, 101.0))
+
+        self.post_trade_service.on_fill(
+            "_",
+            self.create_fill(
+                1,
+                MarketSide.BUY,
+                100.0,
+                1.0,
+                transaction_time=datetime(
+                    2026, 9, 20, 23, 59, 55, tzinfo=pytz.utc
+                ),
+            ),
+        )
+
+        self.assertEqual("2026-09-20", self.records[0].session_id)
+
+    async def test_a_late_markout_leaves_the_fill_in_its_own_session(self):
+        """The last markout resolves half a minute after the fill, which
+        just the other side of midnight is another trading day."""
+        self.post_trade_service.on_bbo("_", self.create_bbo(99.0, 101.0))
+        self.post_trade_service.on_fill(
+            "_",
+            self.create_fill(
+                1,
+                MarketSide.BUY,
+                100.0,
+                1.0,
+                transaction_time=datetime(
+                    2026, 9, 20, 23, 59, 55, tzinfo=pytz.utc
+                ),
+            ),
+        )
+
+        self.post_trade_service._record_fair_price_after_fill(
+            unique_trade_id("Mock", "1", "1"), "fair_price_30s"
+        )
+
+        self.assertEqual("2026-09-20", self.records[-1].session_id)
 
     async def test_fair_price_after_fill_sets_field_without_clobbering_others(
         self,

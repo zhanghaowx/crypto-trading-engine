@@ -17,6 +17,11 @@ from jolteon.engine.core.parameter.parameter_service import (
     StaticParameterService,
     use_parameter_service,
 )
+from jolteon.engine.core.session.engine_run import EngineRun, engine_run_id
+from jolteon.engine.core.session.trading_session_service import (
+    TradingSessionService,
+)
+from jolteon.engine.core.time.time_manager import time_manager
 from jolteon.engine.market_data.book_feature_recorder import (
     BookFeatureRecorder,
 )
@@ -31,7 +36,14 @@ from jolteon.engine.strategy.market_making.fair_value.fair_price_model import (
 
 
 @dataclass(frozen=True)
-class SessionMetadata:
+class RecordingMetadata:
+    """What the recording as a whole is of.
+
+    A recording is a storage container, not an accounting period: it
+    outlives the process that opened it and may hold many trading
+    sessions. Only what is true of every row in it belongs here.
+    """
+
     exchange: str
     symbol: str
 
@@ -56,7 +68,15 @@ class TradingApplication(SignalManager):
         """
         self._symbol = symbol
         self._exchange = exchange
-        self._session_metadata_event = signal("session_metadata")
+        self._recording_metadata_event = signal("recording_metadata")
+        self._engine_run_event = signal("engine_run")
+        started_at = time_manager().now()
+        self._engine_run = EngineRun(
+            run_id=engine_run_id(started_at),
+            exchange=exchange,
+            symbol=symbol,
+            started_at=started_at,
+        )
 
         # Published before anything else is built: the layers underneath
         # the wired components read their own tunables from here, and
@@ -82,6 +102,12 @@ class TradingApplication(SignalManager):
 
         self._signal_recorder = SignalRecorder(
             database_name=database_name,
+            run_id=self._engine_run.run_id,
+        )
+        self._trading_session_service = TradingSessionService(
+            run_id=self._engine_run.run_id,
+            exchange=exchange,
+            symbol=symbol,
         )
         self._book_feature_recorder = BookFeatureRecorder()
         self._fair_price_model = fair_price_model
@@ -169,14 +195,25 @@ class TradingApplication(SignalManager):
         # Before the recorder is disconnected and flushed, so the last
         # thing the poller published still reaches the database.
         self._parameter_service.stop()
+        # Before the recorder stops: the last thing a session and a run
+        # have to say about themselves is that they ended.
+        self._trading_session_service.stop()
+        self._engine_run.ended_at = time_manager().now()
+        self._send_engine_run()
         self._disconnect_signals()
 
     def _connect_signals(self):
         self.connect_all()
         self._signal_recorder.start_recording()
-        self._session_metadata_event.send(
-            self._session_metadata_event,
-            metadata=SessionMetadata(self._exchange, self._symbol),
+        self._recording_metadata_event.send(
+            self._recording_metadata_event,
+            metadata=RecordingMetadata(self._exchange, self._symbol),
+        )
+        self._send_engine_run()
+
+    def _send_engine_run(self):
+        self._engine_run_event.send(
+            self._engine_run_event, engine_run=self._engine_run
         )
 
     def _disconnect_signals(self):
