@@ -21,6 +21,7 @@ from jolteon.app.components import (
     NEGATIVE_RGB,
     POSITIVE_RGB,
     BadgeColor,
+    fmt_usd,
     metric,
     paginate,
     row_key,
@@ -406,13 +407,6 @@ def realized_pnl_now(db_path: str, run_id: str | None = None) -> float:
     return state.total
 
 
-def _fmt_usd(value: float) -> str:
-    if pd.isna(value):
-        return "–"
-    sign = "+" if value >= 0 else "-"
-    return f"{sign}${abs(value):,.2f}"
-
-
 _SIDE_TINTS = {
     "BUY": "background-color: rgba({}, {}, {}, 0.12)".format(*POSITIVE_RGB),
     "SELL": "background-color: rgba({}, {}, {}, 0.12)".format(*NEGATIVE_RGB),
@@ -507,7 +501,7 @@ def _shaded_table(
     table.render(
         rows,
         shaded_columns=money_columns,
-        format_fn=_fmt_usd,
+        format_fn=fmt_usd,
         column_help=column_help,
         row_style=(
             (lambda row: _SIDE_TINTS.get(row["Side"], ""))
