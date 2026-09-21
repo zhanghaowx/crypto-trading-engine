@@ -10,11 +10,9 @@ weight worth trying.
 
 import pandas as pd
 
-from jolteon.app.analytics import HORIZONS
+from jolteon.app.analytics import HORIZONS, horizon_seconds
 
 MID_MODEL = "MidPriceFairPriceModel"
-
-_HORIZON_SECONDS = {"100ms": 0.1, "1s": 1.0, "5s": 5.0, "30s": 30.0}
 
 TOTAL_ADJUSTMENT_COLUMN = "total_adjustment"
 TOTAL_ADJUSTMENT_LABEL = "Total"
@@ -100,7 +98,7 @@ def evaluate_adjustments(
     rows = []
     for horizon in HORIZONS:
         forward_mid = _forward_mid(
-            adjustments, fair_price, _HORIZON_SECONDS[horizon]
+            adjustments, fair_price, horizon_seconds(horizon)
         )
         forward_return = forward_mid - adjustments["base_fair_price"]
         for column in signal_columns:

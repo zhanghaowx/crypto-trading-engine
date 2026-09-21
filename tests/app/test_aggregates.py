@@ -5,19 +5,41 @@ import pandas as pd
 import pytest
 
 from jolteon.app import aggregates
-from jolteon.app.analytics import HORIZONS
 
-_COLUMNS = (
-    "side TEXT, fill_price REAL, fair_price_at_fill REAL, fee REAL, "
-    "fill_qty REAL, inventory_before REAL, symbol TEXT, "
-    + ", ".join(f"fair_price_{h} REAL" for h in HORIZONS)
+MODEL = "AdjustedFairPriceModel"
+
+_FILL_COLUMNS = (
+    "timestamp REAL, side TEXT, fill_price REAL, fee REAL, fill_qty REAL, "
+    "inventory_before REAL, symbol TEXT, fair_price_model TEXT"
 )
+_FAIR_COLUMNS = (
+    "timestamp REAL, symbol TEXT, model TEXT, "
+    "bid_fair_price REAL, ask_fair_price REAL"
+)
+
+# Fills are spaced far enough apart that one fill's observations can never
+# be joined to the fill before or after it, whatever the horizon.
+_FILL_SPACING = 100.0
 
 
 def _fill(
     side, price, fair, fee, qty, inventory, at_1s=None, symbol="BTC-USD"
 ):
-    return (
+    """One fill and the fair-price observations it should join to: `fair`
+    at the moment it happened, and `at_1s` a second later."""
+    return (side, price, fair, fee, qty, inventory, symbol, at_1s)
+
+
+def _observations(timestamp, symbol, fair, at_1s):
+    yield (timestamp, symbol, MODEL, fair - 1.0, fair + 1.0)
+    if at_1s is not None:
+        yield (timestamp + 1.0, symbol, MODEL, at_1s - 1.0, at_1s + 1.0)
+
+
+def _recording(tmp_path, fills, name="fills.sqlite") -> str:
+    db_path = str(Path(tmp_path) / name)
+    fill_rows, fair_rows = [], []
+    for index, (
         side,
         price,
         fair,
@@ -25,19 +47,24 @@ def _fill(
         qty,
         inventory,
         symbol,
-        *[at_1s if h == "1s" else None for h in HORIZONS],
-    )
+        at_1s,
+    ) in enumerate(fills):
+        timestamp = index * _FILL_SPACING
+        fill_rows.append(
+            (timestamp, side, price, fee, qty, inventory, symbol, MODEL)
+        )
+        fair_rows.extend(_observations(timestamp, symbol, fair, at_1s))
 
-
-def _recording(tmp_path, fills, name="fills.sqlite") -> str:
-    db_path = str(Path(tmp_path) / name)
     conn = sqlite3.connect(db_path)
     try:
-        conn.execute(f"CREATE TABLE decorated_order_fill ({_COLUMNS})")
+        conn.execute(f"CREATE TABLE decorated_order_fill ({_FILL_COLUMNS})")
         conn.executemany(
-            "INSERT INTO decorated_order_fill VALUES "
-            f"({', '.join('?' * (7 + len(HORIZONS)))})",
-            fills,
+            "INSERT INTO decorated_order_fill VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            fill_rows,
+        )
+        conn.execute(f"CREATE TABLE fair_price ({_FAIR_COLUMNS})")
+        conn.executemany(
+            "INSERT INTO fair_price VALUES (?, ?, ?, ?, ?)", fair_rows
         )
         conn.commit()
     finally:
@@ -205,3 +232,80 @@ def test_a_recording_that_is_not_there_answers_with_nothing(tmp_path):
     assert not aggregates.any_fills(missing)
     assert aggregates.fill_quality_by_side(missing).empty
     assert aggregates.total_fees(missing) == 0.0
+
+
+def test_fill_quality_derives_prices_from_recorded_fair_price_series(tmp_path):
+    db_path = str(Path(tmp_path) / "derived.sqlite")
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            "CREATE TABLE decorated_order_fill ("
+            "timestamp REAL, side TEXT, fill_price REAL, "
+            "fee REAL, fill_qty REAL, inventory_before REAL, symbol TEXT, "
+            "fair_price_model TEXT)"
+        )
+        conn.execute(
+            "INSERT INTO decorated_order_fill VALUES "
+            "(10.0, 'BUY', 100.0, 0.1, 1.0, 0.0, 'BTC/USD', "
+            "'AdjustedFairPriceModel')"
+        )
+        conn.execute(
+            "CREATE TABLE fair_price ("
+            "timestamp REAL, symbol TEXT, model TEXT, "
+            "bid_fair_price REAL, ask_fair_price REAL)"
+        )
+        conn.executemany(
+            "INSERT INTO fair_price VALUES (?, 'BTC/USD', "
+            "'AdjustedFairPriceModel', ?, ?)",
+            [
+                (9.9, 100.0, 102.0),  # mid 101 at fill
+                (11.01, 102.0, 104.0),  # mid 103 at +1s
+            ],
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    by_side = aggregates.fill_quality_by_side(db_path)
+
+    assert by_side.loc["BUY", "fill_count"] == 1
+    assert by_side.loc["BUY", "avg_edge"] == pytest.approx(1.0)
+    assert by_side.loc["BUY", "avg_markout_1s"] == pytest.approx(3.0)
+    assert by_side.loc["BUY", "avg_net_markout_1s"] == pytest.approx(2.9)
+
+
+def test_derived_markout_does_not_bridge_a_long_fair_price_gap(tmp_path):
+    db_path = str(Path(tmp_path) / "gap.sqlite")
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            "CREATE TABLE decorated_order_fill ("
+            "timestamp REAL, side TEXT, fill_price REAL, "
+            "fee REAL, fill_qty REAL, symbol TEXT, fair_price_model TEXT)"
+        )
+        conn.execute(
+            "INSERT INTO decorated_order_fill VALUES "
+            "(10.0, 'BUY', 100.0, 0.0, 1.0, 'BTC/USD', "
+            "'AdjustedFairPriceModel')"
+        )
+        conn.execute(
+            "CREATE TABLE fair_price ("
+            "timestamp REAL, symbol TEXT, model TEXT, "
+            "bid_fair_price REAL, ask_fair_price REAL)"
+        )
+        conn.executemany(
+            "INSERT INTO fair_price VALUES (?, 'BTC/USD', "
+            "'AdjustedFairPriceModel', ?, ?)",
+            [
+                (9.9, 100.0, 102.0),
+                (15.0, 109.0, 111.0),
+            ],
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    by_side = aggregates.fill_quality_by_side(db_path)
+
+    assert by_side.loc["BUY", "avg_edge"] == pytest.approx(1.0)
+    assert pd.isna(by_side.loc["BUY", "avg_markout_1s"])

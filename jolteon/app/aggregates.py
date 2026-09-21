@@ -7,8 +7,11 @@ whole table out of the dashboard's hands: nothing to cache, nothing to
 trim, and nothing that quietly reports on the most recent hundred
 thousand fills as though they were the session.
 
-The sign convention is the one `analytics` documents - positive is in
-the market maker's favour - written here as SQL rather than as pandas:
+Fills are recorded immutably, so fair value at the fill and at each
+horizon is joined here against the recorded fair-price series rather than
+read from a column. The sign convention is the one `analytics` documents
+- positive is in the market maker's favour - written here as SQL rather
+than as pandas:
 
     BUY:  value = future_price - execution_price
     SELL: value = execution_price - future_price
@@ -19,31 +22,57 @@ import sqlite3
 import pandas as pd
 import streamlit as st
 
-from jolteon.app.analytics import DEFAULT_INVENTORY_BUCKETS, HORIZONS
+from jolteon.app.analytics import (
+    DEFAULT_INVENTORY_BUCKETS,
+    DEFAULT_MAX_FAIR_PRICE_LAG_SECONDS,
+    FILL_TIME,
+    HORIZONS,
+    horizon_seconds,
+    observation_tolerance,
+)
 from jolteon.app.analytics import InventoryBucket as Bucket
-from jolteon.app.data import database_exists, max_rowid
+from jolteon.app.data import (
+    database_exists,
+    ensure_fair_price_lookup_index,
+    max_rowid,
+)
 
 FILLS = "decorated_order_fill"
+FAIR_PRICES = "fair_price"
 
 # Which way a fill's price has to move to be in our favour.
 _DIRECTION = "(CASE side WHEN 'BUY' THEN 1 ELSE -1 END)"
 
-# What a fill earned over fair value at the moment it happened.
-_EDGE = f"{_DIRECTION} * (fair_price_at_fill - fill_price)"
+# Names the joined fair prices take inside the analysis relation. Prefixed
+# so they cannot collide with a recorded column of the fills table.
+_AT_FILL = "_fair_price_at_fill"
+
+# At the fill itself the whole tolerance applies: the latest fair price
+# before an execution is the one the strategy was quoting against, however
+# recently the book last moved. The forward horizons cap it by the horizon
+# they measure - see `analytics.observation_tolerance`.
+_AT_FILL_TOLERANCE = DEFAULT_MAX_FAIR_PRICE_LAG_SECONDS
+
+
+def _horizon_price(horizon: str) -> str:
+    return f"_fair_price_{horizon}"
+
+
+_EDGE = f"{_DIRECTION} * ({_AT_FILL} - fill_price)"
 
 
 def _markout(horizon: str) -> str:
-    return f"{_DIRECTION} * (fair_price_{horizon} - fill_price)"
+    return f"{_DIRECTION} * ({_horizon_price(horizon)} - fill_price)"
 
 
 def _markout_columns() -> str:
     """Average gross and fee-adjusted markout at each horizon.
 
-    A horizon that has not resolved yet is NULL, and SQL's own AVG passes
-    over those exactly as a pandas mean passes over the NaN it reads them
-    as - so a fill still waiting on its thirty-second figure counts
-    towards the horizons that have arrived, and not towards the one that
-    has not.
+    A horizon with no observation close enough to measure it is NULL, and
+    SQL's own AVG passes over those exactly as a pandas mean passes over
+    the NaN it reads them as - so a fill whose thirty-second figure has
+    not happened yet counts towards the horizons that have, and not
+    towards the one that has not.
     """
     return ", ".join(
         f"AVG({_markout(h)}) AS avg_markout_{h}, "
@@ -53,9 +82,10 @@ def _markout_columns() -> str:
 
 
 # How long an answer may stand before it is worked out again, whatever
-# the recording's length says. The engine rewrites a fill in place while
-# its markouts resolve, over the longest horizon of thirty seconds, and
-# that changes an average without adding a row for it to be noticed by.
+# the recording's length says. A fill recorded seconds ago has no
+# thirty-second fair price to join to yet, and gains one as the recording
+# runs on past it - which changes an average without adding a fill for it
+# to be noticed by.
 _STALE_SECONDS = 30
 
 
@@ -82,7 +112,60 @@ def _answer(db_path: str, sql: str, through: int) -> pd.DataFrame:
 
 
 def _query(db_path: str, sql: str) -> pd.DataFrame:
+    # Keyed on fills alone, not on fair prices too: fair prices arrive
+    # continuously, so counting them would change the key on every refresh
+    # and never let an answer stand. `_STALE_SECONDS` is what covers the
+    # horizons that resolve without a new fill.
     return _answer(db_path, sql, max_rowid(db_path, FILLS))
+
+
+def _fair_price_at(target: str, *, tolerance: float, future: bool) -> str:
+    """SQL for the recorded fair price nearest `target` on the fill's own
+    model, or NULL where the nearest one sits further away than
+    `tolerance` - a data gap rather than a measurement of this horizon."""
+    if future:
+        predicate = f"fp.timestamp >= {target}"
+        distance = f"fp.timestamp - ({target})"
+        order = "ASC, fp.rowid ASC"
+    else:
+        predicate = f"fp.timestamp <= {target}"
+        distance = f"({target}) - fp.timestamp"
+        order = "DESC, fp.rowid DESC"
+
+    return (
+        f"(SELECT (fp.bid_fair_price + fp.ask_fair_price) / 2.0 "
+        f'FROM "{FAIR_PRICES}" fp '
+        f"WHERE fp.symbol = f.symbol "
+        f"AND fp.model = f.fair_price_model "
+        f"AND {predicate} "
+        f"AND {distance} <= {tolerance} "
+        f"ORDER BY fp.timestamp {order} LIMIT 1)"
+    )
+
+
+def _analysis_cte() -> str:
+    """One per-fill relation carrying the joined fair prices, shared by
+    every markout aggregate below."""
+    fill_time = f"f.{FILL_TIME}"
+    at_fill = _fair_price_at(
+        fill_time, tolerance=_AT_FILL_TOLERANCE, future=False
+    )
+    derived = [f"{at_fill} AS {_AT_FILL}"]
+    for horizon in HORIZONS:
+        target = f"({fill_time} + {horizon_seconds(horizon)})"
+        price = _fair_price_at(
+            target,
+            tolerance=observation_tolerance(horizon),
+            future=True,
+        )
+        derived.append(f"{price} AS {_horizon_price(horizon)}")
+
+    return (
+        "WITH derived_fill AS ("
+        f"SELECT f.*, {', '.join(derived)} "
+        f'FROM "{FILLS}" f'
+        ") "
+    )
 
 
 def _numeric(frame: pd.DataFrame) -> pd.DataFrame:
@@ -108,12 +191,13 @@ def fill_quality_by_side(db_path: str) -> pd.DataFrame:
     markout at each horizon, broken out by BUY against SELL - whether one
     side of the market is systematically worse than the other, indexed by
     side."""
+    ensure_fair_price_lookup_index(db_path)
     rows = _query(
         db_path,
-        f"SELECT side, COUNT(*) AS fill_count, "
+        _analysis_cte() + "SELECT side, COUNT(*) AS fill_count, "
         f"AVG({_EDGE}) AS avg_edge, AVG(fee) AS avg_fee, "
         f"{_markout_columns()} "
-        f'FROM "{FILLS}" GROUP BY side ORDER BY side',
+        "FROM derived_fill GROUP BY side ORDER BY side",
     )
     return _numeric(rows.set_index("side")) if not rows.empty else rows
 
@@ -181,21 +265,23 @@ def inventory_buckets(
     fees. It is not a realized against inventory split, which needs
     position state outliving any one bucket.
     """
+    ensure_fair_price_lookup_index(db_path)
     label, rank = _bucket_case(boundaries)
     rows = _query(
         db_path,
-        f"SELECT {label} AS bucket, {rank} AS rank, COUNT(*) AS fill_count, "
-        f"SUM(CASE side WHEN 'BUY' THEN 1 ELSE 0 END) AS buy_count, "
-        f"SUM(CASE side WHEN 'SELL' THEN 1 ELSE 0 END) AS sell_count, "
+        _analysis_cte() + f"SELECT {label} AS bucket, {rank} AS rank, "
+        "COUNT(*) AS fill_count, "
+        "SUM(CASE side WHEN 'BUY' THEN 1 ELSE 0 END) AS buy_count, "
+        "SUM(CASE side WHEN 'SELL' THEN 1 ELSE 0 END) AS sell_count, "
         f"AVG({_EDGE}) AS avg_edge, "
         f"SUM({_DIRECTION} * -1 * fill_price * fill_qty - fee) "
-        f"AS net_cash_flow, "
+        "AS net_cash_flow, "
         f"{_markout_columns()} "
         # A fill recorded without the position held before it belongs to
         # no bucket: it would otherwise fall through every bound into the
         # last one and read as having been made at the extreme.
-        f'FROM "{FILLS}" WHERE inventory_before IS NOT NULL '
-        f"GROUP BY bucket, rank ORDER BY rank",
+        "FROM derived_fill WHERE inventory_before IS NOT NULL "
+        "GROUP BY bucket, rank ORDER BY rank",
     )
     if rows.empty:
         return rows
@@ -211,10 +297,13 @@ def avg_fair_price_movement(db_path: str) -> pd.Series:
     whether the fair price tends to keep drifting after a fill - whether
     the model has any short-term predictive power.
     """
+    ensure_fair_price_lookup_index(db_path)
     moved = ", ".join(
-        f'AVG(fair_price_{h} - fair_price_at_fill) AS "{h}"' for h in HORIZONS
+        f'AVG({_horizon_price(h)} - {_AT_FILL}) AS "{h}"' for h in HORIZONS
     )
-    rows = _query(db_path, f'SELECT {moved} FROM "{FILLS}"')
+    rows = _query(
+        db_path, _analysis_cte() + f"SELECT {moved} FROM derived_fill"
+    )
     if rows.empty:
         return pd.Series(dtype=float)
     return pd.to_numeric(rows.iloc[0], errors="coerce")

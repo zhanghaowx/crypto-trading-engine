@@ -9,8 +9,10 @@ from jolteon.app.analytics import (
     compute_fill_edge,
     compute_markout,
     compute_net_markout,
+    derive_fill_markouts,
     fair_price_movement,
     fill_quality_by_side,
+    horizon_seconds,
     inventory_bucket_stats,
     signed_cash_flow,
     usd_to_bps,
@@ -225,3 +227,157 @@ def test_inventory_bucket_stats_splits_by_bucket():
     assert stats.loc["Near neutral", "net_cash_flow"] == pytest.approx(99.8)
 
     assert "Strongly long" not in stats.index
+
+
+def _recorded_fill(
+    *,
+    timestamp=10.0,
+    symbol="BTC/USD",
+    model="AdjustedFairPriceModel",
+    side="BUY",
+    price=100.0,
+):
+    return pd.DataFrame(
+        [
+            {
+                "timestamp": timestamp,
+                "symbol": symbol,
+                "fair_price_model": model,
+                "side": side,
+                "fill_price": price,
+                "fill_qty": 1.0,
+                "fee": 0.0,
+            }
+        ]
+    )
+
+
+def _fair_prices(*rows):
+    return pd.DataFrame(
+        [
+            {
+                "timestamp": timestamp,
+                "symbol": symbol,
+                "model": model,
+                "bid_fair_price": mid - 1.0,
+                "ask_fair_price": mid + 1.0,
+            }
+            for timestamp, symbol, model, mid in rows
+        ]
+    )
+
+
+def test_derive_markouts_uses_backward_at_fill_and_forward_at_horizon():
+    fills = _recorded_fill(timestamp=10.0)
+    fair = _fair_prices(
+        (9.9, "BTC/USD", "AdjustedFairPriceModel", 101.0),
+        (10.05, "BTC/USD", "AdjustedFairPriceModel", 102.0),
+        (11.01, "BTC/USD", "AdjustedFairPriceModel", 104.0),
+    )
+
+    derived = derive_fill_markouts(fills, fair, horizons=("1s",))
+
+    # At fill we may only use information already observed.
+    assert derived.loc[0, "fair_price_at_fill"] == pytest.approx(101.0)
+    assert derived.loc[0, "fair_price_at_fill_age"] == pytest.approx(0.1)
+    # The 1s target is 11.0; the first observation at/after it is 11.01.
+    assert derived.loc[0, "fair_price_1s"] == pytest.approx(104.0)
+    assert derived.loc[0, "markout_lag_1s"] == pytest.approx(0.01)
+    assert compute_markout(derived, "1s").iloc[0] == pytest.approx(4.0)
+
+
+def test_derive_markouts_keeps_fair_price_models_separate():
+    fills = _recorded_fill(model="AdjustedFairPriceModel")
+    fair = _fair_prices(
+        (9.9, "BTC/USD", "MidPriceFairPriceModel", 500.0),
+        (9.9, "BTC/USD", "AdjustedFairPriceModel", 101.0),
+        (11.0, "BTC/USD", "MidPriceFairPriceModel", 600.0),
+        (11.0, "BTC/USD", "AdjustedFairPriceModel", 103.0),
+    )
+
+    derived = derive_fill_markouts(fills, fair, horizons=("1s",))
+
+    assert derived.loc[0, "fair_price_at_fill"] == pytest.approx(101.0)
+    assert derived.loc[0, "fair_price_1s"] == pytest.approx(103.0)
+
+
+def test_derive_markouts_rejects_stale_observation_but_reports_lag():
+    fills = _recorded_fill(timestamp=10.0)
+    fair = _fair_prices(
+        (9.9, "BTC/USD", "AdjustedFairPriceModel", 101.0),
+        (15.0, "BTC/USD", "AdjustedFairPriceModel", 110.0),
+    )
+
+    derived = derive_fill_markouts(
+        fills, fair, horizons=("1s",), max_observation_lag=1.0
+    )
+
+    assert pd.isna(derived.loc[0, "fair_price_1s"])
+    assert derived.loc[0, "markout_lag_1s"] == pytest.approx(4.0)
+
+
+def test_derive_markouts_supports_a_new_horizon_without_engine_changes():
+    fills = _recorded_fill(timestamp=10.0)
+    fair = _fair_prices(
+        (9.9, "BTC/USD", "AdjustedFairPriceModel", 101.0),
+        (12.02, "BTC/USD", "AdjustedFairPriceModel", 106.0),
+    )
+
+    derived = derive_fill_markouts(fills, fair, horizons=("2s",))
+
+    assert derived.loc[0, "fair_price_2s"] == pytest.approx(106.0)
+    assert derived.loc[0, "markout_lag_2s"] == pytest.approx(0.02)
+
+
+def test_a_short_horizon_does_not_borrow_a_far_away_observation():
+    """A fair price a full second after the fill measures a one-second
+    markout. Letting the flat tolerance apply everywhere would report it
+    as the hundred-millisecond one as well."""
+    fills = _recorded_fill(timestamp=10.0)
+    fair = _fair_prices(
+        (9.99, "BTC/USD", "AdjustedFairPriceModel", 101.0),
+        (11.0, "BTC/USD", "AdjustedFairPriceModel", 110.0),
+    )
+
+    derived = derive_fill_markouts(fills, fair, horizons=("100ms", "1s"))
+
+    assert pd.isna(derived.loc[0, "fair_price_100ms"])
+    assert derived.loc[0, "markout_lag_100ms"] == pytest.approx(0.9)
+    assert derived.loc[0, "fair_price_1s"] == pytest.approx(110.0)
+
+
+def test_horizon_seconds_parses_labels_and_rejects_nonsense():
+    assert horizon_seconds("100ms") == pytest.approx(0.1)
+    assert horizon_seconds("250ms") == pytest.approx(0.25)
+    assert horizon_seconds("2s") == pytest.approx(2.0)
+    assert horizon_seconds("5m") == pytest.approx(300.0)
+    for label in ("", "soon", "1h", "xs"):
+        with pytest.raises(ValueError, match="Invalid markout horizon"):
+            horizon_seconds(label)
+
+
+def test_derived_markouts_are_empty_without_a_fair_price_series():
+    fills = _recorded_fill()
+
+    derived = derive_fill_markouts(fills, pd.DataFrame(), horizons=("1s",))
+
+    assert pd.isna(derived.loc[0, "fair_price_at_fill"])
+    assert pd.isna(derived.loc[0, "fair_price_1s"])
+
+
+def test_derived_markouts_need_the_columns_the_join_reads():
+    fills = _recorded_fill().drop(columns=["fair_price_model"])
+    fair = _fair_prices((9.9, "BTC/USD", "AdjustedFairPriceModel", 101.0))
+
+    derived = derive_fill_markouts(fills, fair, horizons=("1s",))
+
+    assert pd.isna(derived.loc[0, "fair_price_at_fill"])
+
+
+def test_a_fill_on_a_model_with_no_observations_is_left_missing():
+    fills = _recorded_fill(model="AdjustedFairPriceModel")
+    fair = _fair_prices((9.9, "BTC/USD", "MidPriceFairPriceModel", 101.0))
+
+    derived = derive_fill_markouts(fills, fair, horizons=("1s",))
+
+    assert pd.isna(derived.loc[0, "fair_price_at_fill"])
