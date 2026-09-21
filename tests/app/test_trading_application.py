@@ -1,3 +1,4 @@
+import logging
 import sqlite3
 import tempfile
 import unittest
@@ -12,6 +13,7 @@ from jolteon.engine.core.health_monitor.health import (
     HealthMonitor,
     HealthState,
 )
+from jolteon.engine.core.logging.logger import SQLiteHandler
 from jolteon.engine.core.parameter.parameter_service import (
     StaticParameterService,
     parameter_service,
@@ -82,25 +84,46 @@ class TestTradingApplicationDisconnect(unittest.TestCase):
 
 
 class TestTradingApplicationEngineRun(unittest.TestCase):
+    def setUp(self):
+        self._apps: list[TradingApplication] = []
+
+    def tearDown(self):
+        self._release_files()
+
+    def _release_files(self):
+        # Windows will not delete the temporary directory while anything
+        # still holds one of its files open, and each application leaves
+        # two writers behind: its recorder, and the SQLite log handler
+        # setup_global_logger installed on the root logger.
+        for app in self._apps:
+            app._signal_recorder.close()
+        self._apps.clear()
+
+        root_logger = logging.getLogger()
+        for handler in list(root_logger.handlers):
+            if isinstance(handler, SQLiteHandler):
+                root_logger.removeHandler(handler)
+                handler.close()
+
     def _make_app(self, folder: str, name: str) -> TradingApplication:
-        return TradingApplication(
+        app = TradingApplication(
             symbol="BTC/USD",
             exchange="Binance.US",
             database_name=f"{folder}/{name}.sqlite",
             logfile_name=f"{folder}/{name}.log",
         )
+        self._apps.append(app)
+        return app
 
     def test_each_application_gets_a_unique_run_id(self):
         with tempfile.TemporaryDirectory() as folder:
             first = self._make_app(folder, "first")
             second = self._make_app(folder, "second")
-            try:
-                self.assertNotEqual(
-                    first._engine_run.run_id, second._engine_run.run_id
-                )
-            finally:
-                first._signal_recorder.close()
-                second._signal_recorder.close()
+
+            self.assertNotEqual(
+                first._engine_run.run_id, second._engine_run.run_id
+            )
+            self._release_files()
 
     def test_graceful_stop_records_the_run_end(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -108,7 +131,7 @@ class TestTradingApplicationEngineRun(unittest.TestCase):
             run_id = app._engine_run.run_id
             app._connect_signals()
             app.stop()
-            app._signal_recorder.close()
+            self._release_files()
 
             with closing(sqlite3.connect(f"{folder}/recorded.sqlite")) as conn:
                 rows = conn.execute(
