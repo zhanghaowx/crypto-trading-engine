@@ -70,7 +70,7 @@ def test_health_has_a_page_of_its_own(dashboard):
     at.switch_page("app_pages/health.py").run()
 
     assert not at.exception
-    assert _card_titles(at) == ["Health", "Errors"]
+    assert _card_titles(at) == ["Health", "Engine Runs", "Errors"]
 
 
 def test_the_live_page_no_longer_reports_health(dashboard):

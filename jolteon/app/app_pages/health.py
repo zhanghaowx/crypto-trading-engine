@@ -1,6 +1,6 @@
 import streamlit as st
 
-from jolteon.app.app_pages import engine_health, logs
+from jolteon.app.app_pages import engine_health, engine_runs, logs
 from jolteon.app.card import Accent, Card, cards_rule, render_cards
 from jolteon.app.health_summary import summary, watch_nav
 from jolteon.app.settings import refresh_interval
@@ -21,6 +21,12 @@ cards = [
         ":material/monitor_heart:",
         engine_health.render,
         accent=_down_accent,
+    ),
+    Card(
+        "engine-runs",
+        "Engine Runs",
+        ":material/restart_alt:",
+        engine_runs.render,
     ),
     Card(
         "errors",

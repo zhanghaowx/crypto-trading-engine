@@ -396,3 +396,33 @@ def session_pnl(db_path: str, session_id: str | None = None) -> pd.DataFrame:
         - priced["opening_inventory_value"]
     )
     return priced
+
+
+RUNS = "engine_run"
+
+
+def engine_runs(db_path: str, session_id: str) -> pd.DataFrame:
+    """
+    Every engine run that traded `session_id`, oldest first, with when
+    the process started and stopped and when it first and last had
+    something to record in that session.
+
+    A run whose `ended_at` is missing never recorded its own end, which
+    is either a run still trading or one that was killed before it
+    could - which is the discontinuity a gap in the day's data should be
+    blamed on before the strategy is.
+
+    Asked per session rather than per recording so a restart shows up
+    against the day it interrupted, while the day's own figures go on
+    adding across it.
+    """
+    return _query(
+        db_path,
+        f"SELECT traded.run_id, traded.first_seen_at, traded.last_seen_at, "
+        f"run.started_at, run.ended_at "
+        f'FROM "{SESSION_RUNS}" AS traded '
+        f'LEFT JOIN "{RUNS}" AS run ON run.run_id = traded.run_id '
+        f"WHERE traded.session_id = ? ORDER BY traded.first_seen_at",
+        (session_id,),
+        table=SESSION_RUNS,
+    )

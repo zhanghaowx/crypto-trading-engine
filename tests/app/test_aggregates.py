@@ -576,3 +576,84 @@ class TestSessionPnL:
         db_path = _two_day_recording(tmp_path, [], name="empty-pnl.sqlite")
 
         assert aggregates.session_pnl(db_path, TODAY).empty
+
+
+def _record_runs(db_path: str, runs) -> None:
+    """The engine runs a recording holds, as `(run_id, started, ended)`."""
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            "CREATE TABLE engine_run "
+            "(run_id TEXT PRIMARY KEY, exchange TEXT, symbol TEXT, "
+            "started_at REAL, ended_at REAL)"
+        )
+        conn.executemany(
+            "INSERT INTO engine_run VALUES (?, 'Kraken', 'BTC-USD', ?, ?)",
+            runs,
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+class TestEngineRuns:
+    def test_a_session_shows_every_run_that_traded_it(self, tmp_path):
+        db_path = _recording(tmp_path, [], name="runs.sqlite")
+        _record_sessions(
+            db_path,
+            [
+                (TODAY, "morning", _OPENS[TODAY], _OPENS[TODAY] + 3600),
+                (
+                    TODAY,
+                    "afternoon",
+                    _OPENS[TODAY] + 7200,
+                    _OPENS[TODAY] + 9000,
+                ),
+                (YESTERDAY, "morning", _OPENS[YESTERDAY], _OPENS[TODAY]),
+            ],
+        )
+        _record_runs(
+            db_path,
+            [
+                ("morning", _OPENS[YESTERDAY], None),
+                ("afternoon", _OPENS[TODAY] + 7200, _OPENS[TODAY] + 9000),
+            ],
+        )
+
+        runs = aggregates.engine_runs(db_path, TODAY)
+
+        assert list(runs["run_id"]) == ["morning", "afternoon"]
+
+    def test_a_run_that_never_recorded_its_end_says_so(self, tmp_path):
+        db_path = _recording(tmp_path, [], name="killed.sqlite")
+        _record_sessions(
+            db_path, [(TODAY, "killed", _OPENS[TODAY], _OPENS[TODAY] + 60)]
+        )
+        _record_runs(db_path, [("killed", _OPENS[TODAY], None)])
+
+        runs = aggregates.engine_runs(db_path, TODAY)
+
+        assert pd.isna(runs.loc[0, "ended_at"])
+
+    def test_a_run_spanning_midnight_belongs_to_both_days(self, tmp_path):
+        db_path = _recording(tmp_path, [], name="spanning.sqlite")
+        _record_sessions(
+            db_path,
+            [
+                (YESTERDAY, "overnight", _OPENS[YESTERDAY], _OPENS[TODAY]),
+                (TODAY, "overnight", _OPENS[TODAY], _OPENS[TODAY] + 3600),
+            ],
+        )
+        _record_runs(db_path, [("overnight", _OPENS[YESTERDAY], None)])
+
+        assert list(aggregates.engine_runs(db_path, YESTERDAY)["run_id"]) == [
+            "overnight"
+        ]
+        assert list(aggregates.engine_runs(db_path, TODAY)["run_id"]) == [
+            "overnight"
+        ]
+
+    def test_a_session_nothing_traded_shows_no_run(self, tmp_path):
+        db_path = _two_day_recording(tmp_path, [], name="quiet.sqlite")
+
+        assert aggregates.engine_runs(db_path, "2023-11-15").empty
