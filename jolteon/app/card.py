@@ -181,6 +181,7 @@ def _hide(key: str) -> None:
 
 
 def _hide_and_repack(key: str) -> None:
+    # A failed dialog must close and let the page repack its card rows.
     _hide(key)
     st.rerun(scope="app")
 
@@ -433,6 +434,8 @@ def _unhide_control(cards: list[Card]) -> None:
     hidden = [spec for spec in cards if card_key(spec.id) in _hidden()]
     if not hidden:
         return
+    # Outside card fragments: showing cards must repack rows and register
+    # their timers, so this control intentionally reruns the full page.
     with st.container(horizontal=True, horizontal_alignment="center"):
         st.button(
             f"Show {', '.join(spec.title for spec in hidden)}",
