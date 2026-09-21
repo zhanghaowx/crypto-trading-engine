@@ -86,7 +86,7 @@ class _Outcome:
         self.decorated_fills.append(
             (
                 decorated_order_fill.side,
-                decorated_order_fill.fair_price_at_fill,
+                decorated_order_fill.fair_price_model,
             )
         )
 
