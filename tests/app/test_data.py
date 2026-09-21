@@ -659,6 +659,26 @@ def test_engine_runs_identify_latest_stopped_and_interrupted(tmp_path):
     assert latest_engine_run(db_path) == runs[0]
 
 
+def test_engine_runs_skip_a_row_without_a_start_time(tmp_path):
+    db_path = str(tmp_path / "partial.sqlite")
+    with closing(sqlite3.connect(db_path)) as conn:
+        conn.execute(
+            "CREATE TABLE engine_run "
+            "(run_id TEXT PRIMARY KEY, exchange TEXT, symbol TEXT, "
+            "started_at REAL, ended_at REAL)"
+        )
+        conn.executemany(
+            "INSERT INTO engine_run VALUES (?, 'Binance.US', 'BTC/USD', ?, ?)",
+            [
+                ("run-dated", 1.0, None),
+                ("run-undated", None, None),
+            ],
+        )
+        conn.commit()
+
+    assert [run.run_id for run in engine_runs(db_path)] == ["run-dated"]
+
+
 def test_latest_engine_run_is_absent_without_run_metadata(tmp_path):
     db_path = str(tmp_path / "empty.sqlite")
     sqlite3.connect(db_path).close()
