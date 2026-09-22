@@ -28,14 +28,14 @@ from pathlib import Path
 
 import streamlit as st
 
-from jolteon.dashboard.health_summary import (
+from jolteon.dashboard.services.health import summary
+from jolteon.dashboard.settings import init_settings
+from jolteon.dashboard.ui.navigation import (
     NAV_ICON,
     NAV_TITLE,
     nav_alert_rule,
     nav_drawn,
-    summary,
 )
-from jolteon.dashboard.settings import init_settings
 from jolteon.engine.core.sentry.reporting import configure
 
 configure(

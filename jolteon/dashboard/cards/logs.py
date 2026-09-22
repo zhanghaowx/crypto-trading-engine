@@ -6,7 +6,7 @@ import streamlit as st
 
 from jolteon.dashboard.data.engines import engine_databases
 from jolteon.dashboard.data.sqlite import as_datetime
-from jolteon.dashboard.health_summary import errors as error_rows
+from jolteon.dashboard.services.health import errors as error_rows
 from jolteon.dashboard.ui.pagination import paginate
 from jolteon.dashboard.ui.primitives import row_key
 

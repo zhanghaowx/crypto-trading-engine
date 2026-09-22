@@ -6,7 +6,7 @@ import streamlit as st
 
 from jolteon.dashboard.data.engines import EngineDatabase, engine_databases
 from jolteon.dashboard.data.runs import RecordedEngineRun, latest_engine_run
-from jolteon.dashboard.health_summary import resolve_run
+from jolteon.dashboard.services.health import resolve_run
 from jolteon.engine.core.storage import paths
 
 # The stable exchange-and-symbol engine key used by widgets and URLs.
