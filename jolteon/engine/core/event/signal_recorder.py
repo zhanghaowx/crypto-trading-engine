@@ -31,6 +31,7 @@ class SignalRecorder:
         self._database_name = database_name
         self._run_id = run_id or engine_run_id(time_manager().now())
         self._writer = SQLiteWriter(database_name)
+        self._indexed = set[str]()
 
         atexit.register(self._stop_quietly)
 
@@ -39,13 +40,14 @@ class SignalRecorder:
         Connect all signals and save a copy of each signal payload into a
         database. The payload may have a PRIMARY_KEY attribute. If the
         PRIMARY_KEY is set, a later payload carrying a key already recorded
-        updates that row instead of adding a duplicate. A payload that sets
-        RECORDED to False is dispatched to its subscribers but never
-        persisted, for payloads too wide to flatten into a row. The sender
-        shall
-        invoke the `send` method with exactly one positional argument which
-        is the sender, and exactly one keyword argument which is the
-        payload.
+        updates that row instead of adding a duplicate. It may also have an
+        INDEX attribute naming the columns its table is indexed on, which
+        is created once the first such payload has been recorded. A payload
+        that sets RECORDED to False is dispatched to its subscribers but
+        never persisted, for payloads too wide to flatten into a row. The
+        sender shall invoke the `send` method with exactly one positional
+        argument which is the sender, and exactly one keyword argument
+        which is the payload.
 
         Returns:
             None
@@ -138,6 +140,12 @@ class SignalRecorder:
 
             primary_key = getattr(data, "PRIMARY_KEY", None)
             self._writer.put(name, row_data, primary_key)
+
+            if name not in self._indexed:
+                self._indexed.add(name)
+                index = getattr(data, "INDEX", None)
+                if index:
+                    self._writer.index(name, index)
 
     @staticmethod
     def _to_dict(obj: Any):

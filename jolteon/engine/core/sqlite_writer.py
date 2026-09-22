@@ -81,6 +81,16 @@ class _Prune:
         self.keep_last = keep_last
 
 
+class _Index:
+    """Marker asking the writer to index a table it records into."""
+
+    __slots__ = ("table", "columns")
+
+    def __init__(self, table: str, columns: tuple[str, ...]) -> None:
+        self.table = table
+        self.columns = columns
+
+
 class _Table:
     """What the writer knows about one table's schema."""
 
@@ -157,6 +167,15 @@ class SQLiteWriter:
         the writer thread the next time it drains the queue.
         """
         self._queue.put(_Prune(table, keep_last))
+
+    def index(self, table: str, columns: tuple[str, ...]) -> None:
+        """
+        Ask the writer to index `table` on `columns`.
+
+        Queued behind the rows already put, so the table exists by the
+        time the statement runs. Like `put`, the caller only appends.
+        """
+        self._queue.put(_Index(table, columns))
 
     def flush(self) -> None:
         """
@@ -267,6 +286,7 @@ class SQLiteWriter:
         primary_keys = dict[str, str | None]()
         flushes = list[_Flush]()
         prunes = list[_Prune]()
+        indexes = list[_Index]()
         item = first
         rows = 0
         stop = False
@@ -279,6 +299,8 @@ class SQLiteWriter:
                 break
             elif isinstance(item, _Prune):
                 prunes.append(item)
+            elif isinstance(item, _Index):
+                indexes.append(item)
             else:
                 table, row, primary_key = item
                 batch.setdefault(table, []).append(row)
@@ -291,12 +313,14 @@ class SQLiteWriter:
             except queue.Empty:
                 break
 
-        if batch or prunes:
+        if batch or prunes or indexes:
             try:
                 for table, table_rows in batch.items():
                     self._write(conn, table, table_rows, primary_keys[table])
                 for prune in prunes:
                     self._prune(conn, prune.table, prune.keep_last)
+                for index in indexes:
+                    self._index(conn, index.table, index.columns)
                 conn.commit()
             except BaseException as e:  # noqa: BLE001 - via flush()
                 conn.rollback()
@@ -370,6 +394,19 @@ class SQLiteWriter:
             f"(SELECT rowid FROM {_quote(table)} "
             f"ORDER BY rowid DESC LIMIT ?)",
             (keep_last,),
+        )
+
+    def _index(
+        self, conn: sqlite3.Connection, table: str, columns: tuple[str, ...]
+    ) -> None:
+        # Nothing to index if this writer has never inserted into `table`.
+        if table not in self._schema:
+            return
+        name = "_".join(("jolteon", table, *columns))
+        names = ", ".join(_quote(c) for c in columns)
+        conn.execute(
+            f"CREATE INDEX IF NOT EXISTS {_quote(name)} "
+            f"ON {_quote(table)} ({names})"
         )
 
     def _ensure_table(

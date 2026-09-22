@@ -33,7 +33,6 @@ from jolteon.dashboard.analytics import (
 from jolteon.dashboard.analytics import InventoryBucket as Bucket
 from jolteon.dashboard.data import (
     database_exists,
-    ensure_fair_price_lookup_index,
     max_rowid,
 )
 
@@ -228,7 +227,6 @@ def fill_quality_by_side(
     markout at each horizon, broken out by BUY against SELL - whether one
     side of the market is systematically worse than the other, indexed by
     side."""
-    ensure_fair_price_lookup_index(db_path)
     cte, params = _analysis_cte(run_id)
     rows = _query(
         db_path,
@@ -313,7 +311,6 @@ def inventory_buckets(
     fees. It is not a realized against inventory split, which needs
     position state outliving any one bucket.
     """
-    ensure_fair_price_lookup_index(db_path)
     label, rank = _bucket_case(boundaries)
     cte, params = _analysis_cte(run_id)
     rows = _query(
@@ -349,7 +346,6 @@ def avg_fair_price_movement(
     whether the fair price tends to keep drifting after a fill - whether
     the model has any short-term predictive power.
     """
-    ensure_fair_price_lookup_index(db_path)
     moved = ", ".join(
         f'AVG({_horizon_price(h)} - {_AT_FILL}) AS "{h}"' for h in HORIZONS
     )
@@ -377,7 +373,6 @@ def session_economics(db_path: str, run_id: str | None = None) -> pd.DataFrame:
     row's fees is that row's net reading; `fees` is the whole run's, which
     is a larger number whenever a row could not measure every fill.
     """
-    ensure_fair_price_lookup_index(db_path)
     cte, params = _analysis_cte(run_id)
 
     horizon_columns = []

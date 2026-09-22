@@ -13,6 +13,11 @@ class FairPrice:
 
 @dataclass
 class FairPriceUpdate:
+    # Post-processing reads this series back one fill at a time, looking
+    # for the observation nearest a fill's timestamp for that symbol and
+    # model. Unindexed, each of those lookups scans the whole session.
+    INDEX = ("symbol", "model", "timestamp")
+
     symbol: str
     model: str
     bid_fair_price: float
