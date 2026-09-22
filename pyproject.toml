@@ -65,6 +65,11 @@ select = ["E", "F", "I", "W"]
 [tool.mypy]
 ignore_missing_imports = true
 
+[tool.pytest.ini_options]
+# importlib, so a test can be named after the module it covers even when
+# two packages hold a module of the same name.
+addopts = "--import-mode=importlib"
+
 [tool.coverage.run]
 omit = ["*/__main__.py"]
 
@@ -125,7 +130,7 @@ shell = "ls **/**.py | entr pytest -s -vvv -l --tb=long --maxfail=1 tests/"
 
 [tool.poe.tasks.dashboard]
 help = "Run the live Streamlit dashboard (reads /tmp/jolteon by default)"
-cmd = "streamlit run jolteon/app/dashboard.py"
+cmd = "streamlit run jolteon/dashboard/main.py"
 
 [tool.poe.tasks.clean]
 help = "Remove build/test artifacts"
