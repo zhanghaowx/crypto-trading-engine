@@ -187,7 +187,8 @@ def _analysis_cte(run_id: str | None) -> tuple[str, tuple]:
     # MATERIALIZED, emphatically: left to itself SQLite folds this into
     # whatever selects from it, and every derived column above is a
     # lookup per fill scanned - so a figure that names one twice pays for
-    # the whole join twice.
+    # the whole join twice. Materialized once, a session's economics come
+    # back in a second rather than in twelve.
     return (
         "WITH derived_fill AS MATERIALIZED ("
         f"SELECT f.*, {', '.join(derived)} "
@@ -357,3 +358,111 @@ def avg_fair_price_movement(
     if rows.empty:
         return pd.Series(dtype=float)
     return pd.to_numeric(rows.iloc[0], errors="coerce")
+
+
+def session_economics(db_path: str, run_id: str | None = None) -> pd.DataFrame:
+    """Execution economics for one run, weighted by traded quantity.
+
+    One row per side and one for the run as a whole. Totals are in quote
+    currency, so a fill of a hundredth of a unit does not have the same
+    say as one a hundred times its size; the per-unit and basis-point
+    columns are those totals over the quantity and the notional they were
+    actually measured over.
+
+    A horizon is measured only over the fills carrying a fair price at
+    both ends - the moment of the fill and the horizon itself - and
+    `measured_qty_*`, `measured_notional_*` and `measured_fees_*` are how
+    much of the run that was. The fees are gated the same way as the
+    figures they are charged against, so a gross reading less its own
+    row's fees is that row's net reading; `fees` is the whole run's, which
+    is a larger number whenever a row could not measure every fill.
+    """
+    ensure_fair_price_lookup_index(db_path)
+    cte, params = _analysis_cte(run_id)
+
+    horizon_columns = []
+    for horizon in HORIZONS:
+        markout = _markout(horizon)
+        # A fill measures a horizon only with a fair price at both ends:
+        # what the market did after the fill, and the edge the fill
+        # started with for that to be read against. Gating the whole row
+        # on both keeps every figure on it - and the share of the run it
+        # says it rests on - speaking for one and the same set of fills.
+        measured = f"{_horizon_price(horizon)} IS NOT NULL "
+        measured += f"AND {_AT_FILL} IS NOT NULL"
+        horizon_columns.extend(
+            [
+                f"SUM(CASE WHEN {measured} THEN {markout} * fill_qty END) "
+                f"AS gross_markout_{horizon}",
+                f"SUM(CASE WHEN {measured} "
+                f"THEN ({markout} * fill_qty) - fee END) "
+                f"AS net_markout_{horizon}",
+                f"SUM(CASE WHEN {measured} THEN fill_qty END) "
+                f"AS measured_qty_{horizon}",
+                f"SUM(CASE WHEN {measured} "
+                f"THEN fill_price * fill_qty END) "
+                f"AS measured_notional_{horizon}",
+                f"SUM(CASE WHEN {measured} THEN fee END) "
+                f"AS measured_fees_{horizon}",
+                # Differenced per fill rather than as two sums: a fill
+                # left out of one has to be left out of both.
+                f"SUM(CASE WHEN {measured} "
+                f"THEN ({markout} - ({_EDGE})) * fill_qty END) "
+                f"AS adverse_selection_{horizon}",
+            ]
+        )
+
+    common = (
+        "COUNT(*) AS fill_count, "
+        "SUM(fill_qty) AS base_qty, "
+        "SUM(fill_price * fill_qty) AS notional, "
+        "SUM(fee) AS fees, "
+        f"SUM({_EDGE} * fill_qty) AS gross_edge, "
+        f"SUM(({_EDGE} * fill_qty) - fee) AS net_edge, "
+        f"SUM(CASE WHEN {_AT_FILL} IS NOT NULL THEN fill_qty END) "
+        "AS measured_qty_at_fill, "
+        f"SUM(CASE WHEN {_AT_FILL} IS NOT NULL "
+        "THEN fill_price * fill_qty END) AS measured_notional_at_fill, "
+        f"SUM(CASE WHEN {_AT_FILL} IS NOT NULL THEN fee END) "
+        "AS measured_fees_at_fill, " + ", ".join(horizon_columns)
+    )
+
+    rows = _query(
+        db_path,
+        cte + "SELECT side, " + common + " FROM derived_fill "
+        "GROUP BY side ORDER BY side",
+        params,
+    )
+    if rows.empty:
+        return rows
+
+    rows = _numeric(rows.set_index("side"))
+    # Every figure above is a count or a sum, so the run as a whole is its
+    # sides added up - asked of SQL as a second aggregate it would pay for
+    # the whole relation again. `min_count` keeps a horizon none of the
+    # sides have resolved missing rather than summing it to zero.
+    rows = pd.concat([rows.sum(min_count=1).to_frame("ALL").T, rows])
+    rows.index.name = "side"
+
+    rows["gross_edge_per_unit"] = (
+        rows["gross_edge"] / rows["measured_qty_at_fill"]
+    )
+    rows["net_edge_per_unit"] = rows["net_edge"] / rows["measured_qty_at_fill"]
+    rows["gross_edge_bps"] = (
+        rows["gross_edge"] / rows["measured_notional_at_fill"] * 10_000
+    )
+    rows["net_edge_bps"] = (
+        rows["net_edge"] / rows["measured_notional_at_fill"] * 10_000
+    )
+
+    for horizon in HORIZONS:
+        qty = rows[f"measured_qty_{horizon}"]
+        notional = rows[f"measured_notional_{horizon}"]
+        gross = rows[f"gross_markout_{horizon}"]
+        net = rows[f"net_markout_{horizon}"]
+        rows[f"gross_markout_per_unit_{horizon}"] = gross / qty
+        rows[f"net_markout_per_unit_{horizon}"] = net / qty
+        rows[f"gross_markout_bps_{horizon}"] = gross / notional * 10_000
+        rows[f"net_markout_bps_{horizon}"] = net / notional * 10_000
+
+    return rows
