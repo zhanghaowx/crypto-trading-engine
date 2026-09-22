@@ -15,10 +15,10 @@ from typing import Callable, Mapping, Sequence
 import pandas as pd
 import streamlit as st
 
-from jolteon.dashboard.components import NEGATIVE_RGB, POSITIVE_RGB
+from jolteon.dashboard.ui.primitives import NEGATIVE_RGB, POSITIVE_RGB
 
 _TABLE_CSS = (
-    Path(__file__).resolve().parent / "static" / "table.css"
+    Path(__file__).resolve().parents[1] / "static" / "table.css"
 ).read_text()
 
 # How deep a shaded cell is tinted at its column's largest magnitude. Well

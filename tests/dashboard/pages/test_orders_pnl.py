@@ -568,8 +568,8 @@ def test_realized_pnl_starts_again_when_the_recording_is_replaced(tmp_path):
 
 
 def _orders_card_script():
-    from jolteon.dashboard.card import Card, render_cards
     from jolteon.dashboard.pages import orders_pnl
+    from jolteon.dashboard.ui.cards import Card, render_cards
 
     render_cards(
         [

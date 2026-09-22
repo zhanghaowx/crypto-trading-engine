@@ -57,8 +57,8 @@ def exchange_recording(root, exchange: str, symbol: str) -> str:
 
 
 class _TableReader(HTMLParser):
-    """Reads the tables `jolteon.dashboard.table` renders back out of an app's
-    HTML, so a test can assert on what a reader would actually see.
+    """Reads the tables `jolteon.dashboard.ui.table` renders back out of
+    an app's HTML, so a test can assert on what a reader would see.
 
     The tables are plain HTML rather than `st.dataframe`, which AppTest
     exposes directly - so they arrive as one `html` element each and have

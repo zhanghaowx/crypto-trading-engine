@@ -1,13 +1,13 @@
 from streamlit.testing.v1 import AppTest
 
-from jolteon.dashboard.table import shade
+from jolteon.dashboard.ui.table import shade
 
 
 def table_script():
     import pandas as pd
     import streamlit as st
 
-    from jolteon.dashboard import table
+    from jolteon.dashboard.ui import table
 
     st.write("before")
     table.render(
@@ -26,7 +26,7 @@ def table_script():
 def numeric_script():
     import pandas as pd
 
-    from jolteon.dashboard import table
+    from jolteon.dashboard.ui import table
 
     table.render(
         pd.DataFrame(

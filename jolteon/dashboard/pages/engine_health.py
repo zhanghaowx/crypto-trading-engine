@@ -5,11 +5,11 @@ from datetime import datetime
 import pandas as pd
 import streamlit as st
 
-from jolteon.dashboard.card import card_grid
-from jolteon.dashboard.components import SEMANTIC_COLORS, BadgeColor, slug
 from jolteon.dashboard.data.engines import engine_databases
 from jolteon.dashboard.data.sqlite import as_datetime
 from jolteon.dashboard.health_summary import heartbeats, is_down
+from jolteon.dashboard.ui.cards import card_grid
+from jolteon.dashboard.ui.primitives import SEMANTIC_COLORS, BadgeColor, slug
 from jolteon.engine.core.health_monitor.heartbeat import HeartbeatLevel
 
 HEARTBEAT_BADGES: dict[int, tuple[str, BadgeColor]] = {

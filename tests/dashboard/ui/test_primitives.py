@@ -1,13 +1,13 @@
 from streamlit.testing.v1 import AppTest
 
-from jolteon.dashboard.components import slug
+from jolteon.dashboard.ui.primitives import slug
 
 
 def paginate_script():
     import pandas as pd
     import streamlit as st
 
-    from jolteon.dashboard.components import paginate
+    from jolteon.dashboard.ui.pagination import paginate
 
     total_rows = st.session_state.get("total_rows", 25)
     df = pd.DataFrame({"value": range(total_rows)})
@@ -19,7 +19,7 @@ def paginate_script():
 def warn_if_no_db_script():
     import streamlit as st
 
-    from jolteon.dashboard.components import warn_if_no_db
+    from jolteon.dashboard.ui.empty_states import warn_if_no_db
 
     st.write(warn_if_no_db())
 

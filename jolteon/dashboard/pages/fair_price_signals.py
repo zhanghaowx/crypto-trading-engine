@@ -7,11 +7,12 @@ import streamlit as st
 
 from jolteon.analysis.markouts import HORIZONS
 from jolteon.analysis.signals import evaluate_adjustments
-from jolteon.dashboard import table
-from jolteon.dashboard.components import NEGATIVE_RGB, warn_if_no_db
 from jolteon.dashboard.data.runs import read_run_table
 from jolteon.dashboard.data.sqlite import recorded_through
 from jolteon.dashboard.settings import current_run_id
+from jolteon.dashboard.ui import table
+from jolteon.dashboard.ui.empty_states import warn_if_no_db
+from jolteon.dashboard.ui.primitives import NEGATIVE_RGB
 
 
 # Scoring every recorded adjustment against what the price went on to do
