@@ -1,21 +1,15 @@
-"""Data access helpers shared by the dashboard's pages.
+"""Generic reads of the SQLite file an engine records into.
 
-Reads from the SQLite database that SignalRecorder writes into; never
-talks to the running engine directly.
+Nothing here knows what a row means; it answers "what is in this table"
+and holds what a viewer's session has already read, so a dashboard left
+open does not re-read the whole recording every few seconds.
 """
 
 import sqlite3
-from dataclasses import dataclass
-from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
 import streamlit as st
-
-from jolteon.engine.core.storage import paths
-from jolteon.engine.core.storage.exchange_instrument_directory_discovery import (  # noqa: E501
-    discover_exchange_instrument_directories,
-)
 
 # Rows already fetched, keyed by (database, table), for as long as this
 # viewer's session lasts.
@@ -33,8 +27,6 @@ _MAX_CACHED_ROWS = 100_000
 # How far back a keyed table is re-read for rows the engine may have
 # rewritten in place under their key, rather than appended.
 _REWRITABLE_ROWS = 5_000
-
-FAIR_PRICES = "fair_price"
 
 
 def reset_table_cache() -> None:
@@ -215,216 +207,6 @@ def read_table(db_path: str, table: str) -> pd.DataFrame:
     # not pile up on the frame kept for the next refresh. It copies the
     # column index, not the rows.
     return frame.copy(deep=False)
-
-
-def read_fair_prices_for_fills(
-    db_path: str,
-    fills: pd.DataFrame,
-    *,
-    max_horizon_seconds: float,
-    max_lag_seconds: float,
-) -> pd.DataFrame:
-    """Fair-price observations needed to derive markouts for fills.
-
-    The recent-fills card only displays a page at a time. Querying the
-    timestamp window around those fills avoids loading a session's entire
-    fair-price stream merely to derive a handful of visible rows.
-    """
-    required = {"timestamp", "symbol", "fair_price_model"}
-    if fills.empty or not required.issubset(fills.columns):
-        return pd.DataFrame()
-
-    timestamps = pd.to_numeric(fills["timestamp"], errors="coerce").dropna()
-    symbols = tuple(str(v) for v in fills["symbol"].dropna().unique())
-    models = tuple(str(v) for v in fills["fair_price_model"].dropna().unique())
-    if (
-        timestamps.empty
-        or not symbols
-        or not models
-        or not database_exists(db_path)
-    ):
-        return pd.DataFrame()
-
-    start = float(timestamps.min()) - max_lag_seconds
-    end = float(timestamps.max()) + max_horizon_seconds + max_lag_seconds
-    symbol_marks = ", ".join("?" for _ in symbols)
-    model_marks = ", ".join("?" for _ in models)
-    params = (start, end, *symbols, *models)
-
-    conn = sqlite3.connect(db_path)
-    try:
-        return pd.read_sql(
-            f'SELECT rowid AS "_jolteon_rowid", * FROM "fair_price" '
-            f"WHERE timestamp BETWEEN ? AND ? "
-            f"AND symbol IN ({symbol_marks}) "
-            f"AND model IN ({model_marks}) "
-            f"ORDER BY timestamp, rowid",
-            conn,
-            params=params,
-        )
-    except (sqlite3.OperationalError, pd.errors.DatabaseError):
-        return pd.DataFrame()
-    finally:
-        conn.close()
-
-
-@dataclass(frozen=True)
-class RecordedEngineRun:
-    """One EngineRun as the dashboard reads it back from a recording."""
-
-    run_id: str
-    exchange: str
-    symbol: str
-    started_at: datetime
-    ended_at: datetime | None
-    status: str
-
-
-def _recorded_datetime(value) -> datetime | None:
-    if value is None or pd.isna(value):
-        return None
-    return datetime.fromtimestamp(float(value), tz=timezone.utc)
-
-
-def engine_runs(db_path: str) -> list[RecordedEngineRun]:
-    """Every recorded run, newest first, as "stopped", "interrupted" or
-    "open".
-
-    A run with no recorded end that a later run supersedes was
-    interrupted: one engine trades one symbol, so the next run starting
-    is proof this one is gone. The newest such run is only "open" - a
-    process that dies never records its own end, so the recording alone
-    cannot tell it from one still going.
-    """
-    if not database_exists(db_path):
-        return []
-    conn = sqlite3.connect(db_path)
-    try:
-        rows = pd.read_sql(
-            "SELECT run_id, exchange, symbol, started_at, ended_at "
-            'FROM "engine_run" ORDER BY started_at DESC, rowid DESC',
-            conn,
-        )
-    except (sqlite3.OperationalError, pd.errors.DatabaseError):
-        return []
-    finally:
-        conn.close()
-
-    result = []
-    for position, (_, row) in enumerate(rows.iterrows()):
-        ended = _recorded_datetime(row["ended_at"])
-        if ended is not None:
-            status = "stopped"
-        elif position == 0:
-            status = "open"
-        else:
-            status = "interrupted"
-        started = _recorded_datetime(row["started_at"])
-        if started is None:
-            continue
-        result.append(
-            RecordedEngineRun(
-                run_id=str(row["run_id"]),
-                exchange=str(row["exchange"]),
-                symbol=str(row["symbol"]),
-                started_at=started,
-                ended_at=ended,
-                status=status,
-            )
-        )
-    return result
-
-
-def latest_engine_run(db_path: str) -> RecordedEngineRun | None:
-    """The newest engine process recorded in this database."""
-    runs = engine_runs(db_path)
-    return runs[0] if runs else None
-
-
-def read_run_table(
-    db_path: str, table: str, run_id: str | None
-) -> pd.DataFrame:
-    """A cached table restricted to one engine run when one is known."""
-    frame = read_table(db_path, table)
-    if run_id is None:
-        return frame
-    if "run_id" not in frame.columns:
-        return frame.iloc[0:0].copy(deep=False)
-    return frame[frame["run_id"] == run_id].copy(deep=False)
-
-
-@dataclass(frozen=True)
-class EngineDatabase:
-    """One engine recording identified by exchange and canonical symbol."""
-
-    path: str
-    exchange: str
-    symbol: str
-    log_path: str
-    legacy: bool = False
-
-    @property
-    def key(self) -> str:
-        venue = paths.exchange_directory_name(self.exchange)
-        return f"{venue}:{self.symbol}"
-
-    @property
-    def label(self) -> str:
-        return f"{self.exchange} · {self.symbol}"
-
-
-# How long a scan of the root is reused for. Below the shortest refresh
-# interval the Live page offers, so an auto-refresh still picks up an
-# engine that has just started, and above a burst of widget clicks, so
-# working through a page does not reopen every engine's recording on each
-# one. Nothing else invalidates this: a directory appearing on disk is
-# not observable without looking for it.
-#
-# A caller that compares one scan against another within a single run
-# also depends on the reuse: read live, the two would disagree by however
-# long the first took.
-SCAN_SECONDS = 2.0
-
-
-@st.cache_data(ttl=SCAN_SECONDS, show_spinner=False)
-def engine_databases(root: str) -> list[EngineDatabase]:
-    """
-    Returns: One entry per symbol something has been recorded for under
-    `root`, each naming that instrument's recording and its log database.
-
-    Every engine writes under a directory named after the symbol it
-    trades, so the symbols on offer are the directories present. Reading
-    the directory rather than matching file names against a pattern is
-    also what keeps a log database from being taken for a recording of
-    its own: it is a file inside a symbol's directory, not another one
-    beside it.
-    """
-    databases = []
-    for instrument in discover_exchange_instrument_directories(root):
-        recording = str(instrument.path / f"{paths.LIVE}.sqlite")
-        databases.append(
-            EngineDatabase(
-                path=recording,
-                exchange=instrument.exchange,
-                symbol=_recorded_symbol(recording, instrument.symbol),
-                log_path=str(instrument.path / f"{paths.LIVE}.log.sqlite"),
-                legacy=instrument.legacy,
-            )
-        )
-    return databases
-
-
-def _recorded_symbol(db_path: str, directory_symbol: str) -> str:
-    """
-    Returns: The symbol this recording is of, preferring what was
-    recorded over the directory it was recorded in - the directory name
-    is a spelling the engine chose, while a recorded tick names the pair
-    as the venue does.
-    """
-    latest = read_latest_row(db_path, "bbo_feed")
-    if latest is not None and latest.get("symbol"):
-        return str(latest["symbol"])
-    return directory_symbol
 
 
 def as_datetime(column: pd.Series) -> pd.Series:

@@ -8,7 +8,7 @@ import pytest
 import streamlit as st
 from streamlit.testing.v1 import AppTest
 
-from jolteon.dashboard.data import RecordedEngineRun
+from jolteon.dashboard.data.runs import RecordedEngineRun
 from jolteon.engine.core.storage import paths
 
 
@@ -27,6 +27,33 @@ def scoped_run(run_id: str, status: str = "running") -> RecordedEngineRun:
 _DASHBOARD_PATH = str(
     Path(__file__).resolve().parents[2] / "jolteon" / "dashboard" / "main.py"
 )
+
+
+def recording(root, symbol: str) -> str:
+    """One engine's recording, laid out where an engine would lay it."""
+    path = paths.recording(str(root), symbol)
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(path)
+    try:
+        conn.execute("CREATE TABLE bbo_feed (timestamp REAL, symbol TEXT)")
+        conn.execute("INSERT INTO bbo_feed VALUES (1700000000, ?)", (symbol,))
+        conn.commit()
+    finally:
+        conn.close()
+    return path
+
+
+def exchange_recording(root, exchange: str, symbol: str) -> str:
+    path = paths.recording(str(root), exchange, symbol)
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(path)
+    try:
+        conn.execute("CREATE TABLE bbo_feed (timestamp REAL, symbol TEXT)")
+        conn.execute("INSERT INTO bbo_feed VALUES (1700000000, ?)", (symbol,))
+        conn.commit()
+    finally:
+        conn.close()
+    return path
 
 
 class _TableReader(HTMLParser):

@@ -9,7 +9,7 @@ from jolteon.dashboard.components import (
     BadgeColor,
     warn_if_no_db,
 )
-from jolteon.dashboard.data import read_table
+from jolteon.dashboard.data.sqlite import read_table
 
 _BAR_CSS = (
     Path(__file__).resolve().parents[1] / "static" / "risk_limit_bar.css"

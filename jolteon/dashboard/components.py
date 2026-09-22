@@ -7,11 +7,9 @@ from typing import Callable, Literal
 import pandas as pd
 import streamlit as st
 
-from jolteon.dashboard.data import (
-    RecordedEngineRun,
-    database_exists,
-    engine_databases,
-)
+from jolteon.dashboard.data.engines import engine_databases
+from jolteon.dashboard.data.runs import RecordedEngineRun
+from jolteon.dashboard.data.sqlite import database_exists
 from jolteon.dashboard.settings import ENGINE
 
 BadgeColor = Literal[

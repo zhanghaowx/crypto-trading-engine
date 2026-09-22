@@ -15,7 +15,7 @@ import pandas as pd
 import streamlit as st
 
 from jolteon.dashboard.components import warn_if_no_db
-from jolteon.dashboard.data import (
+from jolteon.dashboard.data.sqlite import (
     last_rowid_where,
     read_after,
     read_latest_per_group,

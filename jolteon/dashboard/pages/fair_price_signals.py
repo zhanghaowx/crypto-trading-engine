@@ -8,7 +8,7 @@ import streamlit as st
 from jolteon.dashboard import table
 from jolteon.dashboard.analytics import HORIZONS, recorded_through
 from jolteon.dashboard.components import NEGATIVE_RGB, warn_if_no_db
-from jolteon.dashboard.data import read_run_table
+from jolteon.dashboard.data.runs import read_run_table
 from jolteon.dashboard.settings import current_run_id
 from jolteon.dashboard.signal_evaluation import evaluate_adjustments
 
