@@ -4,8 +4,8 @@ import pandas as pd
 import streamlit as st
 
 from jolteon.analysis.markouts import HORIZONS
-from jolteon.dashboard import aggregates
 from jolteon.dashboard.cards.orders_pnl import pnl_by_symbol
+from jolteon.dashboard.data import trade_queries
 from jolteon.dashboard.data.sqlite import read_latest_per_group
 from jolteon.dashboard.ui import table
 from jolteon.dashboard.ui.primitives import (
@@ -35,7 +35,7 @@ def _marked_pnl(db_path: str, run_id: str | None) -> float | None:
     latest mid, and nothing at all where inventory is held in a symbol
     nothing was recorded to mark it with - a total missing one of its two
     halves reads as a loss the run did not make."""
-    totals = aggregates.position_and_cash(db_path, run_id)
+    totals = trade_queries.position_and_cash(db_path, run_id)
     if totals.empty:
         return None
 
@@ -52,7 +52,7 @@ def _marked_pnl(db_path: str, run_id: str | None) -> float | None:
 def load(db_path: str, run_id: str | None) -> SessionEconomicsModel:
     return SessionEconomicsModel(
         run_id=run_id,
-        economics=aggregates.session_economics(db_path, run_id),
+        economics=trade_queries.session_economics(db_path, run_id),
         marked_pnl=_marked_pnl(db_path, run_id),
     )
 

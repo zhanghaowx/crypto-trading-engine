@@ -1,4 +1,4 @@
-"""Figures the recording works out for itself.
+"""Figures about a session's trades, worked out by the recording itself.
 
 A session's fills outgrow anything the dashboard can sensibly hold, and
 these derivations answer in one row per side or per inventory bucket
@@ -8,10 +8,10 @@ trim, and nothing that quietly reports on the most recent hundred
 thousand fills as though they were the session.
 
 Fills are recorded immutably, so fair value at the fill and at each
-horizon is joined here against the recorded fair-price series rather than
-read from a column. The sign convention is the one `analytics` documents
-- positive is in the market maker's favour - written here as SQL rather
-than as pandas:
+horizon is joined here against the recorded fair-price series rather
+than read from a column. The sign convention is the one the markout
+analysis uses - positive is in the market maker's favour - written here
+as SQL rather than as pandas:
 
     BUY:  value = future_price - execution_price
     SELL: value = execution_price - future_price

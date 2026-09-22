@@ -11,7 +11,7 @@ import pandas as pd
 import streamlit as st
 
 from jolteon.analysis.markouts import HORIZONS
-from jolteon.dashboard import aggregates
+from jolteon.dashboard.data import trade_queries
 from jolteon.dashboard.state import current_run_id
 from jolteon.dashboard.ui import table
 from jolteon.dashboard.ui.empty_states import warn_if_no_db
@@ -73,7 +73,7 @@ def _shaded_table(
 def _render_fair_price_movement(
     db_path: str, run_id: str | None = None
 ) -> None:
-    movement = aggregates.avg_fair_price_movement(db_path, run_id)
+    movement = trade_queries.avg_fair_price_movement(db_path, run_id)
     if movement.empty:
         return
 
@@ -94,7 +94,7 @@ def _render_fair_price_movement(
 
 def _render_fill_quality(db_path: str, run_id: str | None = None) -> None:
     """BUY vs SELL execution quality (section 6)."""
-    by_side = aggregates.fill_quality_by_side(db_path, run_id)
+    by_side = trade_queries.fill_quality_by_side(db_path, run_id)
     if by_side.empty:
         return
 
@@ -126,7 +126,7 @@ def _render_fill_quality(db_path: str, run_id: str | None = None) -> None:
 def _render_inventory_buckets(db_path: str, run_id: str | None = None) -> None:
     """Whether fills made at extreme inventory levels look different from
     fills made near neutral (section 5)."""
-    stats = aggregates.inventory_buckets(db_path, run_id=run_id)
+    stats = trade_queries.inventory_buckets(db_path, run_id=run_id)
     if stats.empty:
         return
 
@@ -164,7 +164,7 @@ def render() -> None:
     # nothing here holds a session's fills to average them.
     db_path = st.session_state.db_path
     run_id = current_run_id()
-    if not aggregates.any_fills(db_path, run_id):
+    if not trade_queries.any_fills(db_path, run_id):
         st.info("No fills yet.")
         return
 

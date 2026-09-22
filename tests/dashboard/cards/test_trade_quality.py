@@ -214,7 +214,7 @@ def test_a_fill_without_the_position_held_before_it_joins_no_bucket(tmp_path):
     """A bucket says how we traded while holding that much, so a fill
     recorded without the position held before it belongs to none of them
     - rather than falling through every bound into the extreme one."""
-    from jolteon.dashboard import aggregates
+    from jolteon.dashboard.data import trade_queries
 
     db_path = str(tmp_path / "unset.sqlite")
     conn = sqlite3.connect(db_path)
@@ -234,4 +234,4 @@ def test_a_fill_without_the_position_held_before_it_joins_no_bucket(tmp_path):
     finally:
         conn.close()
 
-    assert aggregates.inventory_buckets(db_path).empty
+    assert trade_queries.inventory_buckets(db_path).empty
