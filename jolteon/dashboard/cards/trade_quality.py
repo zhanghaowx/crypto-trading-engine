@@ -12,7 +12,7 @@ import streamlit as st
 
 from jolteon.analysis.markouts import HORIZONS
 from jolteon.dashboard import aggregates
-from jolteon.dashboard.settings import current_run_id
+from jolteon.dashboard.state import current_run_id
 from jolteon.dashboard.ui import table
 from jolteon.dashboard.ui.empty_states import warn_if_no_db
 from jolteon.dashboard.ui.primitives import NEGATIVE_RGB, POSITIVE_RGB, fmt_usd

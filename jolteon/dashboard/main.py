@@ -29,7 +29,7 @@ from pathlib import Path
 import streamlit as st
 
 from jolteon.dashboard.services.health import summary
-from jolteon.dashboard.settings import init_settings
+from jolteon.dashboard.state import init_state
 from jolteon.dashboard.ui.navigation import (
     NAV_ICON,
     NAV_TITLE,
@@ -62,7 +62,7 @@ _DOT_CSS = (
 
 def main() -> None:
     st.set_page_config(page_title="Jolteon Live", layout="wide")
-    init_settings()
+    init_state()
     st.logo(str(_LOGO_PATH), size="medium")
     st.html(f"<style>{_FOCUS_CSS}</style>")
     st.html(f"<style>{_TOP_PADDING_CSS}</style>")

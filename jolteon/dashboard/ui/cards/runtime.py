@@ -15,7 +15,7 @@ from typing import Callable
 
 import streamlit as st
 
-from jolteon.dashboard import settings
+from jolteon.dashboard import state
 from jolteon.dashboard.ui.cards.model import Card, CardMetrics, card_key
 from jolteon.dashboard.ui.cards.style import accent_rule
 
@@ -234,7 +234,7 @@ def refresh_every(spec: Card) -> float | None:
     asking for an interval of its own still falls silent with the rest
     of them when the reader switches refreshing off.
     """
-    dashboard_interval = settings.refresh_interval()
+    dashboard_interval = state.refresh_interval()
     if not spec.refresh or dashboard_interval is None:
         return None
     return (

@@ -28,7 +28,7 @@ from jolteon.dashboard.data.sqlite import (
     read_after,
     read_latest_per_group,
 )
-from jolteon.dashboard.settings import current_run_id
+from jolteon.dashboard.state import current_run_id
 from jolteon.dashboard.ui.cards import Accent
 from jolteon.dashboard.ui.empty_states import warn_if_no_db
 from jolteon.dashboard.ui.pagination import paginate

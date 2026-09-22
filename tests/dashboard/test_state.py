@@ -1,62 +1,33 @@
 import shutil
-import sys
 
 from streamlit.testing.v1 import AppTest
 
 from jolteon.dashboard.data.engines import engine_databases
-from jolteon.dashboard.settings import RUN, SYMBOL, parse_args
+from jolteon.dashboard.state import RUN, SYMBOL
 from jolteon.engine.core.storage import paths
 from tests.dashboard.conftest import recording, scoped_run
 
 
 def script():
-    from jolteon.dashboard.settings import init_settings
+    from jolteon.dashboard.state import init_state
 
-    init_settings()
+    init_state()
 
 
 def script_with_custom_parameter_store():
     import sys
 
-    from jolteon.dashboard.settings import init_settings
+    from jolteon.dashboard.state import init_state
 
     original = sys.argv
     try:
         sys.argv = ["dashboard", "--params-db", "/custom/parameters.sqlite"]
-        init_settings()
+        init_state()
     finally:
         sys.argv = original
 
 
-def test_parse_args_defaults_db_path(monkeypatch):
-    monkeypatch.setattr(sys, "argv", ["prog"])
-
-    args = parse_args()
-
-    assert args.root == "/tmp/jolteon"
-    assert args.log_db == ""
-
-
-def test_parse_args_reads_custom_db_path(monkeypatch):
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        [
-            "prog",
-            "--root",
-            "/custom/root",
-            "--log-db",
-            "/custom/log.sqlite",
-        ],
-    )
-
-    args = parse_args()
-
-    assert args.root == "/custom/root"
-    assert args.log_db == "/custom/log.sqlite"
-
-
-def test_init_settings_sets_session_state_defaults():
+def test_init_state_sets_session_state_defaults():
     at = AppTest.from_function(script).run()
 
     assert not at.exception
@@ -65,7 +36,7 @@ def test_init_settings_sets_session_state_defaults():
     assert at.session_state["refresh_seconds"] == 5
 
 
-def test_init_settings_does_not_override_a_readers_own_settings():
+def test_init_state_does_not_override_a_readers_own_settings():
     at = AppTest.from_function(script)
     at.session_state["auto_refresh"] = False
     at.session_state["refresh_seconds"] = 30
@@ -76,7 +47,7 @@ def test_init_settings_does_not_override_a_readers_own_settings():
     assert at.session_state["refresh_seconds"] == 30
 
 
-def test_init_settings_uses_an_explicit_parameter_store():
+def test_init_state_uses_an_explicit_parameter_store():
     at = AppTest.from_function(script_with_custom_parameter_store).run()
 
     assert not at.exception
@@ -209,6 +180,6 @@ def test_the_run_a_page_is_scoped_to_is_the_one_it_was_given():
 def _run_id_script():
     import streamlit as st
 
-    from jolteon.dashboard.settings import current_run_id
+    from jolteon.dashboard.state import current_run_id
 
     st.write(current_run_id() or "none")
