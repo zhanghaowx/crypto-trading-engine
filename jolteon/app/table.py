@@ -64,6 +64,7 @@ def render(
     frame: pd.DataFrame,
     *,
     shaded_columns: Sequence[str] = (),
+    numeric_columns: Sequence[str] = (),
     format_fn: Callable[[float], str] | None = None,
     column_help: Mapping[str, str] | None = None,
     row_style: Callable[[pd.Series], str] | None = None,
@@ -71,14 +72,17 @@ def render(
     """
     Draw `frame` as a table.
 
-    `shaded_columns` are tinted by `shade` and formatted with `format_fn`,
-    and are the columns read as numbers - they align right and share one
-    set of digit widths so the decimal points line up down the column.
+    `shaded_columns` are tinted by `shade` and formatted with `format_fn`.
+    `numeric_columns` are read as numbers without being tinted - for a
+    column already carrying its own formatting, or one measured in units
+    `format_fn` does not speak. Both align right and share one set of
+    digit widths, so the decimal points line up down the column.
     `column_help` explains a column on its own header; `row_style` tints a
     whole row from its values.
     """
     columns = list(frame.columns)
     shaded = set(shaded_columns)
+    numeric = shaded | set(numeric_columns)
     scales = {
         column: frame[column].abs().max(skipna=True) for column in shaded
     }
@@ -97,12 +101,15 @@ def render(
                 )
             else:
                 style = row_style(row) if row_style else ""
-                cells.append(f'<td style="{style}">{escape(str(value))}</td>')
+                classes = ' class="jolteon-num"' if column in numeric else ""
+                cells.append(
+                    f'<td{classes} style="{style}">{escape(str(value))}</td>'
+                )
         rows.append("<tr>" + "".join(cells) + "</tr>")
 
     st.html(
         f"<style>{_TABLE_CSS}</style>"
         f'<table class="jolteon-table">'
-        f"<thead>{_header(columns, column_help or {}, shaded)}</thead>"
+        f"<thead>{_header(columns, column_help or {}, numeric)}</thead>"
         f"<tbody>{''.join(rows)}</tbody></table>"
     )

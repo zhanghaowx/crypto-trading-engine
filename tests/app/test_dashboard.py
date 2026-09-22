@@ -65,6 +65,16 @@ def test_parameters_page_does_not_render_the_live_sections(dashboard):
     assert "Order Book" not in _card_titles(at)
 
 
+def test_post_trade_has_a_page_of_its_own(dashboard):
+    """Reading a finished run back is a different job from watching the
+    one happening now, so it does not crowd the Live page."""
+    at = dashboard.run()
+    at.switch_page("app_pages/post_trade.py").run()
+
+    assert not at.exception
+    assert "Order Book" not in _card_titles(at)
+
+
 def test_health_has_a_page_of_its_own(dashboard):
     at = dashboard.run()
     at.switch_page("app_pages/health.py").run()

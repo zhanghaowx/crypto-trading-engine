@@ -23,6 +23,21 @@ def table_script():
     )
 
 
+def numeric_script():
+    import pandas as pd
+
+    from jolteon.app import table
+
+    table.render(
+        pd.DataFrame(
+            {"Horizon": ["+1s"], "Gross": [2.0], "Gross bps": ["+95.24"]}
+        ),
+        shaded_columns=["Gross"],
+        numeric_columns=["Gross bps"],
+        format_fn=lambda value: f"{value:+.2f}",
+    )
+
+
 def _alpha(style: str) -> float:
     return float(style.split(",")[-1].rstrip(") "))
 
@@ -83,3 +98,23 @@ def test_a_table_rules_only_between_its_rows():
     assert "border-top: 1px solid #EAECF0" in body
     assert "border-left" not in body
     assert "border-right" not in body
+
+
+def test_a_numeric_column_aligns_right_without_being_tinted(tables):
+    """A column carrying its own formatting, or measured in units
+    `format_fn` does not speak, still reads as a column of numbers."""
+    at = AppTest.from_function(numeric_script).run()
+
+    assert not at.exception
+    body = at.get("html")[-1].body
+    assert '<td class="jolteon-num" style="">+95.24</td>' in body
+    # Its header aligns with it, and nothing tints the cell itself.
+    assert body.count('<th class="jolteon-num">') == 2
+    assert tables(at)[0]["styles"][0][2] == ""
+
+
+def test_a_column_that_is_neither_shaded_nor_numeric_reads_as_a_label():
+    at = AppTest.from_function(numeric_script).run()
+
+    body = at.get("html")[-1].body
+    assert "<th>Horizon</th>" in body
