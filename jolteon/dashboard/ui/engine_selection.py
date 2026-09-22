@@ -9,7 +9,7 @@ import streamlit as st
 
 from jolteon.dashboard.data.engines import engine_databases
 from jolteon.dashboard.data.runs import RecordedEngineRun
-from jolteon.dashboard.settings import ENGINE
+from jolteon.dashboard.state import ENGINE
 
 
 def select_engine() -> None:
@@ -17,7 +17,7 @@ def select_engine() -> None:
     Which engine's recording the page below reads.
 
     One engine trades one symbol and records to its own file, so choosing
-    a symbol is choosing a database - which `init_settings` resolves from
+    a symbol is choosing a database - which `init_state` resolves from
     the choice this leaves behind. Nothing is offered while only one
     engine has been running, since there is nothing to choose between.
     """
