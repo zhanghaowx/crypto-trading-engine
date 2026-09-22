@@ -69,7 +69,7 @@ chartSequentialColors = [
 ]
 
 # Dataframe styling. The body is painted white through a pandas Styler (see
-# `style_table` in jolteon/app/components.py) because Streamlit only exposes
+# `style_table` in jolteon/dashboard/components.py) because Streamlit only exposes
 # the header and border here, so the header just needs to sit a step deeper
 # than that white body to read as a band. It stays light on purpose:
 # the grid draws its header labels in `fadedText60` (the theme's text color
