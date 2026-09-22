@@ -5,20 +5,15 @@ from contextlib import closing
 from pathlib import Path
 from unittest import mock
 
-import pandas as pd
 from streamlit.testing.v1 import AppTest
 
-from jolteon.dashboard.data import (
+from jolteon.dashboard.data.sqlite import (
     count_matching,
-    engine_runs,
     last_rowid_where,
-    latest_engine_run,
     max_rowid,
     read_after,
-    read_fair_prices_for_fills,
     read_latest_per_group,
     read_latest_row,
-    read_run_table,
     read_table,
     reset_table_cache,
 )
@@ -162,7 +157,7 @@ class TestReadTable(unittest.TestCase):
 
         self.assertNotIn("time", read_table(self.db_path, "order").columns)
 
-    @mock.patch("jolteon.dashboard.data._MAX_CACHED_ROWS", 2)
+    @mock.patch("jolteon.dashboard.data.sqlite._MAX_CACHED_ROWS", 2)
     def test_caps_cached_rows_to_bound_session_memory(self):
         self.insert("2", 200.0)
         self.insert("3", 300.0)
@@ -309,7 +304,7 @@ class TestCountMatching(unittest.TestCase):
 def keyed_table_script():
     import streamlit as st
 
-    from jolteon.dashboard.data import read_table
+    from jolteon.dashboard.data.sqlite import read_table
 
     fills = read_table(st.session_state.db_path, "decorated_order_fill")
     st.write(f"{len(fills)}|" + ",".join(str(v) for v in fills["fee"]))
@@ -402,7 +397,7 @@ def test_a_keyed_table_longer_than_the_cache_keeps_its_newest_rows(tmp_path):
 
     at = AppTest.from_function(keyed_table_script)
     at.session_state["db_path"] = db_path
-    with mock.patch("jolteon.dashboard.data._MAX_CACHED_ROWS", 4):
+    with mock.patch("jolteon.dashboard.data.sqlite._MAX_CACHED_ROWS", 4):
         at.run()
 
     assert not at.exception
@@ -471,186 +466,6 @@ def test_the_highest_row_id_counts_up_with_the_rows():
             conn.commit()
 
         assert max_rowid(db_path, "feed") == 2
-
-
-def test_reads_only_fair_prices_needed_for_visible_fill_markouts(tmp_path):
-    db_path = str(tmp_path / "prices.sqlite")
-    conn = sqlite3.connect(db_path)
-    try:
-        conn.execute(
-            "CREATE TABLE fair_price ("
-            "timestamp REAL, symbol TEXT, model TEXT, "
-            "bid_fair_price REAL, ask_fair_price REAL)"
-        )
-        conn.executemany(
-            "INSERT INTO fair_price VALUES (?, ?, ?, ?, ?)",
-            [
-                (1.0, "BTC/USD", "AdjustedFairPriceModel", 99.0, 101.0),
-                (9.5, "BTC/USD", "AdjustedFairPriceModel", 100.0, 102.0),
-                (10.0, "BTC/USD", "MidPriceFairPriceModel", 500.0, 502.0),
-                (11.0, "ETH/USD", "AdjustedFairPriceModel", 50.0, 52.0),
-                (40.5, "BTC/USD", "AdjustedFairPriceModel", 103.0, 105.0),
-                (50.0, "BTC/USD", "AdjustedFairPriceModel", 104.0, 106.0),
-            ],
-        )
-        conn.commit()
-    finally:
-        conn.close()
-
-    fills = pd.DataFrame(
-        [
-            {
-                "timestamp": 10.0,
-                "symbol": "BTC/USD",
-                "fair_price_model": "AdjustedFairPriceModel",
-            }
-        ]
-    )
-    rows = read_fair_prices_for_fills(
-        db_path,
-        fills,
-        max_horizon_seconds=30.0,
-        max_lag_seconds=1.0,
-    )
-
-    assert list(rows["timestamp"]) == [9.5, 40.5]
-    assert set(rows["model"]) == {"AdjustedFairPriceModel"}
-    assert set(rows["symbol"]) == {"BTC/USD"}
-
-
-def test_fair_prices_are_not_read_without_a_fill_to_read_them_for(tmp_path):
-    db_path = str(tmp_path / "fair.sqlite")
-    conn = sqlite3.connect(db_path)
-    try:
-        conn.execute(
-            "CREATE TABLE fair_price (timestamp REAL, symbol TEXT, "
-            "model TEXT, bid_fair_price REAL, ask_fair_price REAL)"
-        )
-        conn.commit()
-    finally:
-        conn.close()
-
-    unusable = pd.DataFrame(
-        [{"timestamp": None, "symbol": None, "fair_price_model": None}]
-    )
-
-    assert read_fair_prices_for_fills(
-        db_path, unusable, max_horizon_seconds=30.0, max_lag_seconds=1.0
-    ).empty
-
-
-def test_fair_prices_from_a_recording_without_the_table_are_nothing(tmp_path):
-    """A recording made before fair prices were recorded should leave the
-    markout columns empty rather than take the page down."""
-    db_path = str(tmp_path / "no_fair_price.sqlite")
-    conn = sqlite3.connect(db_path)
-    try:
-        conn.execute("CREATE TABLE other (x REAL)")
-        conn.commit()
-    finally:
-        conn.close()
-
-    fills = pd.DataFrame(
-        [
-            {
-                "timestamp": 10.0,
-                "symbol": "BTC/USD",
-                "fair_price_model": "MidPriceFairPriceModel",
-            }
-        ]
-    )
-
-    assert read_fair_prices_for_fills(
-        db_path, fills, max_horizon_seconds=30.0, max_lag_seconds=1.0
-    ).empty
-
-
-def test_fair_prices_are_not_read_for_fills_that_name_no_model(tmp_path):
-    db_path = str(tmp_path / "prices.sqlite")
-
-    assert read_fair_prices_for_fills(
-        db_path,
-        pd.DataFrame(),
-        max_horizon_seconds=30.0,
-        max_lag_seconds=1.0,
-    ).empty
-    assert read_fair_prices_for_fills(
-        db_path,
-        pd.DataFrame([{"timestamp": 10.0, "symbol": "BTC/USD"}]),
-        max_horizon_seconds=30.0,
-        max_lag_seconds=1.0,
-    ).empty
-
-
-def test_engine_runs_identify_latest_stopped_and_interrupted(tmp_path):
-    db_path = str(tmp_path / "runs.sqlite")
-    with closing(sqlite3.connect(db_path)) as conn:
-        conn.execute(
-            "CREATE TABLE engine_run "
-            "(run_id TEXT PRIMARY KEY, exchange TEXT, symbol TEXT, "
-            "started_at REAL, ended_at REAL)"
-        )
-        conn.executemany(
-            "INSERT INTO engine_run VALUES (?, 'Binance.US', 'BTC/USD', ?, ?)",
-            [
-                ("run-a", 1.0, None),
-                ("run-b", 2.0, 3.0),
-                ("run-c", 4.0, None),
-            ],
-        )
-        conn.commit()
-
-    runs = engine_runs(db_path)
-
-    assert [run.run_id for run in runs] == ["run-c", "run-b", "run-a"]
-    assert [run.status for run in runs] == [
-        "open",
-        "stopped",
-        "interrupted",
-    ]
-    assert latest_engine_run(db_path) == runs[0]
-
-
-def test_engine_runs_skip_a_row_without_a_start_time(tmp_path):
-    db_path = str(tmp_path / "partial.sqlite")
-    with closing(sqlite3.connect(db_path)) as conn:
-        conn.execute(
-            "CREATE TABLE engine_run "
-            "(run_id TEXT PRIMARY KEY, exchange TEXT, symbol TEXT, "
-            "started_at REAL, ended_at REAL)"
-        )
-        conn.executemany(
-            "INSERT INTO engine_run VALUES (?, 'Binance.US', 'BTC/USD', ?, ?)",
-            [
-                ("run-dated", 1.0, None),
-                ("run-undated", None, None),
-            ],
-        )
-        conn.commit()
-
-    assert [run.run_id for run in engine_runs(db_path)] == ["run-dated"]
-
-
-def test_latest_engine_run_is_absent_without_run_metadata(tmp_path):
-    db_path = str(tmp_path / "empty.sqlite")
-    sqlite3.connect(db_path).close()
-
-    assert latest_engine_run(db_path) is None
-
-
-def test_read_run_table_returns_only_the_named_run(tmp_path):
-    db_path = str(tmp_path / "events.sqlite")
-    with closing(sqlite3.connect(db_path)) as conn:
-        conn.execute("CREATE TABLE event (run_id TEXT, value INTEGER)")
-        conn.executemany(
-            "INSERT INTO event VALUES (?, ?)",
-            [("run-a", 1), ("run-b", 2)],
-        )
-        conn.commit()
-
-    frame = read_run_table(db_path, "event", "run-b")
-
-    assert list(frame["value"]) == [2]
 
 
 def test_read_after_can_be_scoped_to_a_run(tmp_path):

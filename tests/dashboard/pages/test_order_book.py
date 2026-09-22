@@ -338,7 +338,7 @@ def test_the_book_is_replayed_from_a_snapshot_older_than_the_table_cache(
 
     at = AppTest.from_function(carry_script)
     at.session_state["db_path"] = db_path
-    with mock.patch("jolteon.dashboard.data._MAX_CACHED_ROWS", 10):
+    with mock.patch("jolteon.dashboard.data.sqlite._MAX_CACHED_ROWS", 10):
         at.run()
 
     assert not at.exception

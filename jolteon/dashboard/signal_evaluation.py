@@ -2,7 +2,7 @@
 forward move, at each markout horizon.
 
 Operates on the `fair_price_adjustment` and `fair_price` tables (read via
-`jolteon.dashboard.data.read_table`) - nothing here writes back to the
+`jolteon.dashboard.data.sqlite.read_table`) - nothing here writes back to the
 database. A candidate adjustment can run in production at zero weight,
 fully recorded, and this module is what turns that recording into a
 weight worth trying.

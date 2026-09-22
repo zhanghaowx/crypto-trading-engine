@@ -31,10 +31,7 @@ from jolteon.dashboard.analytics import (
     observation_tolerance,
 )
 from jolteon.dashboard.analytics import InventoryBucket as Bucket
-from jolteon.dashboard.data import (
-    database_exists,
-    max_rowid,
-)
+from jolteon.dashboard.data.sqlite import database_exists, max_rowid
 
 FILLS = "decorated_order_fill"
 FAIR_PRICES = "fair_price"

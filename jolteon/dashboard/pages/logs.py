@@ -5,7 +5,8 @@ import pandas as pd
 import streamlit as st
 
 from jolteon.dashboard.components import paginate, row_key
-from jolteon.dashboard.data import as_datetime, engine_databases
+from jolteon.dashboard.data.engines import engine_databases
+from jolteon.dashboard.data.sqlite import as_datetime
 from jolteon.dashboard.health_summary import errors as error_rows
 
 PAGE_SIZE = 10

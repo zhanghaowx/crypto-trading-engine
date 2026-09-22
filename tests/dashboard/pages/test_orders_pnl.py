@@ -5,7 +5,7 @@ import pandas as pd
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from jolteon.dashboard.data import read_table
+from jolteon.dashboard.data.sqlite import read_table
 from jolteon.dashboard.pages.orders_pnl import (
     _derive_visible_markouts,
     fills_table,
@@ -564,7 +564,7 @@ def test_realized_pnl_survives_a_table_longer_than_the_cache(tmp_path):
 
     at = AppTest.from_function(_realized_script)
     at.session_state["db_path"] = db_path
-    with mock.patch("jolteon.dashboard.data._MAX_CACHED_ROWS", 600):
+    with mock.patch("jolteon.dashboard.data.sqlite._MAX_CACHED_ROWS", 600):
         at.run()
 
     assert not at.exception

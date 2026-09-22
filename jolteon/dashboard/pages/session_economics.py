@@ -6,7 +6,7 @@ import streamlit as st
 from jolteon.dashboard import aggregates, table
 from jolteon.dashboard.analytics import HORIZONS
 from jolteon.dashboard.components import MISSING, fmt_usd, metric, sign_color
-from jolteon.dashboard.data import read_latest_per_group
+from jolteon.dashboard.data.sqlite import read_latest_per_group
 from jolteon.dashboard.pages.orders_pnl import pnl_by_symbol
 
 
