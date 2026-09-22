@@ -6,7 +6,7 @@ from unittest.mock import patch
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from jolteon.dashboard.pages import engine_parameters
+from jolteon.dashboard.cards import engine_parameters
 from jolteon.engine.core.parameter.parameter_catalog import GROUPS
 from jolteon.engine.core.parameter.parameter_change_result import (
     REJECTED,
@@ -40,7 +40,7 @@ BOOK_DEPTH = _key("MarketMakingParameters", "book_depth")
 
 
 def _script():
-    from jolteon.dashboard.pages import engine_parameters
+    from jolteon.dashboard.cards import engine_parameters
 
     engine_parameters.render()
 

@@ -16,7 +16,7 @@ def _script():
     """The card's own body, over the run the page picked."""
     import streamlit as st
 
-    from jolteon.dashboard.pages import session_economics
+    from jolteon.dashboard.cards import session_economics
 
     session_economics.render(
         session_economics.load(
@@ -29,7 +29,7 @@ def _details_script():
     """What the card's details modal shows: the same run, by side."""
     import streamlit as st
 
-    from jolteon.dashboard.pages import session_economics
+    from jolteon.dashboard.cards import session_economics
 
     session_economics.render_details(
         session_economics.load(

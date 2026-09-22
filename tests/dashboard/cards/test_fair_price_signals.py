@@ -4,7 +4,7 @@ import pandas as pd
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from jolteon.dashboard.pages.fair_price_signals import (
+from jolteon.dashboard.cards.fair_price_signals import (
     _COLLECTING,
     _MIN_SAMPLES,
     _verdict,
@@ -15,7 +15,7 @@ from tests.dashboard.conftest import scoped_run
 
 def _script():
     """The card's own body: the verdict, and nothing else."""
-    from jolteon.dashboard.pages import fair_price_signals
+    from jolteon.dashboard.cards import fair_price_signals
 
     fair_price_signals.render()
 
@@ -23,7 +23,7 @@ def _script():
 def _details_script():
     """What the card's details modal shows: the numbers the verdict is
     drawn from, which the card itself no longer carries."""
-    from jolteon.dashboard.pages import fair_price_signals
+    from jolteon.dashboard.cards import fair_price_signals
 
     fair_price_signals.render_details()
 

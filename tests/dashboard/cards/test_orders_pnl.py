@@ -3,15 +3,15 @@ from unittest import mock
 
 from streamlit.testing.v1 import AppTest
 
-from jolteon.dashboard.data.sqlite import read_table
-from jolteon.dashboard.pages.orders_pnl import (
+from jolteon.dashboard.cards.orders_pnl import (
     _derive_visible_markouts,
     fills_table,
 )
+from jolteon.dashboard.data.sqlite import read_table
 
 
 def _script():
-    from jolteon.dashboard.pages import orders_pnl
+    from jolteon.dashboard.cards import orders_pnl
 
     # Mirrors dashboard.py's `_section`, which renders each card - header
     # actions ahead of a card's own body, then every card in order - since
@@ -354,7 +354,7 @@ def test_marks_inventory_at_zero_without_a_bbo_feed(tmp_path):
 def _accent_script():
     import streamlit as st
 
-    from jolteon.dashboard.pages import orders_pnl
+    from jolteon.dashboard.cards import orders_pnl
 
     st.write(str(orders_pnl.accent()))
 
@@ -450,7 +450,7 @@ def _add_fills(db_path, fills) -> None:
 def _realized_script():
     import streamlit as st
 
-    from jolteon.dashboard.pages.orders_pnl import realized_pnl_now
+    from jolteon.dashboard.cards.orders_pnl import realized_pnl_now
 
     value = realized_pnl_now(
         st.session_state["db_path"], st.session_state.get("scoped_run_id")
@@ -568,7 +568,7 @@ def test_realized_pnl_starts_again_when_the_recording_is_replaced(tmp_path):
 
 
 def _orders_card_script():
-    from jolteon.dashboard.pages import orders_pnl
+    from jolteon.dashboard.cards import orders_pnl
     from jolteon.dashboard.ui.cards import Card, render_cards
 
     render_cards(
@@ -589,7 +589,7 @@ def _orders_card_script():
 def test_card_shares_one_data_load_across_body_accent_and_download(
     populated_db_path,
 ):
-    from jolteon.dashboard.pages import orders_pnl
+    from jolteon.dashboard.cards import orders_pnl
 
     at = AppTest.from_function(_orders_card_script)
     at.session_state["db_path"] = populated_db_path

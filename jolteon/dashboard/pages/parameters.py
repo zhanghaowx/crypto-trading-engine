@@ -1,6 +1,6 @@
 import streamlit as st
 
-from jolteon.dashboard.pages import engine_parameters, viewer_settings
+from jolteon.dashboard.cards import engine_parameters, viewer_settings
 
 _TABS = ("Engine", "Dashboard")
 

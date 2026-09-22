@@ -1,7 +1,7 @@
 import streamlit as st
 
+from jolteon.dashboard.cards import engine_health, logs
 from jolteon.dashboard.health_summary import summary, watch_nav
-from jolteon.dashboard.pages import engine_health, logs
 from jolteon.dashboard.settings import refresh_interval
 from jolteon.dashboard.ui.cards import Accent, Card, cards_rule, render_cards
 

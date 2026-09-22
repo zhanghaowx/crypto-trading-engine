@@ -4,7 +4,7 @@ from streamlit.testing.v1 import AppTest
 
 
 def _script():
-    from jolteon.dashboard.pages import logs
+    from jolteon.dashboard.cards import logs
 
     logs.render()
 
