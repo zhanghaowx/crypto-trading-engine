@@ -2,7 +2,7 @@ from streamlit.testing.v1 import AppTest
 
 
 def _script():
-    from jolteon.dashboard.pages import viewer_settings
+    from jolteon.dashboard.cards import viewer_settings
 
     viewer_settings.render()
 

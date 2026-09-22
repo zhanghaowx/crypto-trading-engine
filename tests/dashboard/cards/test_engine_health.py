@@ -9,7 +9,7 @@ def _seen(seconds_ago: float = 0, sender: str = "MarketMaking"):
 
 
 def _script():
-    from jolteon.dashboard.pages import engine_health
+    from jolteon.dashboard.cards import engine_health
 
     engine_health.render()
 

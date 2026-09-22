@@ -8,7 +8,7 @@ from streamlit.testing.v1 import AppTest
 
 
 def _script():
-    from jolteon.dashboard.pages import order_book
+    from jolteon.dashboard.cards import order_book
 
     order_book.render()
 
@@ -247,7 +247,7 @@ def test_a_one_sided_book_shows_its_levels_without_a_spread(tmp_path):
     def script():
         import streamlit as st
 
-        from jolteon.dashboard.pages.order_book import book_now, ladder_html
+        from jolteon.dashboard.cards.order_book import book_now, ladder_html
 
         book = book_now(st.session_state["db_path"], "BTC-USD")
         st.write(ladder_html(book, {}).split("</style>", 1)[-1])
@@ -286,7 +286,7 @@ def carry_script():
     """One refresh of the page, reading whatever the recording holds."""
     import streamlit as st
 
-    from jolteon.dashboard.pages.order_book import book_now
+    from jolteon.dashboard.cards.order_book import book_now
 
     book = book_now(st.session_state["db_path"], "BTC-USD")
     st.write(
@@ -379,7 +379,7 @@ def test_the_carried_book_belongs_to_the_engine_it_was_built_from(tmp_path):
     def script():
         import streamlit as st
 
-        from jolteon.dashboard.pages.order_book import book_now
+        from jolteon.dashboard.cards.order_book import book_now
 
         one = book_now(st.session_state["first"], "BTC-USD")
         two = book_now(st.session_state["second"], "ETH-USD")
@@ -496,7 +496,7 @@ def test_a_refresh_reads_only_what_was_recorded_since_the_last_one(tmp_path):
         [(i, [(98.0, float(i % 5 + 1))], [], 0, "l2") for i in range(2, 500)],
     )
 
-    from jolteon.dashboard.pages import order_book
+    from jolteon.dashboard.cards import order_book
 
     read_sizes: list[int] = []
     real = order_book.read_after

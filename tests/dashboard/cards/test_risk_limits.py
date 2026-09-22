@@ -4,7 +4,7 @@ from streamlit.testing.v1 import AppTest
 
 
 def _script():
-    from jolteon.dashboard.pages import risk_limits
+    from jolteon.dashboard.cards import risk_limits
 
     risk_limits.render()
 
@@ -74,7 +74,7 @@ def test_badge_reflects_utilization_thresholds(tmp_path):
 def _accent_script():
     import streamlit as st
 
-    from jolteon.dashboard.pages import risk_limits
+    from jolteon.dashboard.cards import risk_limits
 
     st.write(str(risk_limits.accent()))
 
@@ -159,7 +159,7 @@ def test_accent_ignores_a_limit_with_no_maximum_to_use_up(tmp_path):
 
 
 def test_the_bar_fills_to_the_utilisation_and_marks_the_bands():
-    from jolteon.dashboard.pages.risk_limits import utilisation_bar
+    from jolteon.dashboard.cards.risk_limits import utilisation_bar
 
     bar = utilisation_bar(0.74, "orange")
 
@@ -172,14 +172,14 @@ def test_the_bar_fills_to_the_utilisation_and_marks_the_bands():
 
 def test_the_bar_never_overflows_its_track():
     """A measure past its own limit still fills the track exactly once."""
-    from jolteon.dashboard.pages.risk_limits import utilisation_bar
+    from jolteon.dashboard.cards.risk_limits import utilisation_bar
 
     assert "width:100.0%" in utilisation_bar(1.8, "red")
     assert "width:0.0%" in utilisation_bar(-0.2, "green")
 
 
 def test_a_limits_name_and_measure_read_as_words_and_short_numbers():
-    from jolteon.dashboard.pages.risk_limits import _fmt_bound, _limit_title
+    from jolteon.dashboard.cards.risk_limits import _fmt_bound, _limit_title
 
     assert _limit_title("order_frequency") == "Order Frequency"
     # A recorded measure carries more decimals than a reader needs.
@@ -192,7 +192,7 @@ def test_a_measure_far_below_one_keeps_the_figures_that_matter():
     """Regression test: two decimal places turned a 0.0056 inventory
     against a 0.04 limit into "0.01 of 0.04", which reads as a quarter
     used where the bar beside it correctly said 14%."""
-    from jolteon.dashboard.pages.risk_limits import _fmt_bound
+    from jolteon.dashboard.cards.risk_limits import _fmt_bound
 
     assert _fmt_bound(0.0056) == "0.0056"
     assert _fmt_bound(0.04) == "0.04"
