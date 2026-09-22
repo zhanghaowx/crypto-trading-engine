@@ -30,6 +30,8 @@ jobs:
         run: uv sync
       - name: Run Linter
         run: uv run poe lint
+      - name: Check Architecture
+        run: uv run poe architecture
       - name: Validate Compose configuration
         run: docker compose config --quiet
       - name: Build container targets

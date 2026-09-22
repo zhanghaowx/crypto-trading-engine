@@ -104,6 +104,10 @@ cmd = "mypy jolteon"
 help = "Run ruff and mypy"
 sequence = ["lint-check", "lint-format", "lint-types"]
 
+[tool.poe.tasks.architecture]
+help = "Check the package dependency rules in AGENTS.md"
+cmd = "pytest -q tests/architecture"
+
 [tool.poe.tasks.test-only]
 cmd = """
 pytest -v -l --tb=short --maxfail=1
@@ -111,8 +115,8 @@ pytest -v -l --tb=short --maxfail=1
 """
 
 [tool.poe.tasks.test]
-help = "Run linters, then unit tests with coverage"
-sequence = ["lint", "test-only"]
+help = "Run linters and the architecture checks, then unit tests"
+sequence = ["lint", "architecture", "test-only"]
 
 [tool.poe.tasks.integration-only]
 cmd = """
