@@ -23,9 +23,9 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
         self.mock_strategy = MagicMock()
         self.mock_exec_service = MagicMock()
 
-        from jolteon.app.kraken import KrakenApplication
+        from jolteon.engine.runtime.venues.kraken import KrakenRuntime
 
-        self.application = KrakenApplication(
+        self.application = KrakenRuntime(
             symbol=self.symbol,
             database_name=f"{tempfile.gettempdir()}/unittest.sqlite",
             logfile_name=f"{tempfile.gettempdir()}/unittest.log",
@@ -51,7 +51,7 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
             cash_value=1.0,
         )
 
-    @patch("jolteon.app.trading_application.DatabaseDataSource")
+    @patch("jolteon.engine.runtime.engine_runtime.DatabaseDataSource")
     async def test_run_local_replay(self, MockDatabaseDataSource):
         mock_data_source = MockDatabaseDataSource.return_value
         mock_data_source.start_time.return_value = datetime(
@@ -70,7 +70,7 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
 
         mock_data_source.download_market_trades.assert_called_once()
 
-    @patch("jolteon.app.kraken.HistoricalFeed")
+    @patch("jolteon.engine.runtime.venues.kraken.HistoricalFeed")
     async def test_run_replay(self, MockFeed):
         mock_feed = self.create_mock_feed(MockFeed)
 
@@ -89,7 +89,7 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
             self.symbol, start_time, end_time
         )
 
-    @patch("jolteon.app.kraken.PublicFeed")
+    @patch("jolteon.engine.runtime.venues.kraken.PublicFeed")
     async def test_run(self, MockFeed):
         mock_feed = self.create_mock_feed(MockFeed)
 
@@ -99,7 +99,7 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
         # Ensure the live feed connection is called with the correct arguments
         mock_feed.connect.assert_called_once_with(self.symbol)
 
-    @patch("jolteon.app.kraken.PublicFeed")
+    @patch("jolteon.engine.runtime.venues.kraken.PublicFeed")
     async def test_request_shutdown_cancels_a_feed_that_never_finishes(
         self, MockFeed
     ):
@@ -130,12 +130,12 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
     @patch.dict(os.environ, {"KRAKEN_API_KEY": "api_key"})
     @patch.dict(os.environ, {"KRAKEN_API_SECRET": "api_secret"})
     async def test_live_execution_is_used_unless_mocked(self):
-        from jolteon.app.kraken import KrakenApplication
         from jolteon.engine.execution.kraken.execution_service import (
             ExecutionService,
         )
+        from jolteon.engine.runtime.venues.kraken import KrakenRuntime
 
-        application = KrakenApplication(
+        application = KrakenRuntime(
             symbol=self.symbol,
             use_mock_execution=False,
             database_name=f"{tempfile.gettempdir()}/unittest.sqlite",

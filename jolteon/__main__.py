@@ -2,7 +2,7 @@
 
 import asyncio
 
-from jolteon.engine.runner import main
+from jolteon.cli.engine import main
 
 
 def run():

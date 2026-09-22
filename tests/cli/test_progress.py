@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytz
 
-from jolteon.app.progress_bar import ProgressBar
+from jolteon.cli.progress import ProgressBar
 from jolteon.engine.core.time.time_manager import time_manager
 
 

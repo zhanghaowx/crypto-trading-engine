@@ -7,7 +7,6 @@ from datetime import datetime
 
 import pytz
 
-from jolteon.app.trading_application import TradingApplication
 from jolteon.engine.core.health_monitor.health import HealthMonitor
 from jolteon.engine.core.parameter.parameter_service import IParameterService
 from jolteon.engine.execution.kraken.execution_service import ExecutionService
@@ -20,12 +19,13 @@ from jolteon.engine.market_data.kraken.data_source import (
     KrakenHistoricalDataSource,
 )
 from jolteon.engine.market_data.kraken.public_feed import PublicFeed
+from jolteon.engine.runtime.engine_runtime import EngineRuntime
 from jolteon.engine.strategy.market_making.fair_value.fair_price_model import (
     IFairPriceModel,
 )
 
 
-class KrakenApplication(TradingApplication):
+class KrakenRuntime(EngineRuntime):
     def __init__(
         self,
         symbol: str,

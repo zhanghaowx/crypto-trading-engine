@@ -53,9 +53,9 @@ class AdjustedFairPriceModel(IFairPriceModel, SignalSubscriber):
         self.fair_price_adjustment_event = signal("fair_price_adjustment")
 
     def connect(self) -> None:
-        # SignalManager.connect_all() only discovers SignalSubscribers that
-        # are attributes of TradingApplication directly, so a subscribing
-        # adjustment held in self._adjustments needs connecting here.
+        # connect_all() only discovers SignalSubscribers held directly
+        # as attributes of the object being wired, so a subscribing
+        # adjustment inside self._adjustments needs connecting here.
         super().connect()
         for adjustment in self._adjustments:
             adjustment.connect()
