@@ -22,15 +22,15 @@ import sqlite3
 import pandas as pd
 import streamlit as st
 
-from jolteon.dashboard.analytics import (
-    DEFAULT_INVENTORY_BUCKETS,
+from jolteon.analysis.execution_quality import DEFAULT_INVENTORY_BUCKETS
+from jolteon.analysis.execution_quality import InventoryBucket as Bucket
+from jolteon.analysis.markouts import (
     DEFAULT_MAX_FAIR_PRICE_LAG_SECONDS,
     FILL_TIME,
     HORIZONS,
     horizon_seconds,
     observation_tolerance,
 )
-from jolteon.dashboard.analytics import InventoryBucket as Bucket
 from jolteon.dashboard.data.sqlite import database_exists, max_rowid
 
 FILLS = "decorated_order_fill"

@@ -296,3 +296,22 @@ def read_latest_per_group(
         conn.close()
 
     return frame
+
+
+def recorded_through(
+    frame: pd.DataFrame, *, time_column: str
+) -> tuple[int, float]:
+    """A cheap cache identity for a recorded table: how many rows it holds
+    and how far through the session its last one is.
+
+    Hashing the table itself costs about thirty milliseconds for a
+    session's fills, which is a good part of what caching the derivation
+    it keys is there to save. Both fills and fair prices are append-only,
+    so a length and a latest timestamp pin a version of them exactly.
+    """
+    if frame.empty:
+        return (0, 0.0)
+    latest = (
+        float(frame[time_column].iloc[-1]) if time_column in frame else 0.0
+    )
+    return (len(frame), latest)

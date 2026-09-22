@@ -3,7 +3,7 @@ import math
 import pandas as pd
 import pytest
 
-from jolteon.dashboard.signal_evaluation import evaluate_adjustments
+from jolteon.analysis.signals import evaluate_adjustments
 
 
 def _adjustments(*rows):
