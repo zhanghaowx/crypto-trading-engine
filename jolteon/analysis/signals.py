@@ -1,16 +1,16 @@
 """How well each fair price adjustment predicted the market's actual
 forward move, at each markout horizon.
 
-Operates on the `fair_price_adjustment` and `fair_price` tables (read via
-`jolteon.dashboard.data.sqlite.read_table`) - nothing here writes back to the
-database. A candidate adjustment can run in production at zero weight,
-fully recorded, and this module is what turns that recording into a
-weight worth trying.
+Operates on the `fair_price_adjustment` and `fair_price` tables as
+whoever read them hands them over - nothing here opens a recording, and
+nothing writes back to one. A candidate adjustment can run in production
+at zero weight, fully recorded, and this module is what turns that
+recording into a weight worth trying.
 """
 
 import pandas as pd
 
-from jolteon.dashboard.analytics import HORIZONS, horizon_seconds
+from jolteon.analysis.markouts import HORIZONS, horizon_seconds
 
 MID_MODEL = "MidPriceFairPriceModel"
 
