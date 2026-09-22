@@ -20,6 +20,7 @@ from jolteon.app.data import (
     RecordedEngineRun,
     count_matching,
     engine_databases,
+    engine_runs,
     read_latest_per_group,
     read_latest_row,
     read_table,
@@ -66,6 +67,15 @@ def resolve_run(
         seen = max(seen, float(last["timestamp"]))
     quiet = is_down(time.time() - seen)
     return replace(run, status="interrupted" if quiet else "running")
+
+
+def resolve_runs(db_path: str) -> list[RecordedEngineRun]:
+    """Every run a recording holds, newest first, with each "open" status
+    settled the way `resolve_run` settles it - so a reader picking a past
+    run is told the same thing about it as a reader watching it live."""
+    # `resolve_run` only answers with nothing when given nothing, which a
+    # recorded run never is; the fallback is there for the type alone.
+    return [resolve_run(db_path, run) or run for run in engine_runs(db_path)]
 
 
 @st.cache_data(ttl=SCAN_SECONDS, show_spinner=False)

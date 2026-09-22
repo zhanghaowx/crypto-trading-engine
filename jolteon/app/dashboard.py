@@ -92,6 +92,12 @@ def main() -> None:
                 icon=":material/tune:",
                 url_path="parameters",
             ),
+            st.Page(
+                "app_pages/post_trade.py",
+                title="Post-Trade",
+                icon=":material/analytics:",
+                url_path="post-trade",
+            ),
         ],
         position="top",
     ).run()
