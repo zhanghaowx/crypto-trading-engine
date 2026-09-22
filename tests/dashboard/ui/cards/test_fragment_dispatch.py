@@ -20,7 +20,7 @@ from streamlit.testing.v1.local_script_runner import LocalScriptRunner
 def execution_script():
     import streamlit as st
 
-    from jolteon.dashboard.card import Card, render_cards
+    from jolteon.dashboard.ui.cards import Card, render_cards
 
     st.session_state["page_runs"] = st.session_state.get("page_runs", 0) + 1
     st.selectbox("Engine", ["one", "two"], key="engine")

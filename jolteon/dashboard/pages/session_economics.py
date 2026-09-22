@@ -4,10 +4,16 @@ import pandas as pd
 import streamlit as st
 
 from jolteon.analysis.markouts import HORIZONS
-from jolteon.dashboard import aggregates, table
-from jolteon.dashboard.components import MISSING, fmt_usd, metric, sign_color
+from jolteon.dashboard import aggregates
 from jolteon.dashboard.data.sqlite import read_latest_per_group
 from jolteon.dashboard.pages.orders_pnl import pnl_by_symbol
+from jolteon.dashboard.ui import table
+from jolteon.dashboard.ui.primitives import (
+    MISSING,
+    fmt_usd,
+    metric,
+    sign_color,
+)
 
 
 @dataclass(frozen=True)

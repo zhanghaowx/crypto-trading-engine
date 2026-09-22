@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from jolteon.dashboard.components import MISSING
+from jolteon.dashboard.ui.primitives import MISSING
 
 RUN = "20260920T120000Z-abc123"
 OTHER_RUN = "20260920T110000Z-def456"

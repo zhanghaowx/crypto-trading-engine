@@ -4,7 +4,7 @@ from typing import Iterator, Literal
 
 import streamlit as st
 
-from jolteon.dashboard.card import surface_rule
+from jolteon.dashboard.ui.cards import surface_rule
 
 # Every one of these is read by the Live page, which does not render the
 # widget that holds it. Without session persistence the value is dropped

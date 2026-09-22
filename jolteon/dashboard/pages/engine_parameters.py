@@ -18,13 +18,10 @@ from typing import Any
 
 import streamlit as st
 
-from jolteon.dashboard.card import card_grid, surface_rule
-from jolteon.dashboard.components import (
-    BadgeColor,
-    slug,
-)
 from jolteon.dashboard.data.engines import engine_databases
 from jolteon.dashboard.data.sqlite import read_table
+from jolteon.dashboard.ui.cards import card_grid, surface_rule
+from jolteon.dashboard.ui.primitives import BadgeColor, slug
 from jolteon.engine.core.parameter.parameter_catalog import GROUPS
 from jolteon.engine.core.parameter.parameter_change_result import (
     REJECTED,

@@ -1,7 +1,5 @@
 import streamlit as st
 
-from jolteon.dashboard.card import Card, cards_rule, render_cards
-from jolteon.dashboard.components import run_status, select_engine
 from jolteon.dashboard.health_summary import watch_nav
 from jolteon.dashboard.pages import (
     fair_price_signals,
@@ -10,6 +8,8 @@ from jolteon.dashboard.pages import (
     risk_limits,
 )
 from jolteon.dashboard.settings import current_run, refresh_interval
+from jolteon.dashboard.ui.cards import Card, cards_rule, render_cards
+from jolteon.dashboard.ui.engine_selection import run_status, select_engine
 
 
 def _render_run_scope() -> None:

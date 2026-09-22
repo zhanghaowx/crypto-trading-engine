@@ -20,19 +20,7 @@ from jolteon.analysis.pnl import (
     pnl_by_symbol,
     signed_cash_flow,
 )
-from jolteon.dashboard import aggregates, table
-from jolteon.dashboard.card import Accent
-from jolteon.dashboard.components import (
-    NEGATIVE_RGB,
-    POSITIVE_RGB,
-    BadgeColor,
-    fmt_usd,
-    metric,
-    paginate,
-    row_key,
-    sign_color,
-    warn_if_no_db,
-)
+from jolteon.dashboard import aggregates
 from jolteon.dashboard.data.fair_prices import read_fair_prices_for_fills
 from jolteon.dashboard.data.runs import read_run_table
 from jolteon.dashboard.data.sqlite import (
@@ -42,6 +30,19 @@ from jolteon.dashboard.data.sqlite import (
     read_latest_per_group,
 )
 from jolteon.dashboard.settings import current_run_id
+from jolteon.dashboard.ui import table
+from jolteon.dashboard.ui.cards import Accent
+from jolteon.dashboard.ui.empty_states import warn_if_no_db
+from jolteon.dashboard.ui.pagination import paginate
+from jolteon.dashboard.ui.primitives import (
+    NEGATIVE_RGB,
+    POSITIVE_RGB,
+    BadgeColor,
+    fmt_usd,
+    metric,
+    row_key,
+    sign_color,
+)
 
 # The recorded tables grow without bound; fills are paginated rather than
 # read in full onto the page.

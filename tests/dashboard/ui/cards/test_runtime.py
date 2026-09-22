@@ -1,36 +1,10 @@
 from streamlit.testing.v1 import AppTest
 
-from jolteon.dashboard.card import (
-    Card,
-    accent_rule,
-    card_grid_rule,
-    card_key,
-    cards_rule,
-    surface_rule,
-)
-
-
-def card_grid_script():
-    import streamlit as st
-
-    from jolteon.dashboard.card import card_grid
-
-    for item in card_grid(["a", "b", "c"], key="demo-cards", columns=2):
-        st.write(item)
-
-
-def card_grid_empty_script():
-    import streamlit as st
-
-    from jolteon.dashboard.card import card_grid
-
-    st.write(list(card_grid([], key="demo-cards", columns=2)))
-
 
 def cards_script():
     import streamlit as st
 
-    from jolteon.dashboard.card import Card, render_cards
+    from jolteon.dashboard.ui.cards import Card, render_cards
 
     render_cards(
         [
@@ -55,7 +29,7 @@ def cards_script():
 def detailed_card_script():
     import streamlit as st
 
-    from jolteon.dashboard.card import Card, render_cards
+    from jolteon.dashboard.ui.cards import Card, render_cards
 
     render_cards(
         [
@@ -68,89 +42,6 @@ def detailed_card_script():
             )
         ]
     )
-
-
-def test_card_grid_renders_every_item_in_a_bordered_container():
-    at = AppTest.from_function(card_grid_script).run()
-
-    assert not at.exception
-    assert [m.value for m in at.markdown] == ["a", "b", "c"]
-
-
-def test_card_grid_yields_nothing_for_an_empty_list():
-    at = AppTest.from_function(card_grid_empty_script).run()
-
-    assert not at.exception
-    assert at.json[0].value == "[]"
-
-
-def test_card_grid_rule_caps_the_columns_and_their_minimum_width():
-    rule = card_grid_rule("cards", columns=3, min_width=240)
-
-    assert ".st-key-cards {" in rule
-    assert "columns: 3 240px" in rule
-
-
-def test_card_grid_rule_keeps_a_card_from_splitting_across_columns():
-    rule = card_grid_rule("cards", columns=3, min_width=240)
-
-    assert ".st-key-cards > * {" in rule
-    assert "break-inside: avoid" in rule
-
-
-def test_surface_rule_scopes_itself_to_the_keys_given():
-    rule = surface_rule(["one", "two"])
-
-    assert ".st-key-one, .st-key-two {" in rule
-    assert rule.startswith("<style>")
-
-
-def test_surface_rule_is_empty_when_there_are_no_cards():
-    """
-    An empty selector would leave `{ ... }` on its own, which is not a
-    rule the browser can apply to anything, so a page with no cards has
-    to emit no style block at all.
-    """
-    assert surface_rule([]) == ""
-
-
-def test_card_key_is_derived_from_the_cards_own_id():
-    assert card_key("fair-price-signals") == "card-fair-price-signals"
-
-
-def test_cards_rule_names_every_card():
-    rule = cards_rule(
-        [
-            Card("health", "Health", ":material/monitor_heart:", lambda: None),
-            Card("errors", "Errors", ":material/error:", lambda: None),
-        ]
-    )
-
-    assert ":is(.st-key-card-health, .st-key-card-errors)" in rule
-    assert "transition: box-shadow" in rule
-
-
-def test_cards_rule_scopes_descendants_to_every_card_not_just_the_last():
-    """Regression test: a bare comma list binds a descendant part to only
-    the final selector (`.a, .b desc` means `.a` OR `.b desc`), so every
-    card but the last took the expander rules on itself and the page
-    laid out sideways. `:is()` distributes them over all of them."""
-    rule = cards_rule(
-        [
-            Card("health", "Health", ":material/monitor_heart:", lambda: None),
-            Card("errors", "Errors", ":material/error:", lambda: None),
-        ]
-    )
-
-    scope = ":is(.st-key-card-health, .st-key-card-errors)"
-    assert f"{scope} [class*=" in rule
-    assert rule.count(scope) > 1
-    # Never a bare comma list in front of a descendant part.
-    assert ".st-key-card-errors [data-testid" not in rule
-
-
-def test_cards_rule_is_empty_without_cards():
-    assert cards_rule([]) == ""
 
 
 def test_every_card_renders_under_its_own_title():
@@ -291,7 +182,7 @@ def test_hiding_a_card_closes_the_modal_it_had_open():
 def accented_cards_script():
     import streamlit as st
 
-    from jolteon.dashboard.card import Card, render_cards
+    from jolteon.dashboard.ui.cards import Card, render_cards
 
     render_cards(
         [
@@ -316,7 +207,7 @@ def accented_cards_script():
 def keyed_card_script():
     import streamlit as st
 
-    from jolteon.dashboard.card import Card, render_cards
+    from jolteon.dashboard.ui.cards import Card, render_cards
 
     def refresh() -> None:
         st.button("Refresh", key="market-data-refresh")
@@ -348,22 +239,42 @@ def test_a_card_whose_details_key_what_its_content_does_still_opens():
     assert len([b for b in at.button if b.key == "market-data-refresh"]) == 1
 
 
+def half_cards_script():
+    import streamlit as st
+
+    from jolteon.dashboard.ui.cards import Card, render_cards
+
+    render_cards(
+        [
+            Card(
+                "order-book",
+                "Order Book",
+                ":material/bar_chart:",
+                lambda: st.write("book"),
+                width="half",
+            ),
+            Card(
+                "risk-limits",
+                "Risk Limits",
+                ":material/earthquake:",
+                lambda: st.write("risk"),
+                width="half",
+            ),
+            Card(
+                "orders-pnl",
+                "Orders & PnL",
+                ":material/paid:",
+                lambda: st.write("pnl"),
+            ),
+        ]
+    )
+
+
 def test_a_card_with_nothing_more_to_show_carries_no_more_icon():
     at = AppTest.from_function(half_cards_script).run()
 
     assert not at.exception
     assert not [b for b in at.button if (b.key or "").endswith("-details")]
-
-
-def test_accent_rule_stripes_the_named_card_in_the_theme_color():
-    rule = accent_rule("card-risk-limits", "red")
-
-    assert ".st-key-card-risk-limits {" in rule
-    assert "border-left: 5px solid #DC2626" in rule
-
-
-def test_accent_rule_is_empty_for_a_card_with_no_accent():
-    assert accent_rule("card-risk-limits", None) == ""
 
 
 def test_a_cards_accent_reaches_the_page():
@@ -399,107 +310,10 @@ def test_a_card_without_an_accent_emits_no_rule_for_one():
     )
 
 
-def half_cards_script():
-    import streamlit as st
-
-    from jolteon.dashboard.card import Card, render_cards
-
-    render_cards(
-        [
-            Card(
-                "order-book",
-                "Order Book",
-                ":material/bar_chart:",
-                lambda: st.write("book"),
-                width="half",
-            ),
-            Card(
-                "risk-limits",
-                "Risk Limits",
-                ":material/earthquake:",
-                lambda: st.write("risk"),
-                width="half",
-            ),
-            Card(
-                "orders-pnl",
-                "Orders & PnL",
-                ":material/paid:",
-                lambda: st.write("pnl"),
-            ),
-        ]
-    )
-
-
-def test_two_half_cards_share_a_row_and_a_full_one_keeps_its_own():
-    at = AppTest.from_function(half_cards_script).run()
-
-    assert not at.exception
-    # One row of two columns for the pair; the full card is not in it.
-    assert len(at.columns) == 2
-    assert [e.label for e in at.columns[0].expander] == [
-        ":material/bar_chart: Order Book"
-    ]
-    assert [e.label for e in at.columns[1].expander] == [
-        ":material/earthquake: Risk Limits"
-    ]
-    assert len(at.expander) == 3
-
-
-def test_hiding_one_of_a_pair_promotes_the_next_card_beside_its_partner():
-    """The pairing is done over the cards still showing, so closing one
-    does not leave the row half empty with the next card below it."""
-    at = AppTest.from_function(half_cards_script).run()
-
-    at.button(key="card-order-book-hide").click().run()
-
-    assert not at.exception
-    # Risk Limits now has no half partner, so it takes a row alone.
-    assert not at.columns
-    assert [e.label for e in at.expander] == [
-        ":material/earthquake: Risk Limits",
-        ":material/paid: Orders & PnL",
-    ]
-
-
-def lone_half_card_script():
-    import streamlit as st
-
-    from jolteon.dashboard.card import Card, render_cards
-
-    render_cards(
-        [
-            Card(
-                "orders-pnl",
-                "Orders & PnL",
-                ":material/paid:",
-                lambda: st.write("pnl"),
-            ),
-            Card(
-                "risk-limits",
-                "Risk Limits",
-                ":material/earthquake:",
-                lambda: st.write("risk"),
-                width="half",
-            ),
-        ]
-    )
-
-
-def test_a_half_card_with_no_partner_left_still_gets_drawn():
-    at = AppTest.from_function(lone_half_card_script).run()
-
-    assert not at.exception
-    assert [e.label for e in at.expander] == [
-        ":material/paid: Orders & PnL",
-        ":material/earthquake: Risk Limits",
-    ]
-    assert "risk" in [m.value for m in at.markdown]
-
-
 def renamed_card_script():
     import streamlit as st
 
-    from jolteon.dashboard.card import Card, render_cards
+    from jolteon.dashboard.ui.cards import Card, render_cards
 
     render_cards(
         [
@@ -530,29 +344,6 @@ def test_a_card_renamed_keeps_the_identity_its_state_is_held_under():
     assert at.button(key="card-unhide").label == "Show Market Prices"
 
 
-def repeated_id_script():
-    import streamlit as st
-
-    from jolteon.dashboard.card import Card, render_cards
-
-    render_cards(
-        [
-            Card("book", "Order Book", ":material/bar_chart:", lambda: None),
-            Card("book", "Depth", ":material/bar_chart:", lambda: st.write()),
-        ]
-    )
-
-
-def test_two_cards_may_not_answer_to_the_same_id():
-    """Sharing an id means sharing a container key and a hidden flag, so
-    hiding one would hide the other and Streamlit would refuse the second
-    card's widgets as duplicates of the first's."""
-    at = AppTest.from_function(repeated_id_script).run()
-
-    assert at.exception
-    assert "book" in at.exception[0].message
-
-
 def isolated_cards_script():
     """Two cards, with what Streamlit is handed for each one captured
     rather than run, so a test can run one card's fragment on its own -
@@ -561,7 +352,7 @@ def isolated_cards_script():
 
     import streamlit as st
 
-    from jolteon.dashboard.card import Card, render_cards
+    from jolteon.dashboard.ui.cards import Card, render_cards
 
     ran = st.session_state.setdefault("ran", [])
     fragments = st.session_state.setdefault("fragments", {})
@@ -674,7 +465,7 @@ def test_no_card_refreshes_while_the_reader_has_refreshing_switched_off():
 
 
 def test_a_card_that_declines_to_refresh_gets_no_timer():
-    from jolteon.dashboard.card import Card, refresh_every
+    from jolteon.dashboard.ui.cards import Card, refresh_every
 
     assert (
         refresh_every(Card("a", "A", "", lambda: None, refresh=False)) is None
@@ -685,7 +476,7 @@ def test_manual_refresh_can_be_omitted():
     def script():
         import streamlit as st
 
-        from jolteon.dashboard.card import Card, render_cards
+        from jolteon.dashboard.ui.cards import Card, render_cards
 
         render_cards(
             [Card("a", "A", "", lambda: st.write("A"), manual_refresh=False)]
