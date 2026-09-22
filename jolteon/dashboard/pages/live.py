@@ -5,6 +5,7 @@ from jolteon.dashboard.cards import (
     order_book,
     orders_pnl,
     risk_limits,
+    trade_quality,
 )
 from jolteon.dashboard.health_summary import watch_nav
 from jolteon.dashboard.settings import current_run, refresh_interval
@@ -52,7 +53,7 @@ cards = [
         "trade-quality",
         "Trade Quality",
         ":material/target:",
-        orders_pnl.render_trade_quality,
+        trade_quality.render,
     ),
     Card(
         "fair-price-signals",
