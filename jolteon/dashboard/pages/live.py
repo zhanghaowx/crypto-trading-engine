@@ -7,10 +7,10 @@ from jolteon.dashboard.cards import (
     risk_limits,
     trade_quality,
 )
-from jolteon.dashboard.health_summary import watch_nav
 from jolteon.dashboard.settings import current_run, refresh_interval
 from jolteon.dashboard.ui.cards import Card, cards_rule, render_cards
 from jolteon.dashboard.ui.engine_selection import run_status, select_engine
+from jolteon.dashboard.ui.navigation import watch_nav
 
 
 def _render_run_scope() -> None:

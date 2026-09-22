@@ -48,7 +48,7 @@ def select_engine() -> None:
 
 
 # What a run's status is called on screen. The recording's own "open" is
-# settled into one of these by `health_summary.resolve_run`.
+# settled into one of these by `services.health.resolve_run`.
 _RUN_STATUS_LABELS = {
     "running": "Running",
     "stopped": "Stopped",

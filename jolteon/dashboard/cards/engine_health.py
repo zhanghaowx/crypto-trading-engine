@@ -7,7 +7,7 @@ import streamlit as st
 
 from jolteon.dashboard.data.engines import engine_databases
 from jolteon.dashboard.data.sqlite import as_datetime
-from jolteon.dashboard.health_summary import heartbeats, is_down
+from jolteon.dashboard.services.health import heartbeats, is_down
 from jolteon.dashboard.ui.cards import card_grid
 from jolteon.dashboard.ui.primitives import SEMANTIC_COLORS, BadgeColor, slug
 from jolteon.engine.core.health_monitor.heartbeat import HeartbeatLevel

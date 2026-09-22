@@ -2,7 +2,7 @@ import sqlite3
 import time
 from pathlib import Path
 
-from jolteon.dashboard.health_summary import HEARTBEAT_TIMEOUT_SECONDS
+from jolteon.dashboard.services.health import HEARTBEAT_TIMEOUT_SECONDS
 from jolteon.engine.core.storage import paths
 
 
