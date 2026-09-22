@@ -381,3 +381,159 @@ def test_run_scoped_markouts_measure_only_the_named_run(tmp_path):
     assert quality.loc["BUY", "avg_markout_1s"] == pytest.approx(3.0)
     assert movement["1s"] == pytest.approx(2.0)
     assert buckets["fill_count"].sum() == 1
+
+
+def test_session_economics_weights_markouts_by_fill_quantity(tmp_path):
+    db_path = _recording(
+        tmp_path,
+        [
+            _fill("BUY", 100.0, 102.0, 0.1, 1.0, 0.0, at_1s=103.0),
+            _fill("BUY", 100.0, 101.0, 0.3, 3.0, 0.0, at_1s=99.0),
+        ],
+    )
+
+    economics = aggregates.session_economics(db_path)
+    overall = economics.loc["ALL"]
+
+    assert overall["fill_count"] == 2
+    assert overall["base_qty"] == pytest.approx(4.0)
+    assert overall["notional"] == pytest.approx(400.0)
+    assert overall["fees"] == pytest.approx(0.4)
+
+    # Per-unit edges are +2 and +1, but the +1 fill is three times larger.
+    assert overall["gross_edge"] == pytest.approx(5.0)
+    assert overall["gross_edge_per_unit"] == pytest.approx(1.25)
+    assert overall["gross_edge_bps"] == pytest.approx(125.0)
+    assert overall["net_edge"] == pytest.approx(4.6)
+
+    # At +1s the small fill is +3 while the large fill is -1 per unit.
+    # Equal-weight averaging would misleadingly report +1; quantity-weighted
+    # economics correctly report zero gross dollars.
+    assert overall["gross_markout_1s"] == pytest.approx(0.0)
+    assert overall["net_markout_1s"] == pytest.approx(-0.4)
+    assert overall["gross_markout_per_unit_1s"] == pytest.approx(0.0)
+    assert overall["adverse_selection_1s"] == pytest.approx(-5.0)
+
+
+def test_session_economics_separates_buy_and_sell(tmp_path):
+    db_path = _recording(
+        tmp_path,
+        [
+            _fill("BUY", 100.0, 101.0, 0.1, 2.0, 0.0, at_1s=103.0),
+            _fill("SELL", 110.0, 108.0, 0.2, 1.0, 0.0, at_1s=105.0),
+        ],
+    )
+
+    economics = aggregates.session_economics(db_path)
+
+    assert list(economics.index) == ["ALL", "BUY", "SELL"]
+    assert economics.loc["BUY", "gross_edge"] == pytest.approx(2.0)
+    assert economics.loc["BUY", "gross_markout_1s"] == pytest.approx(6.0)
+    assert economics.loc["SELL", "gross_edge"] == pytest.approx(2.0)
+    assert economics.loc["SELL", "gross_markout_1s"] == pytest.approx(5.0)
+
+
+def test_session_economics_respects_run_scope(tmp_path):
+    db_path = _run_recording(
+        tmp_path,
+        [
+            ("run-a", "BUY", 100.0, 110.0, 1.0, 10.0, 120.0),
+            ("run-b", "SELL", 110.0, 108.0, 0.25, 1.0, 105.0),
+        ],
+    )
+
+    economics = aggregates.session_economics(db_path, "run-b")
+
+    assert economics.loc["ALL", "fill_count"] == 1
+    assert economics.loc["ALL", "notional"] == pytest.approx(110.0)
+    assert economics.loc["ALL", "fees"] == pytest.approx(0.25)
+    assert economics.loc["ALL", "gross_markout_1s"] == pytest.approx(5.0)
+
+
+def test_session_economics_answers_a_run_with_no_fills_with_nothing(tmp_path):
+    """A run that never traded has no economics, and must come back with
+    nothing to say so. Summing over no rows - in SQL or in pandas -
+    answers with a row of NULLs instead, which reads on the page as a
+    session that traded for nothing."""
+    db_path = _recording(tmp_path, [])
+
+    assert aggregates.session_economics(db_path).empty
+
+
+def test_session_economics_answers_an_unwritten_recording_with_nothing(
+    tmp_path,
+):
+    assert aggregates.session_economics(str(tmp_path / "missing.sqlite")).empty
+
+
+def _recording_without_a_price_at_the_fill(tmp_path) -> str:
+    """Two fills of the same size: one with a fair price at the fill and a
+    second later, one with only the later price - a gap in the recording
+    right where the first was executed."""
+    db_path = str(Path(tmp_path) / "gap.sqlite")
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(f"CREATE TABLE decorated_order_fill ({_FILL_COLUMNS})")
+        conn.executemany(
+            "INSERT INTO decorated_order_fill VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+                (0.0, "BUY", 100.0, 0.1, 1.0, 0.0, "BTC-USD", MODEL),
+                (100.0, "BUY", 100.0, 0.5, 1.0, 0.0, "BTC-USD", MODEL),
+            ],
+        )
+        conn.execute(f"CREATE TABLE fair_price ({_FAIR_COLUMNS})")
+        conn.executemany(
+            "INSERT INTO fair_price VALUES (?, ?, ?, ?, ?)",
+            [
+                # The measurable fill: fair 101 at the fill, 103 a second on.
+                (0.0, "BTC-USD", MODEL, 100.0, 102.0),
+                (1.0, "BTC-USD", MODEL, 102.0, 104.0),
+                # The second fill has only the later price, at 120.
+                (101.0, "BTC-USD", MODEL, 119.0, 121.0),
+            ],
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return db_path
+
+
+def test_adverse_selection_reads_only_fills_measurable_at_both_ends(tmp_path):
+    """Decay is a markout read against the edge the same fill started
+    with. A fill with no fair price at the moment it was executed has no
+    edge to read its markout against, so counting its markout while
+    leaving its edge out reports a decay nothing measured."""
+    db_path = _recording_without_a_price_at_the_fill(tmp_path)
+
+    economics = aggregates.session_economics(db_path)
+    overall = economics.loc["ALL"]
+
+    # Only the first fill can be measured: fair went 101 -> 103 over the
+    # second after it, so the market moved 2.00 our way.
+    assert overall["adverse_selection_1s"] == pytest.approx(2.0)
+    assert overall["measured_qty_1s"] == pytest.approx(1.0)
+    assert overall["gross_markout_1s"] == pytest.approx(3.0)
+    # The run still counts both fills, and says so.
+    assert overall["fill_count"] == 2
+    assert overall["notional"] == pytest.approx(200.0)
+
+
+def test_fees_are_measured_over_the_same_fills_as_the_figures(tmp_path):
+    """A row's net reading subtracts the fees of the fills that row could
+    measure, so the fees have to be counted on the same gate. Read against
+    the whole run's fees instead, gross less fees would not come to net."""
+    db_path = _recording_without_a_price_at_the_fill(tmp_path)
+
+    overall = aggregates.session_economics(db_path).loc["ALL"]
+
+    # Both fills paid a fee; only the first can be measured at all.
+    assert overall["fees"] == pytest.approx(0.6)
+    assert overall["measured_fees_at_fill"] == pytest.approx(0.1)
+    assert overall["measured_fees_1s"] == pytest.approx(0.1)
+
+    assert overall["net_edge"] == pytest.approx(
+        overall["gross_edge"] - overall["measured_fees_at_fill"]
+    )
+    assert overall["net_markout_1s"] == pytest.approx(
+        overall["gross_markout_1s"] - overall["measured_fees_1s"]
+    )
