@@ -4,7 +4,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from jolteon.dashboard import aggregates
+from jolteon.dashboard.data import trade_queries
 
 MODEL = "AdjustedFairPriceModel"
 
@@ -82,7 +82,7 @@ def test_fill_quality_splits_buy_from_sell(tmp_path):
         ],
     )
 
-    by_side = aggregates.fill_quality_by_side(db_path)
+    by_side = trade_queries.fill_quality_by_side(db_path)
 
     assert by_side.loc["BUY", "fill_count"] == 2
     assert by_side.loc["BUY", "avg_edge"] == pytest.approx(0.0)
@@ -103,7 +103,7 @@ def test_a_horizon_that_has_not_resolved_is_missing_not_zero(tmp_path):
         tmp_path, [_fill("BUY", 100.0, 100.0, 0.1, 1.0, 0.0, at_1s=None)]
     )
 
-    by_side = aggregates.fill_quality_by_side(db_path)
+    by_side = trade_queries.fill_quality_by_side(db_path)
 
     assert pd.isna(by_side.loc["BUY", "avg_markout_1s"])
 
@@ -118,7 +118,7 @@ def test_inventory_buckets_are_read_short_through_long(tmp_path):
         ],
     )
 
-    buckets = aggregates.inventory_buckets(db_path)
+    buckets = trade_queries.inventory_buckets(db_path)
 
     assert list(buckets.index) == [
         "Strongly short",
@@ -145,7 +145,7 @@ def test_a_fill_without_the_position_held_before_it_joins_no_bucket(tmp_path):
         tmp_path, [_fill("BUY", 100.0, 100.0, 0.1, 1.0, None)]
     )
 
-    assert aggregates.inventory_buckets(db_path).empty
+    assert trade_queries.inventory_buckets(db_path).empty
 
 
 def test_position_and_cash_sum_over_every_fill(tmp_path):
@@ -158,7 +158,7 @@ def test_position_and_cash_sum_over_every_fill(tmp_path):
         ],
     )
 
-    totals = aggregates.position_and_cash(db_path)
+    totals = trade_queries.position_and_cash(db_path)
 
     assert totals.loc["BTC-USD", "position"] == pytest.approx(1.0)
     # -200 paid, +110 received, 0.30 of fees.
@@ -176,8 +176,8 @@ def test_fees_and_presence_are_asked_of_the_recording(tmp_path):
         ],
     )
 
-    assert aggregates.any_fills(db_path)
-    assert aggregates.total_fees(db_path) == pytest.approx(0.35)
+    assert trade_queries.any_fills(db_path)
+    assert trade_queries.total_fees(db_path) == pytest.approx(0.35)
 
 
 def test_fair_price_movement_is_side_independent(tmp_path):
@@ -189,7 +189,7 @@ def test_fair_price_movement_is_side_independent(tmp_path):
         ],
     )
 
-    moved = aggregates.avg_fair_price_movement(db_path)
+    moved = trade_queries.avg_fair_price_movement(db_path)
 
     # +2 and -2 either side of the fair price it was filled at.
     assert moved["1s"] == pytest.approx(0.0)
@@ -199,12 +199,12 @@ def test_fair_price_movement_is_side_independent(tmp_path):
 def test_a_recording_with_no_fills_answers_with_nothing(tmp_path):
     db_path = _recording(tmp_path, [])
 
-    assert not aggregates.any_fills(db_path)
-    assert aggregates.total_fees(db_path) == 0.0
-    assert aggregates.fill_quality_by_side(db_path).empty
-    assert aggregates.inventory_buckets(db_path).empty
-    assert aggregates.position_and_cash(db_path).empty
-    assert aggregates.avg_fair_price_movement(db_path).isna().all()
+    assert not trade_queries.any_fills(db_path)
+    assert trade_queries.total_fees(db_path) == 0.0
+    assert trade_queries.fill_quality_by_side(db_path).empty
+    assert trade_queries.inventory_buckets(db_path).empty
+    assert trade_queries.position_and_cash(db_path).empty
+    assert trade_queries.avg_fair_price_movement(db_path).isna().all()
 
 
 def test_a_recording_without_the_columns_answers_with_nothing(tmp_path):
@@ -220,18 +220,18 @@ def test_a_recording_without_the_columns_answers_with_nothing(tmp_path):
     finally:
         conn.close()
 
-    assert aggregates.fill_quality_by_side(db_path).empty
-    assert aggregates.inventory_buckets(db_path).empty
-    assert aggregates.position_and_cash(db_path).empty
-    assert aggregates.total_fees(db_path) == 0.0
+    assert trade_queries.fill_quality_by_side(db_path).empty
+    assert trade_queries.inventory_buckets(db_path).empty
+    assert trade_queries.position_and_cash(db_path).empty
+    assert trade_queries.total_fees(db_path) == 0.0
 
 
 def test_a_recording_that_is_not_there_answers_with_nothing(tmp_path):
     missing = str(Path(tmp_path) / "absent.sqlite")
 
-    assert not aggregates.any_fills(missing)
-    assert aggregates.fill_quality_by_side(missing).empty
-    assert aggregates.total_fees(missing) == 0.0
+    assert not trade_queries.any_fills(missing)
+    assert trade_queries.fill_quality_by_side(missing).empty
+    assert trade_queries.total_fees(missing) == 0.0
 
 
 def test_fill_quality_derives_prices_from_recorded_fair_price_series(tmp_path):
@@ -266,7 +266,7 @@ def test_fill_quality_derives_prices_from_recorded_fair_price_series(tmp_path):
     finally:
         conn.close()
 
-    by_side = aggregates.fill_quality_by_side(db_path)
+    by_side = trade_queries.fill_quality_by_side(db_path)
 
     assert by_side.loc["BUY", "fill_count"] == 1
     assert by_side.loc["BUY", "avg_edge"] == pytest.approx(1.0)
@@ -305,7 +305,7 @@ def test_derived_markout_does_not_bridge_a_long_fair_price_gap(tmp_path):
     finally:
         conn.close()
 
-    by_side = aggregates.fill_quality_by_side(db_path)
+    by_side = trade_queries.fill_quality_by_side(db_path)
 
     assert by_side.loc["BUY", "avg_edge"] == pytest.approx(1.0)
     assert pd.isna(by_side.loc["BUY", "avg_markout_1s"])
@@ -344,7 +344,7 @@ def _run_recording(tmp_path, fills) -> str:
     return db_path
 
 
-def test_run_scoped_aggregates_exclude_previous_engine_runs(tmp_path):
+def test_run_scoped_queries_exclude_previous_engine_runs(tmp_path):
     db_path = _run_recording(
         tmp_path,
         [
@@ -353,15 +353,15 @@ def test_run_scoped_aggregates_exclude_previous_engine_runs(tmp_path):
         ],
     )
 
-    totals = aggregates.position_and_cash(db_path, "run-b")
-    quality = aggregates.fill_quality_by_side(db_path, "run-b")
+    totals = trade_queries.position_and_cash(db_path, "run-b")
+    quality = trade_queries.fill_quality_by_side(db_path, "run-b")
 
     assert totals.loc["BTC-USD", "position"] == pytest.approx(-1.0)
-    assert aggregates.total_fees(db_path, "run-b") == pytest.approx(0.25)
+    assert trade_queries.total_fees(db_path, "run-b") == pytest.approx(0.25)
     assert quality["fill_count"].sum() == 1
     assert quality.index.tolist() == ["SELL"]
-    assert aggregates.any_fills(db_path, "run-b")
-    assert not aggregates.any_fills(db_path, "missing-run")
+    assert trade_queries.any_fills(db_path, "run-b")
+    assert not trade_queries.any_fills(db_path, "missing-run")
 
 
 def test_run_scoped_markouts_measure_only_the_named_run(tmp_path):
@@ -373,9 +373,9 @@ def test_run_scoped_markouts_measure_only_the_named_run(tmp_path):
         ],
     )
 
-    quality = aggregates.fill_quality_by_side(db_path, "run-b")
-    movement = aggregates.avg_fair_price_movement(db_path, "run-b")
-    buckets = aggregates.inventory_buckets(db_path, run_id="run-b")
+    quality = trade_queries.fill_quality_by_side(db_path, "run-b")
+    movement = trade_queries.avg_fair_price_movement(db_path, "run-b")
+    buckets = trade_queries.inventory_buckets(db_path, run_id="run-b")
 
     # run-a's fill moved 19 in its favour; averaging both would show it.
     assert quality.loc["BUY", "avg_markout_1s"] == pytest.approx(3.0)
@@ -392,7 +392,7 @@ def test_session_economics_weights_markouts_by_fill_quantity(tmp_path):
         ],
     )
 
-    economics = aggregates.session_economics(db_path)
+    economics = trade_queries.session_economics(db_path)
     overall = economics.loc["ALL"]
 
     assert overall["fill_count"] == 2
@@ -424,7 +424,7 @@ def test_session_economics_separates_buy_and_sell(tmp_path):
         ],
     )
 
-    economics = aggregates.session_economics(db_path)
+    economics = trade_queries.session_economics(db_path)
 
     assert list(economics.index) == ["ALL", "BUY", "SELL"]
     assert economics.loc["BUY", "gross_edge"] == pytest.approx(2.0)
@@ -442,7 +442,7 @@ def test_session_economics_respects_run_scope(tmp_path):
         ],
     )
 
-    economics = aggregates.session_economics(db_path, "run-b")
+    economics = trade_queries.session_economics(db_path, "run-b")
 
     assert economics.loc["ALL", "fill_count"] == 1
     assert economics.loc["ALL", "notional"] == pytest.approx(110.0)
@@ -457,13 +457,15 @@ def test_session_economics_answers_a_run_with_no_fills_with_nothing(tmp_path):
     session that traded for nothing."""
     db_path = _recording(tmp_path, [])
 
-    assert aggregates.session_economics(db_path).empty
+    assert trade_queries.session_economics(db_path).empty
 
 
 def test_session_economics_answers_an_unwritten_recording_with_nothing(
     tmp_path,
 ):
-    assert aggregates.session_economics(str(tmp_path / "missing.sqlite")).empty
+    assert trade_queries.session_economics(
+        str(tmp_path / "missing.sqlite")
+    ).empty
 
 
 def _recording_without_a_price_at_the_fill(tmp_path) -> str:
@@ -505,7 +507,7 @@ def test_adverse_selection_reads_only_fills_measurable_at_both_ends(tmp_path):
     leaving its edge out reports a decay nothing measured."""
     db_path = _recording_without_a_price_at_the_fill(tmp_path)
 
-    economics = aggregates.session_economics(db_path)
+    economics = trade_queries.session_economics(db_path)
     overall = economics.loc["ALL"]
 
     # Only the first fill can be measured: fair went 101 -> 103 over the
@@ -524,7 +526,7 @@ def test_fees_are_measured_over_the_same_fills_as_the_figures(tmp_path):
     the whole run's fees instead, gross less fees would not come to net."""
     db_path = _recording_without_a_price_at_the_fill(tmp_path)
 
-    overall = aggregates.session_economics(db_path).loc["ALL"]
+    overall = trade_queries.session_economics(db_path).loc["ALL"]
 
     # Both fills paid a fee; only the first can be measured at all.
     assert overall["fees"] == pytest.approx(0.6)

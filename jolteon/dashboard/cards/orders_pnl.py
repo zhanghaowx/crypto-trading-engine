@@ -19,7 +19,7 @@ from jolteon.analysis.pnl import (
     pnl_by_symbol,
     signed_cash_flow,
 )
-from jolteon.dashboard import aggregates
+from jolteon.dashboard.data import trade_queries
 from jolteon.dashboard.data.fair_prices import read_fair_prices_for_fills
 from jolteon.dashboard.data.runs import read_run_table
 from jolteon.dashboard.data.sqlite import (
@@ -392,10 +392,10 @@ def load() -> OrdersModel:
     return OrdersModel(
         fills,
         pnl_by_symbol(
-            aggregates.position_and_cash(db_path, run_id), latest_mid
+            trade_queries.position_and_cash(db_path, run_id), latest_mid
         ),
         realized_pnl_now(db_path, run_id),
-        aggregates.total_fees(db_path, run_id),
+        trade_queries.total_fees(db_path, run_id),
     )
 
 
