@@ -291,6 +291,44 @@ class TestSQLiteWriter(unittest.TestCase):
         self.writer.prune("never_written", keep_last=3)
         self.writer.flush()
 
+    def test_index_covers_the_columns_it_was_asked_for(self):
+        self.writer.put("t", {"a": 1, "b": 2})
+        self.writer.index("t", ("a", "b"))
+        self.writer.flush()
+
+        self.assertEqual(
+            [
+                (
+                    "jolteon_t_a_b",
+                    'CREATE INDEX "jolteon_t_a_b" ON "t" ("a", "b")',
+                )
+            ],
+            self.query(
+                "SELECT name, sql FROM sqlite_master WHERE type = 'index'"
+            ),
+        )
+
+    def test_indexing_the_same_table_twice_leaves_one_index(self):
+        self.writer.put("t", {"a": 1})
+        self.writer.index("t", ("a",))
+        self.writer.index("t", ("a",))
+        self.writer.flush()
+
+        self.assertEqual(
+            [(1,)],
+            self.query(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index'"
+            ),
+        )
+
+    def test_index_of_a_table_never_written_to_is_a_no_op(self):
+        """
+        An index request naming a table this writer has no schema for must
+        not raise "no such table" - there is nothing yet to index.
+        """
+        self.writer.index("never_written", ("a",))
+        self.writer.flush()
+
     def test_concurrent_producers_lose_nothing(self):
         num_threads = 50
         rows_each = 20

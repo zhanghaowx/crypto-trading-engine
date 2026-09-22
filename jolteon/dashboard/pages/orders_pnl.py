@@ -30,7 +30,6 @@ from jolteon.dashboard.components import (
 )
 from jolteon.dashboard.data import (
     as_datetime,
-    ensure_fair_price_lookup_index,
     max_rowid,
     read_after,
     read_fair_prices_for_fills,
@@ -123,7 +122,6 @@ def _derive_visible_markouts(
     The card shows one page at a time, so the fair-price series is read
     for the window those fills span rather than for the whole session.
     """
-    ensure_fair_price_lookup_index(db_path)
     fair_prices = read_fair_prices_for_fills(
         db_path,
         fills,

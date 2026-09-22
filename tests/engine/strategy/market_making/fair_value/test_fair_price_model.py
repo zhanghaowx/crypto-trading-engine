@@ -1,3 +1,4 @@
+import dataclasses
 import unittest
 
 from jolteon.engine.market_data.core.bbo import BBO
@@ -57,6 +58,20 @@ class TestIFairPriceModel(unittest.TestCase):
             ],
             self.updates,
         )
+
+    def test_the_index_names_columns_the_update_actually_carries(self):
+        """
+        The recorded series is indexed on these, and `timestamp` is the
+        column the recorder stamps every row with. A field renamed
+        without the index following would leave the index on a column
+        that no longer exists, and the lookup back to a fair price would
+        quietly go back to scanning.
+        """
+        recorded = {
+            field.name for field in dataclasses.fields(FairPriceUpdate)
+        } | {"timestamp"}
+
+        self.assertLessEqual(set(FairPriceUpdate.INDEX), recorded)
 
 
 if __name__ == "__main__":

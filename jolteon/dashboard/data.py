@@ -34,17 +34,7 @@ _MAX_CACHED_ROWS = 100_000
 # rewritten in place under their key, rather than appended.
 _REWRITABLE_ROWS = 5_000
 
-# Markouts are joined per fill against the fair-price series on
-# (symbol, model, timestamp). SignalRecorder declares no indexes - it
-# records, it does not know what will be asked of the recording - so
-# without this each fill scans the whole series and the join is quadratic
-# in the length of the session.
 FAIR_PRICES = "fair_price"
-_FAIR_PRICE_LOOKUP_INDEX = "jolteon_fair_price_lookup"
-
-# Paths whose index this process has already seen to, so a refresh does
-# not ask the recording about its schema several times a second.
-_indexed_paths: set[str] = set()
 
 
 def reset_table_cache() -> None:
@@ -225,35 +215,6 @@ def read_table(db_path: str, table: str) -> pd.DataFrame:
     # not pile up on the frame kept for the next refresh. It copies the
     # column index, not the rows.
     return frame.copy(deep=False)
-
-
-def ensure_fair_price_lookup_index(db_path: str) -> bool:
-    """
-    Create the fair-price lookup index if the recording has no such index
-    yet, and report whether one is now there to be used.
-
-    The engine owns this file and may hold it locked; a recording that
-    cannot be indexed right now still answers, only slowly, so a failure
-    here is not worth surfacing to the viewer.
-    """
-    if not database_exists(db_path):
-        return False
-    if db_path in _indexed_paths:
-        return True
-    conn = sqlite3.connect(db_path)
-    try:
-        conn.execute(
-            f'CREATE INDEX IF NOT EXISTS "{_FAIR_PRICE_LOOKUP_INDEX}" '
-            f'ON "{FAIR_PRICES}" (symbol, model, timestamp)'
-        )
-        conn.commit()
-    except sqlite3.Error:
-        return False
-    else:
-        _indexed_paths.add(db_path)
-        return True
-    finally:
-        conn.close()
 
 
 def read_fair_prices_for_fills(

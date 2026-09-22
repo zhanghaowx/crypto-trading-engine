@@ -11,7 +11,6 @@ from streamlit.testing.v1 import AppTest
 from jolteon.dashboard.data import (
     count_matching,
     engine_runs,
-    ensure_fair_price_lookup_index,
     last_rowid_where,
     latest_engine_run,
     max_rowid,
@@ -564,53 +563,6 @@ def test_fair_prices_from_a_recording_without_the_table_are_nothing(tmp_path):
     assert read_fair_prices_for_fills(
         db_path, fills, max_horizon_seconds=30.0, max_lag_seconds=1.0
     ).empty
-
-
-def test_the_fair_price_index_is_made_once_and_survives_a_locked_recording(
-    tmp_path,
-):
-    missing = str(tmp_path / "absent.sqlite")
-    assert not ensure_fair_price_lookup_index(missing)
-
-    db_path = str(tmp_path / "indexed.sqlite")
-    conn = sqlite3.connect(db_path)
-    try:
-        conn.execute(
-            "CREATE TABLE fair_price (timestamp REAL, symbol TEXT, "
-            "model TEXT, bid_fair_price REAL, ask_fair_price REAL)"
-        )
-        conn.commit()
-    finally:
-        conn.close()
-
-    assert ensure_fair_price_lookup_index(db_path)
-    # Asked a second time, the answer comes from what this process
-    # already did rather than from the recording.
-    assert ensure_fair_price_lookup_index(db_path)
-
-    conn = sqlite3.connect(db_path)
-    try:
-        names = {
-            row[0]
-            for row in conn.execute(
-                "SELECT name FROM sqlite_master WHERE type = 'index'"
-            )
-        }
-    finally:
-        conn.close()
-    assert "jolteon_fair_price_lookup" in names
-
-
-def test_a_recording_with_no_fair_prices_cannot_be_indexed(tmp_path):
-    db_path = str(tmp_path / "unindexable.sqlite")
-    conn = sqlite3.connect(db_path)
-    try:
-        conn.execute("CREATE TABLE other (x REAL)")
-        conn.commit()
-    finally:
-        conn.close()
-
-    assert not ensure_fair_price_lookup_index(db_path)
 
 
 def test_fair_prices_are_not_read_for_fills_that_name_no_model(tmp_path):

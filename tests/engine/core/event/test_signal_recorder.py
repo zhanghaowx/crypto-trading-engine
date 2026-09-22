@@ -190,6 +190,48 @@ class TestSignalRecorder(unittest.IsolatedAsyncioTestCase):
             ],
         )
 
+    async def test_a_payload_declaring_an_index_gets_its_table_indexed(self):
+        """
+        The recording owns its own schema: a payload that says which
+        columns its series is read back by is indexed on them here,
+        rather than by whoever later reads the file.
+        """
+
+        class Payload:
+            INDEX = ("symbol", "model")
+
+            def __init__(self, symbol: str, model: str):
+                self.symbol = symbol
+                self.model = model
+
+        self.signal_a.send(self.signal_a, payload=Payload("BTC/USD", "mid"))
+        self.signal_a.send(self.signal_a, payload=Payload("ETH/USD", "mid"))
+        self.signal_recorder.flush()
+
+        with closing(sqlite3.connect(self.database_filepath)) as conn:
+            indexes = conn.execute(
+                "SELECT name, tbl_name FROM sqlite_master WHERE type = 'index'"
+            ).fetchall()
+
+        self.assertEqual(
+            [("jolteon_signal_a_symbol_model", "signal_a")], indexes
+        )
+
+    async def test_a_payload_declaring_no_index_leaves_its_table_bare(self):
+        class Payload:
+            def __init__(self, value: int):
+                self.value = value
+
+        self.signal_a.send(self.signal_a, payload=Payload(1))
+        self.signal_recorder.flush()
+
+        with closing(sqlite3.connect(self.database_filepath)) as conn:
+            indexes = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'index'"
+            ).fetchall()
+
+        self.assertEqual([], indexes)
+
     async def test_handle_signal_payload_has_no_primary_key(self):
         class SomeEnum(Enum):
             A = 1
