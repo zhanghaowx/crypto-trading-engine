@@ -2,8 +2,11 @@ from unittest.mock import patch
 
 import pytest
 
-from jolteon.app.exchanges import exchange_definition, exchanges
 from jolteon.engine.core.market import Market
+from jolteon.engine.runtime.exchange_registry import (
+    exchange_definition,
+    exchanges,
+)
 
 
 def test_registry_contains_kraken_and_binance_us():
@@ -21,19 +24,23 @@ def test_binance_us_translates_symbols_only_at_its_boundary():
     assert exchange.decode_symbol("btc-usd") == "BTC/USD"
 
 
-def test_kraken_application_is_loaded_through_the_registry():
-    with patch("jolteon.app.kraken.KrakenApplication") as application:
-        exchange_definition(Market.KRAKEN).application("BTC/USD", paper=True)
+def test_kraken_runtime_is_loaded_through_the_registry():
+    with patch(
+        "jolteon.engine.runtime.venues.kraken.KrakenRuntime"
+    ) as runtime:
+        exchange_definition(Market.KRAKEN).runtime("BTC/USD", paper=True)
 
-    application.assert_called_once_with("BTC/USD", paper=True)
+    runtime.assert_called_once_with("BTC/USD", paper=True)
 
 
-def test_binance_us_application_and_fee_schedule_are_registered():
+def test_binance_us_runtime_and_fee_schedule_are_registered():
     exchange = exchange_definition(Market.BINANCE_US)
-    with patch("jolteon.app.binance_us.BinanceUsApplication") as application:
-        exchange.application("BTC/USD", use_mock_execution=True)
+    with patch(
+        "jolteon.engine.runtime.venues.binance_us.BinanceUsRuntime"
+    ) as runtime:
+        exchange.runtime("BTC/USD", use_mock_execution=True)
 
-    application.assert_called_once_with("BTC/USD", use_mock_execution=True)
+    runtime.assert_called_once_with("BTC/USD", use_mock_execution=True)
     assert exchange.fee_schedule.__name__ == "BinanceUsFeeSchedule"
 
 

@@ -6,7 +6,6 @@ from contextlib import closing
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from jolteon.app.trading_application import TradingApplication
 from jolteon.engine.core.event.signal import signal, subscribe
 from jolteon.engine.core.event.signal_subscriber import SignalSubscriber
 from jolteon.engine.core.health_monitor.health import (
@@ -20,6 +19,7 @@ from jolteon.engine.core.parameter.parameter_service import (
 )
 from jolteon.engine.market_data.core.bbo import BBO
 from jolteon.engine.market_data.core.book_snapshot import BookSnapshot
+from jolteon.engine.runtime.engine_runtime import EngineRuntime
 from jolteon.engine.strategy.market_making.fair_value.fair_price_model import (
     FairPrice,
     IFairPriceModel,
@@ -52,9 +52,9 @@ class _Venue(SignalSubscriber):
         self.latest_bbo = bbo
 
 
-class TestTradingApplicationDisconnect(unittest.TestCase):
+class TestEngineRuntimeDisconnect(unittest.TestCase):
     def _make_app(self, name: str, venue: _Venue):
-        app = TradingApplication(
+        app = EngineRuntime(
             symbol="BTC/USD",
             database_name=f"{tempfile.gettempdir()}/test_{name}.sqlite",
             logfile_name=f"{tempfile.gettempdir()}/test_{name}.log",
@@ -83,9 +83,9 @@ class TestTradingApplicationDisconnect(unittest.TestCase):
         running.disconnect_all()
 
 
-class TestTradingApplicationEngineRun(unittest.TestCase):
+class TestEngineRuntimeEngineRun(unittest.TestCase):
     def setUp(self):
-        self._apps: list[TradingApplication] = []
+        self._apps: list[EngineRuntime] = []
 
     def tearDown(self):
         self._release_files()
@@ -105,8 +105,8 @@ class TestTradingApplicationEngineRun(unittest.TestCase):
                 root_logger.removeHandler(handler)
                 handler.close()
 
-    def _make_app(self, folder: str, name: str) -> TradingApplication:
-        app = TradingApplication(
+    def _make_app(self, folder: str, name: str) -> EngineRuntime:
+        app = EngineRuntime(
             symbol="BTC/USD",
             exchange="Binance.US",
             database_name=f"{folder}/{name}.sqlite",
@@ -148,9 +148,9 @@ class TestTradingApplicationEngineRun(unittest.TestCase):
         self.assertIsNotNone(recorded[4])
 
 
-class TestTradingApplicationFairPriceModel(unittest.TestCase):
+class TestEngineRuntimeFairPriceModel(unittest.TestCase):
     def _make_app(self, fair_price_model):
-        return TradingApplication(
+        return EngineRuntime(
             symbol="BTC/USD",
             database_name=f"{tempfile.gettempdir()}/test_base.sqlite",
             logfile_name=f"{tempfile.gettempdir()}/test_base.log",
@@ -185,7 +185,7 @@ class TestTradingApplicationFairPriceModel(unittest.TestCase):
     def test_uses_the_health_monitor_shared_by_constructed_services(self):
         health_monitor = HealthMonitor()
         parameters = StaticParameterService(health_monitor=health_monitor)
-        app = TradingApplication(
+        app = EngineRuntime(
             symbol="BTC/USD",
             database_name=f"{tempfile.gettempdir()}/test_ready.sqlite",
             logfile_name=f"{tempfile.gettempdir()}/test_ready.log",
@@ -199,9 +199,9 @@ class TestTradingApplicationFairPriceModel(unittest.TestCase):
         self.assertEqual(HealthState.HEALTHY, app._health_monitor.state)
 
 
-class TestTradingApplicationRunStart(unittest.IsolatedAsyncioTestCase):
+class TestEngineRuntimeRunStart(unittest.IsolatedAsyncioTestCase):
     def _make_app(self):
-        return TradingApplication(
+        return EngineRuntime(
             symbol="BTC/USD",
             database_name=f"{tempfile.gettempdir()}/test_run_start.sqlite",
             logfile_name=f"{tempfile.gettempdir()}/test_run_start.log",
@@ -220,7 +220,7 @@ class TestTradingApplicationRunStart(unittest.IsolatedAsyncioTestCase):
 
         app.use_market_data_service(SimpleNamespace(connect=connect))
 
-        with patch.object(TradingApplication, "THREAD_ENABLED", False):
+        with patch.object(EngineRuntime, "THREAD_ENABLED", False):
             pnl = await app.run_start()
 
         self.assertEqual([("BTC/USD", ())], connected)
@@ -239,9 +239,7 @@ class TestTradingApplicationRunStart(unittest.IsolatedAsyncioTestCase):
             patch("threading.excepthook"),
             self.assertLogs(level="ERROR") as logs,
         ):
-            thread, _, _ = TradingApplication._start_thread(
-                "MD", failing_connect()
-            )
+            thread, _, _ = EngineRuntime._start_thread("MD", failing_connect())
             thread.join(timeout=5)
 
         self.assertIn("MD got exception: feed blew up", "".join(logs.output))
@@ -251,9 +249,9 @@ if __name__ == "__main__":
     unittest.main()
 
 
-class TestTradingApplicationParameterService(unittest.IsolatedAsyncioTestCase):
+class TestEngineRuntimeParameterService(unittest.IsolatedAsyncioTestCase):
     def _make_app(self, parameter_service=None):
-        return TradingApplication(
+        return EngineRuntime(
             symbol="BTC/USD",
             database_name=f"{tempfile.gettempdir()}/test_parameters.sqlite",
             logfile_name=f"{tempfile.gettempdir()}/test_parameters.log",
@@ -274,7 +272,7 @@ class TestTradingApplicationParameterService(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(0, service.stopped)
 
         app.use_market_data_service(SimpleNamespace(connect=connect))
-        with patch.object(TradingApplication, "THREAD_ENABLED", False):
+        with patch.object(EngineRuntime, "THREAD_ENABLED", False):
             await app.run_start()
 
         self.assertEqual(1, service.stopped)
@@ -287,7 +285,7 @@ class TestTradingApplicationParameterService(unittest.IsolatedAsyncioTestCase):
             raise RuntimeError("feed blew up")
 
         app.use_market_data_service(SimpleNamespace(connect=connect))
-        with patch.object(TradingApplication, "THREAD_ENABLED", False):
+        with patch.object(EngineRuntime, "THREAD_ENABLED", False):
             with self.assertRaises(RuntimeError):
                 await app.run_start()
 

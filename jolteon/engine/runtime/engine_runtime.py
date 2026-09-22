@@ -38,7 +38,7 @@ class SessionMetadata:
     symbol: str
 
 
-class TradingApplication(SignalManager):
+class EngineRuntime(SignalManager):
     THREAD_ENABLED: bool = True
 
     def __init__(
@@ -135,7 +135,7 @@ class TradingApplication(SignalManager):
         # stop() in a finally, or a feed that raises leaves the parameter
         # poller and the recorder running behind it.
         try:
-            if TradingApplication.THREAD_ENABLED:
+            if EngineRuntime.THREAD_ENABLED:
                 md_thread, md_loop, md_task = self._start_thread(
                     "MD", self._md.connect(self._symbol, *args)
                 )

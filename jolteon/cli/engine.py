@@ -10,8 +10,7 @@ from datetime import datetime, timezone
 
 import pytz
 
-from jolteon.app.exchanges import exchange_definition
-from jolteon.app.progress_bar import ProgressBar
+from jolteon.cli.progress import ProgressBar
 from jolteon.engine.core.health_monitor.health import HealthMonitor
 from jolteon.engine.core.market import Market
 from jolteon.engine.core.parameter.live_parameter_service import (
@@ -23,6 +22,7 @@ from jolteon.engine.core.parameter.parameter_service import (
 from jolteon.engine.core.sentry import reporting
 from jolteon.engine.core.storage import paths
 from jolteon.engine.market_data.data_source import DatabaseDataSource
+from jolteon.engine.runtime.exchange_registry import exchange_definition
 from jolteon.engine.strategy.market_making.fair_value.adjusted_model import (
     AdjustedFairPriceModel,
 )
@@ -45,17 +45,17 @@ from jolteon.engine.strategy.market_making.quote_offset import (
     FeeAwareQuoteOffsetService,
 )
 
-_active_app = None
+_active_runtime = None
 
 
 def graceful_exit(signum, frame):
     print("Ctrl+C detected. Performing graceful exit...")
-    if _active_app is not None:
+    if _active_runtime is not None:
         # Cancels the MD thread's connection task so run_start() unblocks
         # and main() exits on its own; sys.exit() here would only unwind
         # the main thread and leave that thread's live feed running,
         # which is what used to hang shutdown.
-        _active_app.request_shutdown()
+        _active_runtime.request_shutdown()
     else:
         sys.exit(0)
 
@@ -65,8 +65,8 @@ signal.signal(signal.SIGINT, graceful_exit)
 
 
 async def main():
-    global _active_app
-    app_start_time = datetime.now(tz=pytz.utc)
+    global _active_runtime
+    started_at = datetime.now(tz=pytz.utc)
 
     parser = argparse.ArgumentParser(description="Jolteon Trading Engine")
     parser.add_argument("--replay-db", help="Path to a SQLite database file")
@@ -133,14 +133,13 @@ async def main():
         component="engine",
     )
 
-    # Instantiate the correct market's application instance
     market = Market.parse(args.exchange)
     exchange = exchange_definition(market)
-    if exchange.application is None or exchange.fee_schedule is None:
+    if exchange.runtime is None or exchange.fee_schedule is None:
         raise NotImplementedError(
-            f"Application is not implemented for market {args.exchange}"
+            f"A runtime is not implemented for market {args.exchange}"
         )
-    Application = exchange.application
+    build_runtime = exchange.runtime
     fee_schedule = exchange.fee_schedule
 
     # Every file a session writes goes under its own symbol's directory,
@@ -173,7 +172,7 @@ async def main():
 
         print(f"Replay Start: {replay_start_time}")
         print(f"Replay End  : {replay_end_time}")
-        app = Application(
+        runtime = build_runtime(
             symbol,
             use_mock_execution=True,
             database_name=paths.recording(
@@ -183,16 +182,16 @@ async def main():
                 args.root, exchange.name, symbol, paths.REPLAY
             ),
         )
-        _active_app = app
+        _active_runtime = runtime
         profiler = cProfile.Profile()
         profiler.enable()
 
         pb = ProgressBar(replay_start_time, replay_end_time)
         pb.start()
         if replay_start and replay_end:
-            pnl = await app.run_replay(replay_start_time, replay_end_time)
+            pnl = await runtime.run_replay(replay_start_time, replay_end_time)
         else:
-            pnl = await app.run_local_replay(replay_db)
+            pnl = await runtime.run_local_replay(replay_db)
         pb.stop()
 
         profiler.disable()
@@ -237,7 +236,7 @@ async def main():
                 health_monitor=health_monitor,
             )
 
-        app = Application(
+        runtime = build_runtime(
             symbol,
             use_mock_execution=args.paper,
             database_name=paths.recording(args.root, exchange.name, symbol),
@@ -247,14 +246,14 @@ async def main():
             parameter_service=parameter_service,
             health_monitor=health_monitor,
         )
-        _active_app = app
-        pnl = await app.start()
+        _active_runtime = runtime
+        pnl = await runtime.start()
 
-    _active_app = None
+    _active_runtime = None
     print(f"PnL: {pnl}")
 
-    app_end_time = datetime.now(tz=pytz.utc)
-    print(f"Total Runtime: {app_end_time - app_start_time}")
+    ended_at = datetime.now(tz=pytz.utc)
+    print(f"Total Runtime: {ended_at - started_at}")
 
 
 if __name__ == "__main__":

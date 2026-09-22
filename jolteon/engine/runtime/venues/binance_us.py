@@ -1,6 +1,5 @@
 import logging
 
-from jolteon.app.trading_application import TradingApplication
 from jolteon.engine.core.health_monitor.health import HealthMonitor
 from jolteon.engine.core.parameter.parameter_service import IParameterService
 from jolteon.engine.execution.binance_us.fee_schedule import (
@@ -10,12 +9,13 @@ from jolteon.engine.execution.mock_execution_service import (
     MockExecutionService,
 )
 from jolteon.engine.market_data.binance_us.public_feed import PublicFeed
+from jolteon.engine.runtime.engine_runtime import EngineRuntime
 from jolteon.engine.strategy.market_making.fair_value.fair_price_model import (
     IFairPriceModel,
 )
 
 
-class BinanceUsApplication(TradingApplication):
+class BinanceUsRuntime(EngineRuntime):
     def __init__(
         self,
         symbol: str,

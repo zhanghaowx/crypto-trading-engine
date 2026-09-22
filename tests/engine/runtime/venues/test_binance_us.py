@@ -3,17 +3,17 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from jolteon.app.binance_us import BinanceUsApplication
 from jolteon.engine.execution.binance_us.fee_schedule import (
     BinanceUsFeeSchedule,
 )
 from jolteon.engine.execution.mock_execution_service import (
     MockExecutionService,
 )
+from jolteon.engine.runtime.venues.binance_us import BinanceUsRuntime
 
 
 def test_paper_application_uses_binance_feed_and_fees(tmp_path):
-    application = BinanceUsApplication(
+    application = BinanceUsRuntime(
         "btc-usd",
         str(tmp_path / "live.sqlite"),
         str(tmp_path / "live.log"),
@@ -26,7 +26,7 @@ def test_paper_application_uses_binance_feed_and_fees(tmp_path):
 
 def test_live_execution_stays_disabled(tmp_path):
     with pytest.raises(NotImplementedError, match="use --paper"):
-        BinanceUsApplication(
+        BinanceUsRuntime(
             "BTC/USD",
             str(tmp_path / "live.sqlite"),
             str(tmp_path / "live.log"),
@@ -35,15 +35,15 @@ def test_live_execution_stays_disabled(tmp_path):
 
 
 def test_start_uses_public_feed(tmp_path):
-    application = BinanceUsApplication(
+    application = BinanceUsRuntime(
         "BTC/USD",
         str(tmp_path / "live.sqlite"),
         str(tmp_path / "live.log"),
     )
     with (
-        patch("jolteon.app.binance_us.PublicFeed") as feed,
+        patch("jolteon.engine.runtime.venues.binance_us.PublicFeed") as feed,
         patch(
-            "jolteon.app.trading_application.TradingApplication.run_start",
+            "jolteon.engine.runtime.engine_runtime.EngineRuntime.run_start",
             AsyncMock(return_value=3.0),
         ) as run,
     ):
@@ -54,7 +54,7 @@ def test_start_uses_public_feed(tmp_path):
 
 
 def test_remote_replay_is_explicitly_unsupported(tmp_path):
-    application = BinanceUsApplication(
+    application = BinanceUsRuntime(
         "BTC/USD",
         str(tmp_path / "live.sqlite"),
         str(tmp_path / "live.log"),

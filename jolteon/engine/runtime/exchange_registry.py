@@ -3,13 +3,13 @@
 from dataclasses import dataclass
 from typing import Callable
 
-from jolteon.app.trading_application import TradingApplication
 from jolteon.engine.core.fee_schedule import FeeSchedule
 from jolteon.engine.core.market import Market
 from jolteon.engine.execution.binance_us.fee_schedule import (
     BinanceUsFeeSchedule,
 )
 from jolteon.engine.execution.kraken.fee_schedule import KrakenFeeSchedule
+from jolteon.engine.runtime.engine_runtime import EngineRuntime
 
 
 def _canonical(symbol: str) -> str:
@@ -30,16 +30,16 @@ def _binance_canonical(symbol: str) -> str:
     raise ValueError(f"Cannot decode Binance.US symbol {symbol}")
 
 
-def _kraken_application(*args, **kwargs) -> TradingApplication:
-    from jolteon.app.kraken import KrakenApplication
+def _kraken_runtime(*args, **kwargs) -> EngineRuntime:
+    from jolteon.engine.runtime.venues.kraken import KrakenRuntime
 
-    return KrakenApplication(*args, **kwargs)
+    return KrakenRuntime(*args, **kwargs)
 
 
-def _binance_us_application(*args, **kwargs) -> TradingApplication:
-    from jolteon.app.binance_us import BinanceUsApplication
+def _binance_us_runtime(*args, **kwargs) -> EngineRuntime:
+    from jolteon.engine.runtime.venues.binance_us import BinanceUsRuntime
 
-    return BinanceUsApplication(*args, **kwargs)
+    return BinanceUsRuntime(*args, **kwargs)
 
 
 @dataclass(frozen=True)
@@ -47,7 +47,7 @@ class ExchangeDefinition:
     market: Market
     name: str
     path_name: str
-    application: Callable[..., TradingApplication] | None
+    runtime: Callable[..., EngineRuntime] | None
     fee_schedule: type[FeeSchedule] | None
     encode_symbol: Callable[[str], str]
     decode_symbol: Callable[[str], str]
@@ -59,7 +59,7 @@ _EXCHANGES = {
         market=Market.MOCK,
         name="Mock",
         path_name="mock",
-        application=None,
+        runtime=None,
         fee_schedule=None,
         encode_symbol=_canonical,
         decode_symbol=_canonical,
@@ -69,7 +69,7 @@ _EXCHANGES = {
         market=Market.KRAKEN,
         name="Kraken",
         path_name="kraken",
-        application=_kraken_application,
+        runtime=_kraken_runtime,
         fee_schedule=KrakenFeeSchedule,
         encode_symbol=_canonical,
         decode_symbol=_canonical,
@@ -79,7 +79,7 @@ _EXCHANGES = {
         market=Market.BINANCE_US,
         name="Binance.US",
         path_name="binance-us",
-        application=_binance_us_application,
+        runtime=_binance_us_runtime,
         fee_schedule=BinanceUsFeeSchedule,
         encode_symbol=_binance_wire,
         decode_symbol=_binance_canonical,
