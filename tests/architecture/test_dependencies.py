@@ -10,6 +10,11 @@ import pathlib
 
 SOURCE_ROOT = pathlib.Path(__file__).resolve().parents[2] / "jolteon"
 
+# Python source is UTF-8 whatever the machine reading it prefers, and this
+# suite also runs on Windows, where the default is cp1252 - which cannot
+# decode every byte these files contain.
+ENCODING = "utf-8"
+
 # Which top-level packages a package may not reach into, and why, in the
 # words the failure is reported with.
 FORBIDDEN = {
@@ -30,7 +35,7 @@ FORBIDDEN = {
 
 def _imported_packages(source: pathlib.Path) -> set[str]:
     """Every `jolteon.<package>` the module reaches for, at any depth."""
-    tree = ast.parse(source.read_text(), filename=str(source))
+    tree = ast.parse(source.read_text(ENCODING), filename=str(source))
     reached = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
@@ -86,7 +91,7 @@ def test_the_dashboard_only_reads_an_engine_recording():
     """
     written = []
     for source in _modules_of("dashboard"):
-        text = source.read_text().upper()
+        text = source.read_text(ENCODING).upper()
         for statement in ("CREATE INDEX", "CREATE TABLE", "INSERT INTO"):
             if statement in text:
                 written.append(
