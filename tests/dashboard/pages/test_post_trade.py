@@ -219,3 +219,54 @@ def test_an_older_recording_says_its_mode_was_never_recorded(
     assert at.selectbox[0].options == [
         "2025-09-16 05:20:00 UTC · def456 · Stopped · Mode not recorded"
     ]
+
+
+@pytest.fixture
+def a_replay_run(tmp_path) -> str:
+    """A finished replay, holding the recording it read and the slice of
+    it the replay covered."""
+    path = paths.recording(str(tmp_path / "engines"), SYMBOL)
+    _recording(
+        path,
+        runs=[(STOPPED, 1758000000.0, 1758000600.0)],
+        fills=[(STOPPED, "BUY", 60.0, 1.0)],
+    )
+    conn = sqlite3.connect(path)
+    try:
+        conn.execute("UPDATE engine_run SET market_data_mode = 'RECORDED'")
+        for column, value in (
+            ("market_data_source", "'/recordings/live.sqlite'"),
+            ("source_run_id", "'20260919T080000Z-5eed'"),
+            ("market_data_started_at", "1757900000.0"),
+            ("market_data_ended_at", "1757903600.0"),
+            ("market_data_trade_count", "4211"),
+        ):
+            conn.execute(f"ALTER TABLE engine_run ADD COLUMN {column}")
+            conn.execute(f"UPDATE engine_run SET {column} = {value}")
+        conn.commit()
+    finally:
+        conn.close()
+    return path
+
+
+def test_a_replay_says_which_recording_it_was_measured_from(
+    a_replay_run, tmp_path
+):
+    at = _page(a_replay_run, str(tmp_path / "engines")).run()
+
+    assert not at.exception
+    assert at.selectbox[0].options == [
+        "2025-09-16 05:20:00 UTC · def456 · Stopped · Simulation · Replay"
+    ]
+    assert [caption.value for caption in at.caption] == [
+        "Replayed `/recordings/live.sqlite` · "
+        "2025-09-15 01:33:20 – 2025-09-15 02:33:20 UTC · "
+        "4,211 market trades · recorded by run `5eed`"
+    ]
+
+
+def test_a_live_run_is_shown_without_a_replay_source(three_runs, tmp_path):
+    at = _page(three_runs, str(tmp_path / "engines")).run()
+
+    assert not at.exception
+    assert not at.caption

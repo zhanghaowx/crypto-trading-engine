@@ -23,11 +23,13 @@ from jolteon.engine.core.parameter.parameter_service import (
     StaticParameterService,
     use_parameter_service,
 )
-from jolteon.engine.core.time.time_manager import time_manager
 from jolteon.engine.market_data.book_feature_recorder import (
     BookFeatureRecorder,
 )
-from jolteon.engine.market_data.data_source import DatabaseDataSource
+from jolteon.engine.market_data.data_source import (
+    DatabaseDataSource,
+    IDataSource,
+)
 from jolteon.engine.market_data.feed import IMarketDataFeed
 from jolteon.engine.market_data.historical_feed import HistoricalFeed
 from jolteon.engine.position.position_manager import PositionManager
@@ -65,7 +67,10 @@ class EngineRuntime(SignalManager):
         self._exchange = exchange
         self._session_metadata_event = signal("session_metadata")
         self._engine_run_event = signal("engine_run")
-        started_at = time_manager().now()
+        # The machine's clock, not the engine's: a replay moves the
+        # engine's clock through the interval it reads, and this is when
+        # the replay itself ran.
+        started_at = datetime.now(tz=pytz.utc)
         self._engine_run = EngineRun(
             run_id=engine_run_id(started_at),
             exchange=exchange,
@@ -169,19 +174,38 @@ class EngineRuntime(SignalManager):
         for loop, task in self._background_tasks.values():
             loop.call_soon_threadsafe(task.cancel)
 
-    async def run_local_replay(self, db: str):
-        data_source = DatabaseDataSource(db)
-        start = data_source.start_time()
-        end = data_source.end_time()
+    def use_recorded_market_data(
+        self, data_source: IDataSource, start: datetime, end: datetime
+    ):
+        """
+        Replay one interval of already recorded data, recording where
+        that data came from.
 
-        self.use_market_data_service(
+        A recording an engine is still writing keeps growing, so what was
+        replayed is the source together with this interval rather than the
+        source alone - which is also what lets several replays of one
+        recording be told apart.
+        """
+        provenance = data_source.provenance(start, end)
+        self._engine_run.market_data_source = provenance.source
+        self._engine_run.source_run_id = provenance.source_run_id
+        self._engine_run.market_data_trade_count = provenance.trade_count
+        self._engine_run.market_data_started_at = start
+        self._engine_run.market_data_ended_at = end
+        return self.use_market_data_service(
             HistoricalFeed(data_source, health_monitor=self._health_monitor)
         )
 
+    async def run_local_replay(self, db: str):
+        data_source = DatabaseDataSource(db)
+        start = data_source.start_time()
+        end = min(datetime.now(tz=pytz.utc), data_source.end_time())
+
+        self.use_recorded_market_data(data_source, start, end)
+
         logging.info(f"Replaying {self._symbol} from {start} to {end}")
         print(f"Replaying {self._symbol} from {start} to {end}")
-        now = datetime.now(tz=pytz.utc)
-        return await self.run_start(start, min(now, end))
+        return await self.run_start(start, end)
 
     def stop(self):
         # Before the recorder is disconnected and flushed, so the last
@@ -189,7 +213,7 @@ class EngineRuntime(SignalManager):
         self._parameter_service.stop()
         # Killed rather than stopped, the engine never gets here and the
         # run keeps no end - which is what marks it interrupted.
-        self._engine_run.ended_at = time_manager().now()
+        self._engine_run.ended_at = datetime.now(tz=pytz.utc)
         self._send_engine_run()
         self._disconnect_signals()
 

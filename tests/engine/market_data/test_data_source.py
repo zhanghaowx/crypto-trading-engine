@@ -5,6 +5,7 @@ import unittest
 import uuid
 from contextlib import closing
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import pytz
 
@@ -269,3 +270,130 @@ class TestDatabaseDataSource(unittest.IsolatedAsyncioTestCase):
             os.chmod(self.database_filepath, 0o644)
 
         self.assertEqual(3, len(trades))
+
+
+class TestMarketDataProvenance(unittest.IsolatedAsyncioTestCase):
+    """What a replay records about the data it read, so a later reader can
+    tell which recording and which slice of it produced a run."""
+
+    TABLE = Events().market_trade.name
+
+    async def asyncSetUp(self):
+        self.database_filepath = (
+            f"{tempfile.gettempdir()}/{uuid.uuid4()}.sqlite"
+        )
+        self.start = datetime(2022, 1, 1, 10, 0, 0, tzinfo=pytz.utc)
+        self.end = self.start + timedelta(hours=1)
+        self.data_source = DatabaseDataSource(self.database_filepath)
+
+    async def asyncTearDown(self):
+        for suffix in ("", "-wal", "-shm"):
+            path = self.database_filepath + suffix
+            if os.path.exists(path):
+                os.remove(path)
+
+    def record(self, runs: list[str], with_run_column: bool = True):
+        """One market trade per entry in `runs`, a minute apart."""
+        run_column = ", run_id" if with_run_column else ""
+        placeholder = ", ?" if with_run_column else ""
+        with closing(sqlite3.connect(self.database_filepath)) as conn:
+            conn.execute(
+                f'CREATE TABLE "{self.TABLE}" (transaction_time{run_column})'
+            )
+            conn.executemany(
+                f'INSERT INTO "{self.TABLE}" VALUES (?{placeholder})',
+                [
+                    (
+                        (self.start + timedelta(minutes=i)).timestamp(),
+                        *((run,) if with_run_column else ()),
+                    )
+                    for i, run in enumerate(runs)
+                ],
+            )
+            conn.commit()
+
+    async def test_a_recording_is_named_by_its_resolved_path(self):
+        self.record(["run-a"])
+
+        provenance = self.data_source.provenance(self.start, self.end)
+
+        self.assertEqual(
+            str(Path(self.database_filepath).resolve()), provenance.source
+        )
+
+    async def test_the_run_that_recorded_the_interval_is_reported(self):
+        self.record(["run-a", "run-a", "run-a"])
+
+        provenance = self.data_source.provenance(self.start, self.end)
+
+        self.assertEqual("run-a", provenance.source_run_id)
+        self.assertEqual(3, provenance.trade_count)
+
+    async def test_an_interval_spanning_several_runs_names_none_of_them(self):
+        self.record(["run-a", "run-b"])
+
+        provenance = self.data_source.provenance(self.start, self.end)
+
+        self.assertIsNone(provenance.source_run_id)
+        self.assertEqual(2, provenance.trade_count)
+
+    async def test_only_the_interval_asked_for_is_counted(self):
+        """The same recording replayed twice over two intervals has to be
+        told apart by what each replay actually read."""
+        self.record(["run-a", "run-b", "run-b"])
+
+        first = self.data_source.provenance(
+            self.start, self.start + timedelta(seconds=30)
+        )
+        second = self.data_source.provenance(
+            self.start + timedelta(minutes=1), self.end
+        )
+
+        self.assertEqual(
+            ("run-a", 1), (first.source_run_id, first.trade_count)
+        )
+        self.assertEqual(
+            ("run-b", 2), (second.source_run_id, second.trade_count)
+        )
+
+    async def test_rows_recorded_without_a_run_name_no_run(self):
+        self.record(["ignored"], with_run_column=False)
+
+        provenance = self.data_source.provenance(self.start, self.end)
+
+        self.assertIsNone(provenance.source_run_id)
+        self.assertEqual(1, provenance.trade_count)
+
+    async def test_rows_whose_run_was_never_written_name_no_run(self):
+        self.record([None])
+
+        provenance = self.data_source.provenance(self.start, self.end)
+
+        self.assertIsNone(provenance.source_run_id)
+
+    async def test_a_recording_without_market_trades_leaves_both_unanswered(
+        self,
+    ):
+        """Provenance is recorded so a replay can be traced afterwards; a
+        recording it cannot be read out of must not stop the replay."""
+        sqlite3.connect(self.database_filepath).close()
+
+        provenance = self.data_source.provenance(self.start, self.end)
+
+        self.assertIsNone(provenance.source_run_id)
+        self.assertIsNone(provenance.trade_count)
+
+    async def test_a_source_with_nothing_to_say_answers_with_its_own_name(
+        self,
+    ):
+        class RemoteSource(IDataSource):
+            async def download_market_trades(
+                self, symbol, start_time, end_time
+            ):
+                raise NotImplementedError  # pragma: no cover
+
+        provenance = RemoteSource().provenance(self.start, self.end)
+
+        self.assertEqual("RemoteSource", provenance.source)
+        self.assertIsNone(provenance.source_run_id)
+        self.assertIsNone(provenance.trade_count)

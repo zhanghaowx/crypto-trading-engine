@@ -1,5 +1,6 @@
 import sqlite3
 from contextlib import closing
+from datetime import datetime, timezone
 
 from jolteon.dashboard.data.runs import (
     engine_runs,
@@ -154,3 +155,91 @@ def test_a_run_whose_modes_were_never_written_reads_back_unclassified(
 
     assert run.execution_mode == "UNKNOWN"
     assert run.market_data_mode == "UNKNOWN"
+
+
+def test_engine_runs_read_back_where_a_replay_read_its_data(tmp_path):
+    db_path = str(tmp_path / "replay.sqlite")
+    with closing(sqlite3.connect(db_path)) as conn:
+        conn.execute(
+            "CREATE TABLE engine_run "
+            "(run_id TEXT PRIMARY KEY, exchange TEXT, symbol TEXT, "
+            "started_at REAL, ended_at REAL, execution_mode TEXT, "
+            "market_data_mode TEXT, market_data_source TEXT, "
+            "source_run_id TEXT, market_data_started_at REAL, "
+            "market_data_ended_at REAL, market_data_trade_count INTEGER)"
+        )
+        conn.executemany(
+            "INSERT INTO engine_run VALUES "
+            "(?, 'Kraken', 'BTC/USD', ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+                (
+                    "run-replay",
+                    1000.0,
+                    1100.0,
+                    "SIMULATED",
+                    "RECORDED",
+                    "/recordings/live.sqlite",
+                    "run-source",
+                    10.0,
+                    20.0,
+                    4211,
+                ),
+                (
+                    "run-live",
+                    2000.0,
+                    2100.0,
+                    "SIMULATED",
+                    "REALTIME",
+                    "",
+                    None,
+                    None,
+                    None,
+                    None,
+                ),
+            ],
+        )
+        conn.commit()
+
+    by_id = {run.run_id: run for run in engine_runs(db_path)}
+
+    replay = by_id["run-replay"]
+    assert replay.market_data_source == "/recordings/live.sqlite"
+    assert replay.source_run_id == "run-source"
+    assert replay.market_data_started_at == datetime(
+        1970, 1, 1, 0, 0, 10, tzinfo=timezone.utc
+    )
+    assert replay.market_data_ended_at == datetime(
+        1970, 1, 1, 0, 0, 20, tzinfo=timezone.utc
+    )
+    assert replay.market_data_trade_count == 4211
+
+    live = by_id["run-live"]
+    assert live.market_data_source == ""
+    assert live.source_run_id is None
+    assert live.market_data_started_at is None
+    assert live.market_data_trade_count is None
+
+
+def test_a_run_recorded_before_provenance_existed_reads_back_without_it(
+    tmp_path,
+):
+    db_path = str(tmp_path / "legacy-provenance.sqlite")
+    with closing(sqlite3.connect(db_path)) as conn:
+        conn.execute(
+            "CREATE TABLE engine_run "
+            "(run_id TEXT PRIMARY KEY, exchange TEXT, symbol TEXT, "
+            "started_at REAL, ended_at REAL)"
+        )
+        conn.execute(
+            "INSERT INTO engine_run VALUES "
+            "('run-old', 'Kraken', 'BTC/USD', 1.0, 2.0)"
+        )
+        conn.commit()
+
+    run = engine_runs(db_path)[0]
+
+    assert run.market_data_source == ""
+    assert run.source_run_id is None
+    assert run.market_data_started_at is None
+    assert run.market_data_ended_at is None
+    assert run.market_data_trade_count is None

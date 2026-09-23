@@ -29,6 +29,13 @@ class RecordedEngineRun:
     # is more common.
     execution_mode: str = ExecutionMode.UNKNOWN
     market_data_mode: str = MarketDataMode.UNKNOWN
+    # Where a replay's data came from, and which slice of it was read.
+    # A live run reads nothing recorded and leaves all of these empty.
+    market_data_source: str = ""
+    source_run_id: str | None = None
+    market_data_started_at: datetime | None = None
+    market_data_ended_at: datetime | None = None
+    market_data_trade_count: int | None = None
 
 
 def _recorded_datetime(value) -> datetime | None:
@@ -42,6 +49,16 @@ def _recorded_text(row: pd.Series, column: str, absent: str) -> str:
     if value is None or pd.isna(value):
         return absent
     return str(value)
+
+
+def _recorded_optional_text(row: pd.Series, column: str) -> str | None:
+    value = row.get(column)
+    return None if value is None or pd.isna(value) else str(value)
+
+
+def _recorded_count(row: pd.Series, column: str) -> int | None:
+    value = row.get(column)
+    return None if value is None or pd.isna(value) else int(value)
 
 
 def engine_runs(db_path: str) -> list[RecordedEngineRun]:
@@ -95,6 +112,19 @@ def engine_runs(db_path: str) -> list[RecordedEngineRun]:
                 ),
                 market_data_mode=_recorded_text(
                     row, "market_data_mode", MarketDataMode.UNKNOWN
+                ),
+                market_data_source=_recorded_text(
+                    row, "market_data_source", ""
+                ),
+                source_run_id=_recorded_optional_text(row, "source_run_id"),
+                market_data_started_at=_recorded_datetime(
+                    row.get("market_data_started_at")
+                ),
+                market_data_ended_at=_recorded_datetime(
+                    row.get("market_data_ended_at")
+                ),
+                market_data_trade_count=_recorded_count(
+                    row, "market_data_trade_count"
                 ),
             )
         )
