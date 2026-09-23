@@ -67,6 +67,11 @@ class EngineRun:
     independent facts, and neither follows from whether the run
     finished: live paper trading and a replay of a recording both
     simulate execution, and either can be stopped or killed.
+
+    `started_at` and `ended_at` are this run's own, taken from the
+    machine's clock. A replay moves the engine's clock through the
+    interval it is replaying, which the market_data_ fields hold
+    separately - so a replay says both when it ran and what it read.
     """
 
     PRIMARY_KEY = "run_id"
@@ -78,3 +83,8 @@ class EngineRun:
     ended_at: datetime | None = None
     execution_mode: ExecutionMode = ExecutionMode.UNKNOWN
     market_data_mode: MarketDataMode = MarketDataMode.UNKNOWN
+    market_data_source: str = ""
+    source_run_id: str | None = None
+    market_data_started_at: datetime | None = None
+    market_data_ended_at: datetime | None = None
+    market_data_trade_count: int | None = None

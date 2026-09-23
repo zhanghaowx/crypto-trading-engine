@@ -86,3 +86,22 @@ def run_mode(run: RecordedEngineRun) -> str:
     return _RUN_MODE_LABELS.get(
         (run.execution_mode, run.market_data_mode), UNRECORDED_MODE
     )
+
+
+def replay_source(run: RecordedEngineRun) -> str | None:
+    """Where a replay read its market data, and nothing at all for a run
+    that read a live feed."""
+    if not run.market_data_source:
+        return None
+    parts = [f"Replayed `{run.market_data_source}`"]
+    if run.market_data_started_at and run.market_data_ended_at:
+        parts.append(
+            f"{run.market_data_started_at:%Y-%m-%d %H:%M:%S} – "
+            f"{run.market_data_ended_at:%Y-%m-%d %H:%M:%S} UTC"
+        )
+    if run.market_data_trade_count is not None:
+        parts.append(f"{run.market_data_trade_count:,} market trades")
+    if run.source_run_id:
+        short_id = run.source_run_id.rsplit("-", 1)[-1]
+        parts.append(f"recorded by run `{short_id}`")
+    return " · ".join(parts)

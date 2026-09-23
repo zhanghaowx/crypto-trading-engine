@@ -14,7 +14,6 @@ from jolteon.engine.execution.kraken.fee_schedule import KrakenFeeSchedule
 from jolteon.engine.execution.mock_execution_service import (
     MockExecutionService,
 )
-from jolteon.engine.market_data.historical_feed import HistoricalFeed
 from jolteon.engine.market_data.kraken.data_source import (
     KrakenHistoricalDataSource,
 )
@@ -70,14 +69,11 @@ class KrakenRuntime(EngineRuntime):
         return await super().run_start()
 
     async def run_replay(self, start: datetime, end: datetime):
-        super().use_market_data_service(
-            HistoricalFeed(
-                KrakenHistoricalDataSource(),
-                health_monitor=self._health_monitor,
-            )
+        end = min(datetime.now(tz=pytz.utc), end)
+        super().use_recorded_market_data(
+            KrakenHistoricalDataSource(), start, end
         )
 
         logging.info(f"Replaying {self._symbol} from {start} to {end}")
         print(f"Replaying {self._symbol} from {start} to {end}")
-        now = datetime.now(tz=pytz.utc)
-        return await super().run_start(start, min(now, end))
+        return await super().run_start(start, end)

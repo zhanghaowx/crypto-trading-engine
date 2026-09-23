@@ -70,7 +70,7 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
 
         mock_data_source.download_market_trades.assert_called_once()
 
-    @patch("jolteon.engine.runtime.venues.kraken.HistoricalFeed")
+    @patch("jolteon.engine.runtime.engine_runtime.HistoricalFeed")
     async def test_run_replay(self, MockFeed):
         mock_feed = self.create_mock_feed(MockFeed)
 

@@ -2,6 +2,7 @@ import sqlite3
 from abc import ABC, abstractmethod
 from contextlib import closing
 from datetime import datetime
+from pathlib import Path
 
 import pandas as pd
 import pytz
@@ -13,6 +14,7 @@ from jolteon.engine.market_data.core.order_book import (
     RecordedBookUpdate,
 )
 from jolteon.engine.market_data.core.trade import Trade
+from jolteon.engine.market_data.provenance import MarketDataProvenance
 
 
 class IDataSource(ABC):
@@ -29,6 +31,18 @@ class IDataSource(ABC):
     ) -> list[RecordedBookUpdate]:
         """Return normalized book records when this source provides them."""
         return []
+
+    def provenance(
+        self, start_time: datetime, end_time: datetime
+    ) -> MarketDataProvenance:
+        """
+        Returns: Where the data this source hands back came from.
+
+        A source with nothing more to say than what it is answers with
+        its own name, which still separates a replay off a recording from
+        one off a venue's history.
+        """
+        return MarketDataProvenance(source=type(self).__name__)
 
     def cache_key(
         self, symbol: str, start_time: datetime, end_time: datetime
@@ -94,6 +108,61 @@ class DatabaseDataSource(IDataSource):
                 f"No market trades recorded in {self._database_name}"
             )
         return datetime.fromtimestamp(float(row[0]), tz=pytz.utc)
+
+    def provenance(
+        self, start_time: datetime, end_time: datetime
+    ) -> MarketDataProvenance:
+        """
+        Returns: Which file was replayed, which run recorded it, and how
+        many market trades the interval holds.
+
+        The run is only reported when the interval holds exactly one; a
+        recording spanning several runs, or one written before rows
+        carried a run at all, leaves it unanswered rather than picking
+        one of them.
+        """
+        return MarketDataProvenance(
+            source=str(Path(self._database_name).resolve()),
+            source_run_id=self._single_run_id(start_time, end_time),
+            trade_count=self._trade_count(start_time, end_time),
+        )
+
+    def _single_run_id(
+        self, start_time: datetime, end_time: datetime
+    ) -> str | None:
+        rows = self._query(
+            f'SELECT DISTINCT run_id FROM "{self._table_name}" '
+            "WHERE transaction_time BETWEEN ? AND ? LIMIT 2",
+            (start_time.timestamp(), end_time.timestamp()),
+        )
+        if rows is None or len(rows) != 1 or rows[0][0] is None:
+            return None
+        return str(rows[0][0])
+
+    def _trade_count(
+        self, start_time: datetime, end_time: datetime
+    ) -> int | None:
+        rows = self._query(
+            f'SELECT COUNT(*) FROM "{self._table_name}" '
+            "WHERE transaction_time BETWEEN ? AND ?",
+            (start_time.timestamp(), end_time.timestamp()),
+        )
+        return None if rows is None else int(rows[0][0])
+
+    def _query(self, statement: str, parameters: tuple) -> list | None:
+        """
+        Returns: The rows the statement selects, and nothing at all when
+        the recording has no such table or column.
+
+        Provenance is recorded so a replay can be traced afterwards; a
+        recording too old to answer must leave the question open rather
+        than stop the replay.
+        """
+        try:
+            with closing(self._connect()) as conn:
+                return conn.execute(statement, parameters).fetchall()
+        except sqlite3.OperationalError:
+            return None
 
     def start_time(self) -> datetime:
         return self._bound("MIN")

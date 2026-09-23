@@ -3,8 +3,11 @@ import sqlite3
 import tempfile
 import unittest
 from contextlib import closing
+from datetime import datetime
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
+
+import pytz
 
 from jolteon.engine.core.engine_run import ExecutionMode, MarketDataMode
 from jolteon.engine.core.event.signal import signal, subscribe
@@ -18,8 +21,11 @@ from jolteon.engine.core.parameter.parameter_service import (
     StaticParameterService,
     parameter_service,
 )
+from jolteon.engine.core.time.time_manager import time_manager
 from jolteon.engine.market_data.core.bbo import BBO
 from jolteon.engine.market_data.core.book_snapshot import BookSnapshot
+from jolteon.engine.market_data.data_source import IDataSource
+from jolteon.engine.market_data.provenance import MarketDataProvenance
 from jolteon.engine.runtime.engine_runtime import EngineRuntime
 from jolteon.engine.strategy.market_making.fair_value.fair_price_model import (
     FairPrice,
@@ -245,6 +251,157 @@ class TestEngineRunClassification(unittest.TestCase):
         self.assertEqual(1, len(recorded))
         self.assertEqual(("SIMULATED", "RECORDED"), recorded[0][:2])
         self.assertIsNotNone(recorded[0][2])
+
+
+class TestReplayProvenance(unittest.TestCase):
+    """What a replay records about the data it read, kept apart from when
+    the replay itself ran."""
+
+    DATA_START = datetime(2024, 3, 1, 9, 0, tzinfo=pytz.utc)
+    DATA_END = datetime(2024, 3, 1, 10, 0, tzinfo=pytz.utc)
+
+    def setUp(self):
+        self._folder = tempfile.TemporaryDirectory()
+        self._app = EngineRuntime(
+            symbol="BTC/USD",
+            exchange="Binance.US",
+            database_name=f"{self._folder.name}/replay.sqlite",
+            logfile_name=f"{self._folder.name}/replay.log",
+        )
+
+    def tearDown(self):
+        self._app._signal_recorder.close()
+        root_logger = logging.getLogger()
+        for handler in list(root_logger.handlers):
+            if isinstance(handler, SQLiteHandler):
+                root_logger.removeHandler(handler)
+                handler.close()
+        self._folder.cleanup()
+
+    def _data_source(self, provenance: MarketDataProvenance) -> MagicMock:
+        source = MagicMock(spec=IDataSource)
+        source.provenance.return_value = provenance
+        return source
+
+    def _recorded(self) -> dict:
+        self._app._signal_recorder.flush()
+        with closing(
+            sqlite3.connect(f"{self._folder.name}/replay.sqlite")
+        ) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute("SELECT * FROM engine_run").fetchone()
+        return dict(row)
+
+    def test_a_replay_records_where_its_data_came_from(self):
+        self._app.use_recorded_market_data(
+            self._data_source(
+                MarketDataProvenance(
+                    source="/recordings/live.sqlite",
+                    source_run_id="20260920T100000Z-abc123",
+                    trade_count=4211,
+                )
+            ),
+            self.DATA_START,
+            self.DATA_END,
+        )
+        self._app._connect_signals()
+
+        recorded = self._recorded()
+        self.assertEqual(
+            "/recordings/live.sqlite", recorded["market_data_source"]
+        )
+        self.assertEqual("20260920T100000Z-abc123", recorded["source_run_id"])
+        self.assertEqual(4211, recorded["market_data_trade_count"])
+        self.assertEqual("RECORDED", recorded["market_data_mode"])
+
+    def test_a_replay_gets_a_run_id_of_its_own(self):
+        """Two replays of one recording are two runs, so neither inherits
+        the id of the run that recorded the data."""
+        source_run_id = "20260920T100000Z-abc123"
+        second = EngineRuntime(
+            symbol="BTC/USD",
+            database_name=f"{self._folder.name}/second.sqlite",
+            logfile_name=f"{self._folder.name}/second.log",
+        )
+        try:
+            for app in (self._app, second):
+                app.use_recorded_market_data(
+                    self._data_source(
+                        MarketDataProvenance(
+                            source="/recordings/live.sqlite",
+                            source_run_id=source_run_id,
+                        )
+                    ),
+                    self.DATA_START,
+                    self.DATA_END,
+                )
+
+            first_id = self._app._engine_run.run_id
+            second_id = second._engine_run.run_id
+            self.assertNotEqual(first_id, second_id)
+            self.assertNotIn(source_run_id, (first_id, second_id))
+            self.assertEqual(
+                source_run_id, self._app._engine_run.source_run_id
+            )
+            self.assertEqual(source_run_id, second._engine_run.source_run_id)
+        finally:
+            second._signal_recorder.close()
+
+    def test_the_replays_own_timestamps_are_not_the_datas(self):
+        self._app.use_recorded_market_data(
+            self._data_source(
+                MarketDataProvenance(source="/recordings/live.sqlite")
+            ),
+            self.DATA_START,
+            self.DATA_END,
+        )
+        self._app._connect_signals()
+        self._app.stop()
+
+        recorded = self._recorded()
+        self.assertEqual(
+            self.DATA_START.timestamp(), recorded["market_data_started_at"]
+        )
+        self.assertEqual(
+            self.DATA_END.timestamp(), recorded["market_data_ended_at"]
+        )
+        self.assertGreater(recorded["started_at"], self.DATA_END.timestamp())
+        self.assertGreaterEqual(recorded["ended_at"], recorded["started_at"])
+
+    def test_a_replay_ended_while_the_engine_clock_is_still_historical(self):
+        """A replay moves the engine's clock through the interval it reads,
+        and a feed that fails part way leaves it there. The run's own end
+        is the machine's time regardless."""
+        self._app.use_recorded_market_data(
+            self._data_source(
+                MarketDataProvenance(source="/recordings/live.sqlite")
+            ),
+            self.DATA_START,
+            self.DATA_END,
+        )
+        self._app._connect_signals()
+        time_manager().claim_admin(self)
+        try:
+            time_manager().use_fake_time(self.DATA_START, admin=self)
+            self._app.stop()
+        finally:
+            time_manager().reset(admin=self)
+
+        self.assertGreater(
+            self._recorded()["ended_at"], self.DATA_END.timestamp()
+        )
+
+    def test_a_live_run_records_no_replay_source(self):
+        self._app.use_market_data_service(
+            _market_data_feed(MarketDataMode.REALTIME)
+        )
+        self._app._connect_signals()
+
+        recorded = self._recorded()
+        self.assertEqual("", recorded["market_data_source"])
+        self.assertIsNone(recorded["source_run_id"])
+        self.assertIsNone(recorded["market_data_started_at"])
+        self.assertIsNone(recorded["market_data_trade_count"])
 
 
 class TestEngineRuntimeFairPriceModel(unittest.TestCase):

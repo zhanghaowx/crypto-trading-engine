@@ -4,6 +4,7 @@ from jolteon.dashboard.cards import session_economics
 from jolteon.dashboard.services.health import resolve_runs
 from jolteon.dashboard.ui.cards import Card, cards_rule, render_cards
 from jolteon.dashboard.ui.engine_selection import (
+    replay_source,
     run_mode,
     run_status,
     select_engine,
@@ -53,12 +54,18 @@ def _select_run() -> str | None:
             f"{short_id} · {run_status(run)} · {run_mode(run)}"
         )
 
-    return st.selectbox(
+    chosen = st.selectbox(
         "Engine run",
         options=options,
         format_func=label,
         key=ANALYSIS_RUN,
     )
+    # Only a replay has one, and only there does the reader need to know
+    # which recording the figures below were produced from.
+    source = replay_source(by_id[chosen])
+    if source:
+        st.caption(source)
+    return chosen
 
 
 select_engine()
