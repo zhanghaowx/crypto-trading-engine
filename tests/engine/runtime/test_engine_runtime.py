@@ -17,11 +17,26 @@ from jolteon.engine.core.health_monitor.health import (
     HealthState,
 )
 from jolteon.engine.core.logging.logger import SQLiteHandler
+from jolteon.engine.core.parameter.live_parameter_service import (
+    LiveParameterService,
+)
 from jolteon.engine.core.parameter.parameter_service import (
+    ALL_SYMBOLS,
     StaticParameterService,
     parameter_service,
 )
+from jolteon.engine.core.parameter.parameter_store import (
+    ParameterChange,
+    ParameterStore,
+)
+from jolteon.engine.core.secrets import looks_secret
 from jolteon.engine.core.time.time_manager import time_manager
+from jolteon.engine.execution.binance_us.fee_schedule import (
+    BinanceUsFeeSchedule,
+)
+from jolteon.engine.execution.mock_execution_service import (
+    MockExecutionService,
+)
 from jolteon.engine.market_data.core.bbo import BBO
 from jolteon.engine.market_data.core.book_snapshot import BookSnapshot
 from jolteon.engine.market_data.data_source import IDataSource
@@ -30,6 +45,9 @@ from jolteon.engine.runtime.engine_runtime import EngineRuntime
 from jolteon.engine.strategy.market_making.fair_value.fair_price_model import (
     FairPrice,
     IFairPriceModel,
+)
+from jolteon.engine.strategy.market_making.parameters import (
+    MarketMakingParameters,
 )
 
 
@@ -402,6 +420,197 @@ class TestReplayProvenance(unittest.TestCase):
         self.assertIsNone(recorded["source_run_id"])
         self.assertIsNone(recorded["market_data_started_at"])
         self.assertIsNone(recorded["market_data_trade_count"])
+
+
+class TestRunConfigurationSnapshot(unittest.IsolatedAsyncioTestCase):
+    """What a run records about its own configuration, and when."""
+
+    def setUp(self):
+        self._folder = tempfile.TemporaryDirectory()
+        self._db = f"{self._folder.name}/config.sqlite"
+        self._params_db = f"{self._folder.name}/params.sqlite"
+
+    def tearDown(self):
+        root_logger = logging.getLogger()
+        for handler in list(root_logger.handlers):
+            if isinstance(handler, SQLiteHandler):
+                root_logger.removeHandler(handler)
+                handler.close()
+        self._folder.cleanup()
+
+    def _make_app(self, parameter_service=None) -> EngineRuntime:
+        return EngineRuntime(
+            symbol="BTC/USD",
+            exchange="Binance.US",
+            database_name=self._db,
+            logfile_name=f"{self._folder.name}/config.log",
+            parameter_service=parameter_service,
+        )
+
+    async def _run(self, app: EngineRuntime, connect=None) -> None:
+        async def nothing(symbol, *args):
+            if connect is not None:
+                connect()
+
+        app.use_market_data_service(
+            SimpleNamespace(
+                connect=nothing, market_data_mode=MarketDataMode.RECORDED
+            )
+        )
+        with patch.object(EngineRuntime, "THREAD_ENABLED", False):
+            await app.run_start()
+        app._signal_recorder.close()
+
+    def _rows(self, table: str) -> list[dict]:
+        with closing(sqlite3.connect(self._db)) as conn:
+            conn.row_factory = sqlite3.Row
+            return [
+                dict(row)
+                for row in conn.execute(f'SELECT * FROM "{table}"').fetchall()
+            ]
+
+    def _pushed(self, *changes: ParameterChange) -> LiveParameterService:
+        store = ParameterStore(self._params_db)
+        try:
+            store.push(list(changes))
+        finally:
+            store.close()
+        return LiveParameterService(self._params_db)
+
+    async def test_a_run_records_the_parameters_it_started_with(self):
+        app = self._make_app()
+        await self._run(app)
+
+        captured = {
+            (row["group_name"], row["field_name"]): row["value"]
+            for row in self._rows("run_parameter")
+        }
+
+        self.assertEqual(
+            MarketMakingParameters().quote_size,
+            captured[("MarketMakingParameters", "quote_size")],
+        )
+        self.assertTrue(
+            all(
+                row["run_id"] == app._engine_run.run_id
+                for row in self._rows("run_parameter")
+            )
+        )
+
+    async def test_an_override_pushed_before_the_run_is_in_the_snapshot(self):
+        """The snapshot is what the first decision was made under, so it
+        is taken after whatever was already in the store is loaded."""
+        service = self._pushed(
+            ParameterChange(
+                "MarketMakingParameters", "quote_size", ALL_SYMBOLS, 0.004
+            )
+        )
+        app = self._make_app(service)
+        await self._run(app)
+
+        captured = {
+            (row["group_name"], row["field_name"]): row["value"]
+            for row in self._rows("run_parameter")
+        }
+
+        self.assertEqual(
+            0.004, captured[("MarketMakingParameters", "quote_size")]
+        )
+
+    async def test_the_snapshot_is_taken_before_the_first_tick(self):
+        """The snapshot has to be what the first decision was made under,
+        so it is published before the feed delivers anything."""
+        order: list[str] = []
+        event = signal("run_parameter")
+
+        def note(sender, run_parameter):
+            order.append("snapshot")
+
+        event.connect(note)
+        try:
+            await self._run(
+                self._make_app(), connect=lambda: order.append("tick")
+            )
+        finally:
+            event.disconnect(note)
+
+        self.assertEqual("snapshot", order[0])
+        self.assertEqual("tick", order[-1])
+
+    async def test_a_run_records_the_code_and_assumptions_it_ran_under(self):
+        app = self._make_app()
+        app.use_execution_service(
+            MockExecutionService(BinanceUsFeeSchedule, health_monitor=None)
+        )
+        await self._run(app)
+
+        environment = self._rows("run_environment")
+
+        self.assertEqual(1, len(environment))
+        recorded = environment[0]
+        self.assertEqual(40, len(recorded["commit"]))
+        self.assertIn(recorded["working_tree_clean"], (0, 1))
+        self.assertEqual("MockExecutionService", recorded["execution_service"])
+        self.assertEqual(
+            "BinanceUsFeeSchedule", recorded["execution.fee_schedule"]
+        )
+        self.assertEqual(
+            BinanceUsFeeSchedule().taker_rate,
+            recorded["execution.taker_rate"],
+        )
+        self.assertEqual("QueuePosition", recorded["execution.queue_model"])
+        self.assertIsNone(recorded["execution.order_latency_seconds"])
+        self.assertIsNone(recorded["execution.random_seed"])
+
+    async def test_a_run_against_a_real_venue_records_no_assumptions(self):
+        app = self._make_app()
+        app.use_execution_service(SimpleNamespace())
+        await self._run(app)
+
+        self.assertIsNone(self._rows("run_environment")[0]["execution"])
+
+    async def test_the_snapshot_holds_no_field_that_might_be_a_secret(self):
+        app = self._make_app()
+        await self._run(app)
+
+        self.assertFalse(
+            [
+                row
+                for row in self._rows("run_parameter")
+                if looks_secret(row["field_name"])
+            ]
+        )
+
+    async def test_a_second_run_in_one_recording_keeps_the_firsts_snapshot(
+        self,
+    ):
+        """An earlier run's configuration is what it ran under and must
+        not be rewritten by a later one, whatever the store holds by
+        then."""
+        first = self._make_app()
+        await self._run(first)
+        second = self._make_app(
+            self._pushed(
+                ParameterChange(
+                    "MarketMakingParameters", "quote_size", ALL_SYMBOLS, 0.004
+                )
+            )
+        )
+        await self._run(second)
+
+        by_run = {}
+        for row in self._rows("run_parameter"):
+            if (row["group_name"], row["field_name"]) == (
+                "MarketMakingParameters",
+                "quote_size",
+            ):
+                by_run[row["run_id"]] = row["value"]
+
+        self.assertEqual(
+            MarketMakingParameters().quote_size,
+            by_run[first._engine_run.run_id],
+        )
+        self.assertEqual(0.004, by_run[second._engine_run.run_id])
 
 
 class TestEngineRuntimeFairPriceModel(unittest.TestCase):

@@ -5,6 +5,9 @@ from typing import Union
 from jolteon.engine.core.engine_run import ExecutionMode
 from jolteon.engine.core.event.signal import signal, subscribe
 from jolteon.engine.core.event.signal_subscriber import SignalSubscriber
+from jolteon.engine.core.execution_assumptions import (
+    ExecutionAssumptions,
+)
 from jolteon.engine.core.fee_schedule import FeeSchedule
 from jolteon.engine.core.health_monitor.health import HealthMonitor
 from jolteon.engine.core.health_monitor.heartbeat import Heartbeater
@@ -61,6 +64,19 @@ class MockExecutionService(Heartbeater, SignalSubscriber):
         self._latest_bbo: dict[str, BBO] = {}
         self._latest_order_book: dict[str, OrderBook] = {}
         self._resting_orders: dict[str, _RestingOrder] = {}
+
+    def execution_assumptions(self, symbol: str) -> ExecutionAssumptions:
+        """
+        Returns: What this simulator assumes about a fill of `symbol`,
+        taken from the schedule and queue model it is actually using.
+        """
+        fees = parameter_service().get(self._fee_schedule, symbol)
+        return ExecutionAssumptions(
+            fee_schedule=self._fee_schedule.__name__,
+            maker_rate=fees.maker_rate,
+            taker_rate=fees.taker_rate,
+            queue_model=QueuePosition.__name__,
+        )
 
     @subscribe("order")
     def on_order(self, sender: object, order: Order):

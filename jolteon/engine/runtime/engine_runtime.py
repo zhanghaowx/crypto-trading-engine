@@ -23,6 +23,10 @@ from jolteon.engine.core.parameter.parameter_service import (
     StaticParameterService,
     use_parameter_service,
 )
+from jolteon.engine.core.run_configuration import (
+    run_environment,
+    run_parameters,
+)
 from jolteon.engine.market_data.book_feature_recorder import (
     BookFeatureRecorder,
 )
@@ -67,6 +71,10 @@ class EngineRuntime(SignalManager):
         self._exchange = exchange
         self._session_metadata_event = signal("session_metadata")
         self._engine_run_event = signal("engine_run")
+        # Made here, before the recorder scans the namespace: a signal
+        # that appears after recording has started is never persisted.
+        self._run_parameter_event = signal("run_parameter")
+        self._run_environment_event = signal("run_environment")
         # The machine's clock, not the engine's: a replay moves the
         # engine's clock through the interval it reads, and this is when
         # the replay itself ran.
@@ -143,6 +151,7 @@ class EngineRuntime(SignalManager):
         assert self._md, "Please set a market data service before running"
         self._connect_signals()
         self._parameter_service.start()
+        self._record_configuration()
 
         # stop() in a finally, or a feed that raises leaves the parameter
         # poller and the recorder running behind it.
@@ -225,6 +234,31 @@ class EngineRuntime(SignalManager):
             metadata=SessionMetadata(self._exchange, self._symbol),
         )
         self._send_engine_run()
+
+    def _record_configuration(self) -> None:
+        """
+        Record what this run is configured with.
+
+        Called once the parameter service has loaded whatever was pushed
+        before the run started, and before the feed delivers a tick that
+        any of it could be changed by - so the snapshot is what the first
+        decision was made under.
+        """
+        values = self._parameter_service.values()
+        for captured in run_parameters(values):
+            self._run_parameter_event.send(
+                self._run_parameter_event, run_parameter=captured
+            )
+        self._run_environment_event.send(
+            self._run_environment_event,
+            run_environment=run_environment(
+                values=values,
+                execution_service=self._exec_service,
+                market_data_feed=self._md,
+                health_state=self._health_monitor.state,
+                symbol=self._symbol,
+            ),
+        )
 
     def _send_engine_run(self):
         self._engine_run_event.send(

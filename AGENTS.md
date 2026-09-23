@@ -11,7 +11,8 @@ jolteon/
 ├── engine/          The trading engine. Knows nothing about how it is
 │   │                started or how it is looked at.
 │   ├── core/            Engine infrastructure: signals, recording,
-│   │                    parameters, health, time, storage paths
+│   │                    parameters, health, time, storage paths,
+│   │                    run identity and run provenance
 │   ├── execution/       Execution services and venue execution adapters
 │   ├── market_data/     Feeds, books, and historical data sources
 │   ├── position/        Position state and PnL tracking

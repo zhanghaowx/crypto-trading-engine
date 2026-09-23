@@ -8,17 +8,7 @@ import sentry_sdk
 from sentry_sdk.integrations.logging import LoggingIntegration
 from sentry_sdk.types import Event
 
-_SECRET_MARKERS = (
-    "authorization",
-    "cookie",
-    "credential",
-    "dsn",
-    "key",
-    "password",
-    "secret",
-    "signature",
-    "token",
-)
+from jolteon.engine.core.secrets import looks_secret
 
 
 def configure(
@@ -77,10 +67,7 @@ def _before_send(event: Event, hint: dict[str, Any]) -> Event:
 def _scrub(value: Any) -> None:
     if isinstance(value, dict):
         for key in list(value):
-            normalized = str(key).lower()
-            if normalized == "vars" or any(
-                marker in normalized for marker in _SECRET_MARKERS
-            ):
+            if str(key).lower() == "vars" or looks_secret(str(key)):
                 value.pop(key, None)
             else:
                 _scrub(value[key])
