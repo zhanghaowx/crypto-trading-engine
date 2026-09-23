@@ -9,7 +9,11 @@ from jolteon.dashboard.cards import (
 )
 from jolteon.dashboard.state import current_run, refresh_interval
 from jolteon.dashboard.ui.cards import Card, cards_rule, render_cards
-from jolteon.dashboard.ui.engine_selection import run_status, select_engine
+from jolteon.dashboard.ui.engine_selection import (
+    run_mode,
+    run_status,
+    select_engine,
+)
 from jolteon.dashboard.ui.navigation import watch_nav
 
 
@@ -20,7 +24,8 @@ def _render_run_scope() -> None:
     short_id = run.run_id.rsplit("-", 1)[-1]
     st.caption(
         f"Run `{short_id}` · started "
-        f"{run.started_at:%Y-%m-%d %H:%M:%S} UTC · {run_status(run)}"
+        f"{run.started_at:%Y-%m-%d %H:%M:%S} UTC · {run_status(run)} · "
+        f"{run_mode(run)}"
     )
 
 

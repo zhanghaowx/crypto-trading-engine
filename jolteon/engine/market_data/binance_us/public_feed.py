@@ -8,6 +8,7 @@ from enum import StrEnum
 import websockets
 from websockets.exceptions import ConnectionClosed
 
+from jolteon.engine.core.engine_run import MarketDataMode
 from jolteon.engine.core.health_monitor.health import (
     HealthMonitor,
     HealthState,
@@ -60,6 +61,10 @@ class PublicFeed(IMarketDataFeed):
         self._order_book = OrderBook("")
         self._last_update_id: int | None = None
         self._awaiting_bridge = False
+
+    @property
+    def market_data_mode(self) -> MarketDataMode:
+        return MarketDataMode.REALTIME
 
     @property
     def channels(self) -> frozenset[Channel]:

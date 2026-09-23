@@ -9,6 +9,7 @@ from enum import Enum
 
 import websockets
 
+from jolteon.engine.core.engine_run import MarketDataMode
 from jolteon.engine.core.health_monitor.health import (
     HealthMonitor,
     HealthState,
@@ -61,6 +62,10 @@ class PublicFeed(IMarketDataFeed):
         self._ready_symbol = ""
         self._instrument_ready = False
         self._book_ready = False
+
+    @property
+    def market_data_mode(self) -> MarketDataMode:
+        return MarketDataMode.REALTIME
 
     @property
     def channels(self) -> frozenset[Channel]:

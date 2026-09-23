@@ -12,7 +12,12 @@ from jolteon.dashboard.data.runs import RecordedEngineRun
 from jolteon.engine.core.storage import paths
 
 
-def scoped_run(run_id: str, status: str = "running") -> RecordedEngineRun:
+def scoped_run(
+    run_id: str,
+    status: str = "running",
+    execution_mode: str = "SIMULATED",
+    market_data_mode: str = "REALTIME",
+) -> RecordedEngineRun:
     """The run a page test is looking at, as `settings.RUN` holds it."""
     return RecordedEngineRun(
         run_id=run_id,
@@ -21,6 +26,8 @@ def scoped_run(run_id: str, status: str = "running") -> RecordedEngineRun:
         started_at=datetime(2026, 9, 20, tzinfo=timezone.utc),
         ended_at=None,
         status=status,
+        execution_mode=execution_mode,
+        market_data_mode=market_data_mode,
     )
 
 

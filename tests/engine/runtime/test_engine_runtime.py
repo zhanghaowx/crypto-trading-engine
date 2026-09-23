@@ -6,6 +6,7 @@ from contextlib import closing
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from jolteon.engine.core.engine_run import ExecutionMode, MarketDataMode
 from jolteon.engine.core.event.signal import signal, subscribe
 from jolteon.engine.core.event.signal_subscriber import SignalSubscriber
 from jolteon.engine.core.health_monitor.health import (
@@ -146,6 +147,104 @@ class TestEngineRuntimeEngineRun(unittest.TestCase):
         self.assertEqual("BTC/USD", recorded[2])
         self.assertIsNotNone(recorded[3])
         self.assertIsNotNone(recorded[4])
+
+
+def _execution_service(mode: ExecutionMode) -> SimpleNamespace:
+    return SimpleNamespace(execution_mode=mode)
+
+
+def _market_data_feed(mode: MarketDataMode) -> SimpleNamespace:
+    return SimpleNamespace(market_data_mode=mode)
+
+
+class TestEngineRunClassification(unittest.TestCase):
+    """The two modes a run is classified by, taken from what it was wired
+    with rather than from the file it writes or whether it finished."""
+
+    def setUp(self):
+        self._folder = tempfile.TemporaryDirectory()
+        self._app = EngineRuntime(
+            symbol="BTC/USD",
+            exchange="Binance.US",
+            database_name=f"{self._folder.name}/modes.sqlite",
+            logfile_name=f"{self._folder.name}/modes.log",
+        )
+
+    def tearDown(self):
+        self._app._signal_recorder.close()
+        root_logger = logging.getLogger()
+        for handler in list(root_logger.handlers):
+            if isinstance(handler, SQLiteHandler):
+                root_logger.removeHandler(handler)
+                handler.close()
+        self._folder.cleanup()
+
+    def _recorded_modes(self) -> list[tuple]:
+        self._app._signal_recorder.flush()
+        with closing(
+            sqlite3.connect(f"{self._folder.name}/modes.sqlite")
+        ) as conn:
+            return conn.execute(
+                "SELECT execution_mode, market_data_mode, ended_at "
+                "FROM engine_run"
+            ).fetchall()
+
+    def test_live_paper_trading_is_simulated_off_a_live_feed(self):
+        self._app.use_execution_service(
+            _execution_service(ExecutionMode.SIMULATED)
+        )
+        self._app.use_market_data_service(
+            _market_data_feed(MarketDataMode.REALTIME)
+        )
+        self._app._connect_signals()
+
+        self.assertEqual(
+            [("SIMULATED", "REALTIME", None)], self._recorded_modes()
+        )
+
+    def test_a_replay_is_simulated_off_a_recording(self):
+        self._app.use_execution_service(
+            _execution_service(ExecutionMode.SIMULATED)
+        )
+        self._app.use_market_data_service(
+            _market_data_feed(MarketDataMode.RECORDED)
+        )
+        self._app._connect_signals()
+
+        self.assertEqual(
+            [("SIMULATED", "RECORDED", None)], self._recorded_modes()
+        )
+
+    def test_live_trading_is_real_execution_off_a_live_feed(self):
+        self._app.use_execution_service(_execution_service(ExecutionMode.REAL))
+        self._app.use_market_data_service(
+            _market_data_feed(MarketDataMode.REALTIME)
+        )
+        self._app._connect_signals()
+
+        self.assertEqual([("REAL", "REALTIME", None)], self._recorded_modes())
+
+    def test_a_run_wired_with_neither_records_neither_mode(self):
+        self._app._connect_signals()
+
+        self.assertEqual(
+            [("UNKNOWN", "UNKNOWN", None)], self._recorded_modes()
+        )
+
+    def test_stopping_records_an_end_without_changing_the_modes(self):
+        self._app.use_execution_service(
+            _execution_service(ExecutionMode.SIMULATED)
+        )
+        self._app.use_market_data_service(
+            _market_data_feed(MarketDataMode.RECORDED)
+        )
+        self._app._connect_signals()
+        self._app.stop()
+
+        recorded = self._recorded_modes()
+        self.assertEqual(1, len(recorded))
+        self.assertEqual(("SIMULATED", "RECORDED"), recorded[0][:2])
+        self.assertIsNotNone(recorded[0][2])
 
 
 class TestEngineRuntimeFairPriceModel(unittest.TestCase):

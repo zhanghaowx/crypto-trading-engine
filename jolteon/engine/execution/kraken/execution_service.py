@@ -9,6 +9,7 @@ from enum import StrEnum
 import pytz
 from requests import Response
 
+from jolteon.engine.core.engine_run import ExecutionMode
 from jolteon.engine.core.event.signal import signal, subscribe
 from jolteon.engine.core.event.signal_subscriber import SignalSubscriber
 from jolteon.engine.core.health_monitor.health import (
@@ -45,6 +46,11 @@ _QUERY_TRADES_MAX_IDS = 20
 
 
 class ExecutionService(Heartbeater, SignalSubscriber):
+    # Orders reach Kraken itself even on a dry run, where Kraken
+    # validates them instead of booking them; nothing here stands in for
+    # the venue.
+    execution_mode = ExecutionMode.REAL
+
     @dataclass
     class ErrorCode(StrEnum):
         CREATE_ORDER_FAILURE = "CREATE_ORDER_FAILURE"

@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum, auto
 
+from jolteon.engine.core.engine_run import MarketDataMode
 from jolteon.engine.core.health_monitor.health import (
     HealthMonitor,
     HealthState,
@@ -32,6 +33,10 @@ class HistoricalFeed(IMarketDataFeed):
     ):
         super().__init__(type(self).__name__, health_monitor=health_monitor)
         self._data_source = data_source
+
+    @property
+    def market_data_mode(self) -> MarketDataMode:
+        return MarketDataMode.RECORDED
 
     @property
     def channels(self) -> frozenset[Channel]:

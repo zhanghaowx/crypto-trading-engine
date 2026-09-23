@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from jolteon.engine.core.engine_run import ExecutionMode
 from jolteon.engine.execution.binance_us.fee_schedule import (
     BinanceUsFeeSchedule,
 )
@@ -61,3 +62,13 @@ def test_remote_replay_is_explicitly_unsupported(tmp_path):
     )
     with pytest.raises(NotImplementedError, match="historical replay"):
         asyncio.run(application.run_replay(None, None))
+
+
+def test_a_paper_run_is_classified_as_simulated_execution(tmp_path):
+    application = BinanceUsRuntime(
+        "BTC/USD",
+        str(tmp_path / "live.sqlite"),
+        str(tmp_path / "live.log"),
+    )
+
+    assert application._engine_run.execution_mode == ExecutionMode.SIMULATED

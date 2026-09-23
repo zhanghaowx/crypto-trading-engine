@@ -2,6 +2,7 @@ import logging
 from abc import ABC, abstractmethod
 from enum import StrEnum, auto
 
+from jolteon.engine.core.engine_run import MarketDataMode
 from jolteon.engine.core.health_monitor.health import (
     HealthMonitor,
     HealthState,
@@ -43,6 +44,16 @@ class IMarketDataFeed(Heartbeater, ABC):
         super().__init__(name, interval_in_seconds, health_monitor)
         self.events = Events()
         self._book_record_sequence = 0
+
+    @property
+    @abstractmethod
+    def market_data_mode(self) -> MarketDataMode:
+        """
+        Returns: Whether this feed's data arrives as it happens or is
+        played back from something already recorded, which is what tells
+        live paper trading apart from a replay of it.
+        """
+        raise NotImplementedError  # pragma: no cover
 
     @property
     @abstractmethod

@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 import pandas as pd
 
 from jolteon.dashboard.data.sqlite import database_exists, read_table
+from jolteon.engine.core.engine_run import ExecutionMode, MarketDataMode
 
 
 @dataclass(frozen=True)
@@ -23,12 +24,24 @@ class RecordedEngineRun:
     started_at: datetime
     ended_at: datetime | None
     status: str
+    # A recording made before runs said how they executed has neither
+    # column, and reads back unclassified rather than as whichever mode
+    # is more common.
+    execution_mode: str = ExecutionMode.UNKNOWN
+    market_data_mode: str = MarketDataMode.UNKNOWN
 
 
 def _recorded_datetime(value) -> datetime | None:
     if value is None or pd.isna(value):
         return None
     return datetime.fromtimestamp(float(value), tz=timezone.utc)
+
+
+def _recorded_text(row: pd.Series, column: str, absent: str) -> str:
+    value = row.get(column)
+    if value is None or pd.isna(value):
+        return absent
+    return str(value)
 
 
 def engine_runs(db_path: str) -> list[RecordedEngineRun]:
@@ -45,9 +58,11 @@ def engine_runs(db_path: str) -> list[RecordedEngineRun]:
         return []
     conn = sqlite3.connect(db_path)
     try:
+        # Every column, rather than the ones named: a recording made by
+        # an older engine is missing some of them, and asking for one by
+        # name would fail the whole read rather than leave it unanswered.
         rows = pd.read_sql(
-            "SELECT run_id, exchange, symbol, started_at, ended_at "
-            'FROM "engine_run" ORDER BY started_at DESC, rowid DESC',
+            'SELECT * FROM "engine_run" ORDER BY started_at DESC, rowid DESC',
             conn,
         )
     except (sqlite3.OperationalError, pd.errors.DatabaseError):
@@ -75,6 +90,12 @@ def engine_runs(db_path: str) -> list[RecordedEngineRun]:
                 started_at=started,
                 ended_at=ended,
                 status=status,
+                execution_mode=_recorded_text(
+                    row, "execution_mode", ExecutionMode.UNKNOWN
+                ),
+                market_data_mode=_recorded_text(
+                    row, "market_data_mode", MarketDataMode.UNKNOWN
+                ),
             )
         )
     return result

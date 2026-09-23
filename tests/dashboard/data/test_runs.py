@@ -77,3 +77,80 @@ def test_read_run_table_returns_only_the_named_run(tmp_path):
     frame = read_run_table(db_path, "event", "run-b")
 
     assert list(frame["value"]) == [2]
+
+
+def test_engine_runs_read_back_how_a_run_executed(tmp_path):
+    db_path = str(tmp_path / "modes.sqlite")
+    with closing(sqlite3.connect(db_path)) as conn:
+        conn.execute(
+            "CREATE TABLE engine_run "
+            "(run_id TEXT PRIMARY KEY, exchange TEXT, symbol TEXT, "
+            "started_at REAL, ended_at REAL, execution_mode TEXT, "
+            "market_data_mode TEXT)"
+        )
+        conn.executemany(
+            "INSERT INTO engine_run VALUES "
+            "(?, 'Binance.US', 'BTC/USD', ?, ?, ?, ?)",
+            [
+                ("run-paper", 1.0, 2.0, "SIMULATED", "REALTIME"),
+                ("run-replay", 3.0, 4.0, "SIMULATED", "RECORDED"),
+                ("run-live", 5.0, 6.0, "REAL", "REALTIME"),
+            ],
+        )
+        conn.commit()
+
+    by_id = {run.run_id: run for run in engine_runs(db_path)}
+
+    assert (
+        by_id["run-paper"].execution_mode,
+        by_id["run-paper"].market_data_mode,
+    ) == ("SIMULATED", "REALTIME")
+    assert by_id["run-replay"].market_data_mode == "RECORDED"
+    assert by_id["run-live"].execution_mode == "REAL"
+
+
+def test_a_run_recorded_before_modes_existed_reads_back_unclassified(tmp_path):
+    """The engine_run table a previous engine wrote has neither mode
+    column, and such a run must not be counted as either mode."""
+    db_path = str(tmp_path / "legacy.sqlite")
+    with closing(sqlite3.connect(db_path)) as conn:
+        conn.execute(
+            "CREATE TABLE engine_run "
+            "(run_id TEXT PRIMARY KEY, exchange TEXT, symbol TEXT, "
+            "started_at REAL, ended_at REAL)"
+        )
+        conn.execute(
+            "INSERT INTO engine_run VALUES "
+            "('run-old', 'Kraken', 'BTC/USD', 1.0, 2.0)"
+        )
+        conn.commit()
+
+    run = engine_runs(db_path)[0]
+
+    assert run.execution_mode == "UNKNOWN"
+    assert run.market_data_mode == "UNKNOWN"
+
+
+def test_a_run_whose_modes_were_never_written_reads_back_unclassified(
+    tmp_path,
+):
+    """The columns exist because a later run wrote them, and this row's
+    are NULL."""
+    db_path = str(tmp_path / "mixed.sqlite")
+    with closing(sqlite3.connect(db_path)) as conn:
+        conn.execute(
+            "CREATE TABLE engine_run "
+            "(run_id TEXT PRIMARY KEY, exchange TEXT, symbol TEXT, "
+            "started_at REAL, ended_at REAL, execution_mode TEXT, "
+            "market_data_mode TEXT)"
+        )
+        conn.execute(
+            "INSERT INTO engine_run VALUES "
+            "('run-old', 'Kraken', 'BTC/USD', 1.0, 2.0, NULL, NULL)"
+        )
+        conn.commit()
+
+    run = engine_runs(db_path)[0]
+
+    assert run.execution_mode == "UNKNOWN"
+    assert run.market_data_mode == "UNKNOWN"
