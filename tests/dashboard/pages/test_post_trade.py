@@ -29,19 +29,25 @@ def _page(db_path: str, root: str) -> AppTest:
     return at
 
 
-def _recording(path: str, runs, fills, heartbeat=None) -> None:
+def _recording(path: str, runs, fills, heartbeat=None, modes=True) -> None:
     """A recording holding `runs` - each `(run_id, started_at, ended_at)` -
-    and `fills`, each `(run_id, side, price, qty)`."""
+    and `fills`, each `(run_id, side, price, qty)`. With `modes` off it is
+    shaped the way an engine that recorded no modes shaped it."""
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)
     try:
+        mode_columns = (
+            ", execution_mode TEXT, market_data_mode TEXT" if modes else ""
+        )
+        mode_values = ", 'SIMULATED', 'REALTIME'" if modes else ""
         conn.execute(
             "CREATE TABLE engine_run "
             "(run_id TEXT PRIMARY KEY, exchange TEXT, symbol TEXT, "
-            "started_at REAL, ended_at REAL)"
+            f"started_at REAL, ended_at REAL{mode_columns})"
         )
         conn.executemany(
-            "INSERT INTO engine_run VALUES (?, 'Kraken', ?, ?, ?)",
+            "INSERT INTO engine_run VALUES "
+            f"(?, 'Kraken', ?, ?, ?{mode_values})",
             [
                 (run_id, SYMBOL, started, ended)
                 for run_id, started, ended in runs
@@ -147,8 +153,8 @@ def test_the_run_still_going_is_not_offered(three_runs, tmp_path):
     # Both ways a run can be over are offered, newest first, worded the
     # way the Live page words them.
     assert picker.options == [
-        "2025-09-16 06:20:00 UTC · c0ffee11 · Interrupted",
-        "2025-09-16 05:20:00 UTC · def456 · Stopped",
+        "2025-09-16 06:20:00 UTC · c0ffee11 · Interrupted · Paper · Live feed",
+        "2025-09-16 05:20:00 UTC · def456 · Stopped · Paper · Live feed",
     ]
 
 
@@ -188,3 +194,28 @@ def test_says_so_when_the_only_run_is_still_going(
     ]
     assert not at.selectbox
     assert not at.expander
+
+
+@pytest.fixture
+def a_run_recorded_without_modes(tmp_path) -> str:
+    """A finished run out of a recording made before an engine wrote down
+    how it executed."""
+    path = paths.recording(str(tmp_path / "engines"), SYMBOL)
+    _recording(
+        path,
+        runs=[(STOPPED, 1758000000.0, 1758000600.0)],
+        fills=[(STOPPED, "BUY", 60.0, 1.0)],
+        modes=False,
+    )
+    return path
+
+
+def test_an_older_recording_says_its_mode_was_never_recorded(
+    a_run_recorded_without_modes, tmp_path
+):
+    at = _page(a_run_recorded_without_modes, str(tmp_path / "engines")).run()
+
+    assert not at.exception
+    assert at.selectbox[0].options == [
+        "2025-09-16 05:20:00 UTC · def456 · Stopped · Mode not recorded"
+    ]

@@ -3,7 +3,11 @@ import streamlit as st
 from jolteon.dashboard.cards import session_economics
 from jolteon.dashboard.services.health import resolve_runs
 from jolteon.dashboard.ui.cards import Card, cards_rule, render_cards
-from jolteon.dashboard.ui.engine_selection import run_status, select_engine
+from jolteon.dashboard.ui.engine_selection import (
+    run_mode,
+    run_status,
+    select_engine,
+)
 
 ANALYSIS_RUN = "analysis_run_id"
 
@@ -46,7 +50,7 @@ def _select_run() -> str | None:
         short_id = run_id.rsplit("-", 1)[-1]
         return (
             f"{run.started_at:%Y-%m-%d %H:%M:%S} UTC · "
-            f"{short_id} · {run_status(run)}"
+            f"{short_id} · {run_status(run)} · {run_mode(run)}"
         )
 
     return st.selectbox(

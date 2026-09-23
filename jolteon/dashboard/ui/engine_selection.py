@@ -10,6 +10,7 @@ import streamlit as st
 from jolteon.dashboard.data.engines import engine_databases
 from jolteon.dashboard.data.runs import RecordedEngineRun
 from jolteon.dashboard.state import ENGINE
+from jolteon.engine.core.engine_run import ExecutionMode, MarketDataMode
 
 
 def select_engine() -> None:
@@ -59,3 +60,29 @@ _RUN_STATUS_LABELS = {
 def run_status(run: RecordedEngineRun) -> str:
     """A run's status in the words a reader sees, the same on every page."""
     return _RUN_STATUS_LABELS[run.status]
+
+
+# How a run executed and where its market data came from, in the words a
+# reader uses for the pair. "Paper trading" is what a simulated run off a
+# live feed is called; a simulated run off a recording is a replay, and
+# calling that paper trading too would hide which of the two is on
+# screen.
+# Keyed by the recorded text rather than by the enum, which is what a
+# recording holds and what an older recording holds none of.
+_RUN_MODE_LABELS: dict[tuple[str, str], str] = {
+    (ExecutionMode.SIMULATED, MarketDataMode.REALTIME): "Paper · Live feed",
+    (ExecutionMode.SIMULATED, MarketDataMode.RECORDED): "Simulation · Replay",
+    (ExecutionMode.REAL, MarketDataMode.REALTIME): "Live · Live feed",
+    (ExecutionMode.REAL, MarketDataMode.RECORDED): "Live · Replay",
+}
+
+UNRECORDED_MODE = "Mode not recorded"
+
+
+def run_mode(run: RecordedEngineRun) -> str:
+    """How a run executed and where its data came from, said as one
+    phrase - and said to be unknown for a run recorded before an engine
+    wrote either down."""
+    return _RUN_MODE_LABELS.get(
+        (run.execution_mode, run.market_data_mode), UNRECORDED_MODE
+    )

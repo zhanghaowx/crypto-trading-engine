@@ -7,7 +7,12 @@ from pathlib import Path
 
 import pytz
 
-from jolteon.engine.core.engine_run import EngineRun, engine_run_id
+from jolteon.engine.core.engine_run import (
+    EngineRun,
+    engine_run_id,
+    execution_mode_of,
+    market_data_mode_of,
+)
 from jolteon.engine.core.event.signal import signal
 from jolteon.engine.core.event.signal_manager import SignalManager
 from jolteon.engine.core.event.signal_recorder import SignalRecorder
@@ -117,6 +122,7 @@ class EngineRuntime(SignalManager):
     def use_execution_service(self, service: object):
         print(f"Using {type(service).__name__}")
         self._exec_service = service
+        self._engine_run.execution_mode = execution_mode_of(service)
         mark_healthy = getattr(service, "mark_healthy", None)
         if mark_healthy:
             mark_healthy()
@@ -125,6 +131,7 @@ class EngineRuntime(SignalManager):
     def use_market_data_service(self, market_data: IMarketDataFeed):
         print(f"Using {type(market_data).__name__}")
         self._md = market_data
+        self._engine_run.market_data_mode = market_data_mode_of(market_data)
         return self
 
     async def run_start(self, *args):

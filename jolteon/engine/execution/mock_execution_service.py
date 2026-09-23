@@ -2,6 +2,7 @@ import uuid
 from dataclasses import dataclass
 from typing import Union
 
+from jolteon.engine.core.engine_run import ExecutionMode
 from jolteon.engine.core.event.signal import signal, subscribe
 from jolteon.engine.core.event.signal_subscriber import SignalSubscriber
 from jolteon.engine.core.fee_schedule import FeeSchedule
@@ -31,6 +32,8 @@ class _RestingOrder:
 
 
 class MockExecutionService(Heartbeater, SignalSubscriber):
+    execution_mode = ExecutionMode.SIMULATED
+
     def __init__(
         self,
         fee_schedule: type[FeeSchedule],

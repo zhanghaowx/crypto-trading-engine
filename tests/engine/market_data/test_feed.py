@@ -1,6 +1,10 @@
 import unittest
 from unittest.mock import MagicMock
 
+from jolteon.engine.core.engine_run import MarketDataMode
+from jolteon.engine.market_data.binance_us.public_feed import (
+    PublicFeed as BinanceUsPublicFeed,
+)
 from jolteon.engine.market_data.core.order_book import OrderBook
 from jolteon.engine.market_data.feed import Channel, IMarketDataFeed
 from jolteon.engine.market_data.historical_feed import HistoricalFeed
@@ -43,3 +47,22 @@ class TestEvents(unittest.TestCase):
 
     def test_raw_books_are_not_recorded(self):
         self.assertFalse(OrderBook("BTC/USD").RECORDED)
+
+
+class TestMarketDataMode(unittest.TestCase):
+    """Which of the two modes a feed is, since that is what separates live
+    paper trading from a replay of the same strategy."""
+
+    def test_a_live_venue_feed_delivers_data_as_it_happens(self):
+        self.assertEqual(
+            MarketDataMode.REALTIME, PublicFeed().market_data_mode
+        )
+        self.assertEqual(
+            MarketDataMode.REALTIME, BinanceUsPublicFeed().market_data_mode
+        )
+
+    def test_a_replay_delivers_data_already_recorded(self):
+        self.assertEqual(
+            MarketDataMode.RECORDED,
+            HistoricalFeed(MagicMock()).market_data_mode,
+        )
