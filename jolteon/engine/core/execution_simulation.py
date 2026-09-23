@@ -1,13 +1,13 @@
-"""What a simulated execution service assumed while a run traded."""
+"""Resolved settings used to simulate execution during a run."""
 
 from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
-class ExecutionAssumptions:
-    """The simulator settings a run's fills followed from, recorded so a
-    later reader knows which of them a result depends on.
+class ExecutionSimulationSettings:
+    """The resolved settings a run's simulated fills followed from.
 
+    Recorded so a later reader knows which settings its results depend on.
     The latency fields hold nothing while nothing models latency. Zero
     would read as a measured figure and would have every order reaching
     the venue instantly, which is the most optimistic assumption there

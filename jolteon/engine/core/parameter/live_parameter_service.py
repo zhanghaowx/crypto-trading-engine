@@ -10,6 +10,9 @@ from jolteon.engine.core.health_monitor.heartbeat import (
     Heartbeater,
 )
 from jolteon.engine.core.parameter import parameter_catalog
+from jolteon.engine.core.parameter.accepted_parameter_revision import (
+    AcceptedParameterRevision,
+)
 from jolteon.engine.core.parameter.parameter_change_result import (
     REJECTED,
     TAKEN,
@@ -36,6 +39,8 @@ from jolteon.engine.core.parameter.parameter_store import (
     ParameterChange,
     ParameterStore,
 )
+from jolteon.engine.core.secrets import looks_secret
+from jolteon.engine.core.time.time_manager import time_manager
 
 _REJECTED_PUSH = "Rejected a pushed parameter"
 
@@ -89,6 +94,9 @@ class LiveParameterService(IParameterService, Heartbeater):
         self.parameter_change_result_event = signal("parameter_change_result")
         self.parameter_group_revision_event = signal(
             "parameter_group_revision"
+        )
+        self.accepted_parameter_revision_event = signal(
+            "accepted_parameter_revision"
         )
 
     def values(self) -> ParameterValues:
@@ -145,6 +153,7 @@ class LiveParameterService(IParameterService, Heartbeater):
             return
         self._last_changes = changes
 
+        previous = self._values
         rebuilt, rejected = _build_checked(
             revision=self._values.revision + 1,
             changes=changes,
@@ -152,11 +161,42 @@ class LiveParameterService(IParameterService, Heartbeater):
         )
         if rebuilt is not None:
             self._values = rebuilt
+            self._record_accepted(previous, rebuilt)
             self.remove_issue(_REJECTED_PUSH)
         else:
             self.add_issue(HealthState.WARNING, _REJECTED_PUSH)
 
         self._emit(changes, rejected)
+
+    def _record_accepted(
+        self,
+        previous: ParameterValues,
+        values: ParameterValues,
+    ) -> None:
+        """
+        Record a complete resolved snapshot whenever configuration changes.
+
+        A complete snapshot makes a removed override unambiguous: the next
+        revision contains the fallback value, even when nothing remains in
+        the parameter store. Credential-like fields are never recorded.
+        """
+        snapshot = _resolved_snapshot(values)
+        if snapshot == _resolved_snapshot(previous):
+            return
+
+        effective_at = time_manager().now()
+        for group_name, field_name, symbol, value in snapshot:
+            self.accepted_parameter_revision_event.send(
+                self.accepted_parameter_revision_event,
+                accepted_parameter_revision=AcceptedParameterRevision(
+                    revision=values.revision,
+                    group_name=group_name,
+                    field_name=field_name,
+                    symbol=symbol,
+                    value=value,
+                    effective_at=effective_at,
+                ),
+            )
 
     def _emit(
         self,
@@ -255,6 +295,25 @@ def _build_checked(
         return None, rejected
 
     return rebuilt, rejected
+
+
+def _resolved_snapshot(
+    values: ParameterValues,
+) -> tuple[tuple[str, str, str, object], ...]:
+    """Every non-secret resolved value and scope in one revision."""
+    return tuple(
+        (
+            group.__name__,
+            definition.name,
+            symbol,
+            getattr(current, definition.name),
+        )
+        for symbol in (ALL_SYMBOLS, *values.symbols)
+        for group in parameter_catalog.GROUPS
+        for current in (values.peek(group, symbol),)
+        for definition in definitions(group)
+        if not looks_secret(definition.name)
+    )
 
 
 def _build(

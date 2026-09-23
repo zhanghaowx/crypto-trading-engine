@@ -7,9 +7,12 @@ a parameter store the dashboard has changed many times since.
 
 import sys
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from jolteon.engine.core.code_version import commit_sha, working_tree_is_clean
-from jolteon.engine.core.execution_assumptions import ExecutionAssumptions
+from jolteon.engine.core.execution_simulation import (
+    ExecutionSimulationSettings,
+)
 from jolteon.engine.core.parameter import parameter_catalog
 from jolteon.engine.core.parameter.parameter_service import (
     ALL_SYMBOLS,
@@ -17,6 +20,9 @@ from jolteon.engine.core.parameter.parameter_service import (
 )
 from jolteon.engine.core.parameter.parameter_specification import definitions
 from jolteon.engine.core.secrets import looks_secret
+
+if TYPE_CHECKING:
+    from jolteon.engine.execution.service import IExecutionService
 
 
 @dataclass
@@ -50,7 +56,7 @@ class RunEnvironment:
     market_data_feed: str
     parameter_revision: int
     health_state: str
-    execution: ExecutionAssumptions | None = None
+    execution_simulation: ExecutionSimulationSettings | None = None
 
 
 def run_parameters(values: ParameterValues) -> list[RunParameter]:
@@ -84,7 +90,7 @@ def run_parameters(values: ParameterValues) -> list[RunParameter]:
 
 def run_environment(
     values: ParameterValues,
-    execution_service: object,
+    execution_service: "IExecutionService | None",
     market_data_feed: object,
     health_state: str,
     symbol: str,
@@ -101,20 +107,9 @@ def run_environment(
         market_data_feed=type(market_data_feed).__name__,
         parameter_revision=values.revision,
         health_state=health_state,
-        execution=execution_assumptions_of(execution_service, symbol),
+        execution_simulation=(
+            None
+            if execution_service is None
+            else execution_service.describe_simulation(symbol)
+        ),
     )
-
-
-def execution_assumptions_of(
-    service: object, symbol: str
-) -> ExecutionAssumptions | None:
-    """
-    Returns: What an execution service assumes about a fill, and nothing
-    at all from one that assumes nothing - a real venue decides its own
-    fills, so there is nothing here to record for it.
-    """
-    describe = getattr(service, "execution_assumptions", None)
-    if describe is None:
-        return None
-    assumed = describe(symbol)
-    return assumed if isinstance(assumed, ExecutionAssumptions) else None

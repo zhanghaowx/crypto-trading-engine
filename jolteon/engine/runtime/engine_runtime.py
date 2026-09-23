@@ -9,6 +9,8 @@ import pytz
 
 from jolteon.engine.core.engine_run import (
     EngineRun,
+    ExecutionMode,
+    MarketDataMode,
     engine_run_id,
     execution_mode_of,
     market_data_mode_of,
@@ -20,6 +22,7 @@ from jolteon.engine.core.health_monitor.health import HealthMonitor
 from jolteon.engine.core.logging.logger import setup_global_logger
 from jolteon.engine.core.parameter.parameter_service import (
     IParameterService,
+    ParameterValues,
     StaticParameterService,
     use_parameter_service,
 )
@@ -27,6 +30,7 @@ from jolteon.engine.core.run_configuration import (
     run_environment,
     run_parameters,
 )
+from jolteon.engine.execution.service import IExecutionService
 from jolteon.engine.market_data.book_feature_recorder import (
     BookFeatureRecorder,
 )
@@ -35,7 +39,7 @@ from jolteon.engine.market_data.data_source import (
     IDataSource,
 )
 from jolteon.engine.market_data.feed import IMarketDataFeed
-from jolteon.engine.market_data.historical_feed import HistoricalFeed
+from jolteon.engine.market_data.replay_feed import ReplayMarketDataFeed
 from jolteon.engine.position.position_manager import PositionManager
 from jolteon.engine.post_trade.post_trade_service import PostTradeService
 from jolteon.engine.strategy.market_making.fair_value.fair_price_model import (
@@ -120,7 +124,7 @@ class EngineRuntime(SignalManager):
         )
         self._strategy = strategy
 
-        self._exec_service: object = None
+        self._exec_service: IExecutionService | None = None
         self._md: IMarketDataFeed | None = None
 
         self._background_tasks: dict[
@@ -132,13 +136,10 @@ class EngineRuntime(SignalManager):
         for path in file_paths:
             Path(path).parent.mkdir(parents=True, exist_ok=True)
 
-    def use_execution_service(self, service: object):
+    def use_execution_service(self, service: IExecutionService):
         print(f"Using {type(service).__name__}")
         self._exec_service = service
         self._engine_run.execution_mode = execution_mode_of(service)
-        mark_healthy = getattr(service, "mark_healthy", None)
-        if mark_healthy:
-            mark_healthy()
         return self
 
     def use_market_data_service(self, market_data: IMarketDataFeed):
@@ -149,13 +150,23 @@ class EngineRuntime(SignalManager):
 
     async def run_start(self, *args):
         assert self._md, "Please set a market data service before running"
-        self._connect_signals()
-        self._parameter_service.start()
-        self._record_configuration()
+        if (
+            self._engine_run.execution_mode == ExecutionMode.REAL
+            and self._engine_run.market_data_mode == MarketDataMode.RECORDED
+        ):
+            raise ValueError(
+                "Real execution cannot consume recorded market data"
+            )
+        self._begin_recording()
 
-        # stop() in a finally, or a feed that raises leaves the parameter
-        # poller and the recorder running behind it.
         try:
+            self._parameter_service.start()
+            parameters = self._parameter_service.values()
+            if self._exec_service is not None:
+                self._exec_service.configure(parameters, self._symbol)
+            self.connect_all()
+            self._record_configuration(parameters)
+
             if EngineRuntime.THREAD_ENABLED:
                 md_thread, md_loop, md_task = self._start_thread(
                     "MD", self._md.connect(self._symbol, *args)
@@ -195,14 +206,16 @@ class EngineRuntime(SignalManager):
         source alone - which is also what lets several replays of one
         recording be told apart.
         """
-        provenance = data_source.provenance(start, end)
-        self._engine_run.market_data_source = provenance.source
-        self._engine_run.source_run_id = provenance.source_run_id
-        self._engine_run.market_data_trade_count = provenance.trade_count
+        replay_input = data_source.describe_replay_input(start, end)
+        self._engine_run.market_data_source = replay_input.source
+        self._engine_run.source_run_id = replay_input.source_run_id
+        self._engine_run.market_data_trade_count = replay_input.trade_count
         self._engine_run.market_data_started_at = start
         self._engine_run.market_data_ended_at = end
         return self.use_market_data_service(
-            HistoricalFeed(data_source, health_monitor=self._health_monitor)
+            ReplayMarketDataFeed(
+                data_source, health_monitor=self._health_monitor
+            )
         )
 
     async def run_local_replay(self, db: str):
@@ -228,6 +241,9 @@ class EngineRuntime(SignalManager):
 
     def _connect_signals(self):
         self.connect_all()
+        self._begin_recording()
+
+    def _begin_recording(self) -> None:
         self._signal_recorder.start_recording()
         self._session_metadata_event.send(
             self._session_metadata_event,
@@ -235,7 +251,7 @@ class EngineRuntime(SignalManager):
         )
         self._send_engine_run()
 
-    def _record_configuration(self) -> None:
+    def _record_configuration(self, values: ParameterValues) -> None:
         """
         Record what this run is configured with.
 
@@ -244,7 +260,6 @@ class EngineRuntime(SignalManager):
         any of it could be changed by - so the snapshot is what the first
         decision was made under.
         """
-        values = self._parameter_service.values()
         for captured in run_parameters(values):
             self._run_parameter_event.send(
                 self._run_parameter_event, run_parameter=captured

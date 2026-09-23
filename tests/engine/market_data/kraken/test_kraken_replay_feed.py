@@ -11,22 +11,22 @@ from jolteon.engine.market_data.core.order_book import (
 )
 from jolteon.engine.market_data.core.trade import Trade
 from jolteon.engine.market_data.data_source import IDataSource
-from jolteon.engine.market_data.historical_feed import HistoricalFeed
 from jolteon.engine.market_data.kraken.data_source import (
     KrakenHistoricalDataSource,
 )
+from jolteon.engine.market_data.replay_feed import ReplayMarketDataFeed
 
 
-class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
+class TestReplayMarketDataFeed(unittest.IsolatedAsyncioTestCase):
     def on_market_trade(self, _: str, market_trade: Trade):
         self.market_trades.append(market_trade)
 
     async def asyncSetUp(self):
         self.market_trades = []
-        self.historical_feed = HistoricalFeed(
+        self.replay_feed = ReplayMarketDataFeed(
             data_source=KrakenHistoricalDataSource()
         )
-        self.historical_feed.events.market_trade.connect(self.on_market_trade)
+        self.replay_feed.events.market_trade.connect(self.on_market_trade)
 
     async def test_connect_replays_trades(self):
         self.assertEqual(len(self.market_trades), 0)
@@ -56,7 +56,7 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
             mock_get.return_value.json.return_value = mock_response
 
             # Connect and simulate the asynchronous event loop
-            await self.historical_feed.connect(symbol, start_time, end_time)
+            await self.replay_feed.connect(symbol, start_time, end_time)
 
         self.assertEqual(len(self.market_trades), 2)
 
@@ -82,7 +82,7 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
             mock_get.return_value.json.return_value = mock_response
 
             # Connect and simulate the asynchronous event loop
-            await self.historical_feed.connect(symbol, start_time, end_time)
+            await self.replay_feed.connect(symbol, start_time, end_time)
 
         # Verify mock time is set properly
         time_manager().use_fake_time.assert_called_once()
@@ -113,7 +113,7 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
             mock_get.return_value.json.return_value = mock_response
 
             # Connect and simulate the asynchronous event loop
-            await self.historical_feed.connect(
+            await self.replay_feed.connect(
                 symbol, start_time, start_time + timedelta(seconds=1)
             )
 
@@ -143,9 +143,7 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
             mock_get.return_value.json.return_value = mock_response
 
             with self.assertLogs(level="WARNING") as logs:
-                await self.historical_feed.connect(
-                    symbol, start_time, end_time
-                )
+                await self.replay_feed.connect(symbol, start_time, end_time)
 
         self.assertIn(
             "Some market trades might be missing!", "".join(logs.output)
@@ -183,7 +181,7 @@ class TestHistoricalFeed(unittest.IsolatedAsyncioTestCase):
         data_source.download_order_book_updates = AsyncMock(
             return_value=[record]
         )
-        feed = HistoricalFeed(data_source)
+        feed = ReplayMarketDataFeed(data_source)
         seen = []
         feed.events.order_book.connect(
             lambda _, order_book: seen.append(

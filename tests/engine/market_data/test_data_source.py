@@ -152,7 +152,7 @@ class TestDatabaseDataSource(unittest.IsolatedAsyncioTestCase):
             end_time=self.start + timedelta(minutes=14),
         )
 
-        # Inclusive at both ends, matching HistoricalFeed's own filter
+        # Inclusive at both ends, matching ReplayMarketDataFeed's filter
         self.assertEqual(
             [11, 12, 13, 14, 15], [t.exchange_trade_id for t in trades]
         )
@@ -272,7 +272,7 @@ class TestDatabaseDataSource(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(3, len(trades))
 
 
-class TestMarketDataProvenance(unittest.IsolatedAsyncioTestCase):
+class TestReplayInput(unittest.IsolatedAsyncioTestCase):
     """What a replay records about the data it read, so a later reader can
     tell which recording and which slice of it produced a run."""
 
@@ -315,37 +315,43 @@ class TestMarketDataProvenance(unittest.IsolatedAsyncioTestCase):
     async def test_a_recording_is_named_by_its_resolved_path(self):
         self.record(["run-a"])
 
-        provenance = self.data_source.provenance(self.start, self.end)
+        replay_input = self.data_source.describe_replay_input(
+            self.start, self.end
+        )
 
         self.assertEqual(
-            str(Path(self.database_filepath).resolve()), provenance.source
+            str(Path(self.database_filepath).resolve()), replay_input.source
         )
 
     async def test_the_run_that_recorded_the_interval_is_reported(self):
         self.record(["run-a", "run-a", "run-a"])
 
-        provenance = self.data_source.provenance(self.start, self.end)
+        replay_input = self.data_source.describe_replay_input(
+            self.start, self.end
+        )
 
-        self.assertEqual("run-a", provenance.source_run_id)
-        self.assertEqual(3, provenance.trade_count)
+        self.assertEqual("run-a", replay_input.source_run_id)
+        self.assertEqual(3, replay_input.trade_count)
 
     async def test_an_interval_spanning_several_runs_names_none_of_them(self):
         self.record(["run-a", "run-b"])
 
-        provenance = self.data_source.provenance(self.start, self.end)
+        replay_input = self.data_source.describe_replay_input(
+            self.start, self.end
+        )
 
-        self.assertIsNone(provenance.source_run_id)
-        self.assertEqual(2, provenance.trade_count)
+        self.assertIsNone(replay_input.source_run_id)
+        self.assertEqual(2, replay_input.trade_count)
 
     async def test_only_the_interval_asked_for_is_counted(self):
         """The same recording replayed twice over two intervals has to be
         told apart by what each replay actually read."""
         self.record(["run-a", "run-b", "run-b"])
 
-        first = self.data_source.provenance(
+        first = self.data_source.describe_replay_input(
             self.start, self.start + timedelta(seconds=30)
         )
-        second = self.data_source.provenance(
+        second = self.data_source.describe_replay_input(
             self.start + timedelta(minutes=1), self.end
         )
 
@@ -359,29 +365,35 @@ class TestMarketDataProvenance(unittest.IsolatedAsyncioTestCase):
     async def test_rows_recorded_without_a_run_name_no_run(self):
         self.record(["ignored"], with_run_column=False)
 
-        provenance = self.data_source.provenance(self.start, self.end)
+        replay_input = self.data_source.describe_replay_input(
+            self.start, self.end
+        )
 
-        self.assertIsNone(provenance.source_run_id)
-        self.assertEqual(1, provenance.trade_count)
+        self.assertIsNone(replay_input.source_run_id)
+        self.assertEqual(1, replay_input.trade_count)
 
     async def test_rows_whose_run_was_never_written_name_no_run(self):
         self.record([None])
 
-        provenance = self.data_source.provenance(self.start, self.end)
+        replay_input = self.data_source.describe_replay_input(
+            self.start, self.end
+        )
 
-        self.assertIsNone(provenance.source_run_id)
+        self.assertIsNone(replay_input.source_run_id)
 
     async def test_a_recording_without_market_trades_leaves_both_unanswered(
         self,
     ):
-        """Provenance is recorded so a replay can be traced afterwards; a
+        """Replay input is recorded so a run can be traced afterwards; a
         recording it cannot be read out of must not stop the replay."""
         sqlite3.connect(self.database_filepath).close()
 
-        provenance = self.data_source.provenance(self.start, self.end)
+        replay_input = self.data_source.describe_replay_input(
+            self.start, self.end
+        )
 
-        self.assertIsNone(provenance.source_run_id)
-        self.assertIsNone(provenance.trade_count)
+        self.assertIsNone(replay_input.source_run_id)
+        self.assertIsNone(replay_input.trade_count)
 
     async def test_a_source_with_nothing_to_say_answers_with_its_own_name(
         self,
@@ -392,8 +404,10 @@ class TestMarketDataProvenance(unittest.IsolatedAsyncioTestCase):
             ):
                 raise NotImplementedError  # pragma: no cover
 
-        provenance = RemoteSource().provenance(self.start, self.end)
+        replay_input = RemoteSource().describe_replay_input(
+            self.start, self.end
+        )
 
-        self.assertEqual("RemoteSource", provenance.source)
-        self.assertIsNone(provenance.source_run_id)
-        self.assertIsNone(provenance.trade_count)
+        self.assertEqual("RemoteSource", replay_input.source)
+        self.assertIsNone(replay_input.source_run_id)
+        self.assertIsNone(replay_input.trade_count)

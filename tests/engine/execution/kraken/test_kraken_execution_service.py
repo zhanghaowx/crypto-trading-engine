@@ -7,7 +7,13 @@ from unittest.mock import MagicMock, patch
 import pytz
 
 from jolteon.engine.core.health_monitor.health import HealthMonitor
+from jolteon.engine.core.parameter.parameter_service import (
+    StaticParameterService,
+)
 from jolteon.engine.core.side import MarketSide
+from jolteon.engine.execution.kraken.parameters import (
+    KrakenExecutionParameters,
+)
 from jolteon.engine.execution.unique_trade_id import unique_trade_id
 from jolteon.engine.market_data.core.order import CancelOrder, Order, OrderType
 from jolteon.engine.market_data.core.trade import Trade
@@ -33,11 +39,14 @@ class TestExecutionService(IsolatedAsyncioTestCase):
 
         self.health_monitor = HealthMonitor()
         self.execution_service = ExecutionService(
-            dry_run=False,
-            poll_interval=0.1,
-            health_monitor=self.health_monitor,
+            health_monitor=self.health_monitor
         )
-        self.execution_service.mark_healthy()
+        self.execution_service.configure(
+            StaticParameterService(
+                KrakenExecutionParameters(poll_interval=0.1, max_retries=5)
+            ).values(),
+            "BTC-USD",
+        )
         self.mock_order = Order(
             client_order_id="123",
             order_type=OrderType.MARKET_ORDER,
@@ -137,6 +146,28 @@ class TestExecutionService(IsolatedAsyncioTestCase):
 
         self.execution_service.send_order.assert_not_called()
 
+    async def test_configuration_is_delivered_before_execution_is_ready(self):
+        self.assertEqual(0.1, self.execution_service._poll_interval)
+        self.assertEqual(5, self.execution_service._fill_retries)
+
+    async def test_real_execution_has_no_simulation_settings(self):
+        self.assertIsNone(
+            self.execution_service.describe_simulation("BTC-USD")
+        )
+
+    async def test_an_unconfigured_service_cannot_send_an_order(self):
+        self.execution_service._configured = False
+        with patch.object(
+            self.execution_service._client, "send_request"
+        ) as request:
+            self.execution_service.on_order(self, self.mock_order)
+
+        request.assert_not_called()
+        self.assertIn(
+            self.execution_service.ErrorCode.NOT_CONFIGURED.name,
+            [issue.message for issue in self.execution_service._issues],
+        )
+
     async def test_on_create_order(self):
         with patch.object(
             self.execution_service._client, "send_request"
@@ -144,6 +175,7 @@ class TestExecutionService(IsolatedAsyncioTestCase):
             request.return_value = self.response(self.create_order_response)
             self.execution_service.on_order(self, self.mock_order)
             request.assert_called_once()
+            self.assertNotIn("validate", request.call_args.args[1])
             self.assertEqual(
                 self.mock_order, self.execution_service.order_history["123"]
             )

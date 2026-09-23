@@ -17,7 +17,7 @@ from jolteon.engine.market_data.data_source import IDataSource
 from jolteon.engine.market_data.feed import Channel, IMarketDataFeed
 
 
-class HistoricalFeed(IMarketDataFeed):
+class ReplayMarketDataFeed(IMarketDataFeed):
     @dataclass
     class ErrorCode(StrEnum):
         DOWNLOADING = auto()
@@ -63,7 +63,8 @@ class HistoricalFeed(IMarketDataFeed):
         time_manager().use_fake_time(start_time, admin=self)
 
         self.add_issue(
-            HealthState.WARNING, HistoricalFeed.ErrorCode.DOWNLOADING.name
+            HealthState.WARNING,
+            ReplayMarketDataFeed.ErrorCode.DOWNLOADING.name,
         )
         market_trades = await self._data_source.download_market_trades(
             symbol, start_time, end_time
@@ -71,7 +72,7 @@ class HistoricalFeed(IMarketDataFeed):
         book_updates = await self._data_source.download_order_book_updates(
             symbol, start_time, end_time
         )
-        self.remove_issue(HistoricalFeed.ErrorCode.DOWNLOADING.name)
+        self.remove_issue(ReplayMarketDataFeed.ErrorCode.DOWNLOADING.name)
         self.mark_healthy()
 
         # Filter out unnecessary market trades
