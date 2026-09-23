@@ -6,6 +6,9 @@ from unittest import IsolatedAsyncioTestCase
 import pytz
 
 from jolteon.engine.core.health_monitor.health import HealthMonitor
+from jolteon.engine.core.parameter.parameter_service import (
+    StaticParameterService,
+)
 from jolteon.engine.core.side import MarketSide
 from jolteon.engine.execution.kraken.fee_schedule import (
     KrakenFeeSchedule,
@@ -32,7 +35,9 @@ class TestMockExecutionService(IsolatedAsyncioTestCase):
         self.execution_service = MockExecutionService(
             KrakenFeeSchedule, health_monitor=self.health_monitor
         )
-        self.execution_service.mark_healthy()
+        self.execution_service.configure(
+            StaticParameterService().values(), "BTC/USD"
+        )
         self.execution_service.order_fill_event.connect(self.on_fill)
         self.mock_order = Order(
             client_order_id="123",
@@ -79,6 +84,21 @@ class TestMockExecutionService(IsolatedAsyncioTestCase):
         self.execution_service.health.mark_healthy()
         self.execution_service.on_order(self, self.mock_order)
         self.assertEqual(1, len(self.fills))
+
+    async def test_an_unconfigured_service_ignores_orders(self):
+        self.execution_service._startup_parameters = None
+
+        self.execution_service.on_order(self, self.mock_order)
+
+        self.assertEqual([], self.fills)
+
+    async def test_simulation_settings_require_configuration(self):
+        self.execution_service._startup_parameters = None
+
+        with self.assertRaisesRegex(
+            RuntimeError, "Execution configuration has not been delivered"
+        ):
+            self.execution_service.describe_simulation("BTC/USD")
 
     @staticmethod
     def create_market_trade(side: MarketSide, price: float, quantity: float):

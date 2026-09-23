@@ -1,7 +1,10 @@
 import sys
 from dataclasses import dataclass
 
-from jolteon.engine.core.execution_assumptions import ExecutionAssumptions
+from jolteon.engine.core.engine_run import ExecutionMode
+from jolteon.engine.core.execution_simulation import (
+    ExecutionSimulationSettings,
+)
 from jolteon.engine.core.health_monitor.health import HealthState
 from jolteon.engine.core.parameter import parameter_catalog
 from jolteon.engine.core.parameter.live_parameter_service import (
@@ -22,7 +25,6 @@ from jolteon.engine.core.parameter.parameter_store import (
     ParameterStore,
 )
 from jolteon.engine.core.run_configuration import (
-    execution_assumptions_of,
     run_environment,
     run_parameters,
 )
@@ -135,8 +137,13 @@ def test_the_snapshot_records_the_revision_it_was_taken_at(tmp_path):
 
 
 class _Simulator:
-    def execution_assumptions(self, symbol: str) -> ExecutionAssumptions:
-        return ExecutionAssumptions(
+    execution_mode = ExecutionMode.SIMULATED
+
+    def configure(self, parameters, symbol: str) -> None:
+        pass
+
+    def describe_simulation(self, symbol: str) -> ExecutionSimulationSettings:
+        return ExecutionSimulationSettings(
             fee_schedule="TestFees",
             maker_rate=0.0,
             taker_rate=0.0002,
@@ -145,34 +152,26 @@ class _Simulator:
 
 
 class _RealVenue:
-    pass
+    execution_mode = ExecutionMode.REAL
 
+    def configure(self, parameters, symbol: str) -> None:
+        pass
 
-class _Confused:
-    def execution_assumptions(self, symbol: str) -> str:
-        return "no idea"
-
-
-def test_a_simulator_is_asked_what_it_assumed():
-    assumed = execution_assumptions_of(_Simulator(), "BTC/USD")
-
-    assert assumed is not None
-    assert assumed.fee_schedule == "TestFees"
-    assert assumed.taker_rate == 0.0002
-
-
-def test_a_real_venue_has_no_simulator_assumptions_to_record():
-    assert execution_assumptions_of(_RealVenue(), "BTC/USD") is None
-
-
-def test_something_answering_with_anything_else_records_no_assumptions():
-    assert execution_assumptions_of(_Confused(), "BTC/USD") is None
+    def describe_simulation(self, symbol: str) -> None:
+        return None
 
 
 def test_latency_is_recorded_as_unmodelled_rather_than_as_zero():
     """Zero would read as a measured figure, and would be the most
     optimistic assumption available."""
-    assumed = execution_assumptions_of(_Simulator(), "BTC/USD")
+    environment = run_environment(
+        values=ParameterValues(revision=0, defaults={}, by_symbol={}),
+        execution_service=_Simulator(),
+        market_data_feed=_RealVenue(),
+        health_state=HealthState.HEALTHY,
+        symbol="BTC/USD",
+    )
+    assumed = environment.execution_simulation
 
     assert assumed is not None
     assert assumed.order_latency_seconds is None
@@ -199,4 +198,4 @@ def test_the_environment_records_the_code_and_the_components():
     assert environment.python_version == sys.version.split()[0]
     assert len(environment.commit) == 40
     assert environment.working_tree_clean in (True, False)
-    assert environment.execution is not None
+    assert environment.execution_simulation is not None

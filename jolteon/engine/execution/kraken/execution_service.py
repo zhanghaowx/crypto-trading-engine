@@ -12,6 +12,9 @@ from requests import Response
 from jolteon.engine.core.engine_run import ExecutionMode
 from jolteon.engine.core.event.signal import signal, subscribe
 from jolteon.engine.core.event.signal_subscriber import SignalSubscriber
+from jolteon.engine.core.execution_simulation import (
+    ExecutionSimulationSettings,
+)
 from jolteon.engine.core.health_monitor.health import (
     HealthMonitor,
     HealthState,
@@ -19,7 +22,7 @@ from jolteon.engine.core.health_monitor.health import (
 from jolteon.engine.core.health_monitor.heartbeat import (
     Heartbeater,
 )
-from jolteon.engine.core.parameter.parameter_service import parameter_service
+from jolteon.engine.core.parameter.parameter_service import ParameterValues
 from jolteon.engine.core.retry import Retry
 from jolteon.engine.core.sentry.reporting import (
     capture_operational_exception,
@@ -46,21 +49,21 @@ _QUERY_TRADES_MAX_IDS = 20
 
 
 class ExecutionService(Heartbeater, SignalSubscriber):
-    # Orders reach Kraken itself even on a dry run, where Kraken
-    # validates them instead of booking them; nothing here stands in for
-    # the venue.
+    # This service books orders at Kraken. Simulated execution is a
+    # different service selected when the runtime is assembled.
     execution_mode = ExecutionMode.REAL
 
     @dataclass
     class ErrorCode(StrEnum):
+        NOT_CONFIGURED = "NOT_CONFIGURED"
         CREATE_ORDER_FAILURE = "CREATE_ORDER_FAILURE"
         GET_TRADE_FAILURE = "GET_TRADE_FAILURE"
         CANCEL_ORDER_FAILURE = "CANCEL_ORDER_FAILURE"
 
     def __init__(
         self,
-        dry_run=None,
         poll_interval=None,
+        max_retries=None,
         health_monitor: HealthMonitor | None = None,
     ):
         """
@@ -68,20 +71,22 @@ class ExecutionService(Heartbeater, SignalSubscriber):
         respond to requests such as buy and sell.
 
         Args:
-            dry_run: Whether to perform a dry run (default: False) with only
-                     order validation
             poll_interval: Interval in seconds to poll trade information for
                            the just sent orders
+            max_retries: Number of attempts to confirm fills
 
         """
         super().__init__(type(self).__name__, health_monitor=health_monitor)
-        params = parameter_service().get(KrakenExecutionParameters)
-        self._dry_run = params.dry_run if dry_run is None else dry_run
         self._client = KrakenRESTClient()
-        self._poll_interval = (
-            params.poll_interval if poll_interval is None else poll_interval
+        self._poll_interval = poll_interval
+        self._fill_retries = max_retries
+        self._configured = all(
+            value is not None
+            for value in (
+                self._poll_interval,
+                self._fill_retries,
+            )
         )
-        self._fill_retries = params.max_retries
 
         self.order_history = dict[str, Order]()
         self._reported_fills: dict[str, Decimal] = {}
@@ -93,6 +98,31 @@ class ExecutionService(Heartbeater, SignalSubscriber):
         assert os.environ.get("KRAKEN_API_SECRET"), (
             "Please set the KRAKEN_API_SECRET environment variable"
         )
+
+    def configure(self, parameters: ParameterValues, symbol: str) -> None:
+        """Apply the validated startup revision before accepting orders."""
+        configured = parameters.get(KrakenExecutionParameters, symbol)
+        if self._poll_interval is None:
+            self._poll_interval = configured.poll_interval
+        if self._fill_retries is None:
+            self._fill_retries = configured.max_retries
+        self._configured = True
+        self.remove_issue(self.ErrorCode.NOT_CONFIGURED.name)
+        self.mark_healthy()
+
+    def describe_simulation(
+        self, symbol: str
+    ) -> ExecutionSimulationSettings | None:
+        """Real orders use venue outcomes rather than a fill simulation."""
+        return None
+
+    def _require_configuration(self) -> None:
+        if self._configured:
+            return
+        self.add_issue(
+            HealthState.CRITICAL, self.ErrorCode.NOT_CONFIGURED.name
+        )
+        raise RuntimeError("Execution configuration has not been delivered")
 
     @subscribe("order")
     def on_order(self, sender: object, order: Order):
@@ -108,18 +138,19 @@ class ExecutionService(Heartbeater, SignalSubscriber):
             None
 
         """
+        try:
+            self._require_configuration()
+        except RuntimeError:
+            return
         if self._health_monitor and not self._health_monitor.can_trade:
             return
         try:
             response = self.send_order(order)
             transaction_ids = response.get("result", {}).get("txid", [])
 
-            if not self._dry_run:
-                asyncio.create_task(
-                    self._poll_fills(
-                        transaction_ids=transaction_ids, order=order
-                    )
-                )
+            asyncio.create_task(
+                self._poll_fills(transaction_ids=transaction_ids, order=order)
+            )
 
         except Exception as e:
             logging.error(f"Fail to send order: {e}", exc_info=True)
@@ -173,6 +204,7 @@ class ExecutionService(Heartbeater, SignalSubscriber):
             None
 
         """
+        self._require_configuration()
         post_data = {"txid": int(cancel_order.client_order_id)}
         response = self._client.send_request(_CANCEL_ORDER_API, post_data)
 
@@ -198,18 +230,13 @@ class ExecutionService(Heartbeater, SignalSubscriber):
 
         """
 
-        # Calling AddOrder/addOrder with the validate parameter set to true
-        # (validate=1, validate=true, validate=anything, etc.) will cause the
-        # order details to be checked for errors, but the API response will
-        # never include an order ID (which would always be returned for a
-        # successful order without the validate parameter).
+        self._require_configuration()
         post_data = {
             "pair": order.symbol,
             "type": order.side.value.lower(),
             "ordertype": order.order_type.value.lower(),
             "volume": order.quantity,
             "userref": int(order.client_order_id),
-            "validate": self._dry_run,
         }
         response = self._client.send_request(_ADD_ORDER_API, post_data)
 
@@ -227,8 +254,8 @@ class ExecutionService(Heartbeater, SignalSubscriber):
 
     # Poll for trade confirmations
     async def _poll_fills(self, transaction_ids: list[str], order: Order):
-        # In case of dry run or order sent failure, no transaction ID will be
-        # returned, and we don't need to retrieve fill notice.
+        # A refused order has no transaction ID and therefore no fills to
+        # retrieve.
         if len(transaction_ids) == 0:
             return
 

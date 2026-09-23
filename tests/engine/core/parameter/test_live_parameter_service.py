@@ -20,6 +20,7 @@ from jolteon.engine.core.parameter.parameter_change_result import (
 from jolteon.engine.core.parameter.parameter_polling_settings import (
     ParameterPollingSettings,
 )
+from jolteon.engine.core.parameter.parameter_service import ALL_SYMBOLS
 from jolteon.engine.core.parameter.parameter_specification import (
     ParameterGroup,
     parameter,
@@ -35,6 +36,12 @@ from jolteon.engine.core.parameter.parameter_store import (
 class QuotingParameters(ParameterGroup):
     quote_size: float = parameter(0.0005, minimum=0.0, maximum=1.0)
     depth: int = parameter(10, minimum=1, maximum=100)
+
+
+@dataclass(frozen=True)
+class CredentialedParameters(ParameterGroup):
+    api_key: str = parameter("default-secret")
+    timeout: float = parameter(1.0)
 
 
 class LiveParameterServiceTestCase(unittest.TestCase):
@@ -55,11 +62,13 @@ class LiveParameterServiceTestCase(unittest.TestCase):
 
         self.results = []
         self.revisions = []
+        self.accepted = []
 
     def service(self) -> LiveParameterService:
         service = LiveParameterService(self.path)
         service.parameter_change_result_event.connect(self._on_result)
         service.parameter_group_revision_event.connect(self._on_revision)
+        service.accepted_parameter_revision_event.connect(self._on_accepted)
         self.addCleanup(service.stop)
         return service
 
@@ -68,6 +77,9 @@ class LiveParameterServiceTestCase(unittest.TestCase):
 
     def _on_revision(self, _, parameter_group_revision):
         self.revisions.append(parameter_group_revision)
+
+    def _on_accepted(self, _, accepted_parameter_revision):
+        self.accepted.append(accepted_parameter_revision)
 
     def quoting_revision(self):
         return next(
@@ -565,4 +577,194 @@ class TestPollingThread(LiveParameterServiceTestCase):
         service.start()
         self.assertEqual(
             2.5, service.get(ParameterPollingSettings).interval_in_seconds
+        )
+
+
+class TestRecordingAcceptedRevisions(LiveParameterServiceTestCase):
+    """The history a run's configuration at any moment is rebuilt from:
+    complete snapshots against the revision they took effect at."""
+
+    def accepted_values(
+        self,
+        field_name: str,
+        symbol: str = ALL_SYMBOLS,
+    ) -> list:
+        return [
+            accepted
+            for accepted in self.accepted
+            if accepted.group_name == "QuotingParameters"
+            and accepted.field_name == field_name
+            and accepted.symbol == symbol
+        ]
+
+    def test_an_accepted_change_is_recorded_against_its_revision(self):
+        service = self.service()
+        service.start()
+        self.store.push([change_of("QuotingParameters", "quote_size", 0.02)])
+        service._refresh()
+
+        accepted = self.accepted_values("quote_size")[0]
+        self.assertEqual("QuotingParameters", accepted.group_name)
+        self.assertEqual("quote_size", accepted.field_name)
+        self.assertEqual(0.02, accepted.value)
+        self.assertEqual(ALL_SYMBOLS, accepted.symbol)
+        self.assertEqual(service.values().revision, accepted.revision)
+        self.assertIsNotNone(accepted.effective_at)
+
+    def test_an_override_already_stored_is_recorded_as_the_run_starts(self):
+        self.store.push([change_of("QuotingParameters", "quote_size", 0.02)])
+        service = self.service()
+
+        service.start()
+
+        accepted = self.accepted_values("quote_size")
+        self.assertEqual([0.02], [a.value for a in accepted])
+        self.assertEqual([1], [a.revision for a in accepted])
+
+    def test_each_revision_contains_unchanged_resolved_values_too(self):
+        service = self.service()
+        service.start()
+        self.store.push([change_of("QuotingParameters", "quote_size", 0.02)])
+        service._refresh()
+
+        snapshot = [a for a in self.accepted if a.revision == 1]
+        recorded = {(a.group_name, a.field_name): a.value for a in snapshot}
+        self.assertEqual(0.02, recorded[("QuotingParameters", "quote_size")])
+        self.assertEqual(10, recorded[("QuotingParameters", "depth")])
+        self.assertIn(
+            ("ParameterPollingSettings", "interval_in_seconds"), recorded
+        )
+
+    def test_the_recorded_value_is_the_one_the_engine_reads(self):
+        """An int field pushed as a JSON number is not the same value once
+        coerced, and the coerced one is what the engine went on to use."""
+        self.store.push([change_of("QuotingParameters", "depth", 20.0)])
+        service = self.service()
+        service.start()
+
+        accepted = self.accepted_values("depth")
+        self.assertEqual([20], [a.value for a in accepted])
+        self.assertIsInstance(accepted[0].value, int)
+
+    def test_each_revision_adds_to_the_history_rather_than_replacing_it(self):
+        service = self.service()
+        service.start()
+        for size in (0.02, 0.03):
+            self.store.push(
+                [change_of("QuotingParameters", "quote_size", size)]
+            )
+            service._refresh()
+
+        accepted = self.accepted_values("quote_size")
+        self.assertEqual([0.02, 0.03], [a.value for a in accepted])
+        self.assertEqual([1, 2], [a.revision for a in accepted])
+
+    def test_a_refused_push_records_nothing_as_having_taken_effect(self):
+        service = self.service()
+        service.start()
+        self.store.push([change_of("QuotingParameters", "quote_size", 99.0)])
+        service._refresh()
+
+        self.assertEqual([], self.accepted)
+
+    def test_a_parameter_this_engine_does_not_have_takes_no_effect(self):
+        service = self.service()
+        service.start()
+        self.store.push([change_of("NoSuchGroup", "no_such_field", 1.0)])
+        service._refresh()
+
+        self.assertEqual([], self.accepted)
+
+    def test_a_complete_snapshot_never_records_a_credential(self):
+        with patch.object(
+            parameter_catalog,
+            "GROUPS",
+            (CredentialedParameters,),
+        ):
+            self.store.push(
+                [
+                    change_of("CredentialedParameters", "api_key", "secret"),
+                    change_of("CredentialedParameters", "timeout", 2.0),
+                ]
+            )
+            service = self.service()
+            service.start()
+
+        self.assertEqual(["timeout"], [a.field_name for a in self.accepted])
+        self.assertNotIn("secret", [str(a.value) for a in self.accepted])
+
+    def test_a_value_pushed_for_one_symbol_is_recorded_against_it(self):
+        service = self.service()
+        service.start()
+        self.store.push(
+            [
+                ParameterChange(
+                    "QuotingParameters", "quote_size", "BTC/USD", 0.02
+                )
+            ]
+        )
+        service._refresh()
+
+        accepted = self.accepted_values("quote_size", "BTC/USD")
+        self.assertEqual(["BTC/USD"], [a.symbol for a in accepted])
+        self.assertEqual([0.02], [a.value for a in accepted])
+
+    def test_resetting_the_final_override_records_the_fallback_value(self):
+        self.store.push([change_of("QuotingParameters", "quote_size", 0.02)])
+        service = self.service()
+        service.start()
+
+        self.store.reset()
+        service._refresh()
+
+        accepted = self.accepted_values("quote_size")
+        self.assertEqual([0.02, 0.0005], [a.value for a in accepted])
+        self.assertEqual([1, 2], [a.revision for a in accepted])
+
+    def test_removing_a_symbol_override_removes_its_scope_from_the_snapshot(
+        self,
+    ):
+        self.store.push(
+            [
+                ParameterChange(
+                    "QuotingParameters", "quote_size", "BTC/USD", 0.02
+                )
+            ]
+        )
+        service = self.service()
+        service.start()
+
+        self.store.reset()
+        service._refresh()
+
+        first = [a for a in self.accepted if a.revision == 1]
+        second = [a for a in self.accepted if a.revision == 2]
+        self.assertIn("BTC/USD", {a.symbol for a in first})
+        self.assertEqual({ALL_SYMBOLS}, {a.symbol for a in second})
+
+    def test_the_history_is_recorded_once_per_revision(self):
+        self.store.push([change_of("QuotingParameters", "quote_size", 0.02)])
+        service = self.service()
+        recording = str(Path(self.directory.name) / "engine.sqlite")
+        recorder = SignalRecorder(recording)
+        self.addCleanup(recorder.close)
+        recorder.start_recording()
+        service.start()
+        self.store.push([change_of("QuotingParameters", "quote_size", 0.03)])
+        service._refresh()
+        # Nothing moved, so nothing new took effect.
+        service._refresh()
+        recorder.flush()
+
+        with closing(sqlite3.connect(recording)) as conn:
+            rows = conn.execute(
+                "SELECT revision, field_name, value FROM "
+                "accepted_parameter_revision "
+                "WHERE group_name = 'QuotingParameters' "
+                "AND field_name = 'quote_size' AND symbol = '' "
+                "ORDER BY revision"
+            ).fetchall()
+
+        self.assertEqual(
+            [(1, "quote_size", 0.02), (2, "quote_size", 0.03)], rows
         )

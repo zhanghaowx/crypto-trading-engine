@@ -220,10 +220,10 @@ def test_engine_runs_read_back_where_a_replay_read_its_data(tmp_path):
     assert live.market_data_trade_count is None
 
 
-def test_a_run_recorded_before_provenance_existed_reads_back_without_it(
+def test_a_run_recorded_before_replay_input_existed_reads_back_without_it(
     tmp_path,
 ):
-    db_path = str(tmp_path / "legacy-provenance.sqlite")
+    db_path = str(tmp_path / "legacy-replay-input.sqlite")
     with closing(sqlite3.connect(db_path)) as conn:
         conn.execute(
             "CREATE TABLE engine_run "

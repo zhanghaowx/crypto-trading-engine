@@ -5,7 +5,7 @@ import unittest
 from contextlib import closing
 from datetime import datetime
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytz
 
@@ -34,13 +34,16 @@ from jolteon.engine.core.time.time_manager import time_manager
 from jolteon.engine.execution.binance_us.fee_schedule import (
     BinanceUsFeeSchedule,
 )
+from jolteon.engine.execution.kraken.parameters import (
+    KrakenExecutionParameters,
+)
 from jolteon.engine.execution.mock_execution_service import (
     MockExecutionService,
 )
 from jolteon.engine.market_data.core.bbo import BBO
 from jolteon.engine.market_data.core.book_snapshot import BookSnapshot
 from jolteon.engine.market_data.data_source import IDataSource
-from jolteon.engine.market_data.provenance import MarketDataProvenance
+from jolteon.engine.market_data.replay_input import ReplayInput
 from jolteon.engine.runtime.engine_runtime import EngineRuntime
 from jolteon.engine.strategy.market_making.fair_value.fair_price_model import (
     FairPrice,
@@ -75,6 +78,21 @@ class _Venue(SignalSubscriber):
     @subscribe("bbo_feed")
     def on_bbo(self, _: str, bbo: BBO):
         self.latest_bbo = bbo
+
+
+class _ConfigurableExecution:
+    execution_mode = ExecutionMode.REAL
+
+    def __init__(self):
+        self.parameters = None
+        self.symbol = None
+
+    def configure(self, parameters, symbol: str) -> None:
+        self.parameters = parameters
+        self.symbol = symbol
+
+    def describe_simulation(self, symbol: str) -> None:
+        return None
 
 
 class TestEngineRuntimeDisconnect(unittest.TestCase):
@@ -271,7 +289,7 @@ class TestEngineRunClassification(unittest.TestCase):
         self.assertIsNotNone(recorded[0][2])
 
 
-class TestReplayProvenance(unittest.TestCase):
+class TestReplayInput(unittest.TestCase):
     """What a replay records about the data it read, kept apart from when
     the replay itself ran."""
 
@@ -296,9 +314,9 @@ class TestReplayProvenance(unittest.TestCase):
                 handler.close()
         self._folder.cleanup()
 
-    def _data_source(self, provenance: MarketDataProvenance) -> MagicMock:
+    def _data_source(self, replay_input: ReplayInput) -> MagicMock:
         source = MagicMock(spec=IDataSource)
-        source.provenance.return_value = provenance
+        source.describe_replay_input.return_value = replay_input
         return source
 
     def _recorded(self) -> dict:
@@ -313,7 +331,7 @@ class TestReplayProvenance(unittest.TestCase):
     def test_a_replay_records_where_its_data_came_from(self):
         self._app.use_recorded_market_data(
             self._data_source(
-                MarketDataProvenance(
+                ReplayInput(
                     source="/recordings/live.sqlite",
                     source_run_id="20260920T100000Z-abc123",
                     trade_count=4211,
@@ -345,7 +363,7 @@ class TestReplayProvenance(unittest.TestCase):
             for app in (self._app, second):
                 app.use_recorded_market_data(
                     self._data_source(
-                        MarketDataProvenance(
+                        ReplayInput(
                             source="/recordings/live.sqlite",
                             source_run_id=source_run_id,
                         )
@@ -367,9 +385,7 @@ class TestReplayProvenance(unittest.TestCase):
 
     def test_the_replays_own_timestamps_are_not_the_datas(self):
         self._app.use_recorded_market_data(
-            self._data_source(
-                MarketDataProvenance(source="/recordings/live.sqlite")
-            ),
+            self._data_source(ReplayInput(source="/recordings/live.sqlite")),
             self.DATA_START,
             self.DATA_END,
         )
@@ -391,9 +407,7 @@ class TestReplayProvenance(unittest.TestCase):
         and a feed that fails part way leaves it there. The run's own end
         is the machine's time regardless."""
         self._app.use_recorded_market_data(
-            self._data_source(
-                MarketDataProvenance(source="/recordings/live.sqlite")
-            ),
+            self._data_source(ReplayInput(source="/recordings/live.sqlite")),
             self.DATA_START,
             self.DATA_END,
         )
@@ -447,15 +461,18 @@ class TestRunConfigurationSnapshot(unittest.IsolatedAsyncioTestCase):
             parameter_service=parameter_service,
         )
 
-    async def _run(self, app: EngineRuntime, connect=None) -> None:
+    async def _run(
+        self,
+        app: EngineRuntime,
+        connect=None,
+        market_data_mode: MarketDataMode = MarketDataMode.RECORDED,
+    ) -> None:
         async def nothing(symbol, *args):
             if connect is not None:
                 connect()
 
         app.use_market_data_service(
-            SimpleNamespace(
-                connect=nothing, market_data_mode=MarketDataMode.RECORDED
-            )
+            SimpleNamespace(connect=nothing, market_data_mode=market_data_mode)
         )
         with patch.object(EngineRuntime, "THREAD_ENABLED", False):
             await app.run_start()
@@ -503,10 +520,18 @@ class TestRunConfigurationSnapshot(unittest.IsolatedAsyncioTestCase):
         service = self._pushed(
             ParameterChange(
                 "MarketMakingParameters", "quote_size", ALL_SYMBOLS, 0.004
-            )
+            ),
+            ParameterChange(
+                "KrakenExecutionParameters",
+                "poll_interval",
+                ALL_SYMBOLS,
+                2.5,
+            ),
         )
         app = self._make_app(service)
-        await self._run(app)
+        execution = _ConfigurableExecution()
+        app.use_execution_service(execution)
+        await self._run(app, market_data_mode=MarketDataMode.REALTIME)
 
         captured = {
             (row["group_name"], row["field_name"]): row["value"]
@@ -515,6 +540,11 @@ class TestRunConfigurationSnapshot(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(
             0.004, captured[("MarketMakingParameters", "quote_size")]
+        )
+        self.assertIs(service.values(), execution.parameters)
+        self.assertEqual(
+            2.5,
+            execution.parameters.get(KrakenExecutionParameters).poll_interval,
         )
 
     async def test_the_snapshot_is_taken_before_the_first_tick(self):
@@ -552,22 +582,29 @@ class TestRunConfigurationSnapshot(unittest.IsolatedAsyncioTestCase):
         self.assertIn(recorded["working_tree_clean"], (0, 1))
         self.assertEqual("MockExecutionService", recorded["execution_service"])
         self.assertEqual(
-            "BinanceUsFeeSchedule", recorded["execution.fee_schedule"]
+            "BinanceUsFeeSchedule",
+            recorded["execution_simulation.fee_schedule"],
         )
         self.assertEqual(
             BinanceUsFeeSchedule().taker_rate,
-            recorded["execution.taker_rate"],
+            recorded["execution_simulation.taker_rate"],
         )
-        self.assertEqual("QueuePosition", recorded["execution.queue_model"])
-        self.assertIsNone(recorded["execution.order_latency_seconds"])
-        self.assertIsNone(recorded["execution.random_seed"])
+        self.assertEqual(
+            "QueuePosition", recorded["execution_simulation.queue_model"]
+        )
+        self.assertIsNone(
+            recorded["execution_simulation.order_latency_seconds"]
+        )
+        self.assertIsNone(recorded["execution_simulation.random_seed"])
 
     async def test_a_run_against_a_real_venue_records_no_assumptions(self):
         app = self._make_app()
-        app.use_execution_service(SimpleNamespace())
-        await self._run(app)
+        app.use_execution_service(_ConfigurableExecution())
+        await self._run(app, market_data_mode=MarketDataMode.REALTIME)
 
-        self.assertIsNone(self._rows("run_environment")[0]["execution"])
+        self.assertIsNone(
+            self._rows("run_environment")[0]["execution_simulation"]
+        )
 
     async def test_the_snapshot_holds_no_field_that_might_be_a_secret(self):
         app = self._make_app()
@@ -691,6 +728,22 @@ class TestEngineRuntimeRunStart(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([("BTC/USD", ())], connected)
         self.assertEqual(0.0, pnl)
 
+    async def test_real_execution_refuses_recorded_market_data(self):
+        app = self._make_app().use_execution_service(_ConfigurableExecution())
+        self.addCleanup(app._signal_recorder.close)
+        feed = SimpleNamespace(
+            connect=AsyncMock(), market_data_mode=MarketDataMode.RECORDED
+        )
+        app.use_market_data_service(feed)
+
+        with self.assertRaisesRegex(
+            ValueError, "Real execution cannot consume recorded market data"
+        ):
+            await app.run_start()
+
+        self.assertIsNone(app._exec_service.parameters)
+        feed.connect.assert_not_awaited()
+
     async def test_market_data_thread_reports_an_unexpected_failure(self):
         """
         The feed runs on a thread of its own, so a failure there has no
@@ -727,6 +780,27 @@ class TestEngineRuntimeParameterService(unittest.IsolatedAsyncioTestCase):
         service = StaticParameterService()
         self._make_app(service)
         self.assertIs(service, parameter_service())
+
+    async def test_delivers_one_complete_revision_before_market_data(self):
+        service = StaticParameterService(
+            KrakenExecutionParameters(poll_interval=2.5)
+        )
+        execution = _ConfigurableExecution()
+        app = self._make_app(service).use_execution_service(execution)
+
+        async def connect(symbol, *args):
+            self.assertIs(service.values(), execution.parameters)
+            self.assertEqual("BTC/USD", execution.symbol)
+            self.assertEqual(
+                2.5,
+                execution.parameters.get(
+                    KrakenExecutionParameters, execution.symbol
+                ).poll_interval,
+            )
+
+        app.use_market_data_service(SimpleNamespace(connect=connect))
+        with patch.object(EngineRuntime, "THREAD_ENABLED", False):
+            await app.run_start()
 
     async def test_polls_only_while_the_engine_is_running(self):
         service = _RecordingParameterService()

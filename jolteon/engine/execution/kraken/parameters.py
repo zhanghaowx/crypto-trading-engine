@@ -28,10 +28,3 @@ class KrakenExecutionParameters(ParameterGroup):
             "confirming it."
         ),
     )
-    dry_run: bool = parameter(
-        False,
-        description=(
-            "Log orders instead of sending them to the exchange. This "
-            "does not make a live session safe on its own."
-        ),
-    )

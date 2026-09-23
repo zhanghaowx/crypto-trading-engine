@@ -20,7 +20,7 @@ from jolteon.engine.post_trade.post_trade_service import PostTradeService
 def venue(monkeypatch):
     monkeypatch.setenv("KRAKEN_API_KEY", "test")
     monkeypatch.setenv("KRAKEN_API_SECRET", "dGVzdA==")
-    service = ExecutionService(dry_run=False)
+    service = ExecutionService(poll_interval=1.0, max_retries=5)
     order = Order(
         client_order_id="123",
         order_type=OrderType.MARKET_ORDER,
@@ -100,7 +100,7 @@ def test_identical_fills_on_separate_orders_have_distinct_stable_ids(venue):
     assert fills[0].transaction_time == fills[1].transaction_time
     assert fills[0].exchange_trade_id == fills[1].exchange_trade_id == 7
 
-    restarted = ExecutionService(dry_run=False)
+    restarted = ExecutionService(poll_interval=1.0, max_retries=5)
     restarted._client = service._client
     restarted._get_fills(["O1"], replace(order, client_order_id="1"))
     assert fills[2] == fills[0]

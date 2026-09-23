@@ -70,7 +70,7 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
 
         mock_data_source.download_market_trades.assert_called_once()
 
-    @patch("jolteon.engine.runtime.engine_runtime.HistoricalFeed")
+    @patch("jolteon.engine.runtime.engine_runtime.ReplayMarketDataFeed")
     async def test_run_replay(self, MockFeed):
         mock_feed = self.create_mock_feed(MockFeed)
 
@@ -83,7 +83,7 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
         )
         await self.application.run_replay(start_time, end_time)
 
-        # Ensure the historical feed connection is called with the correct
+        # Ensure the replay feed connection is called with the correct
         # arguments
         mock_feed.connect.assert_called_once_with(
             self.symbol, start_time, end_time

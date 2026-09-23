@@ -12,9 +12,9 @@ jolteon/
 │   │                started or how it is looked at.
 │   ├── core/            Engine infrastructure: signals, recording,
 │   │                    parameters, health, time, storage paths,
-│   │                    run identity and run provenance
+│   │                    run identity and run configuration
 │   ├── execution/       Execution services and venue execution adapters
-│   ├── market_data/     Feeds, books, and historical data sources
+│   ├── market_data/     Feeds, books, historical sources and replay inputs
 │   ├── position/        Position state and PnL tracking
 │   ├── post_trade/      Engine-side post-trade recording
 │   ├── risk_limit/      Trading risk controls

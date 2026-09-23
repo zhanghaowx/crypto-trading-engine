@@ -17,7 +17,7 @@ def scoped_run(
     status: str = "running",
     execution_mode: str = "SIMULATED",
     market_data_mode: str = "REALTIME",
-    **provenance,
+    **replay_input,
 ) -> RecordedEngineRun:
     """The run a page test is looking at, as `settings.RUN` holds it."""
     return RecordedEngineRun(
@@ -29,7 +29,7 @@ def scoped_run(
         status=status,
         execution_mode=execution_mode,
         market_data_mode=market_data_mode,
-        **provenance,
+        **replay_input,
     )
 
 

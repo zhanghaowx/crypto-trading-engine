@@ -102,6 +102,7 @@ class TestPaperTradingDeliveryOrder(unittest.IsolatedAsyncioTestCase):
 
     def _run_session(self, receiver_order: ReceiverOrder) -> tuple:
         venue = MockExecutionService(KrakenFeeSchedule)
+        venue.configure(StaticParameterService().values(), "BTC/USD")
         strategy = MarketMakingStrategy(
             symbol="BTC/USD",
             requote_tolerance=0.0,
