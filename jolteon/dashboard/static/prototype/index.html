@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Jolteon · Live</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="app-header">
+    <a class="brand" href="#live" aria-label="Jolteon home"><span class="brand-mark">ϟ</span> jolteon<span class="brand-divider"></span><span class="workspace">Trading workspace</span></a>
+    <div class="header-end">
+      <div class="theme-switch" id="theme-switch" role="group" aria-label="Color palette"></div>
+      <span class="demo-label">DESIGN PREVIEW <span>Sample data</span></span>
+    </div>
+  </header>
+  <div class="nav-shell"><nav aria-label="Main navigation">
+    <a href="#live" data-page="live">Live</a>
+    <a href="#health" data-page="health">Health <span class="nav-dot"></span></a>
+    <a href="#parameters" data-page="parameters">Parameters</a>
+    <a href="#post-trade" data-page="post-trade">Post-trade</a>
+    <a href="#guide" data-page="guide" class="guide-link">Style guide <span aria-hidden="true">↗</span></a>
+  </nav></div>
+  <main id="main" tabindex="-1"></main>
+  <footer><span><strong>JOLTEON</strong> &nbsp; / &nbsp; A clearer view of every session.</span><span>Prototype · No engine connection · All times UTC</span></footer>
+  <dialog id="review-dialog" aria-labelledby="dialog-title"><h2 id="dialog-title">Review sample changes</h2><p>These changes apply to this prototype only.</p><div id="change-list"></div><div class="dialog-actions"><button id="cancel-review">Keep editing</button><button class="primary" id="apply-changes">Apply to demo</button></div></dialog>
+  <div id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
