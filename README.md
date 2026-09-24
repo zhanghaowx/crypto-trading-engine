@@ -12,11 +12,14 @@ afterwards in the included dashboard.
 > This is a personal project and still rough around the edges. Each engine
 > process trades one symbol with one strategy.
 
+Whether the strategy is actually profitable is an open question, tracked in
+[#102](https://github.com/zhanghaowx/crypto-trading-engine/issues/102).
+
 ## What's in it
 
-- **Market data** from Kraken, live over websockets or replayed from history.
+- **Market data** from Kraken and Binance.US, live over websockets or replayed from history.
 - **A market making strategy** that quotes a fixed spread either side of a fair price.
-- **Order execution** on Kraken.
+- **Order execution** on Kraken. Binance.US live order submission is intentionally disabled until its rollout (see [#82](https://github.com/zhanghaowx/crypto-trading-engine/issues/82)).
 - **Risk limits** on inventory size and order frequency.
 - **A health monitor** that watches whether feeds and internal components are still alive.
 - **A Streamlit dashboard** for reading back a run.
@@ -26,7 +29,7 @@ afterwards in the included dashboard.
 You need [uv](https://docs.astral.sh/uv/). It fetches the right Python (3.11) for you,
 so you don't need to install Python or set up a virtualenv yourself.
 
-```bash
+```
 git clone https://github.com/zhanghaowx/crypto-trading-engine.git
 cd crypto-trading-engine
 uv sync
@@ -36,226 +39,65 @@ Run things with `uv run ...`, or `source .venv/bin/activate` once if you prefer.
 
 ## Run it
 
-**Paper trading** — real market data, fake orders. This is the best place to start,
-since it generates orders, fills, and risk-limit hits to look at:
+**Paper trading** — real market data, fake orders. The best place to start:
 
-```bash
+```
 uv run jolteon --exchange Kraken --paper
 ```
 
-Paper limit orders fill only when an opposing market trade reaches their
-price. A trade through the quote can fill no more than the quantity printed;
-the simulator makes its best queue-position guess from visible L2 quantity at
-the exact order price. L2 cannot reveal exact queue rank or whether later
-cancellations were ahead of the simulated order. See the
-[remaining fill-model work](https://github.com/zhanghaowx/crypto-trading-engine/issues/67).
+Paper fills use a best-guess L2 queue model that cannot know exact queue rank — treat paper edge with skepticism. See [#103](https://github.com/zhanghaowx/crypto-trading-engine/issues/103).
 
 **Live trading** — same thing, but orders are real. Drop `--paper` and set your keys:
 
-```bash
-export KRAKEN_API_KEY=... KRAKEN_API_SECRET=...
+```
+export KRAKEN_API_KEY=<redacted>
 uv run jolteon --exchange Kraken
 ```
 
 **Backtest** over a past time range:
 
-```bash
+```
 uv run jolteon --exchange Kraken --replay-start 2024-01-01T00:00:00 --replay-end 2024-01-02T00:00:00
 ```
 
 **Replay a recording** from an earlier run:
 
-```bash
+```
 uv run jolteon --exchange Kraken --replay-db /tmp/jolteon/kraken/BTC-USD/live.sqlite
 ```
 
-New recordings contain compact, versioned L2 snapshots and deltas. Local
-replay rebuilds the same exchange-neutral `OrderBook` used during live paper
-trading. Older trade-only recordings remain replayable and use the legacy
-queue behavior. The recording identifies its book model explicitly
-so a future L3 feed can retain order-level data instead of being reduced to L2.
+**Binance.US paper trading:**
+
+```
+uv run jolteon --exchange Binance.US --paper --symbol BTC/USD
+```
 
 **Another symbol** — `--symbol` takes any pair the venue lists. One engine trades one
 symbol, so trading two means running two engines:
 
-```bash
+```
 uv run jolteon --exchange Kraken --paper --symbol ETH/USD
 ```
 
-**Binance.US paper trading** uses the public trade, best-bid/offer and
-synchronized L2 depth streams. It loads the venue's price, quantity and
-minimum-notional filters before the strategy can place its first quote:
-
-```bash
-uv run jolteon --exchange Binance.US --paper --symbol BTC/USD
-```
-
-Binance.US live order submission and remote historical replay are intentionally
-disabled until their later rollout steps. The public WebSocket requires no API
-credentials.
-
-Every service has one in-memory health state. The engine's `HealthMonitor`
-derives its health from parameters, market data, and execution; the strategy
-quotes only after initialization completes. A warning is visible in the
-dashboard while trading continues. A critical issue withdraws existing quotes
-and makes both paper and live execution reject new orders until the service
-recovers. Historical replay becomes healthy after its data has loaded, so it
-does not depend on live-only instrument messages.
-
-The application creates one `HealthMonitor` and passes it to each service.
-Receiving that monitor makes the service part of the trading-health decision;
-there is no separate registry or `required_for_trading` flag.
-
-### Where a session writes
-
-Everything a session writes is scoped first by exchange and then by canonical
-symbol. Two venues trading BTC/USD therefore never share a database or parameter
-store:
+Sessions write under `/tmp/jolteon` (`--root` moves it). Read them back with the dashboard:
 
 ```
-/tmp/jolteon/
-  kraken/
-    parameters.sqlite     # tuning shared by Kraken engines
-    BTC-USD/
-      live.sqlite         # every signal the session recorded
-      live.log            # and its log, mirrored into live.log.sqlite
-  binance-us/
-    parameters.sqlite     # separate venue-specific tuning
-    BTC-USD/
-      live.sqlite
-      live.log
-```
-
-`--root` moves all of it somewhere else. A replay writes `replay.sqlite` beside the
-live recording for the same exchange and symbol, plus a profiler trace at
-`/tmp/jolteon.stat`. The dashboard still reads recordings written under the old
-`<root>/<symbol>/` layout as legacy Kraken sessions; new runs always use the
-exchange-first layout.
-
-### Live fill identity
-
-Kraken fills are read as individual executions through `QueryOrders` and
-`QueryTrades`, including partial fills on open, canceled, or expired orders.
-The API key needs permission to query closed orders and trades for execution
-details. Each fill retains its client-order ID, exchange-order ID,
-exchange-execution ID, and the public exchange trade ID. Its `unique_trade_id`
-is a stable encoding of exchange, exchange-order ID, and exchange-execution
-ID, so equal prices, quantities, or timestamps do not merge separate fills.
-Simulated fills get a mock `unique_trade_id` built the same way.
-
-Repeated polls suppress already reported executions within an execution
-service. Reconstructing a fill after restart produces the same identity;
-this does not implement restart recovery or persistent exactly-once event
-delivery. Polling still uses the configured retry budget.
-
-Post-trade fills are recorded once under `unique_trade_id`, which is also the
-`decorated_order_fill` primary key. Each fill names the fair-price model the
-strategy quoted it against. Fair value and markouts are derived later by
-joining those immutable fills to the recorded `fair_price` series on that
-model, so adding an analysis horizon does not schedule work in the trading
-engine or require a new recording.
-
-A fair price is only joined to a fill if it was observed close enough to the
-moment being measured, capped by the horizon itself - so a quiet book leaves
-a markout missing rather than reporting a one-second move as a
-hundred-millisecond one. Because the engine records without declaring any
-indexes, the dashboard creates an index on `fair_price (symbol, model,
-timestamp)` the first time it derives markouts from a recording; without it
-each fill scans the whole series and the join is quadratic in the length of
-the session.
-
-### Dashboard
-
-A read-only view of a run — health, market data, risk limits, orders and PnL.
-It polls the SQLite file, so you can watch a live run or open an old one:
-
-```bash
 uv run poe dashboard
 ```
 
-Use the sidebar to select an exchange, symbol, and recorded session. Runtime
-parameters are edited from the Parameters page.
-
-Use a card's refresh icon to refresh it even when auto-refresh is off.
-Hiding a card pauses its updates; **Show …** resumes them. Collapsing a
-card only folds it away and leaves its updates running.
-
-### Docker
-
-Start the Kraken BTC/USD paper engine and dashboard in the background:
-
-```bash
-cp .env.example .env
-docker compose up --build -d
-```
-
-Open <http://localhost:8501>, then use these commands to operate the stack:
-
-```bash
-docker compose ps
-docker compose logs -f
-docker compose down
-```
-
-Follow one process by appending its service name, for example:
-
-```bash
-docker compose logs -f engine-kraken-btc-usd
-docker compose logs -f dashboard
-```
-
-The named `jolteon-data` volume keeps recordings and parameters across image and
-container recreation. `docker compose down --volumes` also deletes that data.
-Change `JOLTEON_DASHBOARD_PORT` in `.env` if port 8501 is already in use.
-
-Live trading is kept behind an explicit profile and does not restart
-automatically. After setting both Kraken credentials in `.env`, start only the
-live engine and dashboard with:
-
-```bash
-docker compose --profile live up --build -d engine-kraken-btc-usd-live dashboard
-```
-
-Selecting the live services as above does not start the paper engine.
-
-### Error reporting
-
-Jolteon keeps operational data in local SQLite files. For unattended runs, you
-can additionally set `SENTRY_DSN` in `.env` or the process environment to send
-terminal exceptions to Sentry. Leaving it unset sends nothing.
-
-Reports identify the exchange, canonical symbol, run mode, process component,
-release, and Compose service. Request data, user data, credentials, signed
-values, and stack-frame local variables are removed before an event is sent.
-Normal ticks, trades, orders, fills, and heartbeats are never sent. Set
-`JOLTEON_RELEASE` to the deployed commit SHA and `JOLTEON_ENVIRONMENT` to a name
-such as `paper-us` when running outside local development.
-
 ## Development
 
-Planned work and known limitations are tracked in
-[GitHub Issues](https://github.com/zhanghaowx/crypto-trading-engine/issues).
+Planned work and known limitations are tracked in [GitHub Issues](https://github.com/zhanghaowx/crypto-trading-engine/issues).
 
-Tasks run through [poe](https://poethepoet.natn.io/):
-
-```bash
-uv run poe fmt          # format and sort imports
-uv run poe lint         # ruff + mypy
-uv run poe test         # lint, then unit tests with coverage
-uv run poe integration  # lint, then tests against the live exchange
-uv run poe clean        # delete build and test artifacts
-```
-
-A `poe` sequence stops at the first failure, so a broken `poe lint` hides the tests
-behind it. Fix and re-run to see the rest.
+Checks run through [poe](https://poethepoet.natn.io/); `uv run poe test` runs lint and unit tests. See `pyproject.toml` for the full task list.
 
 To run the same checks before every push:
 
-```bash
+```
 git config core.hooksPath .githooks
 ```
 
-`git clone` doesn't install hooks, so this is once per clone. `git push --no-verify` skips it.
+(`git clone` doesn't install hooks, so this is once per clone.)
 
 ## Contributing
 
