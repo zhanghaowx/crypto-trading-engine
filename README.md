@@ -17,7 +17,7 @@ Whether the strategy is actually profitable is an open question, tracked in
 
 ## What's in it
 
-- **Market data** from Kraken and Binance.US, live over websockets or replayed from history.
+- **Market data** from Kraken and Binance.US over live websockets; Kraken also supports remote historical replay. Both venues support replay of locally recorded data.
 - **A market making strategy** that quotes a fixed spread either side of a fair price.
 - **Order execution** on Kraken. Binance.US live order submission is intentionally disabled until its rollout (see [#82](https://github.com/zhanghaowx/crypto-trading-engine/issues/82)).
 - **Risk limits** on inventory size and order frequency.
@@ -47,12 +47,14 @@ uv run jolteon --exchange Kraken --paper
 
 Paper fills use a best-guess L2 queue model that cannot know exact queue rank — treat paper edge with skepticism. See [#103](https://github.com/zhanghaowx/crypto-trading-engine/issues/103).
 
-**Live trading** — same thing, but orders are real. Drop `--paper` and set your keys:
+**Live trading** — orders are real. Start with paper trading first. Kraken API credentials must permit querying closed orders and trades to retrieve execution details:
 
-```
-export KRAKEN_API_KEY=<redacted>
+```bash
+export KRAKEN_API_KEY=... KRAKEN_API_SECRET=...
 uv run jolteon --exchange Kraken
 ```
+
+Stable fill IDs prevent duplicate recording within a running execution service, but do not provide restart recovery or persistent exactly-once delivery.
 
 **Backtest** over a past time range:
 
@@ -72,6 +74,8 @@ uv run jolteon --exchange Kraken --replay-db /tmp/jolteon/kraken/BTC-USD/live.sq
 uv run jolteon --exchange Binance.US --paper --symbol BTC/USD
 ```
 
+Binance.US live order submission and remote historical replay are not yet available (see [#82](https://github.com/zhanghaowx/crypto-trading-engine/issues/82)).
+
 **Another symbol** — `--symbol` takes any pair the venue lists. One engine trades one
 symbol, so trading two means running two engines:
 
@@ -84,6 +88,17 @@ Sessions write under `/tmp/jolteon` (`--root` moves it). Read them back with the
 ```
 uv run poe dashboard
 ```
+
+### Docker quick start
+
+Start the Kraken paper engine and dashboard using [Compose](compose.yaml):
+
+```bash
+cp .env.example .env
+docker compose up --build -d
+```
+
+Open <http://localhost:8501>. The `jolteon-data` volume persists recordings; `docker compose down --volumes` deletes that data. Live trading requires the explicit `live` profile and configured credentials.
 
 ## Development
 
