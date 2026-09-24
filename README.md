@@ -12,14 +12,13 @@ afterwards in the included dashboard.
 > This is a personal project and still rough around the edges. Each engine
 > process trades one symbol with one strategy.
 
-Whether the strategy is actually profitable is an open question, tracked in
-[#102](https://github.com/zhanghaowx/crypto-trading-engine/issues/102).
+Whether the strategy is actually profitable remains an open question.
 
 ## What's in it
 
 - **Market data** from Kraken and Binance.US over live websockets; Kraken also supports remote historical replay. Both venues support replay of locally recorded data.
 - **A market making strategy** that quotes a fixed spread either side of a fair price.
-- **Order execution** on Kraken. Binance.US live order submission is intentionally disabled until its rollout (see [#82](https://github.com/zhanghaowx/crypto-trading-engine/issues/82)).
+- **Order execution** live on Kraken and simulated for paper trading on both exchanges.
 - **Risk limits** on inventory size and order frequency.
 - **A health monitor** that watches whether feeds and internal components are still alive.
 - **A Streamlit dashboard** for reading back a run.
@@ -45,7 +44,7 @@ Run things with `uv run ...`, or `source .venv/bin/activate` once if you prefer.
 uv run jolteon --exchange Kraken --paper
 ```
 
-Paper fills use a best-guess L2 queue model that cannot know exact queue rank — treat paper edge with skepticism. See [#103](https://github.com/zhanghaowx/crypto-trading-engine/issues/103).
+Paper fills use an estimated L2 queue position. Exact queue priority is unknown, so simulated profitability may differ from live results.
 
 **Live trading** — orders are real. Start with paper trading first. Kraken API credentials must permit querying closed orders and trades to retrieve execution details:
 
@@ -74,7 +73,7 @@ uv run jolteon --exchange Kraken --replay-db /tmp/jolteon/kraken/BTC-USD/live.sq
 uv run jolteon --exchange Binance.US --paper --symbol BTC/USD
 ```
 
-Binance.US live order submission and remote historical replay are not yet available (see [#82](https://github.com/zhanghaowx/crypto-trading-engine/issues/82)).
+Binance.US live order submission and remote historical replay are not available.
 
 **Another symbol** — `--symbol` takes any pair the venue lists. One engine trades one
 symbol, so trading two means running two engines:
@@ -120,4 +119,4 @@ Fork it, work on a branch, open a pull request.
 
 ## License
 
-[MIT](LICENSE).
+[MIT](LICENSE)
