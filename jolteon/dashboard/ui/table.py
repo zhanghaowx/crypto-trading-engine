@@ -1,11 +1,10 @@
 """The dashboard's table: recorded figures as rows a reader can scan.
 
-Untitled UI's table rather than Streamlit's data grid. The grid is drawn
-to a canvas, rules every cell on both axes and cannot be restyled, so a
-table of a handful of rows read as a spreadsheet dropped into the card
-rather than as part of it. These are small, read-only tables; plain HTML
-carries them, and carries the shading and the per-column explanations
-with them.
+Plain HTML rather than Streamlit's data grid. The grid is drawn to a
+canvas, rules every cell on both axes and cannot be restyled, so a table
+of a handful of rows read as a spreadsheet dropped into the card rather
+than as part of it. These are small, read-only tables; plain HTML carries
+them, and carries the shading and the per-column explanations with them.
 """
 
 from html import escape
