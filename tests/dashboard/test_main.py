@@ -18,9 +18,9 @@ def test_dashboard_renders_every_section_on_one_page(dashboard):
 
     assert not at.exception
     assert _card_titles(at) == [
+        "Orders & PnL",
         "Order book",
         "Risk limits",
-        "Orders & PnL",
         "Trade quality",
         "Fair price signals",
     ]
