@@ -1,0 +1,29 @@
+/* The group list read as a settings nav, not a form: the selected row
+   is picked out by weight and a tinted background, not by color alone,
+   so the native radio circle - redundant once the row itself carries
+   that state - is hidden in favor of the row reading as a button. */
+[data-testid="stRadioGroup"] {
+  gap: 2px;
+}
+
+[data-testid="stRadioOption"] {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+[data-testid="stRadioOption"]:hover {
+  background: #F0F3F6;
+}
+
+[data-testid="stRadioOption"][data-selected="true"] {
+  background: #E2E6EB;
+  font-weight: 600;
+}
+
+[data-testid="stRadioOption"] div:has(> [data-testid="stMarkdownContainer"])
+  > div:first-child {
+  display: none;
+}
