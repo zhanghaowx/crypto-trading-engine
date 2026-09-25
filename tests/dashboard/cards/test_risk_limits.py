@@ -139,13 +139,13 @@ def test_accent_follows_the_limit_closest_to_being_breached(tmp_path):
     assert at.markdown[0].value == "red"
 
 
-def test_accent_is_green_while_every_limit_is_comfortable(tmp_path):
+def test_accent_is_absent_while_every_limit_is_comfortable(tmp_path):
     at = AppTest.from_function(_accent_script)
     at.session_state["db_path"] = _utilization_db(tmp_path, 1.0, 5.0)
     at.run()
 
     assert not at.exception
-    assert at.markdown[0].value == "green"
+    assert at.markdown[0].value == "None"
 
 
 def test_accent_ignores_a_limit_with_no_maximum_to_use_up(tmp_path):
@@ -156,7 +156,7 @@ def test_accent_ignores_a_limit_with_no_maximum_to_use_up(tmp_path):
     at.run()
 
     assert not at.exception
-    assert at.markdown[0].value == "green"
+    assert at.markdown[0].value == "None"
 
 
 def test_the_bar_fills_to_the_utilisation_and_marks_the_bands():

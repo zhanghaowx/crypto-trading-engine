@@ -35,7 +35,8 @@ def risk_limit_badge(utilization: float) -> tuple[str, BadgeColor, str]:
 def accent() -> Accent:
     """The card's edge color: what the closest limit to being breached
     would badge itself as, so a limit under pressure is visible from the
-    top of the page without opening the card."""
+    top of the page without opening the card. Comfortable usage carries
+    no accent - the card only earns one once a limit is worth watching."""
     risk = read_table(st.session_state.db_path, "risk_limit_snapshot")
     if risk.empty:
         return None
@@ -44,7 +45,8 @@ def accent() -> Accent:
         min(abs(row.current) / row.maximum, 1.0) if row.maximum else 0.0
         for row in latest.itertuples()
     ]
-    return risk_limit_badge(max(used))[1]
+    color = risk_limit_badge(max(used))[1]
+    return None if color == "green" else color
 
 
 def _fmt_bound(value: float) -> str:
