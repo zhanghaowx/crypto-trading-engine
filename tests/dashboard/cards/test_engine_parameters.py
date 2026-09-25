@@ -62,21 +62,25 @@ def test_renders_a_widget_for_every_declared_parameter(
     params_db_path, missing_db_path
 ):
     """
-    The page is built from the catalog, so a parameter added to the
-    engine has to appear here without anyone editing this page. If it
-    cannot be rendered, that fails here rather than going unnoticed.
+    Each group is built from the catalog, so a parameter added to the
+    engine has to appear once its group is selected, without anyone
+    editing this page. If it cannot be rendered, that fails here rather
+    than going unnoticed - one group at a time, since only the selected
+    group's fields are on screen.
     """
-    at = _page(params_db_path, missing_db_path).run()
+    for group in GROUPS:
+        at = _page(params_db_path, missing_db_path)
+        at.session_state[engine_parameters._GROUP_NAV] = group.__name__
+        at.run()
 
-    assert not at.exception
-    kinds = (at.number_input, at.checkbox, at.selectbox, at.text_input)
-    rendered = {widget.key for kind in kinds for widget in kind}
-    expected = {
-        _key(group.__name__, definition.name)
-        for group in GROUPS
-        for definition in definitions(group)
-    }
-    assert expected == rendered & expected
+        assert not at.exception
+        kinds = (at.number_input, at.checkbox, at.selectbox, at.text_input)
+        rendered = {widget.key for kind in kinds for widget in kind}
+        expected = {
+            _key(group.__name__, definition.name)
+            for definition in definitions(group)
+        }
+        assert expected == rendered & expected
 
 
 def test_seeds_each_widget_from_its_declared_default(
@@ -98,6 +102,20 @@ def test_takes_its_bounds_from_the_declaration(
     assert quote_size.min == declared["quote_size"].minimum
     assert quote_size.max == declared["quote_size"].maximum
     assert quote_size.step == declared["quote_size"].step
+
+
+def test_a_group_title_keeps_an_acronym_a_class_name_cannot_capitalize():
+    """A class name can only give an acronym like Binance.US's "US" its
+    first letter capitalized without the rest reading as its own word,
+    so "Us" is special-cased back to the acronym it stands for."""
+    assert (
+        engine_parameters._group_title("BinanceUsFeedParameters")
+        == "Binance US Feed"
+    )
+    assert (
+        engine_parameters._group_title("MarketMakingParameters")
+        == "Market Making"
+    )
 
 
 def test_a_field_explains_itself_where_its_name_is(
@@ -162,6 +180,35 @@ def test_an_edit_shows_the_value_it_is_replacing(
         "| Market Making · Quote Size | All Symbols | 0.01000 | 0.02000 |"
         in at.markdown[-1].value
     )
+
+
+def test_switching_groups_preserves_a_staged_change_in_another(
+    params_db_path, missing_db_path
+):
+    """
+    Only the fields on screen change with the selected group - what has
+    been staged has not, so a change made before navigating away from
+    its group must still be there, and still pending, on return.
+    """
+    edge_key = _key("QuoteOffsetParameters", "edge")
+    at = _page(params_db_path, missing_db_path).run()
+    at.number_input(key=QUOTE_SIZE).set_value(0.02).run()
+
+    at.session_state[engine_parameters._GROUP_NAV] = "QuoteOffsetParameters"
+    at.run()
+    at.number_input(key=edge_key).set_value(7.5).run()
+
+    at.session_state[engine_parameters._GROUP_NAV] = "MarketMakingParameters"
+    at.run()
+
+    assert not at.exception
+    assert at.number_input(key=QUOTE_SIZE).value == 0.02
+    summary = at.markdown[-1].value
+    assert (
+        "| Market Making · Quote Size | All Symbols | 0.00050 | 0.02000 |"
+        in summary
+    )
+    assert "| Quote Offset · Edge | All Symbols | 5.00 | 7.50 |" in summary
 
 
 def test_pushing_writes_every_staged_change(params_db_path, missing_db_path):
@@ -327,13 +374,15 @@ class TestAStoreThePageCannotRender:
     def test_every_other_field_still_renders(
         self, params_db_path, missing_db_path
     ):
+        """One field a store cannot render must not take even its own
+        group down, let alone the page."""
         ParameterStore(params_db_path).push(
             [change_of("MarketMakingParameters", "quote_size", 99.0)]
         )
         at = _page(params_db_path, missing_db_path).run()
 
         assert not at.exception
-        expected = sum(len(definitions(group)) for group in GROUPS)
+        expected = len(definitions(MarketMakingParameters))
         kinds = (at.number_input, at.checkbox, at.selectbox, at.text_input)
         assert sum(len(kind) for kind in kinds) == expected
 

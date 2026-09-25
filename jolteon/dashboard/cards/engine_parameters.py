@@ -20,7 +20,7 @@ import streamlit as st
 
 from jolteon.dashboard.data.engines import engine_databases
 from jolteon.dashboard.data.sqlite import read_table
-from jolteon.dashboard.ui.cards import card_grid, surface_rule
+from jolteon.dashboard.ui.cards import surface_rule
 from jolteon.dashboard.ui.primitives import BadgeColor, slug
 from jolteon.engine.core.parameter.parameter_catalog import GROUPS
 from jolteon.engine.core.parameter.parameter_change_result import (
@@ -40,6 +40,7 @@ from jolteon.engine.core.parameter.parameter_store import (
 
 _STAGED = "_staged_parameters"
 _SCOPE = "parameter-scope"
+_GROUP_NAV = "parameter-group"
 _REPORTS = "_engine_parameter_reports"
 _ALL_SYMBOLS_LABEL = "All Symbols"
 
@@ -263,7 +264,11 @@ def _card_key(group: type) -> str:
 
 def _group_title(group_name: str) -> str:
     bare = group_name.removesuffix("Parameters")
-    return " ".join(re.findall(r"[A-Z][a-z0-9]*", bare))
+    words = re.findall(r"[A-Z][a-z0-9]*", bare)
+    # "Us" is Binance.US, not a word: a class name can only carry the
+    # first letter of an acronym capitalized without reading as a whole
+    # word of its own.
+    return " ".join("US" if word == "Us" else word for word in words)
 
 
 def _field_label(definition: ParameterDefinition) -> str:
@@ -274,9 +279,11 @@ def _field_label(definition: ParameterDefinition) -> str:
 
 
 def _staged_label(group_name: str, field_name: str) -> str:
-    return (
-        f"{_group_title(group_name)} · {field_name.replace('_', ' ')}"
-    ).title()
+    # Only the field name needs title-casing: _group_title already
+    # returns a properly cased name, and title-casing it again would
+    # lowercase "US" back down to "Us".
+    field_title = field_name.replace("_", " ").title()
+    return f"{_group_title(group_name)} · {field_title}"
 
 
 _SUMMARY_KEY = "staged-summary"
@@ -486,16 +493,31 @@ def render() -> None:
     staged = _staged()
     symbol = _selected_scope(_scopes(stored))
 
-    # Before the cards themselves: a rule arriving after a container has
-    # reached the browser shows the canvas through it for a moment first.
-    st.html(surface_rule(_card_key(group) for group in GROUPS))
+    by_name = {group.__name__: group for group in GROUPS}
+    nav_col, fields_col = st.columns([1, 4])
+    with nav_col:
+        st.radio(
+            "Group",
+            options=list(by_name),
+            format_func=_group_title,
+            key=_GROUP_NAV,
+            label_visibility="collapsed",
+        )
+    group = by_name[st.session_state[_GROUP_NAV]]
 
-    for group in card_grid(GROUPS, key="parameter-cards", key_fn=_card_key):
-        st.markdown(f"**{_group_title(group.__name__)}**")
-        for definition in definitions(group):
-            _field(
-                (symbol, group.__name__, definition.name), definition, stored
-            )
+    with fields_col:
+        # Before the card itself: a rule arriving after a container has
+        # reached the browser shows the canvas through it for a moment
+        # first.
+        st.html(surface_rule([_card_key(group)]))
+        with st.container(border=True, key=_card_key(group)):
+            st.markdown(f"**{_group_title(group.__name__)}**")
+            for definition in definitions(group):
+                _field(
+                    (symbol, group.__name__, definition.name),
+                    definition,
+                    stored,
+                )
 
     if staged:
         # A markdown table, not `st.dataframe`: the data grid is a lazily
