@@ -10,9 +10,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Pack repository sources
-        run: tar -czf repo-src.tar.gz --exclude=.git .
+        run: tar -czf /tmp/repo-src.tar.gz --exclude=.git .
       - uses: actions/upload-artifact@v4
         with:
           name: replay-development-source
-          path: repo-src.tar.gz
+          path: /tmp/repo-src.tar.gz
           retention-days: 1
