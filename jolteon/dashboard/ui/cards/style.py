@@ -16,17 +16,12 @@ from jolteon.dashboard.ui.primitives import SEMANTIC_COLORS
 # still reads as the white surface it is.
 ACCENT_WIDTH = "5px"
 
-# Cards sit on the page's grey canvas (`backgroundColor` in
+# Cards sit on the page's canvas (`backgroundColor` in
 # .streamlit/config.toml) and would otherwise be transparent, leaving the
 # whole page one flat sheet. There is no native container background
 # option, so cards are painted with scoped CSS keyed to their container -
 # the same escape hatch health.py uses to tint its tiles.
 BACKGROUND = "#FFFFFF"
-
-# Untitled UI's shadow-xs token - a near-invisible lift, since the card's
-# own border (borderColor in config.toml) already separates it from the
-# canvas.
-SHADOW = "0px 1px 2px rgba(0, 0, 0, 0.05)"
 
 
 def surface_rule(keys: Iterable[str]) -> str:
@@ -35,15 +30,14 @@ def surface_rule(keys: Iterable[str]) -> str:
 
     Streamlit has no container background option, so every page that
     wants a card to read as a white surface above the canvas rather than
-    a flat patch of it needs this same scoped rule.
+    a flat patch of it needs this same scoped rule. The card's own
+    border (borderColor in config.toml) is what separates it from the
+    canvas - no shadow is drawn on top of that.
     """
     selector = ", ".join(f".st-key-{key}" for key in keys)
     if not selector:
         return ""
-    return (
-        f"<style>{selector} {{ background-color: {BACKGROUND};"
-        f" box-shadow: {SHADOW}; }}</style>"
-    )
+    return f"<style>{selector} {{ background-color: {BACKGROUND}; }}</style>"
 
 
 def accent_rule(key: str, accent: Accent) -> str:

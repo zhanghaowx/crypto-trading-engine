@@ -8,11 +8,11 @@
   border-collapse: collapse;
   font-size: 13px;
   font-variant-numeric: tabular-nums;
-  color: #15171C;
+  color: #20262E;
 }
 
 .jolteon-book th {
-  color: #667085;
+  color: #626D7C;
   font-size: 11px;
   font-weight: 500;
   text-align: right;
@@ -24,8 +24,8 @@
   text-align: right;
 }
 
-.jolteon-book-bid .jolteon-book-price { color: #16A34A; }
-.jolteon-book-ask .jolteon-book-price { color: #DC2626; }
+.jolteon-book-bid .jolteon-book-price { color: #137552; }
+.jolteon-book-ask .jolteon-book-price { color: #B63E49; }
 
 /* Where our own quote rests: the row is outlined, which reads at a
    glance without spending a column on a marker or a word. The outline
@@ -38,21 +38,21 @@
   outline-offset: -1px;
 }
 
-.jolteon-book-bid.jolteon-book-resting { outline: 1px solid #16A34A; }
-.jolteon-book-ask.jolteon-book-resting { outline: 1px solid #DC2626; }
+.jolteon-book-bid.jolteon-book-resting { outline: 1px solid #137552; }
+.jolteon-book-ask.jolteon-book-resting { outline: 1px solid #B63E49; }
 
 .jolteon-book-spread td {
   text-align: center;
   padding: 8px 12px;
-  border-top: 1px solid #EAECF0;
-  border-bottom: 1px solid #EAECF0;
+  border-top: 1px solid #E2E6EB;
+  border-bottom: 1px solid #E2E6EB;
   font-size: 15px;
   font-weight: 600;
 }
 
 .jolteon-book-spread span {
   margin-left: 10px;
-  color: #667085;
+  color: #626D7C;
   font-size: 11px;
   font-weight: 400;
 }

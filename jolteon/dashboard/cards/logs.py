@@ -8,7 +8,7 @@ from jolteon.dashboard.data.engines import engine_databases
 from jolteon.dashboard.data.sqlite import as_datetime
 from jolteon.dashboard.services.health import errors as error_rows
 from jolteon.dashboard.ui.pagination import paginate
-from jolteon.dashboard.ui.primitives import row_key
+from jolteon.dashboard.ui.primitives import SEMANTIC_COLORS, row_key
 
 PAGE_SIZE = 10
 
@@ -17,10 +17,10 @@ _LEVEL_ICONS: dict[str, str] = {
     "CRITICAL": ":material/dangerous:",
 }
 
-# The same colors HEARTBEAT_BADGES uses for these levels (config.toml).
+# The same colors HEARTBEAT_BADGES uses for these levels.
 _LEVEL_ACCENTS: dict[str, str] = {
-    "ERROR": "#E8873C",
-    "CRITICAL": "#DC2626",
+    "ERROR": SEMANTIC_COLORS["orange"],
+    "CRITICAL": SEMANTIC_COLORS["red"],
 }
 
 # Log entries read as a list of records, not cards - square corners (the
@@ -116,7 +116,8 @@ def render() -> None:
 
     accent_rules = "\n".join(
         f".st-key-{key} {{ border-left: 3px solid "
-        f"{_LEVEL_ACCENTS.get(level, '#8A8D91')}; padding-left: 8px; }}"
+        f"{_LEVEL_ACCENTS.get(level, SEMANTIC_COLORS['gray'])};"
+        f" padding-left: 8px; }}"
         for key, level in row_levels
     )
     st.html(f"<style>{accent_rules}{_SQUARE_ROW_CSS}</style>")
