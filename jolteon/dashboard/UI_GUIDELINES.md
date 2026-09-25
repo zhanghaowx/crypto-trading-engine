@@ -26,50 +26,75 @@ Keep the existing strengths: shared Card rendering, centralized number
 formatting, per-card refresh, visible risk thresholds, run-scoped analysis,
 missing-value markers, and staged parameter changes.
 
+## Where each thing is defined
+
+This document owns the foundation and the rules: the role a colour plays,
+the invariants, the prohibitions, and the reasoning behind them - the
+things a rendering cannot show and that cannot be derived from looking at
+one. It does not carry values.
+
+The [interactive prototype](static/prototype/index.html) owns the
+implementation detail: the exact token values, the type scale, the
+spacing, and what each screen looks like and how it behaves.
+`static/prototype/styles.css` is the executable reference, and
+`.streamlit/config.toml` is where those values reach production.
+
+When the two disagree, the prototype is right about what a thing looks
+like and this document is right about what may never happen. A value
+stated in both places is a bug in this document: duplication is how the
+brand accent documented here drifted from the prototype's actual value
+with nothing failing to catch it.
+
+The test when sorting new material: a constraint belongs here, a choice
+belongs in the prototype. A contrast ratio and a minimum target size
+outlive any palette, so they are rules. A hex value and a font size do
+not.
+
 ## Visual foundation
 
-The prototype's `styles.css` is the executable reference for this proposal.
-Do not copy its entire CSS into Streamlit. Map the tokens to native theme
-settings and the existing shared UI components during implementation.
+These are the roles the palette has to fill. The prototype defines what
+each one is.
 
-| Token | Value | Use |
-| --- | --- | --- |
-| Canvas | `#F6F7F9` | Page background |
-| Surface | `#FFFFFF` | Cards and controls |
-| Text | `#20262E` | Headings, numbers, primary actions |
-| Secondary text | `#626D7C` | Supporting text |
-| Border | `#E2E6EB` | Card separation and table rules |
-| Brand accent | `#B59339` | Active navigation indicator; decorative only |
-| Positive | `#137552` | Positive values, buy labels, healthy status |
-| Positive surface | `#EAF5EF` | Positive badge/depth tint |
-| Negative | `#B63E49` | Negative values, sell labels, errors |
-| Negative surface | `#FBEEF0` | Negative badge/depth tint |
-| Warning | `#946315` | Elevated risk, stale data |
-| Warning surface | `#FFF5DF` | Warning panels and badges |
-| Information | `#456AAC` | Mode badges and keyboard focus |
-| Information surface | `#EDF2FB` | Informational badges |
-
-Use dark text on the gold brand surface; gold is not a small-text color or a
-primary button fill. Color accompanies labels, signs, or icons. A sell is a
-side, not an error; its text label establishes the meaning.
-
-Use Inter when available, with system sans-serif fallbacks. Do not make font
-network access a prerequisite for usable layout. Use tabular numerals for
-metrics and a monospace stack for dense prices, quantities, and identifiers.
-
-| Role | Size / weight |
+| Token | Use |
 | --- | --- |
-| Page heading | 29px / 600 |
-| Card heading | 15px / 600 |
-| Body and controls | 14px / 400–500 |
-| Context and supporting text | 12–13px / 400 |
-| Compact table headers and metadata | 10–11px / 500; only for secondary content |
-| Summary value | 28px / 500 |
+| Canvas | Page background |
+| Surface | Cards and controls |
+| Text | Headings, numbers, primary actions |
+| Secondary text | Supporting text |
+| Border | Card separation and table rules |
+| Brand accent | Active navigation indicator; decorative only |
+| Positive / Positive surface | Positive values, buy labels, healthy status |
+| Negative / Negative surface | Negative values, sell labels, errors |
+| Warning / Warning surface | Elevated risk, stale data |
+| Information / Information surface | Mode badges and keyboard focus |
 
-Use a spacing scale of 4, 8, 12, 16, 24, and 32px. Card insets are 20–24px;
-section gaps are 20–24px. Desktop page gutters are at least 32px, mobile
-18px. Content has a maximum width of 1320px. Cards use a 10px radius,
-controls 6px, badges 4px. Use borders rather than decorative shadows.
+Use dark text on the brand surface; the accent is not a small-text color or
+a primary button fill. Color accompanies labels, signs, or icons. A sell is
+a side, not an error; its text label establishes the meaning.
+
+Red and green are data here, not only status: a side, a signed markout, a
+price moving. Keep the semantic hues muted enough that a page of ordinary
+sells does not read as a page of errors.
+
+One sans-serif family throughout, with system sans-serif fallbacks. Do not
+make font network access a prerequisite for usable layout. Use tabular
+numerals for metrics and a monospace stack for dense prices, quantities and
+identifiers.
+
+| Role | Rule |
+| --- | --- |
+| Page heading | One per page |
+| Card heading | Same weight across every card |
+| Body and controls | The default; hierarchy comes from weight, not family |
+| Context and supporting text | Smaller than body, never below legibility |
+| Compact table headers and metadata | Secondary content only |
+| Summary value | Tabular figures, one step below the page heading |
+
+Use one spacing scale throughout and do not introduce values between its
+steps. Card insets and section gaps share a value. Desktop page gutters are
+wider than mobile ones. Content has a maximum width; do not let a table
+stretch the page past it. Cards, controls and badges each have one radius.
+Use borders rather than decorative shadows.
 
 ## Two workspaces
 
@@ -282,10 +307,10 @@ A palette switcher in the header (Slate / Sage / Morandi) swaps the same
 token set between three complete neutral-and-accent combinations, so the
 layout and content are held constant while only the palette changes. This
 is a side-by-side comparison aid for choosing a direction, not a decision:
-the token table above still documents Slate as the current proposal until
-one is chosen. Only the neutrals and the brand accent move between the
-three; Positive, Negative, Warning and Info keep the hues in that table,
-muted for Morandi to match its lower-saturation character.
+Slate remains the proposal, and is the palette `.streamlit/config.toml`
+carries. Only the neutrals and the brand accent move between the three;
+Positive, Negative, Warning and Information keep their hues, muted for
+Morandi to match its lower-saturation character.
 
 This is a design artifact, not a replacement Streamlit application. Its
 sample fields, charts and status history do not introduce production data
