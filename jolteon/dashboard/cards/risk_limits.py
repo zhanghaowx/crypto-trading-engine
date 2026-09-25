@@ -5,7 +5,7 @@ import streamlit as st
 
 from jolteon.dashboard.data.sqlite import read_table
 from jolteon.dashboard.ui.cards import Accent, card_grid
-from jolteon.dashboard.ui.empty_states import warn_if_no_db
+from jolteon.dashboard.ui.empty_states import empty_state, warn_if_no_db
 from jolteon.dashboard.ui.primitives import SEMANTIC_COLORS, BadgeColor
 
 _BAR_CSS = (
@@ -92,7 +92,7 @@ def render() -> None:
 
     risk = read_table(st.session_state.db_path, "risk_limit_snapshot")
     if risk.empty:
-        st.info(
+        empty_state(
             "No risk limit data recorded yet "
             "(no strategy is live, or nothing has flushed to disk yet)."
         )

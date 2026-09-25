@@ -8,6 +8,7 @@ from jolteon.dashboard.cards.orders_pnl import pnl_by_symbol
 from jolteon.dashboard.data import trade_queries
 from jolteon.dashboard.data.sqlite import read_latest_per_group
 from jolteon.dashboard.ui import table
+from jolteon.dashboard.ui.empty_states import empty_state
 from jolteon.dashboard.ui.primitives import (
     MISSING,
     fmt_usd,
@@ -147,7 +148,7 @@ def _render_breakdown(row: pd.Series) -> None:
 
 def render(model: SessionEconomicsModel) -> None:
     if model.economics.empty:
-        st.info("No fills in this run.")
+        empty_state("No fills in this run.")
         return
 
     overall = model.economics.loc["ALL"]
@@ -201,7 +202,7 @@ def render(model: SessionEconomicsModel) -> None:
 
 def render_details(model: SessionEconomicsModel) -> None:
     if model.economics.empty:
-        st.info("No fills in this run.")
+        empty_state("No fills in this run.")
         return
 
     for side in ("BUY", "SELL"):

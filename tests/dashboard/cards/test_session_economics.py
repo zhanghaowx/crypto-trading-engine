@@ -164,7 +164,7 @@ def test_says_nothing_of_a_run_with_no_fills(tmp_path):
     at = _run(db_path)
 
     assert not at.exception
-    assert [i.value for i in at.info] == ["No fills in this run."]
+    assert [c.value for c in at.caption] == ["No fills in this run."]
     assert not at.metric
 
 
@@ -219,7 +219,7 @@ def test_details_say_nothing_of_a_run_with_no_fills(tmp_path):
     db_path = _recording(tmp_path, [])
     at = _run(db_path, script=_details_script)
 
-    assert [i.value for i in at.info] == ["No fills in this run."]
+    assert [c.value for c in at.caption] == ["No fills in this run."]
 
 
 def test_a_run_measures_only_its_own_fills(tmp_path, tables):

@@ -26,7 +26,8 @@ def test_shows_info_when_no_risk_limit_data_recorded(empty_db_path):
 
     assert not at.exception
     assert not at.warning
-    assert at.info
+    assert not at.info
+    assert at.caption
 
 
 def test_renders_a_card_per_name_and_symbol(populated_db_path):

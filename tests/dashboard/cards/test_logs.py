@@ -41,7 +41,7 @@ def test_shows_info_when_no_logs_recorded(engines):
 
     assert not at.exception
     assert not at.warning
-    assert at.info[0].value == "No ERROR logs recorded yet."
+    assert at.caption[0].value == "No ERROR logs recorded yet."
 
 
 def test_shows_info_when_only_non_error_logs_recorded(engines):
@@ -53,7 +53,7 @@ def test_shows_info_when_only_non_error_logs_recorded(engines):
     at = _page(engines).run()
 
     assert not at.exception
-    assert at.info[0].value == "No ERROR logs recorded yet."
+    assert at.caption[0].value == "No ERROR logs recorded yet."
 
 
 def test_renders_only_error_rows_as_expandable_entries(engines):
