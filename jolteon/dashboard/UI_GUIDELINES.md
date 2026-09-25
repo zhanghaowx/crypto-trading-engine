@@ -71,19 +71,55 @@ section gaps are 20–24px. Desktop page gutters are at least 32px, mobile
 18px. Content has a maximum width of 1320px. Cards use a 10px radius,
 controls 6px, badges 4px. Use borders rather than decorative shadows.
 
+## Two workspaces
+
+The dashboard is split at the top level by where a run's market data came
+from, because that is what decides how a screen behaves:
+
+| | Trading | Research |
+| --- | --- | --- |
+| Subject | one engine reading a live feed, now | runs that have finished |
+| Refresh | refreshes, and says when it last did | never; the numbers are final |
+| Parameters | editable, and reach the running engine | a frozen input, shown read-only |
+| Health | reported per component | absent; a finished run has no heartbeat |
+| Time | one clock, moving | a data window, and the wall clock a run spent |
+
+Trading holds Health, Live monitor and Parameters. Research holds Runs and
+Compare, with run detail reached by choosing a run rather than by
+navigating to it. Health leads the Trading order because it says whether
+the numbers can be trusted, but the workspace opens on the monitor.
+
+Execution mode - paper or real - is not a workspace. It rides along as a
+badge, because it changes what is at stake rather than how a page works.
+A finished live session belongs to Research alongside replays: the same
+analysis applies to both, and the run states which it was.
+
+Research holds both, so it is named for what it lists. Do not call it
+Replay, which would hide a finished live session inside it, and do not
+label a navigation item with a singular noun that reads as a verb.
+
 ## Shared page anatomy
 
-1. Persistent navigation: Live, Health, Parameters, Post-trade.
+1. Persistent navigation within the current workspace.
 2. One page heading and a short explanation of its purpose.
-3. A context bar identifying the scope, mode, run, and observation time.
+3. A context bar identifying the scope, mode, run, and either freshness
+   or the data window.
 4. Up to four summary metrics when they help the task.
 5. Primary content in aligned columns, then supporting tables and details.
 
 Health is explicitly cross-engine; do not imply that it shares the selected
 Live engine. Parameters must name its own edit scope, including whether it
-applies to all symbols or one symbol. Post-trade must select a completed run
-and distinguish execution mode from market-data mode. A replay identifies its
-source recording. Never label historical or paused data as live.
+applies to all symbols or one symbol, and must say that a change reaches a
+running engine. A run in Research names its execution mode and its market
+data mode separately. A replay states both clocks and links to the run
+that captured its data. Never label historical or paused data as live, and
+give a live feed a resting state - a pulse and a last-updated time - that
+a finished run never borrows.
+
+Comparison is what Research is for. Two runs are only comparable over one
+data window; when the windows differ, say so before showing the difference.
+Colour a delta only where its direction means better or worse: a smaller
+fee bill is not a loss.
 
 Preserve per-card freshness when independent fragments refresh at different
 times. A page-level refresh timestamp must not imply every card refreshed.
@@ -103,6 +139,27 @@ Each metric has a name, value, unit or scope, and optional explanatory line.
 Show trends only when backed by measured history. Do not invent a percentage
 change or use an unlabeled comparison period. A positive result need not
 make the whole card green.
+
+### Live state, run identity and comparison
+
+A live feed rests behind a pulse and a last-updated time, paired with a
+control that stops it. Paused keeps the indicator in place and drains its
+colour rather than removing it, so both states occupy the same spot.
+Nothing outside a live feed borrows either.
+
+A run states its execution mode and its market data mode as two badges. A
+replay adds the window it read, leading, above the wall clock it spent; the
+run that captured its data is a link, not a sentence. A finished live
+session says its one clock instead.
+
+A parameter set belonging to a finished run is a read-only table with the
+current live value beside it, marked frozen, and says where editing does
+belong. A comparison shows only the parameters that differ, and states how
+many of how many those are.
+
+Targets stay at the documented minimum even inside a dense table: grow the
+hit area with padding absorbed by a negative margin rather than shrinking
+it to fit the row.
 
 ### Tables and charts
 
@@ -211,8 +268,11 @@ Open `static/prototype/index.html` directly, or serve it locally:
 
 Browse `http://localhost:8765`. No dependencies, build step, engine database,
 API calls or external assets are required. All fixtures are illustrative.
-Controls demonstrate engine selection, fill filtering/export, chart windows,
-health states, parameter staging/review/revert, and completed-run selection.
+Controls demonstrate the workspace switch, engine selection, the Live/Paused
+control on the monitor, fill filtering/export, chart windows, health states,
+parameter staging/review/revert, the Runs source filter, opening a run from
+the table, a replay's link back to the run that captured its data, and
+comparing two runs over one window or two.
 Settings survive page navigation but reset on browser reload.
 
 A palette switcher in the header (Slate / Sage / Morandi) swaps the same
@@ -229,7 +289,14 @@ sample fields, charts and status history do not introduce production data
 requirements. The wordmark is a proposed treatment; existing brand assets
 remain available.
 
-Suggested migration order: theme and shared primitives; page headers and
-scope bars; Live layout; Health and its states; Parameters; Post-trade.
-Validate each stage with real empty, populated and stale recordings and
-preserve the existing dashboard's functional tests.
+Suggested migration order: theme and shared primitives; the workspace
+split and the navigation it implies; page headers and scope bars; Live
+layout; Health and its states; Parameters; the run library, run detail and
+compare. Validate each stage with real empty, populated and stale
+recordings and preserve the existing dashboard's functional tests.
+
+The production dashboard cannot show this split yet. Every replay is
+recorded to `<exchange>/<symbol>/replay.sqlite`, and
+`dashboard/data/engines.py` opens only `live.sqlite`, so no replay has
+ever appeared in it. Reading both recordings is the first production
+step, before any of the layout above.
