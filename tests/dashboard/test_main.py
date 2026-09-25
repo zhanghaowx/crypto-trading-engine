@@ -277,9 +277,11 @@ def test_live_page_shows_the_latest_engine_run(dashboard, engines):
 
     assert not at.exception
     assert at.session_state["engine_run"].run_id == "20260920T120000Z-deadbeef"
+    assert any("Run `deadbeef`" in caption.value for caption in at.caption)
     assert any(
-        "Run `deadbeef`" in caption.value and "Running" in caption.value
-        for caption in at.caption
+        ":green-badge[Running]" in m.value
+        for m in at.markdown
+        if "-badge[" in m.value
     )
 
 
@@ -296,7 +298,9 @@ def test_live_page_calls_a_run_whose_engine_went_quiet_interrupted(
     at = dashboard.run()
 
     assert not at.exception
+    assert any("Run `deadbeef`" in caption.value for caption in at.caption)
     assert any(
-        "Run `deadbeef`" in caption.value and "Interrupted" in caption.value
-        for caption in at.caption
+        ":orange-badge[Interrupted]" in m.value
+        for m in at.markdown
+        if "-badge[" in m.value
     )
