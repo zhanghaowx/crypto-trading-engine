@@ -136,12 +136,17 @@ def _side_rows(
 
 
 def _column(label: str, side: str, rows: str) -> str:
+    # Wrapped in its own scrolling div rather than left to overflow the
+    # card: a table's overflow is unreliable without a block-level box of
+    # its own to size and scroll within.
     return (
+        f'<div class="jolteon-book-col">'
         f'<table class="jolteon-book jolteon-book-{side}">'
         f"<caption>{label}</caption>"
         f"<thead><tr><th>Price</th><th>Size</th>"
         f"<th>Total</th></tr></thead>"
         f"<tbody>{rows}</tbody></table>"
+        f"</div>"
     )
 
 

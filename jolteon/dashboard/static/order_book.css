@@ -9,8 +9,19 @@
   gap: 12px;
 }
 
-.jolteon-book {
+/* `min-width: 0` overrides a flex item's default of shrinking no
+   further than its content, which a price column full of tabular
+   numbers can be wide enough to hit; `overflow-x` is the guideline's
+   own answer once a column still can't fit its narrower half - it
+   scrolls in place rather than pushing the card past the page's edge. */
+.jolteon-book-col {
   width: 50%;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.jolteon-book {
+  width: 100%;
   border-collapse: collapse;
   font-size: 13px;
   font-variant-numeric: tabular-nums;

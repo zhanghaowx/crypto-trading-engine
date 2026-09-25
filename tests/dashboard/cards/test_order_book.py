@@ -101,6 +101,13 @@ def test_shows_the_ladder_with_both_sides_and_the_spread(tmp_path):
     assert not at.exception
     body = _markup(at)
     assert "jolteon-book-bid" in body and "jolteon-book-ask" in body
+    # Each side names itself - the guideline's own requirement, not just
+    # a colour to tell them apart by.
+    assert "<caption>Bids</caption>" in body
+    assert "<caption>Asks</caption>" in body
+    assert body.index("<caption>Bids</caption>") < body.index(
+        "<caption>Asks</caption>"
+    )
     assert "100.00" in body  # the mid, between 99 and 101
     assert "spread 2.00" in body
     # Total is cumulative away from the spread.
