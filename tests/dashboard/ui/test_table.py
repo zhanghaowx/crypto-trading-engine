@@ -90,8 +90,8 @@ def test_a_columns_explanation_rides_on_its_own_header():
 
 
 def test_a_table_rules_only_between_its_rows():
-    """Untitled UI's table: one hairline between rows, no vertical rules
-    and no frame around the whole thing."""
+    """One hairline between rows, no vertical rules and no frame around
+    the whole thing."""
     at = AppTest.from_function(table_script).run()
 
     body = at.get("html")[-1].body

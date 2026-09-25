@@ -1,7 +1,7 @@
-/* Untitled UI's table: no outer frame and no vertical rules, a quiet
-   header band, and one hairline between rows. The grid Streamlit draws
-   for `st.dataframe` rules every cell on both axes, which reads as a
-   spreadsheet rather than as part of the card it sits in. */
+/* No outer frame and no vertical rules, a quiet header band, and one
+   hairline between rows. The grid Streamlit draws for `st.dataframe`
+   rules every cell on both axes, which reads as a spreadsheet rather
+   than as part of the card it sits in. */
 .jolteon-table {
   width: 100%;
   border-collapse: collapse;
