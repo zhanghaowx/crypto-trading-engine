@@ -215,13 +215,13 @@ def test_accent_is_absent_before_the_first_fill(empty_db_path):
     assert at.markdown[0].value == "None"
 
 
-def test_accent_is_green_while_the_round_trips_are_up(tmp_path):
+def test_accent_is_absent_while_the_round_trips_are_up(tmp_path):
     at = AppTest.from_function(_accent_script)
     at.session_state["db_path"] = _round_trip_db(tmp_path, 110.0)
     at.run()
 
     assert not at.exception
-    assert at.markdown[0].value == "green"
+    assert at.markdown[0].value == "None"
 
 
 def test_accent_is_red_while_the_round_trips_are_down(tmp_path):
