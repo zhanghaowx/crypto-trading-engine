@@ -135,11 +135,24 @@ def _side_rows(
     return rows
 
 
+def _column(label: str, side: str, rows: str) -> str:
+    return (
+        f'<table class="jolteon-book jolteon-book-{side}">'
+        f"<caption>{label}</caption>"
+        f"<thead><tr><th>Price</th><th>Size</th>"
+        f"<th>Total</th></tr></thead>"
+        f"<tbody>{rows}</tbody></table>"
+    )
+
+
 def ladder_html(book: OrderBook, quotes: dict[str, Quote]) -> str:
     """
-    Returns: The book as a ladder - asks falling towards the spread,
-    bids below it - each level backed by a bar the width of everything
-    resting at it and ahead of it, and our own quote placed in it.
+    Returns: The book as two columns, best price at the top of each -
+    bids on the left, asks on the right - each level backed by a bar the
+    width of everything resting at it and ahead of it on its own side,
+    and our own quote placed in whichever column it belongs to. One
+    depth scale is shared across both columns, so a heavier side reads
+    as visibly heavier rather than each side filling its own bar alone.
     """
     bids = _rows(book.bids(LEVELS))
     asks = _rows(book.asks(LEVELS))
@@ -147,34 +160,29 @@ def ladder_html(book: OrderBook, quotes: dict[str, Quote]) -> str:
         [total for _, total in bids] + [total for _, total in asks] + [0.0]
     )
 
-    # Asks are built best price first and shown the other way up, so the
-    # spread sits between the two sides' best prices - and a sell quote
-    # beyond the levels shown, appended last, lands at the very top.
-    ask_rows = "".join(
-        reversed(_side_rows(asks, deepest, "ask", quotes.get("SELL")))
-    )
     bid_rows = "".join(_side_rows(bids, deepest, "bid", quotes.get("BUY")))
+    ask_rows = "".join(_side_rows(asks, deepest, "ask", quotes.get("SELL")))
 
     best_bid, best_ask = book.best_bid(), book.best_ask()
     if best_bid and best_ask:
         spread = best_ask.price - best_bid.price
         mid = (best_ask.price + best_bid.price) / 2
-        middle = (
-            f'<tr class="jolteon-book-spread"><td colspan="3">'
-            f"{mid:,.2f}"
+        summary = (
+            f'<div class="jolteon-book-summary">'
+            f'<span class="jolteon-book-mid">{mid:,.2f}</span>'
             f"<span>spread {spread:,.2f}"
             f" ({spread / mid * 1e4:,.1f} bps)</span>"
-            f"</td></tr>"
+            f"</div>"
         )
     else:
-        middle = ""
+        summary = ""
 
     return (
         f"<style>{_LADDER_CSS}</style>"
-        f'<table class="jolteon-book">'
-        f"<thead><tr><th>Price</th><th>Size</th>"
-        f"<th>Total</th></tr></thead>"
-        f"<tbody>{ask_rows}{middle}{bid_rows}</tbody></table>"
+        f'<div class="jolteon-book-columns">'
+        f"{_column('Bids', 'bid', bid_rows)}"
+        f"{_column('Asks', 'ask', ask_rows)}"
+        f"</div>{summary}"
     )
 
 

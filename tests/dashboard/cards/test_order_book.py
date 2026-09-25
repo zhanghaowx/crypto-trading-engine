@@ -179,15 +179,16 @@ def test_a_quote_between_levels_sits_between_them(tmp_path):
     assert not at.exception
     body = _markup(at)
     prices = re.findall(r'jolteon-book-price">([\d,.]+)<', body)
-    # Bids run 99.00, 98.00; ours at 98.50 belongs between them.
-    assert prices[-3:] == ["99.00", "98.50", "98.00"]
+    # The Bids column runs first in the document, best price at the top:
+    # 99.00, 98.00; ours at 98.50 belongs between them.
+    assert prices[:3] == ["99.00", "98.50", "98.00"]
 
 
 def test_a_quote_beyond_the_levels_shown_sits_at_its_own_end(tmp_path):
     """Quoting wide enough to fall outside the shown depth would
-    otherwise read as having no quote resting at all. The ladder runs in
-    price order, so a sell quote out there belongs at the top of it and a
-    buy quote at the bottom."""
+    otherwise read as having no quote resting at all. Each column runs
+    best price first, so a quote out there belongs at the worst (last)
+    row of its own column rather than dropping out of the book."""
     at = AppTest.from_function(_script)
     at.session_state["db_path"] = _book_db(
         tmp_path, "wide.sqlite", quotes=[("BUY", 1.0), ("SELL", 500.0)]
@@ -197,8 +198,8 @@ def test_a_quote_beyond_the_levels_shown_sits_at_its_own_end(tmp_path):
     assert not at.exception
     body = _markup(at)
     prices = re.findall(r'jolteon-book-price">([\d,.]+)<', body)
-    assert prices[0] == "500.00"
-    assert prices[-1] == "1.00"
+    assert prices[:3] == ["99.00", "98.00", "1.00"]
+    assert prices[3:] == ["101.00", "102.00", "500.00"]
     assert body.count("jolteon-book-alone") == 2
 
 
@@ -239,4 +240,4 @@ def test_a_one_sided_book_shows_its_levels_without_a_spread(tmp_path):
     assert not at.exception
     html = at.markdown[-1].value
     assert "jolteon-book-bid" in html
-    assert "jolteon-book-spread" not in html
+    assert "jolteon-book-summary" not in html

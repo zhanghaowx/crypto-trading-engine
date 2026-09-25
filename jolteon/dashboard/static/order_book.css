@@ -1,14 +1,29 @@
-/* The book as a ladder: asks falling towards the spread, bids below it.
-   Each row's depth bar is a gradient on the row itself, so the shape of
-   the resting size reads behind the numbers rather than as a chart in a
-   column of its own. The ladder fills the card it is given, which is a
-   half-width one - a book is a narrow thing to read. */
+/* The book as two compact columns, bids and asks, best price at the top
+   of each - not a single ladder converging on a spread row. Each row's
+   depth bar is a gradient on the row itself, so the shape of the resting
+   size reads behind the numbers rather than as a chart of its own. The
+   columns sit inside a half-width card, so each one is narrow; that is
+   what keeps the pair compact rather than a book stretched tall. */
+.jolteon-book-columns {
+  display: flex;
+  gap: 12px;
+}
+
 .jolteon-book {
-  width: 100%;
+  width: 50%;
   border-collapse: collapse;
   font-size: 13px;
   font-variant-numeric: tabular-nums;
   color: #20262E;
+}
+
+.jolteon-book caption {
+  caption-side: top;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  color: #626D7C;
+  padding: 0 12px 4px;
 }
 
 .jolteon-book th {
@@ -41,16 +56,18 @@
 .jolteon-book-bid.jolteon-book-resting { outline: 1px solid #137552; }
 .jolteon-book-ask.jolteon-book-resting { outline: 1px solid #B63E49; }
 
-.jolteon-book-spread td {
+.jolteon-book-summary {
   text-align: center;
-  padding: 8px 12px;
+  padding: 8px 12px 0;
+  margin-top: 8px;
   border-top: 1px solid #E2E6EB;
-  border-bottom: 1px solid #E2E6EB;
   font-size: 15px;
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #20262E;
 }
 
-.jolteon-book-spread span {
+.jolteon-book-summary span:last-child {
   margin-left: 10px;
   color: #626D7C;
   font-size: 11px;
