@@ -119,6 +119,22 @@ def test_the_health_page_watches_every_engine(dashboard, engines):
     assert "connection dropped" in at.status[0].label
 
 
+def test_the_health_card_carries_no_accent_while_nothing_is_down(
+    dashboard, engines
+):
+    """A healthy card reads as a plain white surface; only a component
+    that has actually gone down earns the card an edge color."""
+    engines.add("BTC/USD", heartbeats=[(time.time(), "MD", 1, "Streaming")])
+    dashboard.session_state["root"] = engines.root
+
+    at = dashboard.run()
+    at.switch_page("pages/health.py").run()
+
+    assert not at.exception
+    rules = " ".join(h.body for h in at.get("html"))
+    assert "st-key-card-health {" not in rules
+
+
 def test_offers_no_symbol_to_choose_while_one_engine_is_running(dashboard):
     at = dashboard.run()
 
