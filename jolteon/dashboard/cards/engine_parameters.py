@@ -14,6 +14,7 @@ so what is shown here is what the engine will read.
 
 import re
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import streamlit as st
@@ -43,6 +44,11 @@ _SCOPE = "parameter-scope"
 _GROUP_NAV = "parameter-group"
 _REPORTS = "_engine_parameter_reports"
 _ALL_SYMBOLS_LABEL = "All Symbols"
+_SAVE_BAR_KEY = "parameter-save-bar"
+
+_GROUP_NAV_CSS = (
+    Path(__file__).resolve().parents[1] / "static" / "parameter_group_nav.css"
+).read_text()
 
 # A field identified by the scope it is set for as well as by its name.
 Field = tuple[str, str, str]
@@ -493,6 +499,8 @@ def render() -> None:
     staged = _staged()
     symbol = _selected_scope(_scopes(stored))
 
+    st.html(f"<style>{_GROUP_NAV_CSS}</style>")
+
     by_name = {group.__name__: group for group in GROUPS}
     nav_col, fields_col = st.columns([1, 4])
     with nav_col:
@@ -539,12 +547,14 @@ def render() -> None:
                     f"| --- | --- | --- | --- |\n{rows}"
                 )
 
-    with st.container(horizontal=True, vertical_alignment="center"):
-        st.button(
-            "Commit",
-            type="primary",
-            disabled=not staged,
-            on_click=_push,
-            icon=":material/upload:",
-        )
-        st.button("Revert", disabled=not staged, on_click=_revert)
+    st.html(surface_rule([_SAVE_BAR_KEY]))
+    with st.container(border=True, key=_SAVE_BAR_KEY):
+        with st.container(horizontal=True, vertical_alignment="center"):
+            st.button(
+                "Commit",
+                type="primary",
+                disabled=not staged,
+                on_click=_push,
+                icon=":material/upload:",
+            )
+            st.button("Revert", disabled=not staged, on_click=_revert)
