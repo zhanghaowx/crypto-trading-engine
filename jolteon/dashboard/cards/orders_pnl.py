@@ -388,12 +388,13 @@ def load() -> OrdersModel:
 
 
 def accent(model: "OrdersModel | None" = None) -> Accent:
-    """The card's edge color: green while the day is up, red while it is
-    down, and nothing at all before the first fill."""
+    """The card's edge color: red while the day is down, and nothing at
+    all otherwise - a positive result is the ordinary case, and does not
+    need the whole card to say so."""
     model = load() if model is None else model
     if model.fills.empty:
         return None
-    return "green" if model.realized >= 0 else "red"
+    return "red" if model.realized < 0 else None
 
 
 def render_header_actions(model: "OrdersModel | None" = None) -> None:
