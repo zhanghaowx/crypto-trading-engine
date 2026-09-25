@@ -17,7 +17,6 @@ BadgeColor = Literal[
     "yellow",
     "blue",
     "green",
-    "violet",
     "gray",
     "grey",
     "primary",
@@ -28,15 +27,14 @@ BadgeColor = Literal[
 # these to a badge by name but to nothing drawn by hand, so a status dot,
 # a gauge arc or a card's accent has to name the hex itself.
 SEMANTIC_COLORS: dict[BadgeColor, str] = {
-    "red": "#DC2626",
-    "orange": "#E8873C",
-    "yellow": "#E8B93C",
-    "blue": "#3E8FD0",
-    "green": "#16A34A",
-    "violet": "#8B7EF0",
-    "gray": "#8A8D91",
-    "grey": "#8A8D91",
-    "primary": "#15171C",
+    "red": "#B63E49",
+    "orange": "#6F430C",
+    "yellow": "#946315",
+    "blue": "#456AAC",
+    "green": "#137552",
+    "gray": "#626D7C",
+    "grey": "#626D7C",
+    "primary": "#20262E",
 }
 
 POSITIVE_COLOR = SEMANTIC_COLORS["green"]

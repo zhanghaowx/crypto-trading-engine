@@ -76,7 +76,7 @@ def test_accent_rule_stripes_the_named_card_in_the_theme_color():
     rule = accent_rule("card-risk-limits", "red")
 
     assert ".st-key-card-risk-limits {" in rule
-    assert "border-left: 5px solid #DC2626" in rule
+    assert "border-left: 5px solid #B63E49" in rule
 
 
 def test_accent_rule_is_empty_for_a_card_with_no_accent():

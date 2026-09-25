@@ -45,14 +45,12 @@
   width: 100%%;
 }
 
-/* The title, as a card title rather than an expander label. The face is
-   named here because Streamlit publishes no variable for the theme's
-   `headingFont`; it mirrors the one in .streamlit/config.toml, at that
-   theme's fourth heading step. */
+/* The title, as a card title rather than an expander label. The theme's
+   own font already applies; only the size/weight step is named here,
+   since Streamlit publishes no variable for it at this heading level. */
 %(selector)s > [data-testid="stLayoutWrapper"] > [data-testid="stExpander"]
   > details > summary p {
-  font-family: "Space Grotesk", sans-serif;
-  font-size: 17px;
+  font-size: 15px;
   font-weight: 600;
 }
 

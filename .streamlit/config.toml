@@ -1,6 +1,6 @@
-# Jolteon dashboard theme — bold, rounded fintech look (grey/lavender on
-# off-white) with a solid black sidebar panel, inspired by a bright,
-# card-driven crypto dashboard reference.
+# Jolteon dashboard theme — the Slate palette: a quiet off-white canvas,
+# white card surfaces, and one Inter family throughout. See
+# jolteon/dashboard/UI_GUIDELINES.md for the full token rationale.
 
 [server]
 # Launching the dashboard should not also take over a browser window: the
@@ -9,39 +9,41 @@ headless = true
 
 [theme]
 base = "light"
-primaryColor = "#15171C"             # Near-black - pill buttons, active elements
-backgroundColor = "#FAFAFA"          # Untitled UI neutral-50 canvas
-secondaryBackgroundColor = "#F8F8F6" # Off-white widget surfaces
-codeBackgroundColor = "#EFEFED"
-textColor = "#15171C"
-linkColor = "#3E5A6E"
-borderColor = "#E5E5E5"              # Untitled UI neutral-200 hairline
-codeTextColor = "#2B2D2C"
+primaryColor = "#20262E"             # Slate ink - active elements, button fill
+backgroundColor = "#F6F7F9"          # Slate canvas
+secondaryBackgroundColor = "#FFFFFF" # Slate surface - widgets match card surfaces
+codeBackgroundColor = "#F0F3F6"      # Slate subtle surface tint
+textColor = "#20262E"                # Slate text/ink
+linkColor = "#456AAC"                # Slate information
+borderColor = "#E2E6EB"              # Slate border
+codeTextColor = "#20262E"
 showWidgetBorder = true
 showSidebarBorder = false
-baseRadius = "0.75rem"               # Untitled UI's rounded-xl (12px)
-buttonRadius = "full"                # Pill-shaped buttons
+baseRadius = "0.625rem"              # Slate card radius (10px)
+buttonRadius = "0.375rem"            # Slate control radius (6px)
 
-# Typography - bold geometric display font over a clean body face
+# Typography - one Inter family for headings and body, weight and size
+# carry the hierarchy instead of a second display face
 font = "'Inter':https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
-headingFont = "'Space Grotesk':https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap"
 codeFont = "'JetBrains Mono':https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap"
-baseFontSize = 15
+baseFontSize = 14
 baseFontWeight = 400
 codeFontSize = "13px"
-headingFontSizes = ["40px", "26px", "20px", "17px", "15px", "13px"]
-headingFontWeights = [700, 700, 600, 600, 600, 500]
+headingFontSizes = ["29px", "22px", "18px", "15px", "13px", "11px"]
+headingFontWeights = [600, 600, 600, 600, 500, 500]
 linkUnderline = false
 
-# Semantic colors - gains/losses stay the standard green/red; everything
-# else is grey and lavender for a calmer, more professional feel
-greenColor = "#16A34A"  # Positive/gains (Untitled UI green-600)
-redColor = "#DC2626"    # Negative/losses (Untitled UI red-600)
-yellowColor = "#E8B93C" # Warnings/caution
-orangeColor = "#E8873C" # Alerts
-blueColor = "#3E8FD0"   # Informational
-violetColor = "#8B7EF0" # Accent/highlights
-grayColor = "#8A8D91"   # Neutral/secondary text
+# Semantic colors, mapped onto Streamlit's fixed 8-slot palette. Slate
+# names only four hues (Positive/Negative/Warning/Information); the
+# heartbeat and risk-limit bands need two distinct amber tiers, so
+# `orange` is a deliberately darker, more saturated amber derived from
+# `yellow` rather than a Slate-documented token.
+greenColor = "#137552"  # Slate positive
+redColor = "#B63E49"    # Slate negative
+yellowColor = "#946315" # Slate warning
+orangeColor = "#6F430C" # Elevated warning tier, darker than yellow
+blueColor = "#456AAC"   # Slate information
+grayColor = "#626D7C"   # Slate secondary text
 
 # Chart colors - slate and lavender first, financial red kept distinguishable
 chartCategoricalColors = [
@@ -75,8 +77,8 @@ chartSequentialColors = [
 # the grid draws its header labels in `fadedText60` (the theme's text color
 # at 60%) with no way to override them, and it renders to a canvas, so CSS
 # can't recolor them either - on a dark header the labels simply disappear.
-dataframeBorderColor = "#E5E5E5"
-dataframeHeaderBackgroundColor = "#FAFAFA"
+dataframeBorderColor = "#E2E6EB"
+dataframeHeaderBackgroundColor = "#F6F7F9"
 
 # Sidebar - solid black panel, mirroring the dark card in the reference image
 [theme.sidebar]

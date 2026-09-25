@@ -283,7 +283,7 @@ def test_a_cards_accent_reaches_the_page():
     assert not at.exception
     rules = [h.body for h in at.get("html")]
     assert any(
-        ".st-key-card-market-data {" in rule and "#3E8FD0" in rule
+        ".st-key-card-market-data {" in rule and "#456AAC" in rule
         for rule in rules
     )
 
@@ -293,12 +293,12 @@ def test_an_accent_given_as_a_function_follows_what_it_reports_on():
     at.session_state["risk_accent"] = "green"
     at.run()
 
-    assert "#16A34A" in " ".join(h.body for h in at.get("html"))
+    assert "#137552" in " ".join(h.body for h in at.get("html"))
 
     at.session_state["risk_accent"] = "red"
     at.run()
 
-    assert "#DC2626" in " ".join(h.body for h in at.get("html"))
+    assert "#B63E49" in " ".join(h.body for h in at.get("html"))
 
 
 def test_a_card_without_an_accent_emits_no_rule_for_one():

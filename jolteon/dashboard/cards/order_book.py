@@ -12,14 +12,20 @@ from jolteon.dashboard.read_models.order_book import (
     recorded_symbol,
 )
 from jolteon.dashboard.ui.empty_states import warn_if_no_db
+from jolteon.dashboard.ui.primitives import NEGATIVE_RGB, POSITIVE_RGB
 from jolteon.engine.market_data.core.order_book import OrderBook, PriceLevel
 
 LEVELS = 10
 
+
+def _tint(rgb: tuple[int, int, int]) -> str:
+    return f"rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, 0.13)"
+
+
 # The depth bar's tint per side, matching the price colour beside it.
 _DEPTH_TINT = {
-    "bid": "rgba(22, 163, 74, 0.13)",
-    "ask": "rgba(220, 38, 38, 0.13)",
+    "bid": _tint(POSITIVE_RGB),
+    "ask": _tint(NEGATIVE_RGB),
 }
 
 _LADDER_CSS = (

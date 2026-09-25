@@ -5,7 +5,7 @@
    closed by hand, since each cell is an element of its own rather than
    a cell in a table. */
 [class*="st-key-row-fill-"] {
-  border-bottom: 1px solid #F0F0EE;
+  border-bottom: 1px solid #E2E6EB;
   padding: 0;
 }
 
@@ -44,7 +44,7 @@
 [class*="st-key-fills-table-header"] p {
   font-weight: 500;
   font-size: 11px;
-  color: #667085;
+  color: #626D7C;
 }
 
 /* A badge carries its own generous padding, which sets the row's height

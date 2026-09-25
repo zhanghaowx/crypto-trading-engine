@@ -164,7 +164,7 @@ def test_the_bar_fills_to_the_utilisation_and_marks_the_bands():
     bar = utilisation_bar(0.74, "orange")
 
     assert "width:74.0%" in bar
-    assert "background:#E8873C" in bar
+    assert "background:#6F430C" in bar
     # A tick at each threshold the badge changes band at.
     assert bar.count("jolteon-limit-tick") == 2
     assert "left:70%" in bar and "left:90%" in bar
