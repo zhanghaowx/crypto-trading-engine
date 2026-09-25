@@ -9,7 +9,7 @@ from jolteon.dashboard.ui.page_header import page_heading
 
 
 def _down_accent() -> Accent:
-    return "red" if summary(st.session_state.root).down else "green"
+    return "red" if summary(st.session_state.root).down else None
 
 
 def _errors_accent() -> Accent:
