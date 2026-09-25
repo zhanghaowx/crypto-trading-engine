@@ -36,9 +36,9 @@ button,select {cursor:pointer} button,input,select {border:1px solid var(--line)
 button {font-weight:500;white-space:nowrap} button:hover:not(:disabled) {background:var(--subtle);border-color:var(--line-strong)}
 button:disabled {cursor:default;opacity:.45} button.primary {background:var(--ink);color:white;border-color:var(--ink)} button.primary:hover {background:var(--ink-hover)}
 :focus-visible {outline:3px solid var(--info);outline-offset:3px} .skip {position:absolute;left:20px;top:-60px;z-index:5;background:white;padding:12px}.skip:focus{top:10px}
-.app-header {height:76px;background:var(--surface);padding:0 max(32px,calc((100vw - 1320px)/2));display:flex;align-items:center;justify-content:space-between;gap:20px;border-bottom:1px solid var(--line)}
-.brand {display:flex;align-items:center;gap:11px;font-size:25px;letter-spacing:-1px;font-weight:700}.brand-mark {display:grid;place-items:center;background:var(--brand-mark-bg);width:31px;height:34px;border-radius:8px;color:var(--brand-mark-fg);font-size:30px}.brand-divider{height:22px;width:1px;background:var(--line);margin:0 8px}.workspace{font-size:13px;font-weight:400;letter-spacing:0;color:var(--muted)}
-.header-end{display:flex;align-items:center;gap:14px}
+.app-header {height:76px;background:var(--surface);padding:0 max(32px,calc((100vw - 1320px)/2));display:flex;align-items:center;gap:20px;border-bottom:1px solid var(--line)}
+.brand {display:flex;align-items:center;gap:11px;font-size:25px;letter-spacing:-1px;font-weight:700}.brand-mark {display:grid;place-items:center;background:var(--brand-mark-bg);width:31px;height:34px;border-radius:8px;color:var(--brand-mark-fg);font-size:30px}
+.header-end{display:flex;align-items:center;gap:14px;margin-left:auto}
 .theme-switch{display:inline-flex;background:var(--subtle);padding:3px;border-radius:6px;gap:2px}.theme-switch button{border:0;background:transparent;min-height:30px;padding:5px 10px 5px 8px;font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px}.theme-switch button[aria-pressed=true]{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px var(--ink-wash)}.theme-dot{width:9px;height:9px;border-radius:50%;background:var(--dot);display:inline-block;flex:none}
 .demo-label {font-size:10px;letter-spacing:1.3px;color:var(--muted);font-weight:600;display:flex;align-items:center;gap:12px}.demo-label span {font-size:11px;letter-spacing:0;font-weight:400;border:1px solid var(--line);padding:5px 8px;border-radius:4px}
 .nav-shell {background:var(--surface);border-bottom:1px solid var(--line)}nav{max-width:1320px;padding:0 0;display:flex;gap:32px;margin:auto;min-height:53px;align-items:stretch}nav a{display:flex;align-items:center;gap:8px;padding:0 3px;color:var(--muted);font-weight:500;border-bottom:2px solid transparent}nav a:hover{color:var(--ink)}nav a[aria-current=page]{color:var(--ink);border-color:var(--accent)}nav .guide-link{margin-left:auto}.nav-dot{width:6px;height:6px;border-radius:50%;background:var(--positive)}
@@ -55,9 +55,44 @@ main{max-width:1320px;margin:0 auto;padding:34px 0 48px;min-height:calc(100vh - 
 dialog{border:1px solid var(--line);border-radius:12px;padding:28px;width:min(580px,90vw);color:var(--ink);box-shadow:0 20px 80px #0002}dialog::backdrop{background:var(--ink-overlay)}dialog h2{font-size:22px;margin-bottom:10px}dialog p{font-size:12px;margin-bottom:20px}.dialog-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:24px}#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--ink);color:white;border-radius:8px;font-size:12px;padding:13px 20px;box-shadow:0 5px 20px #0002;display:none;z-index:10}#toast.visible{display:block}
 @media(min-width:1600px){main{padding-top:40px}.chart{height:210px}}
 @media(max-width:1400px){main,nav,footer{margin-left:32px;margin-right:32px}}
-@media(max-width:1050px){.grid{grid-template-columns:1fr 1fr}.context{gap:12px}.context .end{margin-left:0}.health-grid{grid-template-columns:repeat(2,1fr)}.kpi{padding:18px}.kpi .spark{display:none}.kpi-value{font-size:24px}.settings-layout{grid-template-columns:170px 1fr}.workspace,.brand-divider{display:none}}
+@media(max-width:1050px){.grid{grid-template-columns:1fr 1fr}.context{gap:12px}.context .end{margin-left:0}.health-grid{grid-template-columns:repeat(2,1fr)}.kpi{padding:18px}.kpi .spark{display:none}.kpi-value{font-size:24px}.settings-layout{grid-template-columns:170px 1fr}.workspace-note{display:none}}
 @media(max-width:760px){main,nav,footer{margin-left:18px;margin-right:18px}.app-header{padding:0 18px;height:64px}.header-end{gap:8px}.theme-switch button span:not(.theme-dot){display:none}.theme-switch button{padding:8px}.demo-label{font-size:9px;letter-spacing:.6px}.demo-label span{display:none}nav{gap:22px;overflow-x:auto;font-size:12px;white-space:nowrap}nav .guide-link{margin-left:0}main{padding-top:25px}.page-heading{align-items:flex-start;flex-direction:column}h1{font-size:26px}.context{padding:12px}.context .separator{display:none}.context select{min-width:145px}.kpis{grid-template-columns:repeat(2,1fr);gap:10px}.kpi-value{font-size:24px}.kpi-note{font-size:10px}.grid{grid-template-columns:1fr}.settings-layout{grid-template-columns:1fr;gap:16px}.settings-nav{flex-direction:row;overflow-x:auto}.settings-nav p{display:none}.setting{padding:16px;gap:12px}.setting p{max-width:200px}.setting input[type=number]{width:90px}.setting-control{gap:6px}.save-bar{flex-wrap:wrap}.guide-intro{grid-template-columns:1fr;gap:24px;padding:24px}.swatches{grid-template-columns:repeat(2,1fr)}.card-head{padding:18px 16px}.card-body{padding:0 16px 18px}.book-sides{gap:6px;padding:0 6px}.book-side td,.book-side th{padding:8px 5px}.book-side td{font-size:10px}.health-grid{gap:10px}.health-tile{padding:16px}.health-tile h3{font-size:12px}footer{flex-direction:column;gap:10px}.actions{flex-wrap:wrap}.card-foot{padding:12px 16px}.type-row{gap:20px}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
 body.compact td{padding-top:7px;padding-bottom:7px}
 main:focus-visible{outline:none}
 @media(max-width:500px){.book-sides{grid-template-columns:1fr;gap:18px;padding:0 16px}.book-side td,.book-side th{font-size:11px;padding:8px}.book-mid{gap:12px;flex-wrap:wrap}.book-mid strong{font-size:19px}}
+
+/* The workspace switch is the primary split in the product, so it reads
+   as a control rather than as a label: larger than the palette switcher
+   beside it, and always showing the road not taken. */
+.workspace-switch{display:inline-flex;background:var(--subtle);padding:4px;border-radius:8px;gap:2px;margin-left:8px}
+.workspace-switch button{border:0;background:transparent;min-height:36px;padding:7px 18px;font-size:13px;font-weight:500;color:var(--muted)}
+.workspace-switch button[aria-pressed=true]{background:var(--surface);color:var(--ink);font-weight:600;box-shadow:0 1px 3px var(--ink-wash)}
+.workspace-note{margin-left:auto;align-self:center;font-size:11px;color:var(--muted)}
+nav .guide-link{margin-left:24px}
+/* Only a page reading a live feed animates. Paused keeps the dot so the
+   control's two states sit in the same place, and drains its color. */
+.live-dot{width:8px;height:8px;border-radius:50%;background:var(--positive);flex:none;box-shadow:0 0 0 0 var(--positive);animation:pulse 2.4s infinite}
+.live-dot.paused{background:var(--line-strong);animation:none;box-shadow:none}
+@keyframes pulse{0%{box-shadow:0 0 0 0 var(--positive-soft)}70%{box-shadow:0 0 0 7px transparent}100%{box-shadow:0 0 0 0 transparent}}
+@media(prefers-reduced-motion:reduce){.live-dot{animation:none}}
+.live-state{display:flex;align-items:center;gap:10px}
+.context .run-id{margin-left:0}
+/* A replay ran at one time and read another, and the data window is the
+   one an analysis is scoped to, so it leads. */
+.clocks{display:flex;flex-direction:column;align-items:flex-end;gap:3px;line-height:1.4}
+.clocks b{font-weight:600}
+.chip{display:inline-flex;align-items:center;gap:6px;min-height:30px;padding:4px 10px;font-size:11px;font-weight:500;color:var(--info);background:var(--info-soft);border:1px solid transparent;border-radius:4px}
+.chip:hover{background:var(--info-soft);border-color:var(--info);color:var(--info)}
+.link-id{border:0;background:transparent;padding:11px 0;margin:-11px 0;min-height:auto;font-size:12px;font-weight:600;color:var(--ink);border-radius:0;text-decoration:underline;text-decoration-color:var(--line-strong);text-underline-offset:3px}
+.link-id:hover{background:transparent;color:var(--info);text-decoration-color:var(--info)}
+td .badge+.badge{margin-left:4px}
+.workspace-compare{display:grid;grid-template-columns:1fr 1fr;gap:32px}
+.workspace-compare>div+div{border-left:1px solid var(--line);padding-left:32px}
+@media(max-width:1050px){.workspace-switch button{padding:6px 12px;font-size:12px}}
+@media(max-width:760px){.workspace-compare{grid-template-columns:1fr;gap:20px}.workspace-compare>div+div{border-left:0;padding-left:0;border-top:1px solid var(--line);padding-top:20px}.clocks{align-items:flex-start}.live-state{width:100%}}
+
+/* The header carries the workspace switch now, and on a phone the
+   wordmark is what gives way: the preview label has to stay legible on a
+   page full of invented trading numbers. */
+@media(max-width:760px){.brand-name{display:none}.app-header{gap:12px}.workspace-switch{margin-left:0}}
