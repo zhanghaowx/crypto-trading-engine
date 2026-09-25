@@ -116,6 +116,9 @@ that captured its data. Never label historical or paused data as live, and
 give a live feed a resting state - a pulse and a last-updated time - that
 a finished run never borrows.
 
+An error recorded against a component is not the same as a component being
+down, and the navigation alert follows the component, not the log.
+
 Comparison is what Research is for. Two runs are only comparable over one
 data window; when the windows differ, say so before showing the difference.
 Colour a delta only where its direction means better or worse: a smaller

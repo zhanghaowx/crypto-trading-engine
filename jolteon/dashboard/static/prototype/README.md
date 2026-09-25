@@ -28,7 +28,8 @@ Which workspace a screen belongs to follows from where its market data came
 from, not from whether execution was paper or real - that is a badge.
 
 Try the workspace switch, the Live/Paused control on the monitor, the Health
-preview states, parameter edit/review/apply/revert, the Runs source filter,
+preview states including the populated error log, parameter
+edit/review/apply/revert, the Runs source filter,
 opening a run from the table, a replay's capture link back to the run that
 recorded its data, and Compare with two runs over one window and then over
 two.
