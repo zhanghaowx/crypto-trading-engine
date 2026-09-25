@@ -7,6 +7,7 @@ import streamlit as st
 from jolteon.dashboard.data.engines import engine_databases
 from jolteon.dashboard.data.sqlite import as_datetime
 from jolteon.dashboard.services.health import errors as error_rows
+from jolteon.dashboard.ui.empty_states import empty_state, warn_if_no_engines
 from jolteon.dashboard.ui.pagination import paginate
 from jolteon.dashboard.ui.primitives import SEMANTIC_COLORS, row_key
 
@@ -67,17 +68,13 @@ def _relative_age(local_time: pd.Timestamp) -> str:
 
 
 def render() -> None:
-    engines = engine_databases(st.session_state.root)
-    if not engines:
-        st.warning(
-            f"No engine has recorded anything under "
-            f"`{st.session_state.root}` yet."
-        )
+    if not warn_if_no_engines(st.session_state.root):
         return
+    engines = engine_databases(st.session_state.root)
 
     errors = error_rows(engines)
     if errors.empty:
-        st.info("No ERROR logs recorded yet.")
+        empty_state("No ERROR logs recorded yet.")
         return
 
     page, show_pagination = paginate(

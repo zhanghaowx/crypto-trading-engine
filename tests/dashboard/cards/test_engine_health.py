@@ -41,7 +41,7 @@ def test_says_so_while_an_engine_has_not_heartbeat_yet(engines):
     at = _page(engines).run()
 
     assert not at.exception
-    assert at.info[0].value == "No heartbeats recorded yet."
+    assert at.caption[0].value == "No heartbeats recorded yet."
 
 
 def test_renders_a_badge_per_sender(engines):
