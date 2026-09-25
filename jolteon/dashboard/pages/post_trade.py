@@ -9,6 +9,7 @@ from jolteon.dashboard.ui.engine_selection import (
     run_status,
     select_engine,
 )
+from jolteon.dashboard.ui.page_header import page_heading
 
 ANALYSIS_RUN = "analysis_run_id"
 
@@ -68,6 +69,11 @@ def _select_run() -> str | None:
     return chosen
 
 
+page_heading(
+    "Post-Trade",
+    "How a finished run performed, measured after the fact.",
+)
+
 select_engine()
 run_id = _select_run()
 
@@ -75,7 +81,7 @@ if run_id is not None:
     cards = [
         Card(
             "session-economics",
-            "Session Economics",
+            "Session economics",
             ":material/payments:",
             session_economics.render,
             load=lambda: session_economics.load(

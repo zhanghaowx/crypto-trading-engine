@@ -9,37 +9,21 @@ from jolteon.dashboard.cards import (
 )
 from jolteon.dashboard.state import current_run, refresh_interval
 from jolteon.dashboard.ui.cards import Card, cards_rule, render_cards
-from jolteon.dashboard.ui.engine_selection import (
-    run_mode,
-    run_status,
-    select_engine,
-)
+from jolteon.dashboard.ui.engine_selection import select_engine
 from jolteon.dashboard.ui.navigation import watch_nav
-
-
-def _render_run_scope() -> None:
-    run = current_run()
-    if run is None:
-        return
-    short_id = run.run_id.rsplit("-", 1)[-1]
-    st.caption(
-        f"Run `{short_id}` · started "
-        f"{run.started_at:%Y-%m-%d %H:%M:%S} UTC · {run_status(run)} · "
-        f"{run_mode(run)}"
-    )
-
+from jolteon.dashboard.ui.page_header import page_heading, run_scope_caption
 
 cards = [
     Card(
         "order-book",
-        "Order Book",
+        "Order book",
         ":material/bar_chart:",
         order_book.render,
         width="half",
     ),
     Card(
         "risk-limits",
-        "Risk Limits",
+        "Risk limits",
         ":material/earthquake:",
         risk_limits.render,
         accent=risk_limits.accent,
@@ -56,13 +40,13 @@ cards = [
     ),
     Card(
         "trade-quality",
-        "Trade Quality",
+        "Trade quality",
         ":material/target:",
         trade_quality.render,
     ),
     Card(
         "fair-price-signals",
-        "Fair Price Signals",
+        "Fair price signals",
         ":material/insights:",
         fair_price_signals.render,
         details=fair_price_signals.render_details,
@@ -71,11 +55,13 @@ cards = [
 
 st.html(cards_rule(cards))
 
+page_heading("Live", "What this engine is doing right now.")
+
 # Outside the cards' own fragments: they read whichever engine this
 # picks, so it has to be settled before any of them run, and choosing
 # another engine is meant to invalidate every one of them at once.
 select_engine()
-_render_run_scope()
+run_scope_caption(current_run())
 
 # Each card refreshes itself on a timer of its own (see `card.card`), so
 # there is no page-wide fragment here to redraw the lot.

@@ -475,7 +475,6 @@ def _selected_scope(scopes: list[str]) -> str:
         format_func=_scope_label,
         default=ALL_SYMBOLS,
         key=_SCOPE,
-        label_visibility="collapsed",
     )
     # A segmented control lets the reader clear their own selection.
     return ALL_SYMBOLS if scope is None else scope
