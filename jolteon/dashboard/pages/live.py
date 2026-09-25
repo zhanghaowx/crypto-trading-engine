@@ -15,6 +15,15 @@ from jolteon.dashboard.ui.page_header import page_heading, run_scope_caption
 
 cards = [
     Card(
+        "orders-pnl",
+        "Orders & PnL",
+        ":material/currency_bitcoin:",
+        orders_pnl.render,
+        load=orders_pnl.load,
+        actions=orders_pnl.render_header_actions,
+        accent=orders_pnl.accent,
+    ),
+    Card(
         "order-book",
         "Order book",
         ":material/bar_chart:",
@@ -28,15 +37,6 @@ cards = [
         risk_limits.render,
         accent=risk_limits.accent,
         width="half",
-    ),
-    Card(
-        "orders-pnl",
-        "Orders & PnL",
-        ":material/currency_bitcoin:",
-        orders_pnl.render,
-        load=orders_pnl.load,
-        actions=orders_pnl.render_header_actions,
-        accent=orders_pnl.accent,
     ),
     Card(
         "trade-quality",
