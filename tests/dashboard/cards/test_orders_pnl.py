@@ -8,6 +8,7 @@ from jolteon.dashboard.cards.orders_pnl import (
     fills_table,
 )
 from jolteon.dashboard.data.sqlite import read_table
+from jolteon.dashboard.ui.primitives import MISSING
 
 
 def _script():
@@ -72,7 +73,8 @@ def test_renders_pnl_and_recent_fills(populated_db_path):
     # PostTradeService's fields drive derived edge/markout, not the raw
     # fair prices: fair_price_at_fill=100.0 vs fill_price=99.5 on a BUY of
     # 1.0 is a $0.50 favorable edge, less the $0.10 fee; the horizon fair
-    # prices are still NULL this soon after, so their markout renders "-".
+    # prices are still NULL this soon after, so their markout renders as
+    # the missing-value marker rather than as zero.
     assert "Edge" in markdown_values
     assert ":green[+$0.40]" in markdown_values
     assert "Cash Flow" in markdown_values
@@ -81,7 +83,7 @@ def test_renders_pnl_and_recent_fills(populated_db_path):
     assert "Inventory Before" not in markdown_values
     assert "Inventory After" not in markdown_values
     assert "Markout +100ms" in markdown_values
-    assert "-" in markdown_values
+    assert MISSING in markdown_values
 
 
 def test_download_button_present_when_fills_exist(populated_db_path):

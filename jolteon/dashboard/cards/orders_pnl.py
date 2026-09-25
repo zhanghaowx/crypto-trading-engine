@@ -33,9 +33,9 @@ from jolteon.dashboard.ui.cards import Accent
 from jolteon.dashboard.ui.empty_states import warn_if_no_db
 from jolteon.dashboard.ui.pagination import paginate
 from jolteon.dashboard.ui.primitives import (
-    NEGATIVE_RGB,
-    POSITIVE_RGB,
-    BadgeColor,
+    MISSING,
+    SIDE_COLORS,
+    fmt_usd,
     metric,
     row_key,
     sign_color,
@@ -185,10 +185,6 @@ _FILL_COLUMNS: list[tuple[str, float]] = [
     ("Markout +30s", 1.3),
 ]
 
-# Side badges in the theme's semantic green/red (config.toml), so BUY and
-# SELL rows are scannable at a glance in the fills list.
-_SIDE_BADGE_COLORS: dict[str, BadgeColor] = {"BUY": "green", "SELL": "red"}
-
 _FILLS_TABLE_CSS = (
     Path(__file__).resolve().parents[1] / "static" / "fills_table.css"
 ).read_text()
@@ -221,17 +217,15 @@ def _render_signed_usd(value) -> None:
     """A signed dollar amount in the theme's semantic green/red."""
     if pd.isna(value):
         # Horizons not yet reached still carry NULL in the DB.
-        st.write("-")
+        st.write(MISSING)
         return
-    color = "green" if value >= 0 else "red"
-    sign = "+" if value >= 0 else "-"
-    st.markdown(f":{color}[{sign}${abs(value):,.2f}]")
+    st.markdown(f":{sign_color(value)}[{fmt_usd(value)}]")
 
 
 def _render_fill_cell(col, label: str, value) -> None:
     with col:
         if label == "Side":
-            st.badge(value, color=_SIDE_BADGE_COLORS.get(value, "gray"))
+            st.badge(value, color=SIDE_COLORS.get(value, "gray"))
         elif label == "Time":
             st.write(value.strftime("%H:%M:%S.%f")[:-3])
         elif label in _SIGNED_USD_LABELS:
@@ -311,12 +305,6 @@ def realized_pnl_now(db_path: str, run_id: str | None = None) -> float:
         state = fold_fills(state, fresh)
     st.session_state[_REALIZED] = (db_path, run_id, state, now_at)
     return state.total
-
-
-_SIDE_TINTS = {
-    "BUY": "background-color: rgba({}, {}, {}, 0.12)".format(*POSITIVE_RGB),
-    "SELL": "background-color: rgba({}, {}, {}, 0.12)".format(*NEGATIVE_RGB),
-}
 
 
 def _render_pnl(model: "OrdersModel") -> None:

@@ -92,6 +92,18 @@ POSITIVE_RGB = hex_to_rgb(POSITIVE_COLOR)
 NEGATIVE_RGB = hex_to_rgb(NEGATIVE_COLOR)
 
 
+# A side's badge color and row tint, in the theme's semantic green/red -
+# the one place BUY and SELL are told apart, so the fills list, the order
+# book and the execution-quality tables can't drift out of step with
+# each other.
+SIDE_COLORS: dict[str, BadgeColor] = {"BUY": "green", "SELL": "red"}
+
+SIDE_TINTS: dict[str, str] = {
+    "BUY": "background-color: rgba({}, {}, {}, 0.12)".format(*POSITIVE_RGB),
+    "SELL": "background-color: rgba({}, {}, {}, 0.12)".format(*NEGATIVE_RGB),
+}
+
+
 def slug(text: str) -> str:
     """`text` as a CSS-safe fragment of a container key."""
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")

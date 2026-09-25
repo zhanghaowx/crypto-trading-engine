@@ -15,13 +15,7 @@ from jolteon.dashboard.data import trade_queries
 from jolteon.dashboard.state import current_run_id
 from jolteon.dashboard.ui import table
 from jolteon.dashboard.ui.empty_states import warn_if_no_db
-from jolteon.dashboard.ui.primitives import NEGATIVE_RGB, POSITIVE_RGB, fmt_usd
-
-_SIDE_TINTS = {
-    "BUY": "background-color: rgba({}, {}, {}, 0.12)".format(*POSITIVE_RGB),
-    "SELL": "background-color: rgba({}, {}, {}, 0.12)".format(*NEGATIVE_RGB),
-}
-
+from jolteon.dashboard.ui.primitives import SIDE_TINTS, fmt_usd
 
 _HORIZON_PHRASES = {
     "100ms": "100 milliseconds",
@@ -63,7 +57,7 @@ def _shaded_table(
         format_fn=fmt_usd,
         column_help=column_help,
         row_style=(
-            (lambda row: _SIDE_TINTS.get(row["Side"], ""))
+            (lambda row: SIDE_TINTS.get(row["Side"], ""))
             if shade_side
             else None
         ),
