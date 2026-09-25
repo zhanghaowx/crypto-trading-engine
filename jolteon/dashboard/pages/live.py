@@ -13,16 +13,18 @@ from jolteon.dashboard.ui.engine_selection import select_engine
 from jolteon.dashboard.ui.navigation import watch_nav
 from jolteon.dashboard.ui.page_header import page_heading, run_scope_caption
 
-cards = [
+summary_cards = [
     Card(
         "orders-pnl",
         "Orders & PnL",
         ":material/currency_bitcoin:",
-        orders_pnl.render,
+        orders_pnl.render_summary,
         load=orders_pnl.load,
-        actions=orders_pnl.render_header_actions,
         accent=orders_pnl.accent,
     ),
+]
+
+overview_cards = [
     Card(
         "order-book",
         "Order book",
@@ -39,12 +41,6 @@ cards = [
         width="half",
     ),
     Card(
-        "trade-quality",
-        "Trade quality",
-        ":material/target:",
-        trade_quality.render,
-    ),
-    Card(
         "fair-price-signals",
         "Fair price signals",
         ":material/insights:",
@@ -53,7 +49,29 @@ cards = [
     ),
 ]
 
-st.html(cards_rule(cards))
+fills_cards = [
+    Card(
+        "recent-fills",
+        "Recent fills",
+        ":material/receipt_long:",
+        orders_pnl.render_fills,
+        load=orders_pnl.load,
+        actions=orders_pnl.render_header_actions,
+    ),
+]
+
+quality_cards = [
+    Card(
+        "trade-quality",
+        "Trade quality",
+        ":material/target:",
+        trade_quality.render,
+    ),
+]
+
+st.html(
+    cards_rule(summary_cards + overview_cards + fills_cards + quality_cards)
+)
 
 page_heading("Live", "What this engine is doing right now.")
 
@@ -65,5 +83,16 @@ run_scope_caption(current_run())
 
 # Each card refreshes itself on a timer of its own (see `card.card`), so
 # there is no page-wide fragment here to redraw the lot.
-render_cards(cards)
+render_cards(summary_cards)
+
+overview_tab, fills_tab, quality_tab = st.tabs(
+    ["Overview", "Fills", "Execution quality"]
+)
+with overview_tab:
+    render_cards(overview_cards)
+with fills_tab:
+    render_cards(fills_cards)
+with quality_tab:
+    render_cards(quality_cards)
+
 watch_nav(refresh_interval())

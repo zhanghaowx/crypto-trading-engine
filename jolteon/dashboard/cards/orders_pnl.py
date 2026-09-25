@@ -416,33 +416,42 @@ def render_header_actions(model: "OrdersModel | None" = None) -> None:
     )
 
 
-def render(model: "OrdersModel | None" = None) -> None:
+def render_summary(model: "OrdersModel | None" = None) -> None:
+    """The card's whole body: the session's PnL at a glance. Lives above
+    the Overview/Fills/Execution quality tabs, since it is what every one
+    of them is ultimately about."""
+    if not warn_if_no_db():
+        return
+
+    model = load() if model is None else model
+    if model.fills.empty:
+        st.info("No fills yet.")
+    else:
+        _render_pnl(model)
+
+
+def render_fills(model: "OrdersModel | None" = None) -> None:
+    """The session's fills, newest first - a card of its own inside the
+    Fills tab, so a long session's list does not push the summary above
+    it off screen."""
     if not warn_if_no_db():
         return
 
     model = load() if model is None else model
     fills = model.fills
-
     if fills.empty:
         st.info("No fills yet.")
-    else:
-        _render_pnl(model)
+        return
 
-    st.divider()
-
-    st.markdown("**Recent fills**")
-    if fills.empty:
-        st.info("No fills yet.")
-    else:
-        # Paged before the display columns are worked out, not after:
-        # every one of them - the edge, the cash flow, a markout per
-        # horizon - was being computed for a whole session's fills to
-        # show the ten on screen.
-        page, show_pagination = paginate(
-            _newest_first(fills, "transaction_timestamp"),
-            key="recent-fills",
-            page_size=PAGE_SIZE,
-        )
-        page = _derive_visible_markouts(st.session_state.db_path, page)
-        render_fills_list(fills_table(page))
-        show_pagination()
+    # Paged before the display columns are worked out, not after: every
+    # one of them - the edge, the cash flow, a markout per horizon - was
+    # being computed for a whole session's fills to show the ten on
+    # screen.
+    page, show_pagination = paginate(
+        _newest_first(fills, "transaction_timestamp"),
+        key="recent-fills",
+        page_size=PAGE_SIZE,
+    )
+    page = _derive_visible_markouts(st.session_state.db_path, page)
+    render_fills_list(fills_table(page))
+    show_pagination()

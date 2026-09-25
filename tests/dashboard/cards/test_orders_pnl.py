@@ -11,13 +11,19 @@ from jolteon.dashboard.data.sqlite import read_table
 from jolteon.dashboard.ui.primitives import MISSING
 
 
-def _script():
+def _summary_script():
+    from jolteon.dashboard.cards import orders_pnl
+
+    orders_pnl.render_summary()
+
+
+def _fills_script():
     from jolteon.dashboard.cards import orders_pnl
 
     # Header actions render ahead of the card's own body, the same
     # order the page draws them in.
     orders_pnl.render_header_actions()
-    orders_pnl.render()
+    orders_pnl.render_fills()
 
 
 def _metrics(at):
@@ -26,8 +32,8 @@ def _metrics(at):
     return {m.label: m.value for m in at.metric}
 
 
-def test_shows_warning_when_db_missing(missing_db_path):
-    at = AppTest.from_function(_script)
+def test_summary_shows_warning_when_db_missing(missing_db_path):
+    at = AppTest.from_function(_summary_script)
     at.session_state["db_path"] = missing_db_path
     at.run()
 
@@ -36,19 +42,38 @@ def test_shows_warning_when_db_missing(missing_db_path):
     assert not at.info
 
 
-def test_shows_no_fills_messages_when_empty(empty_db_path):
-    at = AppTest.from_function(_script)
+def test_fills_shows_warning_when_db_missing(missing_db_path):
+    at = AppTest.from_function(_fills_script)
+    at.session_state["db_path"] = missing_db_path
+    at.run()
+
+    assert not at.exception
+    assert at.warning
+    assert not at.info
+
+
+def test_summary_shows_no_fills_message_when_empty(empty_db_path):
+    at = AppTest.from_function(_summary_script)
     at.session_state["db_path"] = empty_db_path
     at.run()
 
     assert not at.exception
     assert not at.warning
-    # One for the PnL figures, one for the list of recent fills.
-    assert [i.value for i in at.info] == ["No fills yet.", "No fills yet."]
+    assert [i.value for i in at.info] == ["No fills yet."]
 
 
-def test_renders_pnl_and_recent_fills(populated_db_path):
-    at = AppTest.from_function(_script)
+def test_fills_shows_no_fills_message_when_empty(empty_db_path):
+    at = AppTest.from_function(_fills_script)
+    at.session_state["db_path"] = empty_db_path
+    at.run()
+
+    assert not at.exception
+    assert not at.warning
+    assert [i.value for i in at.info] == ["No fills yet."]
+
+
+def test_renders_the_pnl_summary(populated_db_path):
+    at = AppTest.from_function(_summary_script)
     at.session_state["db_path"] = populated_db_path
     at.run()
 
@@ -62,6 +87,14 @@ def test_renders_pnl_and_recent_fills(populated_db_path):
     assert metrics["Total PnL"] == ":green[0.90]"
     assert metrics["Inventory value"] == "100.50"
     assert metrics["BTC-USD position"] == "1.0"
+
+
+def test_renders_recent_fills(populated_db_path):
+    at = AppTest.from_function(_fills_script)
+    at.session_state["db_path"] = populated_db_path
+    at.run()
+
+    assert not at.exception
     # Recent fills renders as a row list, not st.dataframe (a canvas-drawn
     # grid, whose cells can't be styled per side) - check for the header
     # and the one fill's own values instead of a dataframe.
@@ -87,7 +120,7 @@ def test_renders_pnl_and_recent_fills(populated_db_path):
 
 
 def test_download_button_present_when_fills_exist(populated_db_path):
-    at = AppTest.from_function(_script)
+    at = AppTest.from_function(_fills_script)
     at.session_state["db_path"] = populated_db_path
     at.run()
 
@@ -99,7 +132,7 @@ def test_download_button_present_when_fills_exist(populated_db_path):
 
 
 def test_download_button_hidden_when_no_fills(empty_db_path):
-    at = AppTest.from_function(_script)
+    at = AppTest.from_function(_fills_script)
     at.session_state["db_path"] = empty_db_path
     at.run()
 
@@ -156,7 +189,7 @@ def test_marks_inventory_at_zero_without_a_bbo_feed(tmp_path):
     conn.commit()
     conn.close()
 
-    at = AppTest.from_function(_script)
+    at = AppTest.from_function(_summary_script)
     at.session_state["db_path"] = db_path
     at.run()
 
@@ -165,6 +198,32 @@ def test_marks_inventory_at_zero_without_a_bbo_feed(tmp_path):
     # No mark price available, so total PnL falls back to net cash alone.
     assert metrics["Net cash flow"] == metrics["Total PnL"]
     assert "BTC-USD mark price" not in metrics
+
+
+def test_a_fill_without_a_trade_id_still_gets_a_stable_row_key(tmp_path):
+    """Not every recording carries an execution id; the row still needs a
+    key of its own, built from what it does have, or a second fill just
+    like it would collide with the first rather than getting a row."""
+    db_path = str(tmp_path / "no_trade_id.sqlite")
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "CREATE TABLE decorated_order_fill "
+        "(timestamp REAL, side TEXT, fill_price REAL, fill_qty REAL, "
+        "fee REAL, symbol TEXT)"
+    )
+    conn.execute(
+        "INSERT INTO decorated_order_fill VALUES "
+        "(1700000000, 'BUY', 99.5, 1.0, 0.1, 'BTC-USD')"
+    )
+    conn.commit()
+    conn.close()
+
+    at = AppTest.from_function(_fills_script)
+    at.session_state["db_path"] = db_path
+    at.run()
+
+    assert not at.exception
+    assert "99.50" in [m.value for m in at.markdown]
 
 
 def _accent_script():
@@ -383,7 +442,7 @@ def test_realized_pnl_starts_again_when_the_recording_is_replaced(tmp_path):
     assert at.markdown[-1].value == "0.00"
 
 
-def _orders_card_script():
+def _summary_card_script():
     from jolteon.dashboard.cards import orders_pnl
     from jolteon.dashboard.ui.cards import Card, render_cards
 
@@ -393,21 +452,38 @@ def _orders_card_script():
                 "orders-pnl",
                 "Orders & PnL",
                 ":material/currency_bitcoin:",
-                orders_pnl.render,
+                orders_pnl.render_summary,
                 load=orders_pnl.load,
-                actions=orders_pnl.render_header_actions,
                 accent=orders_pnl.accent,
             )
         ]
     )
 
 
-def test_card_shares_one_data_load_across_body_accent_and_download(
+def _fills_card_script():
+    from jolteon.dashboard.cards import orders_pnl
+    from jolteon.dashboard.ui.cards import Card, render_cards
+
+    render_cards(
+        [
+            Card(
+                "recent-fills",
+                "Recent fills",
+                ":material/receipt_long:",
+                orders_pnl.render_fills,
+                load=orders_pnl.load,
+                actions=orders_pnl.render_header_actions,
+            )
+        ]
+    )
+
+
+def test_summary_card_shares_one_data_load_across_body_and_accent(
     populated_db_path,
 ):
     from jolteon.dashboard.cards import orders_pnl
 
-    at = AppTest.from_function(_orders_card_script)
+    at = AppTest.from_function(_summary_card_script)
     at.session_state["db_path"] = populated_db_path
     at.session_state["auto_refresh"] = False
     with (
@@ -428,11 +504,37 @@ def test_card_shares_one_data_load_across_body_accent_and_download(
         assert not at.error
         assert load.call_count == read.call_count == realized.call_count == 1
         assert _metrics(at)["Realized PnL"] == ":red[-0.10]"
-        assert len(at.get("download_button")) == 1
         at.button(key="card-orders-pnl-refresh").click().run()
         assert not at.exception
         assert not at.error
         assert load.call_count == read.call_count == realized.call_count == 2
+
+
+def test_fills_card_shares_one_data_load_across_body_and_download(
+    populated_db_path,
+):
+    from jolteon.dashboard.cards import orders_pnl
+
+    at = AppTest.from_function(_fills_card_script)
+    at.session_state["db_path"] = populated_db_path
+    at.session_state["auto_refresh"] = False
+    with (
+        mock.patch.object(orders_pnl, "load", wraps=orders_pnl.load) as load,
+        mock.patch.object(
+            orders_pnl,
+            "read_run_table",
+            wraps=orders_pnl.read_run_table,
+        ) as read,
+    ):
+        at.run()
+        assert not at.exception
+        assert not at.error
+        assert load.call_count == read.call_count == 1
+        assert len(at.get("download_button")) == 1
+        at.button(key="card-recent-fills-refresh").click().run()
+        assert not at.exception
+        assert not at.error
+        assert load.call_count == read.call_count == 2
 
 
 def test_recent_fill_derives_edge_and_markout_from_fair_price_table(tmp_path):
@@ -468,7 +570,7 @@ def test_recent_fill_derives_edge_and_markout_from_fair_price_table(tmp_path):
     finally:
         conn.close()
 
-    at = AppTest.from_function(_script)
+    at = AppTest.from_function(_fills_script)
     at.session_state["db_path"] = db_path
     at.run()
 
