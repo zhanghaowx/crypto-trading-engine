@@ -164,7 +164,7 @@ def test_opens_on_the_newest_run_that_has_ended(three_runs, tmp_path):
     assert not at.exception
     assert at.selectbox[0].value == INTERRUPTED
     assert [e.label.split(": ", 1)[-1] for e in at.expander] == [
-        "Session Economics"
+        "Session economics"
     ]
     # The interrupted run's one fill, not the running run's.
     assert {m.label: m.value for m in at.metric}["Notional"] == "$70.00"
@@ -258,7 +258,8 @@ def test_a_replay_says_which_recording_it_was_measured_from(
     assert at.selectbox[0].options == [
         "2025-09-16 05:20:00 UTC · def456 · Stopped · Simulation · Replay"
     ]
-    assert [caption.value for caption in at.caption] == [
+    # The page's own purpose line comes first; the replay detail follows it.
+    assert [caption.value for caption in at.caption][1:] == [
         "Replayed `/recordings/live.sqlite` · "
         "2025-09-15 01:33:20 – 2025-09-15 02:33:20 UTC · "
         "4,211 market trades · recorded by run `5eed`"
@@ -269,4 +270,6 @@ def test_a_live_run_is_shown_without_a_replay_source(three_runs, tmp_path):
     at = _page(three_runs, str(tmp_path / "engines")).run()
 
     assert not at.exception
-    assert not at.caption
+    # Only the page's own purpose line - no replay detail to show for a
+    # run that read a live feed rather than a recording.
+    assert len(at.caption) == 1

@@ -18,11 +18,11 @@ def test_dashboard_renders_every_section_on_one_page(dashboard):
 
     assert not at.exception
     assert _card_titles(at) == [
-        "Order Book",
-        "Risk Limits",
+        "Order book",
+        "Risk limits",
         "Orders & PnL",
-        "Trade Quality",
-        "Fair Price Signals",
+        "Trade quality",
+        "Fair price signals",
     ]
 
 
@@ -62,7 +62,7 @@ def test_parameters_page_does_not_render_the_live_sections(dashboard):
     at.switch_page("pages/parameters.py").run()
 
     assert not at.exception
-    assert "Order Book" not in _card_titles(at)
+    assert "Order book" not in _card_titles(at)
 
 
 def test_post_trade_has_a_page_of_its_own(dashboard):
@@ -72,7 +72,7 @@ def test_post_trade_has_a_page_of_its_own(dashboard):
     at.switch_page("pages/post_trade.py").run()
 
     assert not at.exception
-    assert "Order Book" not in _card_titles(at)
+    assert "Order book" not in _card_titles(at)
 
 
 def test_health_has_a_page_of_its_own(dashboard):
