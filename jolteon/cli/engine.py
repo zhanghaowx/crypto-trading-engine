@@ -23,27 +23,7 @@ from jolteon.engine.core.sentry import reporting
 from jolteon.engine.core.storage import paths
 from jolteon.engine.market_data.data_source import DatabaseDataSource
 from jolteon.engine.runtime.exchange_registry import exchange_definition
-from jolteon.engine.strategy.market_making.fair_value.adjusted_model import (
-    AdjustedFairPriceModel,
-)
-from jolteon.engine.strategy.market_making.fair_value.inventory import (
-    InventoryAdjustment,
-)
-from jolteon.engine.strategy.market_making.fair_value.mid_price_model import (
-    MidPriceFairPriceModel,
-)
-from jolteon.engine.strategy.market_making.fair_value.momentum import (
-    MomentumAdjustment,
-)
-from jolteon.engine.strategy.market_making.fair_value.order_flow_imbalance import (  # noqa: E501
-    OrderFlowImbalanceAdjustment,
-)
-from jolteon.engine.strategy.market_making.market_making_strategy import (
-    MarketMakingStrategy,
-)
-from jolteon.engine.strategy.market_making.quote_offset import (
-    FeeAwareQuoteOffsetService,
-)
+from jolteon.engine.runtime.paper_strategy import paper_strategy
 
 _active_runtime = None
 
@@ -210,30 +190,11 @@ async def main():
             else StaticParameterService(health_monitor=health_monitor)
         )
         if args.paper:
-            strategy_symbol = symbol.replace("-", "/")
-            quote_offset_service = FeeAwareQuoteOffsetService(
-                fee_schedule=fee_schedule,
-                parameter_service=parameter_service,
-            )
-            # Shared with PostTradeService below, so decorated fills are
-            # scored against the same fair price the strategy quotes off.
-            fair_price_model = AdjustedFairPriceModel(
-                base=MidPriceFairPriceModel(),
-                adjustments=[
-                    MomentumAdjustment(parameter_service=parameter_service),
-                    OrderFlowImbalanceAdjustment(
-                        parameter_service=parameter_service
-                    ),
-                    InventoryAdjustment(parameter_service=parameter_service),
-                ],
-                parameter_service=parameter_service,
-            )
-            strategy = MarketMakingStrategy(
-                symbol=strategy_symbol,
-                fair_price_model=fair_price_model,
-                parameter_service=parameter_service,
-                quote_offset_service=quote_offset_service,
-                health_monitor=health_monitor,
+            strategy, fair_price_model = paper_strategy(
+                symbol.replace("-", "/"),
+                parameter_service,
+                fee_schedule,
+                health_monitor,
             )
 
         runtime = build_runtime(

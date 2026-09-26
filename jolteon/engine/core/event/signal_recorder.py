@@ -32,6 +32,7 @@ class SignalRecorder:
         self._run_id = run_id or engine_run_id(time_manager().now())
         self._writer = SQLiteWriter(database_name)
         self._indexed = set[str]()
+        self._external_sequence = 0
 
         atexit.register(self._stop_quietly)
 
@@ -137,6 +138,15 @@ class SignalRecorder:
 
             # The EngineRun row carries its own; nothing else does.
             row_data.setdefault("run_id", self._run_id)
+
+            if name in (
+                "instrument_feed",
+                "bbo_feed",
+                "order_book_update_feed",
+                "market_trade_feed",
+            ):
+                self._external_sequence += 1
+                row_data["external_sequence"] = self._external_sequence
 
             primary_key = getattr(data, "PRIMARY_KEY", None)
             self._writer.put(name, row_data, primary_key)

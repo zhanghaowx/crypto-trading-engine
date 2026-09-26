@@ -61,7 +61,9 @@ class TestReplayMarketDataFeed(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(self.market_trades), 2)
 
     async def test_connect_with_empty_trades(self):
-        time_manager().use_fake_time = MagicMock()
+        clock_patch = patch.object(time_manager(), "use_fake_time")
+        clock_patch.start()
+        self.addCleanup(clock_patch.stop)
         IDataSource.TRADE_CACHE.clear()
 
         # Set up test parameters
@@ -88,7 +90,9 @@ class TestReplayMarketDataFeed(unittest.IsolatedAsyncioTestCase):
         time_manager().use_fake_time.assert_called_once()
 
     async def test_response_with_last_timestamp_equals_request_timestamp(self):
-        time_manager().use_fake_time = MagicMock()
+        clock_patch = patch.object(time_manager(), "use_fake_time")
+        clock_patch.start()
+        self.addCleanup(clock_patch.stop)
         IDataSource.TRADE_CACHE.clear()
 
         # Set up test parameters

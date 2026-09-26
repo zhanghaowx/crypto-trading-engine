@@ -4,6 +4,7 @@ from collections import deque
 from typing import Any
 
 from blinker import NamedSignal
+from blinker._utilities import make_id
 
 _delivery = threading.local()
 
@@ -15,6 +16,16 @@ class Signal(NamedSignal):
     then see another receiver's reaction to an event before handling that
     event itself, whatever order the receivers are called in.
     """
+
+    def receivers_for(self, sender):
+        # Connection order, unlike object hashes, is stable across processes.
+        connected = {
+            make_id(receiver): receiver
+            for receiver in super().receivers_for(sender)
+        }
+        for identity in list(self.receivers):
+            if identity in connected:
+                yield connected[identity]
 
     def send(self, sender: Any | None = None, /, **kwargs: Any) -> list:
         pending = getattr(_delivery, "pending", None)

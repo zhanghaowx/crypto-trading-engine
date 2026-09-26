@@ -33,6 +33,7 @@ Homepage = "https://github.com/zhanghaowx/crypto-trading-engine/"
 
 [project.scripts]
 jolteon = "jolteon.__main__:run"
+jolteon-replay = "jolteon.cli.replay:main"
 
 [dependency-groups]
 dev = [

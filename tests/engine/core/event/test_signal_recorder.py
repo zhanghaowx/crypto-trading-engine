@@ -455,3 +455,30 @@ class TestSignalRecorder(unittest.IsolatedAsyncioTestCase):
             {p["payload"] for p in payloads},
             set(recorded["payload"]),
         )
+
+
+def test_external_sequence_and_instrument_history(tmp_path):
+    from jolteon.engine.market_data.core.bbo import BBO
+    from jolteon.engine.market_data.core.instrument import InstrumentSpec
+
+    instrument = signal("instrument_feed")
+    bbo = signal("bbo_feed")
+    path = tmp_path / "events.sqlite"
+    recorder = SignalRecorder(str(path), run_id="sequence-run")
+    try:
+        recorder.start_recording()
+        instrument.send(instrument, instrument=InstrumentSpec("BTC/USD"))
+        bbo.send(bbo, bbo=BBO("BTC/USD", 99, 1, 101, 1))
+        instrument.send(
+            instrument,
+            instrument=InstrumentSpec("BTC/USD", price_increment=0.01),
+        )
+    finally:
+        recorder.close()
+    with closing(sqlite3.connect(path)) as conn:
+        assert conn.execute(
+            "SELECT external_sequence FROM instrument_feed ORDER BY rowid"
+        ).fetchall() == [(1,), (3,)]
+        assert conn.execute(
+            "SELECT external_sequence FROM bbo_feed"
+        ).fetchall() == [(2,)]
