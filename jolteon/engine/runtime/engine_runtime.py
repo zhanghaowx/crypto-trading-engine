@@ -14,6 +14,7 @@ from jolteon.engine.core.engine_run import (
     engine_run_id,
     execution_mode_of,
     market_data_mode_of,
+    strategy_of,
 )
 from jolteon.engine.core.event.signal import signal
 from jolteon.engine.core.event.signal_manager import SignalManager
@@ -88,6 +89,7 @@ class EngineRuntime(SignalManager):
             exchange=exchange,
             symbol=symbol,
             started_at=started_at,
+            strategy=strategy_of(strategy),
         )
 
         # Published before anything else is built: the layers underneath

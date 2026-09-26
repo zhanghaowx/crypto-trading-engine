@@ -59,6 +59,16 @@ def market_data_mode_of(feed: object) -> MarketDataMode:
     return MarketDataMode.UNKNOWN
 
 
+def strategy_of(strategy: object | None) -> str:
+    """
+    Returns: The class name of the strategy a run was built with, and ""
+    from a run built with none, such as one that only records.
+    """
+    if strategy is None:
+        return ""
+    return type(strategy).__name__
+
+
 @dataclass
 class EngineRun:
     """One engine process, from start until stop or interruption.
@@ -66,7 +76,9 @@ class EngineRun:
     How the run executed and where its market data came from are two
     independent facts, and neither follows from whether the run
     finished: live paper trading and a replay of a recording both
-    simulate execution, and either can be stopped or killed.
+    simulate execution, and either can be stopped or killed. Which
+    strategy made the decisions is a third, recorded as its class name,
+    and a run recorded before runs said so reads back as "".
 
     `started_at` and `ended_at` are this run's own, taken from the
     machine's clock. A replay moves the engine's clock through the
@@ -83,6 +95,7 @@ class EngineRun:
     ended_at: datetime | None = None
     execution_mode: ExecutionMode = ExecutionMode.UNKNOWN
     market_data_mode: MarketDataMode = MarketDataMode.UNKNOWN
+    strategy: str = ""
     market_data_source: str = ""
     source_run_id: str | None = None
     market_data_started_at: datetime | None = None

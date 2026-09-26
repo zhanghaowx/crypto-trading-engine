@@ -243,3 +243,48 @@ def test_a_run_recorded_before_replay_input_existed_reads_back_without_it(
     assert run.market_data_started_at is None
     assert run.market_data_ended_at is None
     assert run.market_data_trade_count is None
+
+
+def test_engine_runs_read_back_which_strategy_a_run_ran(tmp_path):
+    db_path = str(tmp_path / "strategy.sqlite")
+    with closing(sqlite3.connect(db_path)) as conn:
+        conn.execute(
+            "CREATE TABLE engine_run "
+            "(run_id TEXT PRIMARY KEY, exchange TEXT, symbol TEXT, "
+            "started_at REAL, ended_at REAL, strategy TEXT)"
+        )
+        conn.executemany(
+            "INSERT INTO engine_run VALUES (?, 'Kraken', 'BTC/USD', ?, ?, ?)",
+            [
+                ("run-trading", 1.0, 2.0, "MarketMakingStrategy"),
+                ("run-recording", 3.0, 4.0, ""),
+            ],
+        )
+        conn.commit()
+
+    by_id = {run.run_id: run for run in engine_runs(db_path)}
+
+    assert by_id["run-trading"].strategy == "MarketMakingStrategy"
+    assert by_id["run-recording"].strategy == ""
+
+
+def test_a_run_recorded_before_strategies_were_reads_back_without_one(
+    tmp_path,
+):
+    """The engine_run table a previous engine wrote has no strategy
+    column, and such a run names no strategy rather than failing the
+    whole read."""
+    db_path = str(tmp_path / "legacy-strategy.sqlite")
+    with closing(sqlite3.connect(db_path)) as conn:
+        conn.execute(
+            "CREATE TABLE engine_run "
+            "(run_id TEXT PRIMARY KEY, exchange TEXT, symbol TEXT, "
+            "started_at REAL, ended_at REAL)"
+        )
+        conn.execute(
+            "INSERT INTO engine_run VALUES "
+            "('run-old', 'Kraken', 'BTC/USD', 1.0, 2.0)"
+        )
+        conn.commit()
+
+    assert engine_runs(db_path)[0].strategy == ""
