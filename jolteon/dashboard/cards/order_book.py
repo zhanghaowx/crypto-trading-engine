@@ -43,6 +43,8 @@ _BOOK_CSS = (
     Path(__file__).resolve().parents[1] / "static" / "order_book.css"
 ).read_text()
 
+_OURS_TAG = '<span class="jolteon-book-ours">ours</span>'
+
 
 def _rows(levels: list[PriceLevel]) -> list[tuple[PriceLevel, float]]:
     """Each level paired with the quantity resting at it and everything
@@ -63,6 +65,13 @@ def _same_price(one: float, other: float) -> bool:
     return math.isclose(one, other, rel_tol=1e-9, abs_tol=0.0)
 
 
+def _price_cell(price: float, ours: bool) -> str:
+    """The price, tagged where the quote at it is ours. The tag goes
+    before the figure, so the prices still line up down the column."""
+    tag = _OURS_TAG if ours else ""
+    return f'<td class="jolteon-book-price">{tag}{price:,.2f}</td>'
+
+
 def _our_row(quote: Quote, side: str) -> str:
     """Our quote on a line of its own, for where no one else is resting -
     quoting inside the spread puts us at a price the book has no level
@@ -72,7 +81,7 @@ def _our_row(quote: Quote, side: str) -> str:
     return (
         f'<tr class="jolteon-book-row jolteon-book-{side} '
         f'jolteon-book-resting jolteon-book-alone">'
-        f'<td class="jolteon-book-price">{quote.price:,.2f}</td>'
+        f"{_price_cell(quote.price, True)}"
         f"<td>{size}</td>"
         # Our own order is no part of the venue's resting depth, so it
         # has no running total to carry.
@@ -102,7 +111,7 @@ def _ladder_row(
     )
     return (
         f'<tr class="{classes}" style="{bar}">'
-        f'<td class="jolteon-book-price">{level.price:,.2f}</td>'
+        f"{_price_cell(level.price, ours)}"
         f"<td>{level.quantity:,.4f}</td>"
         f"<td>{cumulative:,.4f}</td>"
         f"</tr>"

@@ -165,6 +165,14 @@ def test_renders_fill_quality_by_side_and_fair_price_movement(
     # No fill has a 1s/5s/30s fair price backfilled yet.
     assert fill_quality["BUY"]["Markout +1s"] == "–"
 
+    # The side is a label, not a tint on its row: nothing on the table
+    # carries a style of its own, and each figure's sign is in its text.
+    assert all(style == "" for row in tables(at)[0]["styles"] for style in row)
+    body = at.get("html")[0].body.split("</style>", 1)[-1]
+    assert '<td class="jolteon-num jolteon-positive">+$2.00</td>' in body
+    assert '<td class="jolteon-num jolteon-negative">' not in body
+    assert "rgba(" not in body
+
     # Fair price movement is side-independent: (102-101) + (98-99) +
     # (105-108) averaged across all three fills = -1. It's the third
     # table on the page - fill quality, then inventory buckets (this

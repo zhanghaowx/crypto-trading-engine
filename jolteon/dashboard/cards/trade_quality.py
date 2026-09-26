@@ -15,7 +15,7 @@ from jolteon.dashboard.data import trade_queries
 from jolteon.dashboard.state import current_run_id
 from jolteon.dashboard.ui import table
 from jolteon.dashboard.ui.empty_states import warn_if_no_db
-from jolteon.dashboard.ui.primitives import SIDE_TINTS, fmt_usd
+from jolteon.dashboard.ui.primitives import fmt_usd
 
 _HORIZON_PHRASES = {
     "100ms": "100 milliseconds",
@@ -48,19 +48,12 @@ def _shaded_table(
     rows: pd.DataFrame,
     money_columns: list[str],
     column_help: Mapping[str, str],
-    *,
-    shade_side: bool = False,
 ) -> None:
     table.render(
         rows,
         shaded_columns=money_columns,
         format_fn=fmt_usd,
         column_help=column_help,
-        row_style=(
-            (lambda row: SIDE_TINTS.get(row["Side"], ""))
-            if shade_side
-            else None
-        ),
     )
 
 
@@ -109,12 +102,7 @@ def _render_fill_quality(db_path: str, run_id: str | None = None) -> None:
         ),
         **_markout_help("we filled"),
     }
-    _shaded_table(
-        rows,
-        ["Average edge", *_MARKOUT_COLUMNS],
-        column_help,
-        shade_side=True,
-    )
+    _shaded_table(rows, ["Average edge", *_MARKOUT_COLUMNS], column_help)
 
 
 def _render_inventory_buckets(db_path: str, run_id: str | None = None) -> None:

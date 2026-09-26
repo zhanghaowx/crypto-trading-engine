@@ -40,6 +40,12 @@
 
 .jolteon-table th.jolteon-num { text-align: right; }
 
+/* A signed figure carries its sign in its own colour and nothing else
+   in the cell does. Filling the cell to the depth of the figure turned a
+   table of ordinary results into a heat map of alarms. */
+.jolteon-table td.jolteon-positive { color: var(--positive); }
+.jolteon-table td.jolteon-negative { color: var(--negative); }
+
 /* A column whose header carries an explanation marks itself, so a reader
    knows there is something to hover rather than having to go looking. */
 .jolteon-table th .jolteon-help {
