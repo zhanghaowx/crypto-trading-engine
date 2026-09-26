@@ -1,5 +1,7 @@
 import asyncio
 import json
+import sqlite3
+from contextlib import closing
 
 import pytest
 
@@ -43,6 +45,27 @@ def test_full_replay_at_all_speeds(replay_dataset, tmp_path):
         )
     with pytest.raises(FileExistsError):
         asyncio.run(run_replay(manifest, recording, output))
+
+
+def test_replay_runs_through_a_held_clock_step(
+    native_replay_dataset, tmp_path
+):
+    source, document = native_replay_dataset
+    with closing(sqlite3.connect(source)) as conn, conn:
+        conn.execute(
+            "UPDATE bbo_feed SET timestamp = timestamp - 0.006 "
+            "WHERE external_sequence = 5"
+        )
+    document["source"]["allow_gaps"] = True
+    manifest = ReplayManifest.parse(document, tmp_path)
+    recording = RecordedReplay.read(manifest)
+
+    result = asyncio.run(run_replay(manifest, recording, tmp_path / "held"))
+
+    assert result["status"] == "completed"
+    assert result["delivered_events"] == sum(recording.counts.values())
+    assert any("simulated time held" in r for r in result["limitations"])
+    assert not time_manager().is_using_fake_time()
 
 
 def test_failed_pacing_restores_clock(replay_dataset, tmp_path):

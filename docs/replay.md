@@ -34,6 +34,14 @@ supplied symbol scope must be complete. Unknown fields, missing groups and out-o
 range values are errors. Secrets do not belong in manifests. This entrypoint only
 constructs simulated execution and cannot submit real orders.
 
+`source.allow_gaps` is the one concession to an imperfect recording. Left false,
+a gap or duplicate in trade ids or book sequences, a recorded market-data health
+failure, or a backwards step of the recorder's clock rejects the input. Set true,
+the replay proceeds: events keep their recorded sequence, simulated time holds
+still through a backwards step rather than running in reverse, and every
+concession is reported as a limitation, so a comparison can report equivalence
+with limitations but never a strict pass.
+
 `configuration.mode` is either `fixed` with explicit `parameters`, or `recorded`
 with startup parameters and complete accepted revision history read from the
 selected run. Old recordings lacking revision history require a fixed experiment.

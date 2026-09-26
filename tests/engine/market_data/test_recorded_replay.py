@@ -193,8 +193,44 @@ def test_native_external_order_and_instrument_changes(
     assert recording.counts["instrument_feed"] == 2
     with closing(sqlite3.connect(source)) as conn, conn:
         conn.execute("UPDATE bbo_feed SET external_sequence=2")
-    with pytest.raises(ValueError, match="sequence contradicts"):
+    with pytest.raises(ValueError, match="Duplicate external event sequence"):
         RecordedReplay.read(manifest)
+    document["source"]["allow_gaps"] = True
+    with pytest.raises(ValueError, match="Duplicate external event sequence"):
+        RecordedReplay.read(ReplayManifest.parse(document, tmp_path))
+
+
+def test_a_backwards_recorder_clock_is_held_only_with_allow_gaps(
+    native_replay_dataset, tmp_path
+):
+    source, document = native_replay_dataset
+    untouched = RecordedReplay.read(ReplayManifest.parse(document, tmp_path))
+    with closing(sqlite3.connect(source)) as conn, conn:
+        # The BBO recorded 5 ms after the trade at sequence 4 now carries a
+        # timestamp 1 ms before it, as a clock adjustment would leave it.
+        conn.execute(
+            "UPDATE bbo_feed SET timestamp = timestamp - 0.006 "
+            "WHERE external_sequence = 5"
+        )
+    with pytest.raises(ValueError, match="stepped backwards"):
+        RecordedReplay.read(ReplayManifest.parse(document, tmp_path))
+
+    document["source"]["allow_gaps"] = True
+    held = RecordedReplay.read(ReplayManifest.parse(document, tmp_path))
+
+    assert held.ordering_policy == "external-sequence-v1"
+    assert [event.ordinal for event in held.events] == [
+        event.ordinal for event in untouched.events
+    ]
+    before, stepped = held.events[3], held.events[4]
+    assert (before.ordinal, stepped.ordinal) == (4, 5)
+    assert stepped.timestamp == before.timestamp
+    assert stepped.payload == untouched.events[4].payload
+    assert any(
+        "stepped back 1 time(s), by up to 1.0 ms, first at sequence 5" in r
+        for r in held.limitations
+    )
+    assert held.input_hash != untouched.input_hash
 
 
 @pytest.mark.parametrize(
