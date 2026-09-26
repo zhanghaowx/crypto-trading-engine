@@ -32,36 +32,26 @@ treatment; existing brand assets remain available.
 
 ## What to try
 
-The workspace switch; the monitor layout switch in the Trading navigation
-(Dashboard or Cockpit, below); the engine selection, where ETH/USD is an
-engine that has stopped and shows how the monitor, Health and Parameters
-say so; the Live/Paused control on the monitor; the order book's `ours` tag; the fills'
-side filter, markout horizon switch and identifier toggle; the Health
-preview states across both engines, including the populated error log; the
-parameter scope switch and the state badge on every field (default,
-inherited, override, pending, stored and awaiting the engine); parameter
-edit/review/apply/revert with each change's scope named in the review; the
-Runs source filter; opening a run from the table; a replay's capture link
-back to the run that recorded its data; and Compare with two runs over one
-window and then over two.
+The workspace switch; the engine selection, where ETH/USD is an engine that
+has stopped and shows how the monitor, Health and Parameters say so; the
+Live/Paused control in the monitor's strip; the ladder's `ours` tags and
+the fair price drawn through it; the fills' side filter, markout horizon
+switch and identifier toggle; the Health preview states, including the
+populated error log and a component going down; the parameter scope
+switch and the state badge on every field (default, inherited, override,
+pending, stored and awaiting the engine); parameter edit/review/apply/
+revert with each change's scope named in the review; the Runs source
+filter; opening a run from the table; a replay's capture link back to the
+run that recorded its data; and Compare with two runs over one window and
+then over two.
 
-The palette switcher in the header (Slate / Sage / Morandi / Slate dark)
-swaps the same token set between complete neutral-and-accent combinations,
-so the layout and content are held constant while only the palette
-changes. It is a comparison aid, not a decision: Slate is the direction,
-and the palette `.streamlit/config.toml` carries. Only the neutrals and
-the brand accent move between the three light palettes; Positive,
-Negative, Warning and Information keep their hues, muted for Morandi to
-match its lower-saturation character. Slate dark inverts Slate for a
-screen watched for hours beside other terminals: the same roles, so every
-rule about them holds, with the surfaces drawn in ink (the primary button,
-the toast, the guide's opening) inverting with it. The chosen palette is
-remembered in this browser only.
-
-## The current direction
+## The current direction: the cockpit
 
 Everything in this section is a choice. It can be revisited, and a
-redesign starts by changing it here.
+redesign starts by changing it here. The direction was chosen on
+2026-09-26, after a card layout and the cockpit were built side by side
+on the same sample data and compared; the cockpit showed more of what a
+market maker watches in less room, and became the whole prototype.
 
 ### Two workspaces
 
@@ -97,119 +87,98 @@ Parameters says an edit waits for it to start.
 ### Page anatomy
 
 1. Persistent navigation within the current workspace. It names the page;
-   no page repeats its name as a heading of its own, so the room under
-   the header goes to the page's content. Only the style guide, a document
-   rather than a screen, keeps a heading.
-2. A context bar identifying the scope, mode, run, and either freshness, a
-   stop time or the data window.
-3. Up to four summary metrics when they help the task. Each has a name, a
-   value, a unit or scope, and an optional explanatory line.
-4. Primary content in aligned columns, then supporting tables and details.
+   no page repeats its name as a heading of its own. Only the style guide,
+   a document rather than a screen, keeps a heading.
+2. A status strip: one row of labelled cells carrying the scope, the mode,
+   the freshness or the data window, and the figures a reader checks
+   first. It replaces both the context bar and the row of metric tiles,
+   and wraps onto a second row only when the window is too narrow for one.
+3. Panels in an aligned grid, sized so the monitor fits one screen at a
+   desktop width. Nothing a market maker watches is below the fold.
+4. Tables and detail below, dense and ruled between rows.
 
 ### Type, spacing and shape
 
 One sans-serif family throughout, with system fallbacks; hierarchy comes
-from weight, not from a second family.
+from weight, not from a second family. The scale is a step below a
+reading page's, because this is watched for hours at arm's length and the
+room goes to the numbers.
 
 | Role | Treatment |
 | --- | --- |
-| Document heading | 29 / 600, style guide only |
-| Card heading | 15 / 600, the same on every card |
-| Body and controls | 14 / 400 to 500 |
-| Context and supporting text | 12 / 400 |
-| Compact table headers and metadata | 10 to 11, secondary content only |
-| Summary value | 28, tabular figures |
+| Document heading | 26 / 600, style guide only |
+| The panel's figure | 26 / 500, tabular |
+| Card heading | 13 / 600, the same on every card |
+| Body and controls | 12 / 400 to 500 |
+| Strip label and table header | 10 / 500 to 600, letter-spaced, secondary |
+| Prices, quantities, identifiers | monospace, tabular |
 
 One spacing scale (4, 8, 12, 16, 24, 32) with no values between its
-steps. Card insets and section gaps share a value. Desktop page gutters are
-wider than mobile ones. Content has a maximum width, and a table never
-stretches the page past it. Cards have one radius (10px), controls another
-(6px), badges a third (4px). Borders separate surfaces; there are no
-decorative shadows.
+steps. Card insets are 12 to 16px, the grid gap 16px, a table or ladder
+row 26 to 32px. Content has a maximum width, and a table never stretches
+the page past it. Cards have one radius (10px), controls another (6px),
+badges a third (4px). Borders separate surfaces; there are no decorative
+shadows. Slate is the one palette.
 
-### Components
+### The monitor
 
-Cards share a header inset, heading style and action area on the right;
-controls are never positioned over a long title. Essential context stays
-visible when details are collapsed, and a hidden card stays restorable.
+Three columns under the strip. The **position panel** on the left: the
+position as the one big figure, its value at mid and its share of the
+limit, then the PnL broken into cash flow, inventory and fees, the fills
+by side, each fair-price signal's verdict and contribution, and every
+component's state. The **price ladder** in the middle: one column of
+prices with the market's bids and asks on either side, depth shading from
+cumulative size, our resting quotes tagged `ours` at their level, the mid
+and spread between the sides, and the adjusted fair price drawn as a
+dashed line through the ladder, so where we quote and where we think the
+price is are read together; execution quality by side sits under it. On
+the right, **the PnL line with every fill on it**, buys under the line and
+sells above, and the **fills** table: one signed column switched by
+horizon, identifiers behind a toggle, the symbol left to the strip, and a
+horizon that has not passed yet shown as `–`.
 
-A live feed rests behind a pulse and a last-updated time, paired with the
-control that stops it. Paused keeps the indicator in place and drains its
-colour. A stopped engine keeps the same spot, drained, with when it
-stopped, and a neutral notice above the metrics links to the finished
-run.
+The strip carries the engine and its run, the feed's pulse with the
+Live/Paused control, the position against its limit, marked PnL, our two
+quotes with the fair price beside them, and how many components are
+reporting. A stopped engine drains the pulse, says when it stopped, marks
+the ladder as its last snapshot and the chart as final, and a neutral
+notice above the grid links to the finished run in Research.
 
-Summary metrics are four tiles. On the monitor they are marked PnL with
-cash flow and inventory as its note, the position with its value at mid
-and its share of the limit, fills by side, and fees. A sparkline appears
-only on a metric with measured history.
+### Health
 
-The order book is two side-by-side tables with depth shading from the
-actual cumulative size, the mid price and spread between them, and a
-small `ours` tag on any level holding one of our quotes. Risk limits and
-fair-price signals stack beside it. Each signal carries a verdict badge -
-Weighted, Too weak to size from, Warming up - and its contribution, or
-`–` when it has none.
+Health reads every engine, so its strip carries the totals - engines
+running, components down, recorded errors, the heartbeat timeout, the
+snapshot time - and each engine gets a card of its own: the run, its
+mode and when it started or stopped in the head, and a table of its
+components with plain names (Market making, Paper execution, Public feed,
+Parameters), their kind, state, last heartbeat and heartbeat history. A
+stopped engine's components say they stopped with it. The navigation dot
+on Health appears only while a component is down, and the error log sits
+below with an explicit empty state.
 
-Fills show one markout column, switched by horizon, with identifiers
-behind a toggle and the symbol left to the context bar. A horizon that
-has not passed yet is `–`.
+### Parameters
 
-Tables use a quiet header band, horizontal row separators and no vertical
-gridlines. Signed figures are coloured; cells are not filled.
+Parameters carries the monitor's strip, then a scope strip: the symbol
+the edits apply to, whether they reach a running engine or wait for a
+stopped one to start, and how often the engine polls. Selected groups
+from the production catalog sit under the part of the engine each one
+configures - Strategy, Venues, Runtime - in sentence case. Each field has
+a persistent label, a state badge, a one-line explanation and its unit
+beside the control. The save bar counts pending changes and the review
+names each change's scope.
 
-Health groups its component tiles under an engine row, with plain names
-(Market making, Paper execution, Public feed, Parameters) rather than
-class names. A stopped engine's tiles say they stopped with it. The
-navigation dot on Health appears only while a component is down.
+### Research
 
-Parameters lists selected groups from the production catalog under the
-part of the engine each one configures - Strategy, Venues, Runtime - in
-sentence case. Each field has a persistent label, a state badge, a unit
-beside the input and a one-line explanation. The scope switch chooses
-between the defaults for all symbols and one symbol's overrides. The save
-bar counts pending changes and the review names each change's scope.
-
-A run in Research states its execution mode and market-data mode as two
-badges; a replay adds a chip linking to the run that captured its data.
-The parameters a finished run used are a read-only table with the
-current live value beside each, marked Frozen. Compare shows only the
-parameters that differ, and how many of how many.
-
-## The cockpit, for comparison
-
-The Trading navigation carries a second monitor layout, Cockpit, beside
-the Dashboard layout above. It is the other answer to what a monitor is
-for: the same sample data on one screen, shaped around what a market
-maker watches, and a comparison aid rather than a decision. The choice is
-remembered in this browser only.
-
-- **A status strip** across the top: the engine and its run, the feed's
-  pulse with the Live/Paused control, the position against its limit,
-  marked PnL, our two quotes with the fair price beside them, and how
-  many components are reporting. Parameters carries the same strip in
-  this layout; Health does not, because Health reads every engine and
-  the strip is one engine's.
-- **A price ladder** in the middle: one column of prices with the
-  market's bids and asks on either side, depth shading from cumulative
-  size, our resting quotes tagged `ours` at their level, and the adjusted
-  fair price drawn as a dashed line through the ladder, so where we quote
-  and where we think the price is are read together.
-- **The PnL line with every fill on it**, buys under the line and sells
-  above it, and a dense fills tape beneath with a link back to the full
-  fills table in the Dashboard layout.
-- **A position panel** on the left with the limit bar, the PnL broken
-  into cash flow, inventory and fees, each signal's verdict and
-  contribution, and every component's state.
-- Denser type and insets than the card layout. The same tokens, the same
-  rules: a stopped engine drains the strip and marks the ladder as its
-  last snapshot; a warming signal is a neutral badge; only the signed
-  figure is coloured.
-
-In production this is a decision about the shell, not a styling pass: a
-ladder, a chart with markers and a persistent strip fight Streamlit's
-page model, and the prototype is already a working front-end that would
-need only a read-only source for the recordings.
+Runs opens on a strip with the engine, the source filter and the
+library's figures, then the table of finished runs. Run detail's strip
+carries the run, its two mode badges and status, a replay's capture link,
+the data window, the wall clock spent, and the run's figures; below it
+sit execution economics and quality on the left, the frozen parameter set
+with the current live value beside each and the reading notes on the
+right. Compare's strip carries both runs, whether they read one window,
+and run B's figures with their delta against A, coloured only for PnL
+where the direction means better or worse; a banner says so when the
+windows differ.
 
 ## Why it looks this way
 
@@ -224,8 +193,8 @@ of its completed content is based on the source.
 
 | Behaviour then | Effect | Direction |
 | --- | --- | --- |
-| Live starts with run metadata; Health starts directly with cards; Parameters starts with tabs | Page hierarchy changes during navigation | A shared anatomy: navigation, context bar, metrics, then content |
-| Live places a tall order book beside a short risk card | Large unused space and session results below the fold | Summary metrics first; compact bid/ask columns beside risk and signals |
+| Live starts with run metadata; Health starts directly with cards; Parameters starts with tabs | Page hierarchy changes during navigation | A shared anatomy: navigation, strip, panels, then detail |
+| Live places a tall order book beside a short risk card | Large unused space and session results below the fold | One screen: position, ladder, PnL with fills, side by side |
 | Parameters displays many groups in three masonry columns | All settings compete for attention; commit controls sit after a long form | Group navigation, aligned field rows, visible change summary |
 | Healthy cards have a strong green edge; no-error/no-fill states use blue alert panels | Normal operation receives too much visual emphasis | Neutral surfaces and compact status badges; quiet empty states |
 | Card CSS names Space Grotesk, the theme defines three font families, and multiple CSS files repeat colors | Changes can drift across cards and pages | One UI family, one number style, shared semantic tokens |
@@ -243,44 +212,44 @@ ETH/USD in the prototype is that engine.
 
 | Behaviour then | Effect | Direction |
 | --- | --- | --- |
-| Live shows a stopped engine with a Live feed badge, a green pulse and "Refreshing every 5 s"; Health lists its four components as down; Parameters says an edit reaches the running engine | Three pages say something is running when nothing is, and the navigation wears an alert for an engine that was switched off | Stopped is its own quiet state: the pulse drained beside when it stopped, a Stopped badge, a neutral notice linking to the finished run in Research, tiles that stopped with the engine, and no alert dot |
-| Live's summary is six bare numbers - Total PnL 2.54, Net cash flow 271.23, Inventory value -268.69 - and Post-trade calls the same 2.54 Marked PnL | No currency, no sign, the parts of a total beside it as peers, and two names for one figure | Four metrics with units and signs; cash flow and inventory as the note under marked PnL; the position as a metric of its own; one name on every page |
-| Risk limits stands alone beside a tall order book | A quarter of the screen is empty | Risk and fair-price signals stack in the right column |
+| Live shows a stopped engine with a Live feed badge, a green pulse and "Refreshing every 5 s"; Health lists its four components as down; Parameters says an edit reaches the running engine | Three pages say something is running when nothing is, and the navigation wears an alert for an engine that was switched off | Stopped is its own quiet state: the pulse drained beside when it stopped, a Stopped badge, a neutral notice linking to the finished run in Research, components that stopped with the engine, and no alert dot |
+| Live's summary is six bare numbers - Total PnL 2.54, Net cash flow 271.23, Inventory value -268.69 - and Post-trade calls the same 2.54 Marked PnL | No currency, no sign, the parts of a total beside it as peers, and two names for one figure | The strip's figures with units and signs; cash flow and inventory as rows under marked PnL in the panel; the position as the panel's one big figure; one name on every page |
+| Risk limits stands alone beside a tall order book | A quarter of the screen is empty | The limit is a bar under the position; the ladder takes the middle column |
 | Fair price signals renders "No usable signal yet" as a red table row | A signal still warming up looks like a failure | A neutral verdict badge beside each signal's contribution, and "–" where there is none yet |
-| Recent fills has fourteen columns: two identifiers, the symbol, and four markout horizons | Too wide to scan, and the symbol repeats the context bar | One markout column with a horizon switch; identifiers behind a toggle; the symbol only in the context bar |
+| Recent fills has fourteen columns: two identifiers, the symbol, and four markout horizons | Too wide to scan, and the symbol repeats the context bar | One signed column with a horizon switch; identifiers behind a toggle; the symbol only in the strip |
 | Trade quality and Execution economics fill every cell red or green | A table of ordinary results reads as a heat map of alarms | Colour on the signed figure only |
-| Health nests its tiles inside a card, names them after classes (MockExecutionService), and reports local time | Double framing, code names, and a second clock | Tiles grouped under an engine row, plain names, UTC |
+| Health nests its tiles inside a card, names them after classes (MockExecutionService), and reports local time | Double framing, code names, and a second clock | A card per engine with a table of its components under plain names, UTC |
 | Parameters lists nineteen groups at equal weight in title case, with the unit in the label (QTY) | Fee schedules compete with quoting rules, and nothing says whether a value is a default, an override, or still unread by the engine | Groups under Strategy, Venues and Runtime in sentence case; the unit beside the field; a state badge on every field |
-| The order book boxes our own quote in a bordered row | The least important thing to read is the heaviest thing on the page | A small "ours" tag on the level |
+| The order book boxes our own quote in a bordered row | The least important thing to read is the heaviest thing on the page | A small "ours" tag on the level, and the fair price drawn through the ladder |
 
-The same review noted that this direction is a calm dashboard, not a
-trading cockpit: a single-screen monitor with a price ladder showing our
-quotes against the fair price, PnL with fills overlaid, a persistent
-status strip and a dark theme would serve a market maker watching for
-hours better than cards that scroll. That layout is now built beside the
-Dashboard layout (see "The cockpit, for comparison") so the two can be
-judged on the same data. Choosing it is a larger decision, because it
-turns on whether Streamlit stays the shell.
+The same review noted that the migrated dashboard was a calm reading
+page, not a trading cockpit. A cockpit was built beside it on the same
+sample data - one screen, a ladder with our quotes against the fair
+price, PnL with fills overlaid, a persistent strip - and the two were
+compared. The cockpit showed more of what a market maker watches in less
+room, and on 2026-09-26 it became the direction.
 
 ## Migration
 
 Production carries the tokens, the header and navigation, the context bar
 with its badges and live state, the summary rows, cards, tables, badges
 and metrics, the two-sided order book, the risk rows, the health summary
-and tiles, and the parameter rows and save bar.
+and tiles, and the parameter rows and save bar. From the second review it
+carries: four named metrics on Live under the names Post-trade uses; the
+fills' horizon switch and identifier toggle; signals as verdict badges;
+the signed figure coloured rather than its cell; the `ours` tag; and
+Parameters with sectioned groups, the unit beside the field, and a badge
+on every field. The stopped-engine state and Health's grouping by engine
+are under way.
 
-Still to build: the stopped-engine state on the monitor, Health and
-Parameters; one name per figure and four metrics on Live; signals as
-verdict badges; the fills' horizon switch and identifier toggle; text
-colour instead of cell fills in the quality and economics tables; Health
-tiles grouped by engine with plain names; the parameter section
-navigation and field states; the `ours` tag; and the workspace split
-itself, with Research's run library, run detail and Compare.
-
-The split cannot be shown yet. Every replay is recorded to
+The cockpit itself is not a styling pass on those cards. A ladder, a
+chart with fill markers, a status strip that replaces the metric tiles,
+and a three-column grid that fits one screen fight Streamlit's page
+model: vertical blocks, reruns and thin CSS hooks. Carrying the direction
+into production is a decision about the shell - bending Streamlit to it,
+or giving this prototype a read-only source for the recordings and
+letting it be the dashboard - and that decision is still open. The
+workspace split waits on it too: every replay is recorded to
 `<exchange>/<symbol>/replay.sqlite`, and `dashboard/data/engines.py`
-opens only `live.sqlite`, so no replay has ever appeared in the dashboard.
-Reading both recordings is the first production step, before any of the
-Research layout. Validate each stage with real empty, populated, stale and
-stopped recordings, and preserve the existing dashboard's functional
-tests.
+opens only `live.sqlite`, so reading both recordings is the first step
+towards Research whichever shell is chosen.
