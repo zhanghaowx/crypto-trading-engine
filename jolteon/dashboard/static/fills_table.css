@@ -1,4 +1,4 @@
-/* Recent fills. Fourteen columns of figures, so the type is a step
+/* Recent fills. Up to ten columns of figures, so the type is a step
    below the page's and the rows are packed tight: the table is read by
    scanning down a column, which a row's own height only gets in the way
    of. Every gap Streamlit puts between stacked elements has to be
@@ -7,6 +7,16 @@
 [class*="st-key-row-fill-"] {
   border-bottom: 1px solid var(--rule);
   padding: 0;
+}
+
+/* The markout horizon control sits in the card's chrome, whose buttons
+   `card.css` keeps faint until the card is pointed at. A control that
+   says which column is on screen has to be readable at rest, so its
+   options keep their colour; the icons beside it stay quiet. Named at
+   the same depth as the rule it answers, so it wins by coming later. */
+[class*="st-key-card-chrome-recent-fills"]
+  button[data-variant="segmented_control"] {
+  opacity: 1;
 }
 
 /* Streamlit's markdown element reports almost no height of its own and

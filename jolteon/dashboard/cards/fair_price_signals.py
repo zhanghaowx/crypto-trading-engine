@@ -2,6 +2,8 @@
 predicted the market's actual forward move, so far this session - the
 evidence a weight decision gets made from."""
 
+from pathlib import Path
+
 import pandas as pd
 import streamlit as st
 
@@ -12,7 +14,11 @@ from jolteon.dashboard.data.sqlite import recorded_through
 from jolteon.dashboard.state import current_run_id
 from jolteon.dashboard.ui import table
 from jolteon.dashboard.ui.empty_states import warn_if_no_db
-from jolteon.dashboard.ui.primitives import NEGATIVE_RGB
+from jolteon.dashboard.ui.primitives import BadgeColor, slug
+
+_ROWS_CSS = (
+    Path(__file__).resolve().parents[1] / "static" / "signal_rows.css"
+).read_text()
 
 
 # Scoring every recorded adjustment against what the price went on to do
@@ -78,7 +84,21 @@ _VERDICT_HELP = (
 _NO_SIGNAL = 0.05
 _WORTH_SIZING = 0.15
 
-_WARNING = "\u26a0\ufe0f "
+_NO_USABLE_SIGNAL = "No usable signal yet"
+_TOO_WEAK = "Too weak to size from"
+_WRONG_WAY = "Points the wrong way"
+_WORTH_A_WEIGHT = "Worth a weight"
+
+# A signal still warming up, or too faint to use, is a normal state and
+# is badged as one. Only a signal pointing the wrong way is a finding to
+# act on, and it is the only verdict badged in a warning colour.
+_VERDICT_COLORS: dict[str, BadgeColor] = {
+    _WORTH_A_WEIGHT: "green",
+    _COLLECTING: "gray",
+    _NO_USABLE_SIGNAL: "gray",
+    _TOO_WEAK: "gray",
+    _WRONG_WAY: "orange",
+}
 
 
 def _fmt_ratio(value: float) -> str:
@@ -111,32 +131,27 @@ def _verdict(rows: pd.DataFrame) -> str:
     best = usable.loc[usable["correlation"].abs().idxmax()]
     strength = abs(best["correlation"])
     if strength < _NO_SIGNAL:
-        return f"{_WARNING}No usable signal yet"
+        return _NO_USABLE_SIGNAL
     if strength < _WORTH_SIZING:
-        return f"{_WARNING}Too weak to size from"
+        return _TOO_WEAK
     if best["correlation"] < 0:
-        return f"{_WARNING}Points the wrong way"
-    return "Worth a weight"
-
-
-def _warn_style(row: pd.Series) -> str:
-    """A verdict worth acting on is tinted, so the rows that need reading
-    stand out from the ones that only say "fine"."""
-    r, g, b = NEGATIVE_RGB
-    if str(row["Verdict"]).startswith(_WARNING.strip()):
-        return f"background-color: rgba({r}, {g}, {b}, 0.12)"
-    return ""
+        return _WRONG_WAY
+    return _WORTH_A_WEIGHT
 
 
 def _render_verdict(evaluation: pd.DataFrame) -> None:
+    """One row per adjustment: its name, and its verdict as a badge."""
     st.markdown("**Verdict**", help=_VERDICT_HELP)
-    rows = pd.DataFrame(
-        [
-            {"Adjustment": name, "Verdict": _verdict(group)}
-            for name, group in evaluation.groupby("adjustment", sort=False)
-        ]
-    )
-    table.render(rows, row_style=_warn_style)
+    st.html(f"<style>{_ROWS_CSS}</style>")
+    for name, group in evaluation.groupby("adjustment", sort=False):
+        verdict = _verdict(group)
+        with st.container(
+            horizontal=True,
+            vertical_alignment="center",
+            key=f"signal-row-{slug(str(name))}",
+        ):
+            st.markdown(str(name), width="content")
+            st.badge(verdict, color=_VERDICT_COLORS[verdict])
 
 
 def _render_slope(evaluation: pd.DataFrame) -> None:

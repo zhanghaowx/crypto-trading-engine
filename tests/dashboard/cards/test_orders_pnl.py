@@ -1,10 +1,16 @@
 import sqlite3
 from unittest import mock
 
+import pandas as pd
+import pytest
 from streamlit.testing.v1 import AppTest
 
 from jolteon.dashboard.cards.orders_pnl import (
+    _HORIZON_KEY,
+    _SHOW_IDS_KEY,
+    _base_asset,
     _derive_visible_markouts,
+    _fills_help,
     fills_table,
 )
 from jolteon.dashboard.data.sqlite import read_table
@@ -27,10 +33,21 @@ def _summary_script():
     orders_pnl.render_summary()
 
 
+def _fills_only_script():
+    """The fills card's body on its own, before its header has drawn."""
+    from jolteon.dashboard.cards import orders_pnl
+
+    orders_pnl.render()
+
+
 def _metrics(at):
     """Every metric's rendered value, by its label. A colored metric
     carries its color in the value's own markdown (`:green[9.90]`)."""
     return {m.label: m.value for m in at.metric}
+
+
+def _metric_help(at):
+    return {m.label: m.help for m in at.metric}
 
 
 def test_shows_warning_when_db_missing(missing_db_path):
@@ -80,13 +97,27 @@ def test_renders_pnl_and_recent_fills(populated_db_path):
     assert not at.exception
     # net cash = -(99.5 * 1.0) - 0.1 = -99.6; inventory marked at mid 100.5
     # -> inventory_value = 1.0 * 100.5 = 100.5; total_pnl = 0.9. Nothing has
-    # been sold back, so realized PnL is just the fee paid.
+    # been sold back, so realized PnL is just the fee paid. The total
+    # carries the name Post-trade gives the same figure, with a sign and
+    # a currency; its parts go under its help rather than beside it as
+    # peers, and the position is counted in the pair's base asset.
     metrics = _metrics(at)
-    assert metrics["Net cash flow"] == ":red[-99.60]"
-    assert metrics["Realized PnL"] == ":red[-0.10]"
-    assert metrics["Total PnL"] == ":green[0.90]"
-    assert metrics["Inventory value"] == "100.50"
-    assert metrics["BTC-USD position"] == "1.0"
+    assert list(metrics) == ["Marked PnL", "Position", "Fills", "Fees"]
+    assert metrics["Marked PnL"] == ":green[+$0.90]"
+    assert metrics["Position"] == "1.0 BTC"
+    assert metrics["Fills"] == "1"
+    assert metrics["Fees"] == "$0.10"
+    helps = _metric_help(at)
+    assert helps["Marked PnL"] == (
+        "Cash flow of the run's fills plus inventory valued at the latest "
+        "mid. Cash flow -$99.60, inventory +$100.50, realized on closed "
+        "round trips -$0.10."
+    )
+    assert helps["Position"] == (
+        "Inventory held, valued at +$100.50 at the latest mid."
+    )
+    assert helps["Fills"] == "1 buy / 0 sell."
+    assert helps["Fees"] == "Trading fees over this session."
     # Recent fills renders as a row list, not st.dataframe (a canvas-drawn
     # grid, whose cells can't be styled per side) - check for the header
     # and the one fill's own values instead of a dataframe.
@@ -97,9 +128,9 @@ def test_renders_pnl_and_recent_fills(populated_db_path):
     assert "99.50" in markdown_values
     # PostTradeService's fields drive derived edge/markout, not the raw
     # fair prices: fair_price_at_fill=100.0 vs fill_price=99.5 on a BUY of
-    # 1.0 is a $0.50 favorable edge, less the $0.10 fee; the horizon fair
-    # prices are still NULL this soon after, so their markout renders as
-    # the missing-value marker rather than as zero.
+    # 1.0 is a $0.50 favorable edge, less the $0.10 fee. A second later
+    # the mid is 101.0, so the one markout column shown - the default
+    # horizon's - carries $1.50.
     assert "Edge" in markdown_values
     assert ":green[+$0.40]" in markdown_values
     assert "Cash Flow" in markdown_values
@@ -107,8 +138,72 @@ def test_renders_pnl_and_recent_fills(populated_db_path):
     assert "1.000000" in markdown_values
     assert "Inventory Before" not in markdown_values
     assert "Inventory After" not in markdown_values
-    assert "Markout +100ms" in markdown_values
+    assert "Markout +1s" in markdown_values
+    assert ":green[+$1.50]" in markdown_values
+    # One markout column, and no symbol - the context bar names it. The
+    # ids wait behind the header's toggle.
+    for hidden in ("Markout +100ms", "Markout +5s", "Markout +30s"):
+        assert hidden not in markdown_values
+    assert "Symbol" not in markdown_values
+    assert "BTC-USD" not in markdown_values
+    assert "Trade" not in markdown_values
+
+
+def test_the_horizon_control_chooses_the_markout_column(populated_db_path):
+    at = AppTest.from_function(_script)
+    at.session_state["db_path"] = populated_db_path
+    at.run()
+    at.segmented_control(key=_HORIZON_KEY).set_value("+30s").run()
+
+    assert not at.exception
+    markdown_values = [m.value for m in at.markdown]
+    assert "Markout +30s" in markdown_values
+    assert "Markout +1s" not in markdown_values
+    # Half a minute has not passed since the fill, so at this horizon its
+    # markout is not a figure yet rather than zero.
     assert MISSING in markdown_values
+
+
+def test_the_ids_toggle_shows_the_trade_and_order_columns(populated_db_path):
+    at = AppTest.from_function(_script)
+    at.session_state["db_path"] = populated_db_path
+    at.run()
+    at.toggle(key=_SHOW_IDS_KEY).set_value(True).run()
+
+    assert not at.exception
+    markdown_values = [m.value for m in at.markdown]
+    assert "Trade" in markdown_values
+    assert "2" in markdown_values
+
+
+def test_the_list_takes_the_defaults_before_the_header_has_drawn(
+    populated_db_path,
+):
+    """The card draws its body before the header its controls sit in, so
+    on the first pass they have no value to read yet."""
+    at = AppTest.from_function(_fills_only_script)
+    at.session_state["db_path"] = populated_db_path
+    at.run()
+
+    assert not at.exception
+    markdown_values = [m.value for m in at.markdown]
+    assert "Markout +1s" in markdown_values
+    assert "Trade" not in markdown_values
+
+
+@pytest.mark.parametrize(
+    ("symbol", "asset"),
+    [("BTC/USD", "BTC"), ("BTC-USD", "BTC"), ("XBTUSD", "")],
+)
+def test_the_position_is_counted_in_the_pairs_base_asset(symbol, asset):
+    assert _base_asset(symbol) == asset
+
+
+def test_the_fill_count_has_no_sides_to_split_when_none_were_recorded():
+    assert (
+        _fills_help(pd.DataFrame({"fill_price": [99.5]}))
+        == "How many of the run's orders were filled."
+    )
 
 
 def test_download_button_present_when_fills_exist(populated_db_path):
@@ -186,10 +281,10 @@ def test_marks_inventory_at_zero_without_a_bbo_feed(tmp_path):
     at.run()
 
     assert not at.exception
-    metrics = _metrics(at)
-    # No mark price available, so total PnL falls back to net cash alone.
-    assert metrics["Net cash flow"] == metrics["Total PnL"]
-    assert "BTC-USD mark price" not in metrics
+    # No mark price available, so the marked PnL falls back to the cash
+    # flow alone, and its parts say so.
+    assert _metrics(at)["Marked PnL"] == ":red[-$99.60]"
+    assert "inventory +$0.00" in _metric_help(at)["Marked PnL"]
 
 
 def _pnl_db(tmp_path, name, fills) -> str:
@@ -429,6 +524,9 @@ def test_recent_fill_derives_edge_and_markout_from_fair_price_table(tmp_path):
     at = AppTest.from_function(_script)
     at.session_state["db_path"] = db_path
     at.run()
+    # The only fair price after the fill sits a tenth of a second on, so
+    # that is the horizon to read the list at.
+    at.segmented_control(key=_HORIZON_KEY).set_value("+100ms").run()
 
     assert not at.exception
     markdown_values = [m.value for m in at.markdown]
@@ -436,6 +534,15 @@ def test_recent_fill_derives_edge_and_markout_from_fair_price_table(tmp_path):
     assert ":green[+$0.90]" in markdown_values
     # The +100ms target is exactly the second observation, mid 102.
     assert ":green[+$2.00]" in markdown_values
+
+    # This fill carries both ids, and both come out from behind the toggle.
+    at.toggle(key=_SHOW_IDS_KEY).set_value(True).run()
+
+    assert not at.exception
+    markdown_values = [m.value for m in at.markdown]
+    assert "Order" in markdown_values
+    assert "order-1" in markdown_values
+    assert "exec-1" in markdown_values
 
 
 def test_realized_pnl_is_scoped_to_the_current_engine_run(tmp_path):

@@ -167,13 +167,13 @@ def fills_table(fills: pd.DataFrame) -> pd.DataFrame:
 
 
 # (label, relative column width) - the widths roughly mirror the "small"
-# columns (Time/Trade/Order/Side) the table's old column_config used.
+# columns (Time/Trade/Order/Side) the table's old column_config used. The
+# symbol is not among them: the page's context bar already names it.
 _FILL_COLUMNS: list[tuple[str, float]] = [
     ("Time", 1.3),
     ("Trade", 0.9),
     ("Order", 0.9),
     ("Side", 0.8),
-    ("Symbol", 1.0),
     ("Price", 1.0),
     ("Edge", 1.0),
     ("Quantity", 1.1),
@@ -184,6 +184,24 @@ _FILL_COLUMNS: list[tuple[str, float]] = [
     ("Markout +5s", 1.2),
     ("Markout +30s", 1.3),
 ]
+
+# The ids trace one fill back to the venue; nobody scans down them, so
+# they wait behind a toggle in the card's header.
+_IDENTIFIER_COLUMNS = {"Trade", "Order"}
+
+# One markout column at a time, at the horizon the card's header chooses.
+# The other horizons stay in the frame, and in the CSV.
+_HORIZON_OPTIONS = [f"+{horizon}" for horizon in HORIZONS]
+_DEFAULT_HORIZON = "+1s"
+_HORIZON_KEY = "recent-fills-horizon"
+_SHOW_IDS_KEY = "recent-fills-ids"
+
+
+def _markout_label(horizon: str) -> str:
+    return f"Markout {horizon}"
+
+
+_MARKOUT_LABELS = {_markout_label(horizon) for horizon in _HORIZON_OPTIONS}
 
 _FILLS_TABLE_CSS = (
     Path(__file__).resolve().parents[1] / "static" / "fills_table.css"
@@ -203,14 +221,7 @@ def _fill_identity(row: pd.Series) -> str:
     )
 
 
-_SIGNED_USD_LABELS = {
-    "Edge",
-    "Cash Flow",
-    "Markout +100ms",
-    "Markout +1s",
-    "Markout +5s",
-    "Markout +30s",
-}
+_SIGNED_USD_LABELS = {"Edge", "Cash Flow", *_MARKOUT_LABELS}
 
 
 def _render_signed_usd(value) -> None:
@@ -240,18 +251,35 @@ def _render_fill_cell(col, label: str, value) -> None:
             st.write(value)
 
 
-def render_fills_list(display: pd.DataFrame) -> None:
+def _shown_columns(
+    display: pd.DataFrame, horizon: str, show_ids: bool
+) -> list[tuple[str, float]]:
+    """The columns of `display` to draw, in order: the ones the frame
+    has, less the identifiers unless asked for, with one markout column
+    - `horizon`'s - standing for the four."""
+    hidden = _MARKOUT_LABELS - {_markout_label(horizon)}
+    if not show_ids:
+        hidden |= _IDENTIFIER_COLUMNS
+    return [
+        (label, weight)
+        for label, weight in _FILL_COLUMNS
+        if label in display.columns and label not in hidden
+    ]
+
+
+def render_fills_list(
+    display: pd.DataFrame,
+    *,
+    horizon: str = _DEFAULT_HORIZON,
+    show_ids: bool = False,
+) -> None:
     """
     Recent fills as a list of rows a human can read at a glance, each in
     its own container keyed by the fill's own identity - not
     `st.dataframe`, a canvas-drawn grid whose cells cannot carry a badge
     or be coloured by the sign of what is in them.
     """
-    present = [
-        (label, weight)
-        for label, weight in _FILL_COLUMNS
-        if label in display.columns
-    ]
+    present = _shown_columns(display, horizon, show_ids)
     labels = [label for label, _ in present]
     weights = [weight for _, weight in present]
 
@@ -307,55 +335,74 @@ def realized_pnl_now(db_path: str, run_id: str | None = None) -> float:
     return state.total
 
 
+def _base_asset(symbol: str) -> str:
+    """The asset a position is counted in - "BTC" for BTC/USD or BTC-USD
+    - and nothing for a symbol not written as a pair."""
+    for separator in ("/", "-"):
+        if separator in symbol:
+            return symbol.split(separator, 1)[0]
+    return ""
+
+
+def _fills_help(fills: pd.DataFrame) -> str:
+    if "side" not in fills.columns:
+        return "How many of the run's orders were filled."
+    sides = fills["side"].value_counts()
+    buys, sells = int(sides.get("BUY", 0)), int(sides.get("SELL", 0))
+    return f"{buys} buy / {sells} sell."
+
+
 def _render_pnl(model: "OrdersModel") -> None:
     by_symbol = model.pnl
 
-    cols = iter(st.columns(5 + len(by_symbol)))
+    cols = iter(st.columns(3 + len(by_symbol)))
 
     total_pnl = by_symbol["total_pnl"].sum()
     with next(cols):
-        metric(
-            "Total PnL",
-            total_pnl,
-            color=sign_color(total_pnl),
+        # Written through the same formatter as Post-trade's Marked PnL,
+        # so the one figure reads the same way under its one name.
+        st.metric(
+            "Marked PnL",
+            f":{sign_color(total_pnl)}[{fmt_usd(total_pnl)}]",
             border=True,
-        )
-    realized = model.realized
-    with next(cols):
-        metric(
-            "Realized PnL",
-            realized,
-            color=sign_color(realized),
-            border=True,
-        )
-    net_cash = by_symbol["net_cash"].sum()
-    with next(cols):
-        metric(
-            "Net cash flow",
-            net_cash,
-            color=sign_color(net_cash),
-            border=True,
-        )
-    with next(cols):
-        metric(
-            "Inventory value",
-            by_symbol["inventory_value"].sum(),
-            border=True,
-        )
-    with next(cols):
-        metric(
-            "Fees paid",
-            model.fees,
-            border=True,
+            help=(
+                "Cash flow of the run's fills plus inventory valued at the "
+                "latest mid. "
+                f"Cash flow {fmt_usd(by_symbol['net_cash'].sum())}, "
+                f"inventory {fmt_usd(by_symbol['inventory_value'].sum())}, "
+                f"realized on closed round trips {fmt_usd(model.realized)}."
+            ),
         )
     for symbol, row in by_symbol.iterrows():
+        asset = _base_asset(str(symbol))
         with next(cols):
             metric(
-                f"{symbol} position",
+                "Position",
                 row["position"],
                 decimals=None,
+                suffix=f" {asset}" if asset else "",
                 border=True,
+                help=(
+                    "Inventory held, valued at "
+                    f"{fmt_usd(row['inventory_value'])} at the latest mid."
+                ),
             )
+    with next(cols):
+        metric(
+            "Fills",
+            len(model.fills),
+            decimals=None,
+            border=True,
+            help=_fills_help(model.fills),
+        )
+    with next(cols):
+        metric(
+            "Fees",
+            model.fees,
+            prefix="$",
+            border=True,
+            help="Trading fees over this session.",
+        )
 
 
 @dataclass(frozen=True)
@@ -388,13 +435,28 @@ def load() -> OrdersModel:
 
 
 def render_header_actions(model: "OrdersModel | None" = None) -> None:
-    """A download icon for the card title's own row - every raw fill as
-    a CSV file, the fastest way to get this page's data out for analysis
-    elsewhere. A no-op until there are fills to download."""
+    """The card title's own row: which markout horizon the list shows,
+    whether it shows the trade and order ids, and a download icon -
+    every raw fill as a CSV file, the fastest way to get this page's
+    data out for analysis elsewhere. A no-op until there are fills."""
     model = load() if model is None else model
     fills = model.fills
     if fills.empty:
         return
+    st.segmented_control(
+        "Markout horizon",
+        _HORIZON_OPTIONS,
+        default=_DEFAULT_HORIZON,
+        # Cleared, the list would have no markout column to show.
+        required=True,
+        key=_HORIZON_KEY,
+        label_visibility="collapsed",
+    )
+    st.toggle(
+        "IDs",
+        key=_SHOW_IDS_KEY,
+        help="Show each fill's trade and order ids.",
+    )
     st.download_button(
         "",
         data=fills.to_csv(index=False),
@@ -443,5 +505,13 @@ def render(model: "OrdersModel | None" = None) -> None:
         page_size=PAGE_SIZE,
     )
     page = _derive_visible_markouts(st.session_state.db_path, page)
-    render_fills_list(fills_table(page))
+    # The card draws its body before the header its controls sit in, so
+    # their values are read from session state rather than returned by
+    # them - and on the first pass, before they have been drawn at all,
+    # the list takes their defaults.
+    render_fills_list(
+        fills_table(page),
+        horizon=st.session_state.get(_HORIZON_KEY) or _DEFAULT_HORIZON,
+        show_ids=bool(st.session_state.get(_SHOW_IDS_KEY, False)),
+    )
     show_pagination()

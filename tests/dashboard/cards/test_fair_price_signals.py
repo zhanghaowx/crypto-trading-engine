@@ -8,7 +8,6 @@ from jolteon.dashboard.cards.fair_price_signals import (
     _COLLECTING,
     _MIN_SAMPLES,
     _verdict,
-    _warn_style,
 )
 from tests.dashboard.conftest import scoped_run
 
@@ -130,8 +129,9 @@ def test_renders_slope_and_correlation(tmp_path, table_lookup):
     at.run()
 
     assert not at.exception
-    verdict = table_lookup(at, 0, "Adjustment")
-    assert verdict["Momentum"]["Verdict"] == "Worth a weight"
+    markdown_values = [m.value for m in at.markdown]
+    assert "Momentum" in markdown_values
+    assert ":green-badge[Worth a weight]" in markdown_values
 
     at = AppTest.from_function(_details_script)
     at.session_state["db_path"] = db_path
@@ -197,10 +197,10 @@ def _evaluated(correlation: float, n: int = _MIN_SAMPLES + 1) -> pd.DataFrame:
     ("correlation", "expected"),
     [
         (0.9, "Worth a weight"),
-        (-0.9, "\u26a0\ufe0f Points the wrong way"),
-        (0.10, "\u26a0\ufe0f Too weak to size from"),
-        (-0.10, "\u26a0\ufe0f Too weak to size from"),
-        (0.01, "\u26a0\ufe0f No usable signal yet"),
+        (-0.9, "Points the wrong way"),
+        (0.10, "Too weak to size from"),
+        (-0.10, "Too weak to size from"),
+        (0.01, "No usable signal yet"),
         (float("nan"), _COLLECTING),
     ],
 )
@@ -214,16 +214,50 @@ def test_verdict_waits_while_a_horizon_is_undersampled():
     assert _verdict(_evaluated(0.9, n=_MIN_SAMPLES - 1)) == _COLLECTING
 
 
-def test_warn_style_tints_only_the_rows_carrying_a_warning():
-    warned = _warn_style(
-        pd.Series({"Verdict": "\u26a0\ufe0f No usable signal yet"})
-    )
-    trusted = _warn_style(pd.Series({"Verdict": "Worth a weight"}))
-    collecting = _warn_style(pd.Series({"Verdict": _COLLECTING}))
+def _verdict_rows_script():
+    """One adjustment at each verdict, drawn as the card draws them."""
+    import pandas as pd
 
-    assert "background-color" in warned
-    assert trusted == ""
-    assert collecting == ""
+    from jolteon.dashboard.cards.fair_price_signals import (
+        _MIN_SAMPLES,
+        _render_verdict,
+    )
+
+    _render_verdict(
+        pd.DataFrame(
+            {
+                "adjustment": ["Momentum", "Flow", "Skew", "Drift", "Total"],
+                "horizon": ["1s"] * 5,
+                "n": [_MIN_SAMPLES + 1] * 4 + [_MIN_SAMPLES - 1],
+                "slope": [1.0] * 5,
+                "correlation": [0.9, -0.9, 0.10, 0.01, 0.9],
+            }
+        )
+    )
+
+
+def test_each_verdict_is_a_badge_beside_its_adjustment(tables):
+    """A signal that is not yet usable is a normal state, badged
+    neutral; only one pointing the wrong way is a finding to act on.
+    None of them is a tinted table row."""
+    at = AppTest.from_function(_verdict_rows_script)
+    at.run()
+
+    assert not at.exception
+    assert not tables(at)
+    assert [m.value for m in at.markdown] == [
+        "**Verdict**",
+        "Momentum",
+        ":green-badge[Worth a weight]",
+        "Flow",
+        ":orange-badge[Points the wrong way]",
+        "Skew",
+        ":gray-badge[Too weak to size from]",
+        "Drift",
+        ":gray-badge[No usable signal yet]",
+        "Total",
+        f":gray-badge[{_COLLECTING}]",
+    ]
 
 
 def test_the_card_itself_carries_only_the_verdict(tmp_path, tables):
@@ -237,8 +271,14 @@ def test_the_card_itself_carries_only_the_verdict(tmp_path, tables):
     at.run()
 
     assert not at.exception
-    assert [m.value for m in at.markdown] == ["**Verdict**"]
-    assert len(tables(at)) == 1
+    assert [m.value for m in at.markdown] == [
+        "**Verdict**",
+        "Momentum",
+        ":green-badge[Worth a weight]",
+        "Total",
+        ":green-badge[Worth a weight]",
+    ]
+    assert not tables(at)
     assert not at.expander
 
 
