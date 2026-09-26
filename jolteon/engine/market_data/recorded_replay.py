@@ -5,7 +5,7 @@ import json
 import sqlite3
 from collections import Counter
 from contextlib import closing
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from jolteon.engine.core.parameter.replay_parameters import (
     recorded_value,
@@ -84,6 +84,31 @@ def _parameters(rows: list[dict]) -> dict:
         )
     resolved_parameters(scopes)
     return scopes
+
+
+def _hold_clock_through_steps(
+    events: list[ReplayEvent],
+) -> tuple[list[ReplayEvent], dict[int, float]]:
+    """
+    Returns: The events in sequence order with simulated time never moving
+    backwards, and how far the recorder's clock stepped back at each
+    sequence number where it did.
+
+    The recorder stamps events with the wall clock, which a time
+    adjustment can move backwards; the sequence number still says which
+    event came first. Holding time still through the step keeps that
+    order without asking the simulated clock to run in reverse.
+    """
+    held = []
+    steps = {}
+    previous = float("-inf")
+    for event in events:
+        if event.timestamp < previous:
+            steps[event.ordinal] = previous - event.timestamp
+            event = replace(event, timestamp=previous)
+        previous = event.timestamp
+        held.append(event)
+    return held, steps
 
 
 def _read(conn, manifest: ReplayManifest) -> RecordedReplay:
@@ -307,12 +332,19 @@ def _read(conn, manifest: ReplayManifest) -> RecordedReplay:
             )
     if native_order:
         events.sort(key=lambda event: event.ordinal)
-        if any(
-            a.timestamp > b.timestamp or a.ordinal == b.ordinal
-            for a, b in zip(events, events[1:])
-        ):
-            raise ValueError(
-                "External event sequence contradicts timestamps or duplicates"
+        if any(a.ordinal == b.ordinal for a, b in zip(events, events[1:])):
+            raise ValueError("Duplicate external event sequence")
+        events, steps = _hold_clock_through_steps(events)
+        if steps:
+            if not manifest.document["source"]["allow_gaps"]:
+                raise ValueError(
+                    "Recorder clock stepped backwards inside the interval; "
+                    "set allow_gaps to hold simulated time through it"
+                )
+            limitations.append(
+                f"Recorder clock stepped back {len(steps)} time(s), by up "
+                f"to {max(steps.values()) * 1000:.1f} ms, first at sequence "
+                f"{min(steps)}; simulated time held"
             )
         ordering = "external-sequence-v1"
     else:
