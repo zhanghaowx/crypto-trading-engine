@@ -1,11 +1,10 @@
 import streamlit as st
 
-from jolteon.dashboard.cards import engine_health, logs
+from jolteon.dashboard.cards import engine_health, health_summary, logs
 from jolteon.dashboard.services.health import summary
 from jolteon.dashboard.state import refresh_interval
 from jolteon.dashboard.ui.cards import Accent, Card, cards_rule, render_cards
 from jolteon.dashboard.ui.navigation import watch_nav
-from jolteon.dashboard.ui.page_header import page_heading
 
 
 def _down_accent() -> Accent:
@@ -18,6 +17,13 @@ def _errors_accent() -> Accent:
 
 cards = [
     Card(
+        "summary-health",
+        "Summary",
+        ":material/summarize:",
+        health_summary.render,
+        frame="bare",
+    ),
+    Card(
         "health",
         "Health",
         ":material/monitor_heart:",
@@ -26,7 +32,7 @@ cards = [
     ),
     Card(
         "errors",
-        "Errors",
+        "Error log",
         ":material/error:",
         logs.render,
         accent=_errors_accent,
@@ -34,8 +40,6 @@ cards = [
 ]
 
 st.html(cards_rule(cards))
-
-page_heading("Health", "Every engine under this root, watched at once.")
 
 render_cards(cards)
 watch_nav(refresh_interval())

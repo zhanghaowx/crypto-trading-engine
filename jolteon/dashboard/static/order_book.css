@@ -1,58 +1,123 @@
-/* The book as a ladder: asks falling towards the spread, bids below it.
-   Each row's depth bar is a gradient on the row itself, so the shape of
-   the resting size reads behind the numbers rather than as a chart in a
-   column of its own. The ladder fills the card it is given, which is a
-   half-width one - a book is a narrow thing to read. */
+/* The book folded open at the spread: bids down the left, asks down
+   the right, each side's best price at the top. Every row's depth bar is
+   a gradient on the row itself, growing from the middle of the card
+   outwards, so the shape of the resting size reads behind the numbers
+   rather than as a chart in a column of its own. */
 .jolteon-book {
+  color: var(--ink);
+  /* The book sizes itself to the card it is given, not to the window: a
+     half-width card at a middling window is as narrow as a phone. */
+  container-type: inline-size;
+}
+
+/* `minmax(0, 1fr)`, not `1fr`: a grid track will not shrink below its
+   content's own minimum width, and three columns of figures have one, so
+   plain `1fr` columns ran the asks out past the card's edge. */
+.jolteon-book-sides {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+}
+
+.jolteon-book-side {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.jolteon-book-side h3 {
+  margin: 0 10px 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.jolteon-book-bids h3 { color: var(--positive); }
+.jolteon-book-asks h3 { color: var(--negative); }
+
+.jolteon-book-side h3 span {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.jolteon-book-side table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-  color: #20262E;
 }
 
-.jolteon-book th {
-  color: #626D7C;
-  font-size: 11px;
+.jolteon-book-side th {
+  color: var(--muted);
+  background: var(--band);
+  font-size: 10px;
   font-weight: 500;
+  letter-spacing: 0.2px;
   text-align: right;
-  padding: 4px 12px;
+  padding: 6px 10px;
+  white-space: nowrap;
 }
 
-.jolteon-book td {
-  padding: 3px 12px;
+.jolteon-book-side td {
+  padding: 7px 10px;
   text-align: right;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
 }
 
-.jolteon-book-bid .jolteon-book-price { color: #137552; }
-.jolteon-book-ask .jolteon-book-price { color: #B63E49; }
+.jolteon-book-bid .jolteon-book-price { color: var(--positive); }
+.jolteon-book-ask .jolteon-book-price { color: var(--negative); }
 
 /* Where our own quote rests: the row is outlined, which reads at a
    glance without spending a column on a marker or a word. The outline
    takes its own side's colour, the one the price beside it is already
    drawn in. An outline rather than a border: collapsed borders are
-   resolved against the neighbouring cell's, and the spread row's own
-   grey rule won that fight wherever our quote sat next to it. */
+   resolved against the neighbouring cell's. */
 .jolteon-book-resting {
   font-weight: 600;
   outline-offset: -1px;
 }
 
-.jolteon-book-bid.jolteon-book-resting { outline: 1px solid #137552; }
-.jolteon-book-ask.jolteon-book-resting { outline: 1px solid #B63E49; }
+.jolteon-book-bid.jolteon-book-resting { outline: 1px solid var(--positive); }
+.jolteon-book-ask.jolteon-book-resting { outline: 1px solid var(--negative); }
 
-.jolteon-book-spread td {
-  text-align: center;
-  padding: 8px 12px;
-  border-top: 1px solid #E2E6EB;
-  border-bottom: 1px solid #E2E6EB;
-  font-size: 15px;
-  font-weight: 600;
+.jolteon-book-mid {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--muted);
 }
 
-.jolteon-book-spread span {
-  margin-left: 10px;
-  color: #626D7C;
-  font-size: 11px;
-  font-weight: 400;
+.jolteon-book-mid strong {
+  font-size: 21px;
+  font-weight: 500;
+  letter-spacing: -0.6px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.jolteon-book-mid b {
+  font-family: var(--mono);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* Below the width two sides of figures fit in, the book folds the other
+   way: bids above asks, each side still best price first. The break is
+   the card's width, so a half-width card on a middling window folds the
+   same way a full-width card on a phone does. */
+@container (max-width: 560px) {
+  .jolteon-book-side td,
+  .jolteon-book-side th { padding: 7px 6px; }
+  .jolteon-book-side td { font-size: 10px; }
+}
+
+@container (max-width: 440px) {
+  .jolteon-book-sides { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+  .jolteon-book-side td { font-size: 11px; }
+  .jolteon-book-side td,
+  .jolteon-book-side th { padding: 7px 10px; }
+  .jolteon-book-mid { flex-wrap: wrap; }
 }

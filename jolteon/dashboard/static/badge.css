@@ -1,0 +1,37 @@
+/* A badge as the prototype draws one: a soft tint behind text in the
+   semantic colour itself, a dot leading the label, small and medium
+   weight on the badge radius rather than a pill.
+
+   Streamlit writes a badge's colours and font size into the element's
+   own style attribute - a tenth-strength tint behind a darkened text -
+   which nothing but `!important` outranks. Which colour a badge was
+   given is read back off that same attribute, so the tints at the end
+   are keyed by the theme colour Streamlit wrote; `ui/primitives.py`,
+   which mirrors the theme, fills them in. A Streamlit release that tints
+   its badges differently leaves them in its own colours, which is the
+   failure to look for here.
+
+   Named from the markdown container down, as Streamlit's own badge rule
+   is, so these outrank it by coming later rather than by shouting. */
+[data-testid="stMarkdownContainer"] span.stMarkdownBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px !important;
+  font-weight: 500;
+  line-height: 1.3;
+  padding: 4px 8px;
+  border-radius: var(--radius-badge);
+  white-space: nowrap;
+}
+
+[data-testid="stMarkdownContainer"] span.stMarkdownBadge::before {
+  content: "";
+  flex: none;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%%;
+  background: currentColor;
+}
+
+%(tints)s

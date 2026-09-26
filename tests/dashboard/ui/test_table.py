@@ -95,9 +95,21 @@ def test_a_table_rules_only_between_its_rows():
     at = AppTest.from_function(table_script).run()
 
     body = at.get("html")[-1].body
-    assert "border-top: 1px solid #E2E6EB" in body
+    assert "border-top: 1px solid var(--rule)" in body
     assert "border-left" not in body
     assert "border-right" not in body
+
+
+def test_a_wide_table_scrolls_inside_its_own_wrapper():
+    """The page itself must never scroll sideways, so a table too wide
+    for its card scrolls within it."""
+    at = AppTest.from_function(table_script).run()
+
+    body = at.get("html")[-1].body
+    assert (
+        '<div class="jolteon-table-wrap"><table class="jolteon-table">' in body
+    )
+    assert "overflow-x: auto" in body
 
 
 def test_a_numeric_column_aligns_right_without_being_tinted(tables):

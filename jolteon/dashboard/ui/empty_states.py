@@ -35,6 +35,8 @@ def empty_state(message: str) -> None:
     A state that is empty rather than wrong: nothing has happened yet,
     not that something failed. Drawn as a quiet line of text rather
     than an alert, so a normal "nothing to report" does not compete for
-    attention with a genuine warning or error shown elsewhere.
+    attention with a genuine warning or error shown elsewhere. Centred,
+    with room around it, so it reads as the card's whole content rather
+    than as a footnote to content that is not there.
     """
-    st.caption(message)
+    st.caption(message, text_alignment="center")

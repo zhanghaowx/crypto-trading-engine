@@ -9,6 +9,7 @@ from jolteon.dashboard.ui.cards.layout import card_grid, render_cards
 from jolteon.dashboard.ui.cards.model import (
     Accent,
     Card,
+    CardFrame,
     CardMetrics,
     CardWidth,
     card_key,
@@ -19,6 +20,7 @@ from jolteon.dashboard.ui.cards.style import cards_rule, surface_rule
 __all__ = [
     "Accent",
     "Card",
+    "CardFrame",
     "CardMetrics",
     "CardWidth",
     "card",

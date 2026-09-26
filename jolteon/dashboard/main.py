@@ -31,11 +31,11 @@ import streamlit as st
 from jolteon.dashboard.services.health import summary
 from jolteon.dashboard.state import init_state
 from jolteon.dashboard.ui.navigation import (
-    NAV_ICON,
     NAV_TITLE,
     nav_alert_rule,
     nav_drawn,
 )
+from jolteon.dashboard.ui.primitives import badge_css
 from jolteon.engine.core.sentry.reporting import configure
 
 configure(
@@ -45,57 +45,55 @@ configure(
     component="dashboard",
 )
 
-_LOGO_PATH = Path(__file__).resolve().parent / "static" / "jolteon.png"
+_STATIC = Path(__file__).resolve().parent / "static"
 
-_FOCUS_CSS = (
-    Path(__file__).resolve().parent / "static" / "focus_visible.css"
-).read_text()
+_LOGO_PATH = _STATIC / "jolteon.png"
 
-_TOP_PADDING_CSS = (
-    Path(__file__).resolve().parent / "static" / "page_top_padding.css"
-).read_text()
-
-_DOT_CSS = (
-    Path(__file__).resolve().parent / "static" / "status_dot.css"
-).read_text()
+# The stylesheets every page shares, the tokens first: every later rule
+# names one of them.
+_SHARED_CSS = (
+    "".join(
+        (_STATIC / name).read_text()
+        for name in (
+            "tokens.css",
+            "nav.css",
+            "page_top_padding.css",
+            "focus_visible.css",
+            "metric.css",
+            "segmented_control.css",
+        )
+    )
+    + badge_css()
+)
 
 
 def main() -> None:
-    st.set_page_config(page_title="Jolteon Live", layout="wide")
+    st.set_page_config(page_title="Jolteon", layout="wide")
     init_state()
     st.logo(str(_LOGO_PATH), size="medium")
-    st.html(f"<style>{_FOCUS_CSS}</style>")
-    st.html(f"<style>{_TOP_PADDING_CSS}</style>")
-    st.html(f"<style>{_DOT_CSS}</style>")
+    st.html(f"<style>{_SHARED_CSS}</style>")
 
     health = summary(st.session_state.root)
     nav_drawn(health)
     st.html(nav_alert_rule(health))
 
+    # The pages live under `screens`, not `pages`: Streamlit takes a folder
+    # of that name beside the entrypoint for its legacy multipage layout,
+    # and on a process's first request to any URL but the root runs that
+    # page's file on its own - before this function has seeded the state
+    # every page reads.
     st.navigation(
         [
+            st.Page("screens/live.py", title="Live monitor", default=True),
+            st.Page("screens/health.py", title=NAV_TITLE, url_path="health"),
             st.Page(
-                "pages/live.py",
-                title="Live",
-                icon=":material/monitoring:",
-                default=True,
-            ),
-            st.Page(
-                "pages/health.py",
-                title=NAV_TITLE,
-                icon=NAV_ICON,
-                url_path="health",
-            ),
-            st.Page(
-                "pages/parameters.py",
+                "screens/parameters.py",
                 title="Parameters",
-                icon=":material/tune:",
                 url_path="parameters",
             ),
             st.Page(
-                "pages/post_trade.py",
-                title="Post-Trade",
-                icon=":material/analytics:",
+                "screens/post_trade.py",
+                title="Post-trade",
                 url_path="post-trade",
             ),
         ],

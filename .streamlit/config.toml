@@ -1,11 +1,19 @@
-# Jolteon dashboard theme — the Slate palette: a quiet off-white canvas,
-# white card surfaces, and one Inter family throughout. See
-# jolteon/dashboard/UI_GUIDELINES.md for the full token rationale.
+# Jolteon dashboard theme - the Slate palette: a quiet off-white canvas,
+# white card surfaces, and one Inter family throughout. The values are
+# the prototype's (jolteon/dashboard/static/prototype/styles.css), which
+# jolteon/dashboard/static/tokens.css repeats for the dashboard's own CSS;
+# jolteon/dashboard/UI_GUIDELINES.md holds the rules behind them.
 
 [server]
 # Launching the dashboard should not also take over a browser window: the
 # reader already has one open, or is on another machine entirely.
 headless = true
+
+[client]
+# The header is the dashboard's own navigation. Streamlit's deploy
+# button and developer menu items belong to a notebook being shared, not
+# to an engine being watched.
+toolbarMode = "minimal"
 
 [theme]
 base = "light"

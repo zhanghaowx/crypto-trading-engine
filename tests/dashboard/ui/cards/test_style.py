@@ -81,3 +81,38 @@ def test_accent_rule_stripes_the_named_card_in_the_theme_color():
 
 def test_accent_rule_is_empty_for_a_card_with_no_accent():
     assert accent_rule("card-risk-limits", None) == ""
+
+
+def test_cards_rule_leaves_a_bare_card_unpainted():
+    """A bare card is a region of the page, not a surface on it."""
+    rule = cards_rule(
+        [
+            Card(
+                "summary",
+                "Summary",
+                ":material/summarize:",
+                lambda: None,
+                frame="bare",
+            ),
+            Card("health", "Health", ":material/monitor_heart:", lambda: None),
+        ]
+    )
+
+    assert ":is(.st-key-card-health)" in rule
+    assert "card-summary" not in rule
+
+
+def test_cards_rule_is_empty_when_every_card_is_bare():
+    rule = cards_rule(
+        [
+            Card(
+                "summary",
+                "Summary",
+                ":material/summarize:",
+                lambda: None,
+                frame="bare",
+            )
+        ]
+    )
+
+    assert rule == ""

@@ -1,11 +1,13 @@
 from datetime import datetime, timezone
 
 import pytest
+from streamlit.testing.v1 import AppTest
 
 from jolteon.dashboard.ui.engine_selection import (
     UNRECORDED_MODE,
     replay_source,
     run_mode,
+    run_mode_badges,
     run_status,
 )
 from tests.dashboard.conftest import scoped_run
@@ -46,6 +48,52 @@ def test_a_run_missing_a_mode_is_said_to_be_unclassified(
     )
 
     assert run_mode(run) == UNRECORDED_MODE
+
+
+def test_a_runs_two_modes_are_two_badges_and_real_money_is_the_warm_one():
+    paper = scoped_run("run-a")
+    real = scoped_run(
+        "run-b", execution_mode="REAL", market_data_mode="RECORDED"
+    )
+
+    assert run_mode_badges(paper) == [
+        ("Paper", "blue"),
+        ("Live feed", "green"),
+    ]
+    assert run_mode_badges(real) == [("Live", "orange"), ("Replay", "blue")]
+
+
+def test_a_run_missing_a_mode_wears_one_grey_badge_saying_so():
+    run = scoped_run("run-a", execution_mode="", market_data_mode="")
+
+    assert run_mode_badges(run) == [(UNRECORDED_MODE, "gray")]
+
+
+def _select_script() -> None:
+    from jolteon.dashboard.ui.engine_selection import select_engine
+
+    select_engine()
+
+
+def test_one_engine_alone_is_named_rather_than_offered(engines):
+    """The scope bar still has to say whose recording the page reads."""
+    engines.add("BTC/USD")
+    at = AppTest.from_function(_select_script)
+    at.session_state["root"] = engines.root
+    at.run()
+
+    assert not at.exception
+    assert not at.segmented_control
+    assert [m.value for m in at.markdown] == ["**Kraken · BTC/USD**"]
+
+
+def test_nothing_is_named_before_an_engine_has_recorded(engines):
+    at = AppTest.from_function(_select_script)
+    at.session_state["root"] = engines.root
+    at.run()
+
+    assert not at.exception
+    assert not at.markdown
 
 
 def test_how_a_run_executed_is_separate_from_whether_it_finished():

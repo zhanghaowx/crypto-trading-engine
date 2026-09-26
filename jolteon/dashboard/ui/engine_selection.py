@@ -10,6 +10,7 @@ import streamlit as st
 from jolteon.dashboard.data.engines import engine_databases
 from jolteon.dashboard.data.runs import RecordedEngineRun
 from jolteon.dashboard.state import ENGINE
+from jolteon.dashboard.ui.primitives import BadgeColor
 from jolteon.engine.core.engine_run import ExecutionMode, MarketDataMode
 
 
@@ -24,6 +25,10 @@ def select_engine() -> None:
     """
     engines = engine_databases(st.session_state.root)
     if len(engines) < 2:
+        # Named rather than chosen: the scope bar still has to say whose
+        # recording the page is reading.
+        if engines:
+            st.markdown(f"**{engines[0].label}**", width="content")
         return
 
     st.segmented_control(
@@ -62,30 +67,51 @@ def run_status(run: RecordedEngineRun) -> str:
     return _RUN_STATUS_LABELS[run.status]
 
 
-# How a run executed and where its market data came from, in the words a
-# reader uses for the pair. "Paper trading" is what a simulated run off a
+# How a run executed and where its market data came from, as the two
+# badges a scope bar wears. "Paper trading" is what a simulated run off a
 # live feed is called; a simulated run off a recording is a replay, and
 # calling that paper trading too would hide which of the two is on
-# screen.
+# screen. Real execution is the warmer color: it is what is at stake.
 # Keyed by the recorded text rather than by the enum, which is what a
 # recording holds and what an older recording holds none of.
-_RUN_MODE_LABELS: dict[tuple[str, str], str] = {
-    (ExecutionMode.SIMULATED, MarketDataMode.REALTIME): "Paper · Live feed",
-    (ExecutionMode.SIMULATED, MarketDataMode.RECORDED): "Simulation · Replay",
-    (ExecutionMode.REAL, MarketDataMode.REALTIME): "Live · Live feed",
-    (ExecutionMode.REAL, MarketDataMode.RECORDED): "Live · Replay",
+_RUN_MODE_BADGES: dict[
+    tuple[str, str], tuple[tuple[str, BadgeColor], tuple[str, BadgeColor]]
+] = {
+    (ExecutionMode.SIMULATED, MarketDataMode.REALTIME): (
+        ("Paper", "blue"),
+        ("Live feed", "green"),
+    ),
+    (ExecutionMode.SIMULATED, MarketDataMode.RECORDED): (
+        ("Simulation", "blue"),
+        ("Replay", "blue"),
+    ),
+    (ExecutionMode.REAL, MarketDataMode.REALTIME): (
+        ("Live", "orange"),
+        ("Live feed", "green"),
+    ),
+    (ExecutionMode.REAL, MarketDataMode.RECORDED): (
+        ("Live", "orange"),
+        ("Replay", "blue"),
+    ),
 }
 
 UNRECORDED_MODE = "Mode not recorded"
 
 
+def run_mode_badges(run: RecordedEngineRun) -> list[tuple[str, BadgeColor]]:
+    """A run's execution mode and its market data mode, each as a badge
+    label and color - and one grey badge for a run recorded before an
+    engine wrote either down."""
+    pair = _RUN_MODE_BADGES.get((run.execution_mode, run.market_data_mode))
+    if pair is None:
+        return [(UNRECORDED_MODE, "gray")]
+    return list(pair)
+
+
 def run_mode(run: RecordedEngineRun) -> str:
     """How a run executed and where its data came from, said as one
-    phrase - and said to be unknown for a run recorded before an engine
-    wrote either down."""
-    return _RUN_MODE_LABELS.get(
-        (run.execution_mode, run.market_data_mode), UNRECORDED_MODE
-    )
+    phrase, for where a badge cannot go."""
+    return " · ".join(label for label, _ in run_mode_badges(run))
 
 
 def replay_source(run: RecordedEngineRun) -> str | None:

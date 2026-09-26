@@ -1,13 +1,22 @@
 # Jolteon UI guidelines
 
-Status: proposed visual direction, demonstrated by the standalone
-[interactive prototype](static/prototype/index.html). Production screens have
-not yet been migrated. Apply this guide to new and revised UI work; migrate
-shared components before introducing page-specific versions of these styles.
+Status: the visual direction is demonstrated by the standalone
+[interactive prototype](static/prototype/index.html), and the production
+screens now carry it: the shared tokens, the header and navigation, the
+context bar with its badges and live state, the summary rows, cards, tables, badges and metrics, the two-sided
+order book, the risk rows, the health summary and tiles, and the parameter
+rows and save bar. What remains is the workspace split itself - Research's
+run library and Compare - which waits on reading replay recordings (see
+the end of this document), and the findings of the second review below:
+a stopped engine shown as live, one figure under two names, and tables
+that colour every cell. Apply this guide to new and revised UI work;
+migrate shared components before introducing page-specific versions of
+these styles.
 
 ## Review of the current dashboard
 
-Reviewed the source and the running dashboard at `http://localhost:8501`.
+Reviewed, before the migration, the source and the running dashboard at
+`http://localhost:8501`.
 Live, Health, and Parameters were inspected in rendered screenshots. The
 Post-trade browser capture was still loading its session card; the review of
 its completed content is based on the source.
@@ -26,6 +35,25 @@ Keep the existing strengths: shared Card rendering, centralized number
 formatting, per-card refresh, visible risk thresholds, run-scoped analysis,
 missing-value markers, and staged parameter changes.
 
+## Second review, after the migration
+
+Reviewed on 2026-09-25, against the running dashboard at
+`http://localhost:8501` while its one engine had been stopped for a day.
+The prototype demonstrates each proposed direction: ETH/USD is its
+stopped engine.
+
+| Current behavior | Effect | Proposed direction |
+| --- | --- | --- |
+| Live shows a stopped engine with a Live feed badge, a green pulse and "Refreshing every 5 s"; Health lists its four components as down; Parameters says an edit reaches the running engine | Three pages say something is running when nothing is, and the navigation wears an alert for an engine that was switched off | Stopped is its own quiet state: the pulse drained beside when it stopped, a Stopped badge, a neutral notice linking to the finished run in Research, tiles that stopped with the engine, and no alert dot |
+| Live's summary is six bare numbers - Total PnL 2.54, Net cash flow 271.23, Inventory value -268.69 - and Post-trade calls the same 2.54 Marked PnL | No currency, no sign, the parts of a total beside it as peers, and two names for one figure | Four metrics with units and signs; cash flow and inventory as the note under marked PnL; the position as a metric of its own; one name on every page |
+| Risk limits stands alone beside a tall order book | A quarter of the screen is empty | Risk and fair-price signals stack in the right column |
+| Fair price signals renders "No usable signal yet" as a red table row | A signal still warming up looks like a failure | A neutral verdict badge beside each signal's contribution, and "–" where there is none yet |
+| Recent fills has fourteen columns: two identifiers, the symbol, and four markout horizons | Too wide to scan, and the symbol repeats the context bar | One markout column with a horizon switch; identifiers behind a toggle; the symbol only in the context bar |
+| Trade quality and Execution economics fill every cell red or green | A table of ordinary results reads as a heat map of alarms | Colour on the signed figure only |
+| Health nests its tiles inside a card, names them after classes (MockExecutionService), and reports local time | Double framing, code names, and a second clock | Tiles grouped under an engine row, plain names, UTC |
+| Parameters lists nineteen groups at equal weight in title case, with the unit in the label (QTY) | Fee schedules compete with quoting rules, and nothing says whether a value is a default, an override, or still unread by the engine | Groups under Strategy, Venues and Runtime in sentence case; the unit beside the field; a state badge on every field |
+| The order book boxes our own quote in a bordered row | The least important thing to read is the heaviest thing on the page | A small "ours" tag on the level |
+
 ## Where each thing is defined
 
 This document owns the foundation and the rules: the role a colour plays,
@@ -36,8 +64,12 @@ one. It does not carry values.
 The [interactive prototype](static/prototype/index.html) owns the
 implementation detail: the exact token values, the type scale, the
 spacing, and what each screen looks like and how it behaves.
-`static/prototype/styles.css` is the executable reference, and
-`.streamlit/config.toml` is where those values reach production.
+`static/prototype/styles.css` is the executable reference. Its values
+reach production twice over: `.streamlit/config.toml` paints Streamlit's
+own widgets from them, and `static/tokens.css` repeats them as CSS custom
+properties for the dashboard's own stylesheets, which name a token rather
+than a hex. `tests/dashboard/static/test_tokens.py` holds the token sheet
+to the prototype's values.
 
 When the two disagree, the prototype is right about what a thing looks
 like and this document is right about what may never happen. A value
@@ -83,7 +115,7 @@ identifiers.
 
 | Role | Rule |
 | --- | --- |
-| Page heading | One per page |
+| Page heading | None: the navigation names the page |
 | Card heading | Same weight across every card |
 | Body and controls | The default; hierarchy comes from weight, not family |
 | Context and supporting text | Smaller than body, never below legibility |
@@ -125,12 +157,13 @@ label a navigation item with a singular noun that reads as a verb.
 
 ## Shared page anatomy
 
-1. Persistent navigation within the current workspace.
-2. One page heading and a short explanation of its purpose.
-3. A context bar identifying the scope, mode, run, and either freshness
+1. Persistent navigation within the current workspace. It names the
+   page; no page repeats its name as a heading of its own, so the room
+   under the header goes to the page's content.
+2. A context bar identifying the scope, mode, run, and either freshness
    or the data window.
-4. Up to four summary metrics when they help the task.
-5. Primary content in aligned columns, then supporting tables and details.
+3. Up to four summary metrics when they help the task.
+4. Primary content in aligned columns, then supporting tables and details.
 
 Health is explicitly cross-engine; do not imply that it shares the selected
 Live engine. Parameters must name its own edit scope, including whether it
@@ -143,6 +176,10 @@ a finished run never borrows.
 
 An error recorded against a component is not the same as a component being
 down, and the navigation alert follows the component, not the log.
+
+A stopped engine is not a set of down components. When nothing is running,
+nothing is down: a stopped engine is a neutral state that says when it
+stopped and where its finished run can be read, and it raises no alert.
 
 Comparison is what Research is for. Two runs are only comparable over one
 data window; when the windows differ, say so before showing the difference.
@@ -166,7 +203,8 @@ existing discoverable way to restore them.
 Each metric has a name, value, unit or scope, and optional explanatory line.
 Show trends only when backed by measured history. Do not invent a percentage
 change or use an unlabeled comparison period. A positive result need not
-make the whole card green.
+make the whole card green. One figure has one name on every page: what
+Live calls marked PnL, Research calls marked PnL.
 
 ### Live state, run identity and comparison
 
@@ -230,12 +268,15 @@ by the engine. Never write parameters to an engine recording.
 | Loading | Reserve content space; label the operation; retain last successful data when available |
 | Empty | Neutral title, why there is no data, and the next useful action if one exists |
 | Stale | Warning label, last observation time, and affected scope |
+| Stopped | Neutral badge, when it stopped, and where the finished run is; nothing on the page may read as live |
 | Error | Plain explanation, affected component, and a real recovery action if available |
 | Success | Brief nearby confirmation; do not disrupt navigation |
 | Partial data | Show valid rows and explicitly identify missing coverage |
 | Disabled | Explain dependency when unclear; do not rely solely on faded appearance |
 
 “No errors recorded” is a normal state. Avoid a large blue alert for it.
+A signal that is not yet usable is a normal state too: a neutral verdict
+beside a “–”, never a red row.
 Risk band boundaries remain domain behavior: currently below 70% is OK,
 70% to below 90% is elevated, and 90% and above is near limit. Do not change
 these thresholds as part of a styling task.
@@ -261,8 +302,9 @@ Group navigation can scroll horizontally. Do not shrink text to fit a table.
 
 ## Streamlit implementation and enforcement
 
-- Start with `.streamlit/config.toml` for native theme settings. Keep manual
-  semantic values in `ui/primitives.py` synchronized with that theme.
+- Start with `.streamlit/config.toml` for native theme settings, and name
+  `static/tokens.css` tokens in any CSS of ours. Keep manual semantic values
+  in `ui/primitives.py` synchronized with that theme.
 - Extend shared `ui` components before adding styling to a page. Card-specific
   content stays in `cards`; source-independent calculations stay in `analysis`.
 - Reuse the existing Card lifecycle, refresh behavior, run selection, and
@@ -296,9 +338,13 @@ Open `static/prototype/index.html` directly, or serve it locally:
 
 Browse `http://localhost:8765`. No dependencies, build step, engine database,
 API calls or external assets are required. All fixtures are illustrative.
-Controls demonstrate the workspace switch, engine selection, the Live/Paused
-control on the monitor, fill filtering/export, chart windows, health states,
-parameter staging/review/revert, the Runs source filter, opening a run from
+Controls demonstrate the workspace switch, engine selection - ETH/USD is
+an engine that has stopped, and shows how the monitor, Health and
+Parameters say so - the Live/Paused control on the monitor, the order
+book's `ours` tag, the fills' side filter, markout horizon switch and
+identifier toggle, chart windows, health states across two engines,
+parameter scope, the state badge on every field and staging/review/revert
+with each change's scope named, the Runs source filter, opening a run from
 the table, a replay's link back to the run that captured its data, and
 comparing two runs over one window or two.
 Settings survive page navigation but reset on browser reload.

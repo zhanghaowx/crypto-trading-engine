@@ -40,6 +40,9 @@ def test_renders_a_card_per_name_and_symbol(populated_db_path):
     assert at.caption[0].value == "BTC-USD"
     # current=5.0, maximum=10.0 -> 50% utilization -> OK badge.
     assert "OK" in at.markdown[1].value
+    # What was measured against what, and how much of the limit that is,
+    # under the bar.
+    assert [c.value for c in at.caption][1:] == ["5 / 10", "50% used"]
 
 
 def test_badge_reflects_utilization_thresholds(tmp_path):

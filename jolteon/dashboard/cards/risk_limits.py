@@ -4,12 +4,12 @@ from pathlib import Path
 import streamlit as st
 
 from jolteon.dashboard.data.sqlite import read_table
-from jolteon.dashboard.ui.cards import Accent, card_grid
+from jolteon.dashboard.ui.cards import Accent
 from jolteon.dashboard.ui.empty_states import empty_state, warn_if_no_db
-from jolteon.dashboard.ui.primitives import SEMANTIC_COLORS, BadgeColor
+from jolteon.dashboard.ui.primitives import SEMANTIC_COLORS, BadgeColor, slug
 
-_BAR_CSS = (
-    Path(__file__).resolve().parents[1] / "static" / "risk_limit_bar.css"
+_ROWS_CSS = (
+    Path(__file__).resolve().parents[1] / "static" / "risk_limits.css"
 ).read_text()
 
 # Utilisation thresholds shared by the badge and the bar's own ticks, so
@@ -24,12 +24,12 @@ def _limit_title(name: str) -> str:
     return name.replace("_", " ").title()
 
 
-def risk_limit_badge(utilization: float) -> tuple[str, BadgeColor, str]:
+def risk_limit_badge(utilization: float) -> tuple[str, BadgeColor]:
     if utilization >= NEAR_LIMIT_THRESHOLD:
-        return "Near Limit", "red", ":material/error:"
+        return "Near Limit", "red"
     if utilization >= ELEVATED_THRESHOLD:
-        return "Elevated", "orange", ":material/warning:"
-    return "OK", "green", ":material/check_circle:"
+        return "Elevated", "orange"
+    return "OK", "green"
 
 
 def accent() -> Accent:
@@ -100,24 +100,34 @@ def render() -> None:
         )
         return
 
-    st.html(f"<style>{_BAR_CSS}</style>")
+    st.html(f"<style>{_ROWS_CSS}</style>")
     risk = risk.sort_values("timestamp")
-    groups = list(risk.groupby(["name", "symbol"]))
 
-    for (name, symbol), history in card_grid(groups, key="risk-limit-cards"):
+    # One row per limit rather than a card each: a limit is a name, a
+    # band and a bar, and a card around that much reads as more than it
+    # is.
+    for (name, symbol), history in risk.groupby(["name", "symbol"]):
         latest = history.iloc[-1]
         maximum = latest["maximum"]
         utilization = (
             min(abs(latest["current"]) / maximum, 1.0) if maximum else 0.0
         )
-        label, color, icon = risk_limit_badge(utilization)
+        label, color = risk_limit_badge(utilization)
 
-        st.markdown(f"**{_limit_title(name)}**")
-        with st.container(horizontal=True, vertical_alignment="center"):
-            st.caption(symbol, width="content")
-            st.badge(label, color=color, icon=icon)
-        st.html(utilisation_bar(utilization, color))
-        st.caption(
-            f"{_fmt_bound(abs(latest['current']))} of "
-            f"{_fmt_bound(maximum)} used - {utilization:.0%}"
-        )
+        with st.container(key=f"risk-limit-{slug(name)}-{slug(symbol)}"):
+            with st.container(
+                horizontal=True, vertical_alignment="center", gap="small"
+            ):
+                st.markdown(f"**{_limit_title(name)}**", width="content")
+                st.caption(symbol, width="content")
+                st.badge(label, color=color)
+            st.html(utilisation_bar(utilization, color))
+            with st.container(
+                horizontal=True, vertical_alignment="center", gap="small"
+            ):
+                st.caption(
+                    f"{_fmt_bound(abs(latest['current']))} / "
+                    f"{_fmt_bound(maximum)}",
+                    width="content",
+                )
+                st.caption(f"{utilization:.0%} used", width="content")

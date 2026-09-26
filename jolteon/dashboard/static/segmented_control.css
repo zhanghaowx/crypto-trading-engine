@@ -1,0 +1,81 @@
+/* A segmented control as the prototype draws one: borderless options on
+   a soft track, the chosen one lifted onto a white tile with a faint
+   shadow - rather than a row of bordered pills with the chosen one
+   filled. Keyboard focus keeps a ring of its own, since the border that
+   used to carry it is gone.
+
+   Limitation: reaches Streamlit's control by the test id of the group
+   and the variant it stamps on each option. A release that renames
+   either leaves the control in Streamlit's own style, which is the
+   failure to look for here. */
+[data-testid="stButtonGroup"]
+  [role="radiogroup"]:has(> button[data-variant="segmented_control"]) {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--radius-control);
+  background: var(--subtle);
+}
+
+[data-testid="stButtonGroup"] button[data-variant="segmented_control"] {
+  min-height: 28px;
+  height: auto;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+  box-shadow: none;
+  /* Streamlit animates every property change on these; with hover
+     changing nothing there is nothing to animate, and a fade after the
+     pointer leaves would be the one thing left to see. */
+  transition: none;
+}
+
+/* Streamlit sizes the label's markdown container, not the button, so
+   the size has to be handed down through it. */
+[data-testid="stButtonGroup"] button[data-variant="segmented_control"]
+  [data-testid="stMarkdownContainer"],
+[data-testid="stButtonGroup"] button[data-variant="segmented_control"] p {
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
+}
+
+/* Pointing at an option changes nothing: the control has two states,
+   chosen and not, and hovering is neither. Streamlit does not style
+   hover through `:hover` but through the `data-hovered` (and
+   `data-focus-visible`) attributes its option component stamps on, so
+   those are the states pinned here, alongside `:hover` itself. */
+[data-testid="stButtonGroup"]
+  button[data-variant="segmented_control"]:hover,
+[data-testid="stButtonGroup"]
+  button[data-variant="segmented_control"][data-hovered],
+[data-testid="stButtonGroup"]
+  button[data-variant="segmented_control"][data-focus-visible] {
+  background: transparent;
+  color: var(--muted);
+  border: 0;
+  box-shadow: none;
+}
+
+[data-testid="stButtonGroup"]
+  button[data-variant="segmented_control"][aria-checked="true"],
+[data-testid="stButtonGroup"]
+  button[data-variant="segmented_control"][aria-checked="true"]:hover,
+[data-testid="stButtonGroup"]
+  button[data-variant="segmented_control"][aria-checked="true"][data-hovered],
+[data-testid="stButtonGroup"]
+  button[data-variant="segmented_control"][aria-checked="true"][data-focus-visible] {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 1px 3px var(--ink-wash);
+}
+
+[data-testid="stButtonGroup"]
+  button[data-variant="segmented_control"]:focus-visible {
+  outline: 2px solid var(--info);
+  outline-offset: 1px;
+}

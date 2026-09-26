@@ -3,23 +3,27 @@
    so the native radio circle - redundant once the row itself carries
    that state - is hidden in favor of the row reading as a button. */
 [data-testid="stRadioGroup"] {
-  gap: 2px;
+  gap: 5px;
 }
 
 [data-testid="stRadioOption"] {
   display: block;
   width: 100%;
-  padding: 8px 12px;
-  border-radius: 6px;
+  padding: 10px 12px;
+  border-radius: var(--radius-control);
   cursor: pointer;
+  color: var(--muted);
+  font-size: 12px;
 }
 
 [data-testid="stRadioOption"]:hover {
-  background: #F0F3F6;
+  background: var(--subtle);
+  color: var(--ink);
 }
 
 [data-testid="stRadioOption"][data-selected="true"] {
-  background: #E2E6EB;
+  background: var(--selected);
+  color: var(--ink);
   font-weight: 600;
 }
 

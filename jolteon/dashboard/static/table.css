@@ -1,35 +1,41 @@
 /* No outer frame and no vertical rules, a quiet header band, and one
    hairline between rows. The grid Streamlit draws for `st.dataframe`
    rules every cell on both axes, which reads as a spreadsheet rather
-   than as part of the card it sits in. */
+   than as part of the card it sits in. A wide table scrolls inside its
+   wrapper rather than stretching the page. */
+.jolteon-table-wrap {
+  overflow-x: auto;
+}
+
 .jolteon-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 14px;
-  color: #20262E;
-}
-
-.jolteon-table th {
-  background: #F6F7F9;
-  color: #626D7C;
   font-size: 12px;
-  font-weight: 500;
-  text-align: left;
-  padding: 10px 16px;
+  color: var(--ink);
   white-space: nowrap;
 }
 
-.jolteon-table th:first-child { border-top-left-radius: 8px; }
-.jolteon-table th:last-child { border-top-right-radius: 8px; }
+.jolteon-table th {
+  background: var(--band);
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.2px;
+  font-weight: 500;
+  text-align: left;
+  padding: 10px 18px;
+}
+
+.jolteon-table th:first-child { border-top-left-radius: var(--radius-control); }
+.jolteon-table th:last-child { border-top-right-radius: var(--radius-control); }
 
 .jolteon-table td {
-  padding: 12px 16px;
-  border-top: 1px solid #E2E6EB;
+  padding: 12px 18px;
+  border-top: 1px solid var(--rule);
+  font-variant-numeric: tabular-nums;
 }
 
 .jolteon-table td.jolteon-num {
   text-align: right;
-  font-variant-numeric: tabular-nums;
 }
 
 .jolteon-table th.jolteon-num { text-align: right; }
@@ -41,9 +47,9 @@
   width: 14px;
   height: 14px;
   margin-left: 4px;
-  border: 1px solid #E2E6EB;
+  border: 1px solid var(--line);
   border-radius: 50%;
-  color: #626D7C;
+  color: var(--muted);
   font-size: 10px;
   line-height: 13px;
   text-align: center;

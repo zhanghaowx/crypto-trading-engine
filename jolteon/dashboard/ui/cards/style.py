@@ -61,7 +61,8 @@ _CARD_CSS = (
 def cards_rule(cards: Iterable[Card]) -> str:
     """
     Returns: A style block painting each of `cards` as a surface and
-    animating the height it settles at.
+    animating the height it settles at. A bare card is no surface, and
+    takes none of this.
 
     Emitted before any card renders, not after: Streamlit streams
     elements to the browser as the script runs rather than painting the
@@ -69,7 +70,7 @@ def cards_rule(cards: Iterable[Card]) -> str:
     several beats before the rule painting it white would, showing the
     canvas underneath for a moment before it snaps to white.
     """
-    keys = [card_key(card.id) for card in cards]
+    keys = [card_key(card.id) for card in cards if card.frame == "card"]
     if not keys:
         return ""
     # `:is(...)`, not a bare comma list: the rules below scope descendants

@@ -1,0 +1,36 @@
+/* Streamlit's own header, drawn as the prototype's: a white bar ruled
+   off from the canvas, whose items read as links - the current one
+   underlined in the brand accent - rather than as a filled pill.
+
+   Limitation: the header is Streamlit's, so these rules reach it by the
+   test ids it publishes rather than by a key of ours. A Streamlit
+   upgrade that renames them leaves the header in its own style, which
+   is the failure to look for here. */
+[data-testid="stHeader"] {
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+[data-testid="stTopNavLink"] {
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+  /* The underline sits on the item's own bottom edge, and the item is
+     as tall as the header so the line lands on the header's rule. */
+  height: 2.75rem;
+  box-shadow: inset 0 -2px 0 transparent;
+}
+
+[data-testid="stTopNavLink"]:hover {
+  background: transparent;
+  color: var(--ink);
+}
+
+[data-testid="stTopNavLink"][aria-current="page"] {
+  background: transparent;
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: inset 0 -2px 0 var(--accent);
+}

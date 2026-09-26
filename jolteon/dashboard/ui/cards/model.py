@@ -14,6 +14,11 @@ Accent = BadgeColor | None
 
 CardWidth = Literal["full", "half"]
 
+# A card is a bordered, titled surface with chrome of its own. Bare, it
+# is its body alone: a row of summary figures is a region of the page
+# rather than a card on it, and has no title row to fold or hide.
+CardFrame = Literal["card", "bare"]
+
 
 @dataclass(frozen=True)
 class Card:
@@ -40,6 +45,11 @@ class Card:
     cards pair up with the next half card on the page, so two of them
     share a row.
 
+    `frame` is whether the card is drawn as one - bordered and titled,
+    with its chrome - or bare, as its body alone. A bare card has no
+    title row to hang actions, details or an accent on, so it may carry
+    none; it still refreshes on its own timer like any other.
+
     `refresh` and `refresh_interval` are the card's own refresh policy:
     whether it redraws itself on a timer at all, and how often if the
     dashboard-wide interval is not what it wants. The page it sits on
@@ -62,6 +72,18 @@ class Card:
     refresh_interval: float | None = None
     manual_refresh: bool = True
     load: Callable[[], Any] | None = None
+    frame: CardFrame = "card"
+
+    def __post_init__(self) -> None:
+        if self.frame == "bare" and (
+            self.actions is not None
+            or self.details is not None
+            or self.accent is not None
+        ):
+            raise ValueError(
+                f"Card {self.id!r} is bare: it has no title row to carry "
+                "actions, details or an accent"
+            )
 
 
 def card_key(card_id: str) -> str:

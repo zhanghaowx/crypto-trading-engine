@@ -29,11 +29,13 @@ def _rows_rule() -> str:
 
 @contextmanager
 def _setting(label: str, help_text: str) -> Iterator[None]:
-    """A settings row, laid out so that controls of different natural
-    widths (a toggle, a slider) still line up down the card."""
-    described, control = st.columns([1, 1], vertical_alignment="center")
-    described.markdown(label, help=help_text)
-    with control:
+    """A settings row: the setting's name over a line explaining it, and
+    its control at the far end - laid out so that controls of different
+    natural widths (a toggle, a slider) still line up down the card."""
+    with st.container(horizontal=True, vertical_alignment="center"):
+        with st.container(gap=None):
+            st.markdown(label)
+            st.caption(help_text)
         yield
 
 

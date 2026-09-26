@@ -6,6 +6,7 @@ pages cannot spell the same thing differently.
 """
 
 import re
+from pathlib import Path
 from typing import Literal
 
 import pandas as pd
@@ -39,7 +40,6 @@ SEMANTIC_COLORS: dict[BadgeColor, str] = {
 
 POSITIVE_COLOR = SEMANTIC_COLORS["green"]
 NEGATIVE_COLOR = SEMANTIC_COLORS["red"]
-
 
 # What a figure the recording cannot answer for reads as, everywhere
 # one is shown: an en dash rather than a zero or a blank cell.
@@ -90,6 +90,47 @@ def hex_to_rgb(color: str) -> tuple[int, int, int]:
 
 POSITIVE_RGB = hex_to_rgb(POSITIVE_COLOR)
 NEGATIVE_RGB = hex_to_rgb(NEGATIVE_COLOR)
+
+
+# The tint and text a badge of each color is drawn in, as the prototype's
+# badge kinds: good, bad, warn, info and neutral. Orange keeps the
+# theme's darker amber, so a limit that is elevated still reads as a step
+# past one that is merely worth watching.
+_BADGE_TINTS: dict[BadgeColor, tuple[str, str]] = {
+    "green": ("--positive-soft", "--positive"),
+    "red": ("--negative-soft", "--negative"),
+    "yellow": ("--warning-soft", "--warning"),
+    "orange": ("--warning-soft", "--warning-strong"),
+    "blue": ("--info-soft", "--info"),
+    "gray": ("--subtle", "--muted"),
+    "grey": ("--subtle", "--muted"),
+    "primary": ("--selected", "--ink"),
+}
+
+_BADGE_CSS = (
+    Path(__file__).resolve().parents[1] / "static" / "badge.css"
+).read_text()
+
+
+def badge_css() -> str:
+    """
+    Returns: The stylesheet that draws every badge the prototype's way.
+
+    Streamlit tints a badge with its theme color at a tenth of its
+    strength and writes that into the element's own style attribute, so
+    the color a badge was given can be read back off it - which is how
+    each rule here finds the badges it recolors.
+    """
+    tints = "\n".join(
+        f'.stMarkdownBadge[style*="rgba({r}, {g}, {b}"] {{'
+        f" background: var({background}) !important;"
+        f" color: var({text}) !important; }}"
+        for (r, g, b), (background, text) in {
+            hex_to_rgb(SEMANTIC_COLORS[color]): tints
+            for color, tints in _BADGE_TINTS.items()
+        }.items()
+    )
+    return _BADGE_CSS % {"tints": tints}
 
 
 # A side's badge color and row tint, in the theme's semantic green/red -

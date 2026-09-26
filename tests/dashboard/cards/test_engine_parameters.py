@@ -45,6 +45,22 @@ def _script():
     engine_parameters.render()
 
 
+def _staged_summary(at) -> str:
+    """The table of staged edits, or nothing where none are staged."""
+    return next(
+        (m.value for m in at.markdown if m.value.startswith("| Parameter")),
+        "",
+    )
+
+
+def _commit(at):
+    return at.button(key="commit-parameters")
+
+
+def _revert(at):
+    return at.button(key="revert-parameters")
+
+
 def _page(params_db_path, missing_db_path, root=None) -> AppTest:
     at = AppTest.from_function(_script)
     at.session_state["params_db_path"] = params_db_path
@@ -153,8 +169,8 @@ def test_an_edit_shows_what_it_would_change(params_db_path, missing_db_path):
     at.number_input(key=QUOTE_SIZE).set_value(0.02).run()
 
     assert not at.exception
-    assert not at.button[0].disabled
-    summary = at.markdown[-1].value
+    assert not _commit(at).disabled
+    summary = _staged_summary(at)
     assert (
         "| Market Making · Quote Size | All Symbols | 0.00050 | 0.02000 |"
         in summary
@@ -178,7 +194,7 @@ def test_an_edit_shows_the_value_it_is_replacing(
     assert not at.exception
     assert (
         "| Market Making · Quote Size | All Symbols | 0.01000 | 0.02000 |"
-        in at.markdown[-1].value
+        in _staged_summary(at)
     )
 
 
@@ -203,7 +219,7 @@ def test_switching_groups_preserves_a_staged_change_in_another(
 
     assert not at.exception
     assert at.number_input(key=QUOTE_SIZE).value == 0.02
-    summary = at.markdown[-1].value
+    summary = _staged_summary(at)
     assert (
         "| Market Making · Quote Size | All Symbols | 0.00050 | 0.02000 |"
         in summary
@@ -215,7 +231,7 @@ def test_pushing_writes_every_staged_change(params_db_path, missing_db_path):
     at = _page(params_db_path, missing_db_path).run()
     at.number_input(key=QUOTE_SIZE).set_value(0.02).run()
     at.number_input(key=BOOK_DEPTH).set_value(4).run()
-    at.button[0].click().run()
+    _commit(at).click().run()
 
     assert not at.exception
     stored = {
@@ -227,7 +243,7 @@ def test_pushing_writes_every_staged_change(params_db_path, missing_db_path):
 def test_a_pushed_int_stays_an_int(params_db_path, missing_db_path):
     at = _page(params_db_path, missing_db_path).run()
     at.number_input(key=BOOK_DEPTH).set_value(4).run()
-    at.button[0].click().run()
+    _commit(at).click().run()
 
     stored = ParameterStore(params_db_path).read()
     assert isinstance(stored[0].value, int)
@@ -237,12 +253,12 @@ def test_a_pushed_int_stays_an_int(params_db_path, missing_db_path):
 def test_pushing_clears_what_was_staged(params_db_path, missing_db_path):
     at = _page(params_db_path, missing_db_path).run()
     at.number_input(key=QUOTE_SIZE).set_value(0.02).run()
-    at.button[0].click().run()
+    _commit(at).click().run()
 
     assert not at.exception
     assert at.session_state["_staged_parameters"] == {}
-    assert at.button[0].disabled
-    assert "| Market Making · Quote Size |" not in at.markdown[-1].value
+    assert _commit(at).disabled
+    assert "| Market Making · Quote Size |" not in _staged_summary(at)
 
 
 def test_reverting_drops_the_edit_and_writes_nothing(
@@ -250,7 +266,7 @@ def test_reverting_drops_the_edit_and_writes_nothing(
 ):
     at = _page(params_db_path, missing_db_path).run()
     at.number_input(key=QUOTE_SIZE).set_value(0.02).run()
-    at.button[1].click().run()
+    _revert(at).click().run()
 
     assert not at.exception
     assert at.session_state["_staged_parameters"] == {}
@@ -262,7 +278,7 @@ def test_a_pushed_value_comes_back_as_the_widgets_value(
 ):
     at = _page(params_db_path, missing_db_path).run()
     at.number_input(key=QUOTE_SIZE).set_value(0.02).run()
-    at.button[0].click().run()
+    _commit(at).click().run()
 
     fresh = _page(params_db_path, missing_db_path).run()
     assert fresh.number_input(key=QUOTE_SIZE).value == 0.02
@@ -274,7 +290,27 @@ def test_says_nothing_about_a_parameter_left_at_its_default(
     at = _page(params_db_path, missing_db_path).run()
 
     assert not at.exception
-    assert not at.caption
+    # The scope bar's and the save bar's own words, and nothing about
+    # any field.
+    assert [c.value for c in at.caption] == [
+        "Applies to",
+        "A finished run keeps the values it ran with",
+        "An edit is staged here until it is committed.",
+    ]
+
+
+def test_the_save_bar_counts_what_is_staged(params_db_path, missing_db_path):
+    at = _page(params_db_path, missing_db_path).run()
+    assert "**No unsaved changes**" in [m.value for m in at.markdown]
+
+    at.number_input(key=QUOTE_SIZE).set_value(0.02).run()
+    assert "**1 unsaved change**" in [m.value for m in at.markdown]
+
+    at.number_input(key=BOOK_DEPTH).set_value(4).run()
+    assert "**2 unsaved changes**" in [m.value for m in at.markdown]
+    assert "Review the values above before committing them." in [
+        c.value for c in at.caption
+    ]
 
 
 def test_reports_a_stored_value_no_engine_has_read(
@@ -499,7 +535,7 @@ class TestFieldKindsBeyondNumbers:
     ):
         at = _page(params_db_path, missing_db_path).run()
         at.selectbox(key=MODE).select("slow").run()
-        at.button[0].click().run()
+        _commit(at).click().run()
 
         assert not at.exception
         stored = {
@@ -513,7 +549,7 @@ class TestFieldKindsBeyondNumbers:
     ):
         at = _page(params_db_path, missing_db_path).run()
         at.text_input(key=LABEL).set_value("beta").run()
-        at.button[0].click().run()
+        _commit(at).click().run()
 
         assert not at.exception
         assert ParameterStore(params_db_path).read()[0].value == "beta"
@@ -556,7 +592,14 @@ class TestWhatTheEngineSaidItDid:
     @staticmethod
     def _badges(at) -> str:
         # st.badge reaches AppTest as markdown, as ":green-badge[applied]".
-        return " ".join(m.value for m in at.markdown if "-badge[" in m.value)
+        # The scope bar wears a badge of its own on every run; these are
+        # the fields'.
+        return " ".join(
+            m.value
+            for m in at.markdown
+            if "-badge[" in m.value
+            and "Reaches the running engine" not in m.value
+        )
 
     def test_a_change_whose_group_was_read_says_nothing(
         self, params_db_path, missing_db_path, tmp_path
@@ -917,7 +960,7 @@ class TestTuningOneSymbol:
         )
         at = self._page_for(params_db_path, missing_db_path, self.ETH)
         at.number_input(key=self._eth_quote_size()).set_value(0.01).run()
-        at.button[0].click().run()
+        _commit(at).click().run()
 
         assert not at.exception
         stored = {
@@ -940,7 +983,7 @@ class TestTuningOneSymbol:
         )
         at = self._page_for(params_db_path, missing_db_path, self.ETH)
         at.number_input(key=self._eth_quote_size()).set_value(0.01).run()
-        at.button[0].click().run()
+        _commit(at).click().run()
 
         shared = _page(params_db_path, missing_db_path).run()
         assert 0.02 == shared.number_input(key=QUOTE_SIZE).value
@@ -959,7 +1002,7 @@ class TestTuningOneSymbol:
         at = self._page_for(params_db_path, missing_db_path, self.ETH)
         at.number_input(key=self._eth_quote_size()).set_value(0.01).run()
 
-        assert f"| {self.ETH} |" in at.markdown[-1].value
+        assert f"| {self.ETH} |" in _staged_summary(at)
 
     def test_each_symbol_keeps_its_own_widget(
         self, params_db_path, missing_db_path

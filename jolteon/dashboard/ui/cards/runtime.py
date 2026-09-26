@@ -159,6 +159,12 @@ def _draw(spec: Card) -> None:
 
 def _render(spec: Card) -> None:
     key = card_key(spec.id)
+    if spec.frame == "bare":
+        # A region of the page rather than a card on it: the body alone,
+        # with nothing to title, fold or hide.
+        with st.container(key=key):
+            spec.body()
+        return
     accent = spec.accent() if callable(spec.accent) else spec.accent
     if rule := accent_rule(key, accent):
         st.html(rule)

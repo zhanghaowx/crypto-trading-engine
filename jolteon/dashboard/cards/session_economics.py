@@ -146,9 +146,11 @@ def _render_breakdown(row: pd.Series) -> None:
     )
 
 
-def render(model: SessionEconomicsModel) -> None:
+def render_summary(model: SessionEconomicsModel) -> None:
+    """The run's figures in one row, above the breakdown they come from.
+    A row of the page rather than a card on it, so a run with no fills
+    leaves it out and lets the card below say so."""
     if model.economics.empty:
-        empty_state("No fills in this run.")
         return
 
     overall = model.economics.loc["ALL"]
@@ -196,8 +198,14 @@ def render(model: SessionEconomicsModel) -> None:
             help="How many of the run's orders were filled.",
         )
 
-    st.markdown("**Execution economics**")
-    _render_breakdown(overall)
+
+def render(model: SessionEconomicsModel) -> None:
+    """What the run's fills earned at each horizon, net of the fees on
+    the fills each horizon could measure."""
+    if model.economics.empty:
+        empty_state("No fills in this run.")
+        return
+    _render_breakdown(model.economics.loc["ALL"])
 
 
 def render_details(model: SessionEconomicsModel) -> None:

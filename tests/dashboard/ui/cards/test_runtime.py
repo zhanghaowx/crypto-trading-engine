@@ -485,3 +485,43 @@ def test_manual_refresh_can_be_omitted():
     at = AppTest.from_function(script).run()
     assert not at.exception
     assert "card-a-refresh" not in [button.key for button in at.button]
+
+
+def bare_card_script():
+    import streamlit as st
+
+    from jolteon.dashboard.ui.cards import Card, render_cards
+
+    render_cards(
+        [
+            Card(
+                "summary",
+                "Summary",
+                ":material/summarize:",
+                lambda: st.write("figures"),
+                frame="bare",
+            ),
+            Card(
+                "order-book",
+                "Order book",
+                ":material/bar_chart:",
+                lambda: st.write("book"),
+            ),
+        ]
+    )
+
+
+def test_a_bare_card_is_its_body_alone():
+    """A row of summary figures is a region of the page rather than a
+    card on it: no title to fold under, no chrome to hide it with."""
+    at = AppTest.from_function(bare_card_script).run()
+
+    assert not at.exception
+    assert [e.label for e in at.expander] == [
+        ":material/bar_chart: Order book"
+    ]
+    assert "figures" in [m.value for m in at.markdown]
+    keys = [b.key for b in at.button]
+    assert "card-summary-hide" not in keys
+    assert "card-summary-refresh" not in keys
+    assert "card-order-book-hide" in keys
