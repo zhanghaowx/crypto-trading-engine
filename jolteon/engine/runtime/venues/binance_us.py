@@ -26,6 +26,7 @@ class BinanceUsRuntime(EngineRuntime):
         fair_price_model: IFairPriceModel | None = None,
         parameter_service: IParameterService | None = None,
         health_monitor: HealthMonitor | None = None,
+        run_id: str | None = None,
     ):
         if not use_mock_execution:
             raise NotImplementedError(
@@ -40,6 +41,7 @@ class BinanceUsRuntime(EngineRuntime):
             fair_price_model=fair_price_model,
             parameter_service=parameter_service,
             health_monitor=health_monitor,
+            run_id=run_id,
         )
         super().use_execution_service(
             MockExecutionService(

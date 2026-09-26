@@ -35,6 +35,7 @@ class KrakenRuntime(EngineRuntime):
         fair_price_model: IFairPriceModel | None = None,
         parameter_service: IParameterService | None = None,
         health_monitor: HealthMonitor | None = None,
+        run_id: str | None = None,
     ):
         print(f"Using {type(self).__name__}")
         super().__init__(
@@ -46,6 +47,7 @@ class KrakenRuntime(EngineRuntime):
             fair_price_model=fair_price_model,
             parameter_service=parameter_service,
             health_monitor=health_monitor,
+            run_id=run_id,
         )
         if use_mock_execution:
             super().use_execution_service(

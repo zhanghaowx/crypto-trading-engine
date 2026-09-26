@@ -66,10 +66,15 @@ class EngineRuntime(SignalManager):
         fair_price_model: IFairPriceModel | None = None,
         parameter_service: IParameterService | None = None,
         health_monitor: HealthMonitor | None = None,
+        run_id: str | None = None,
     ):
         """
         Connects different components to build the trading engine. It supports
         one symbol and one strategy.
+
+        `run_id` is the id this run records under, for a caller that has
+        already named the run's files after it; a run given none mints
+        its own.
         """
         self._symbol = symbol
         self._exchange = exchange
@@ -84,7 +89,7 @@ class EngineRuntime(SignalManager):
         # the replay itself ran.
         started_at = datetime.now(tz=pytz.utc)
         self._engine_run = EngineRun(
-            run_id=engine_run_id(started_at),
+            run_id=run_id or engine_run_id(started_at),
             exchange=exchange,
             symbol=symbol,
             started_at=started_at,
