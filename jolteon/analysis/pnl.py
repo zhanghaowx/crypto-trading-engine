@@ -3,6 +3,9 @@
 Net cash flow counts what has moved in and out; realized PnL counts only
 the round trips that have closed, leaving whatever is still held as an
 unrealized gain rather than a loss.
+
+Marked PnL - cash plus what is still held, valued at the mid - is worked
+out both as it stands now and bucket by bucket over the session.
 """
 
 from collections.abc import Mapping
@@ -31,6 +34,12 @@ def signed_cash_flow(fills: pd.DataFrame) -> pd.Series:
     return -direction * fills["fill_price"] * fills["fill_qty"]
 
 
+def _mid(bbo: pd.DataFrame) -> pd.Series:
+    """The mid of each recorded `bbo_feed` row: the price inventory is
+    marked at."""
+    return (bbo["bid_price"] + bbo["ask_price"]) / 2
+
+
 def pnl_by_symbol(
     totals: pd.DataFrame, latest_mid: pd.DataFrame
 ) -> pd.DataFrame:
@@ -47,8 +56,7 @@ def pnl_by_symbol(
     by_symbol = totals.copy()
     if not latest_mid.empty:
         mark_price = pd.Series(
-            ((latest_mid["bid_price"] + latest_mid["ask_price"]) / 2).values,
-            index=latest_mid["symbol"],
+            _mid(latest_mid).values, index=latest_mid["symbol"]
         )
     else:
         mark_price = pd.Series(dtype=float)
@@ -124,3 +132,94 @@ def realized_pnl(fills: pd.DataFrame) -> float:
     """Profit on the round trips that have actually closed, over `fills`
     alone."""
     return fold_fills(Realized(), fills).total
+
+
+_SERIES_COLUMNS = [
+    "time",
+    "cash",
+    "position",
+    "mark",
+    "inventory_value",
+    "marked_pnl",
+]
+
+
+def _bucket_start(epoch_seconds: pd.Series, freq: str) -> pd.Series:
+    """The start, in UTC, of the `freq` bucket each time falls in."""
+    return pd.to_datetime(epoch_seconds, unit="s", utc=True).dt.floor(freq)
+
+
+def _flows_per_bucket(fills: pd.DataFrame, freq: str) -> pd.DataFrame:
+    """Cash moved and quantity taken on by the fills of each bucket that
+    saw one, fees charged as they were paid."""
+    if fills.empty:
+        return pd.DataFrame(
+            {
+                "cash": pd.Series(dtype=float),
+                "position": pd.Series(dtype=float),
+            },
+            index=pd.DatetimeIndex([], tz="UTC"),
+        )
+    direction = fills["side"].map(SIDE_DIRECTION)
+    flows = pd.DataFrame(
+        {
+            "cash": signed_cash_flow(fills) - fills["fee"],
+            "position": direction * fills["fill_qty"],
+        }
+    )
+    return flows.groupby(_bucket_start(fills[_time_column(fills)], freq)).sum()
+
+
+def marked_pnl_series(
+    fills: pd.DataFrame, mids: pd.DataFrame, *, freq: str
+) -> pd.DataFrame:
+    """How the marked PnL - cash moved by the fills plus what is still
+    held, valued at the mid - stood at the end of every `freq` bucket
+    from the first observation to the last.
+
+    A bucket covers `[time, time + freq)`. `mark` is the last mid seen by
+    the end of the bucket, carried forward over buckets without a tick,
+    and stays NaN before the first mid: nothing has been observed to
+    value the inventory with, so `inventory_value` and `marked_pnl` are
+    NaN there too. `mids` is the recorded `bbo_feed`.
+    """
+    if mids.empty:
+        return pd.DataFrame(columns=_SERIES_COLUMNS)
+    ordered = mids.sort_values("timestamp", kind="stable")
+    mark = (
+        _mid(ordered).groupby(_bucket_start(ordered["timestamp"], freq)).last()
+    )
+    flows = _flows_per_bucket(fills, freq)
+    observed = mark.index.union(flows.index)
+    buckets = pd.date_range(observed.min(), observed.max(), freq=freq)
+
+    series = pd.DataFrame(index=buckets)
+    series["cash"] = flows["cash"].reindex(buckets, fill_value=0.0).cumsum()
+    series["position"] = (
+        flows["position"].reindex(buckets, fill_value=0.0).cumsum()
+    )
+    series["mark"] = mark.reindex(buckets).ffill()
+    series["inventory_value"] = series["position"] * series["mark"]
+    series["marked_pnl"] = series["cash"] + series["inventory_value"]
+    return series.rename_axis("time").reset_index()
+
+
+def fills_on_series(fills: pd.DataFrame, series: pd.DataFrame) -> pd.DataFrame:
+    """Where each fill sits on the marked PnL line: its own time and side,
+    with the `marked_pnl` of the `series` bucket it fell in."""
+    if fills.empty or series.empty:
+        return pd.DataFrame(columns=["time", "side", "marked_pnl"])
+    at_fill = pd.DataFrame(
+        {
+            "time": pd.to_datetime(
+                fills[_time_column(fills)], unit="s", utc=True
+            ),
+            "side": fills["side"],
+        }
+    ).sort_values("time", kind="stable")
+    return pd.merge_asof(
+        at_fill,
+        series[["time", "marked_pnl"]],
+        on="time",
+        direction="backward",
+    )
