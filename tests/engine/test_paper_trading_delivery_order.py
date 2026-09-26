@@ -5,9 +5,13 @@ from datetime import datetime
 from unittest.mock import patch
 
 import pytz
-from blinker import ANY, NamedSignal
+from blinker import ANY
 
-from jolteon.engine.core.event.signal import signal, signal_namespace
+from jolteon.engine.core.event.signal import (
+    Signal,
+    signal,
+    signal_namespace,
+)
 from jolteon.engine.core.parameter.parameter_service import (
     StaticParameterService,
 )
@@ -125,7 +129,10 @@ class TestPaperTradingDeliveryOrder(unittest.IsolatedAsyncioTestCase):
         signal("decorated_order_fill").connect(outcome.on_decorated_fill)
         signal("position_updated").connect(outcome.on_position_updated)
 
-        receivers_as_connected = NamedSignal.receivers_for
+        # Patched on Signal itself, which is where connection order is
+        # restored; a perturbation of the blinker base beneath it would
+        # be undone before any receiver ran.
+        receivers_as_connected = Signal.receivers_for
 
         def receivers_for(named_signal, sender):
             receivers = list(receivers_as_connected(named_signal, sender))
@@ -136,7 +143,7 @@ class TestPaperTradingDeliveryOrder(unittest.IsolatedAsyncioTestCase):
             signal("bbo_feed"),
             signal("market_trade_feed"),
         )
-        with patch.object(NamedSignal, "receivers_for", receivers_for):
+        with patch.object(Signal, "receivers_for", receivers_for):
             bbo_feed.send(bbo_feed, bbo=_bbo(99.0, 101.0))
             # Our bid rests behind the 1.0 displayed at 99 when it arrived,
             # so this print is used up by the queue ahead of us.
