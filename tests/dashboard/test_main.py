@@ -21,6 +21,7 @@ def test_dashboard_renders_every_section_on_one_page(dashboard):
         "Order book",
         "Risk limits",
         "Fair price signals",
+        "Session performance",
         "Recent fills",
         "Trade quality",
     ]
@@ -31,10 +32,10 @@ def test_dashboard_warns_in_every_section_when_db_missing(dashboard):
 
     assert not at.exception
     # One warning per section: market data, risk limits, fair price
-    # signals, the orders & pnl KPI row, recent fills, trade quality.
-    # Health and errors are on a page of their own, and the viewer
-    # settings on the Parameters page.
-    assert len(at.warning) == 6
+    # signals, session performance, the orders & pnl KPI row, recent
+    # fills, trade quality. Health and errors are on a page of their own,
+    # and the viewer settings on the Parameters page.
+    assert len(at.warning) == 7
 
 
 def test_dashboard_opens_on_the_live_page(dashboard):

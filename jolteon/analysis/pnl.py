@@ -39,6 +39,57 @@ def traded_notional(fills: pd.DataFrame) -> float:
     return float((fills["fill_price"] * fills["fill_qty"]).sum())
 
 
+def marked_pnl_over_time(
+    fills: pd.DataFrame, mid_prices: pd.DataFrame
+) -> pd.DataFrame:
+    """Marked PnL - net cash flow, net of fees, plus whatever inventory is
+    held valued at the mid - as it stood at each row of `mid_prices`.
+
+    `mid_prices` needs `timestamp` and `mid_price` columns; a mid price
+    recorded before any fill sees a flat, worthless book. A fill's
+    position and cash flow carry forward to every mid price recorded at
+    or after it, the same way holding inventory carries forward between
+    fills - so the series moves with the market between fills and jumps
+    only where a fill actually changed what is held.
+
+    Returns a `timestamp`, `marked_pnl` frame, one row per row of
+    `mid_prices`.
+    """
+    marks = mid_prices[["timestamp", "mid_price"]].sort_values("timestamp")
+    marks = marks.reset_index(drop=True)
+    if marks.empty:
+        return pd.DataFrame(columns=["timestamp", "marked_pnl"])
+    if fills.empty:
+        return pd.DataFrame(
+            {"timestamp": marks["timestamp"], "marked_pnl": 0.0}
+        )
+
+    time_column = _time_column(fills)
+    ordered = fills.sort_values(time_column)
+    direction = ordered["side"].map(SIDE_DIRECTION)
+    running = pd.DataFrame(
+        {
+            time_column: ordered[time_column],
+            "position": (direction * ordered["fill_qty"]).cumsum(),
+            "net_cash": (signed_cash_flow(ordered) - ordered["fee"]).cumsum(),
+        }
+    )
+    joined = pd.merge_asof(
+        marks,
+        running,
+        left_on="timestamp",
+        right_on=time_column,
+        direction="backward",
+    ).drop(columns=time_column)
+    joined[["position", "net_cash"]] = joined[["position", "net_cash"]].fillna(
+        0.0
+    )
+    joined["marked_pnl"] = (
+        joined["net_cash"] + joined["position"] * joined["mid_price"]
+    )
+    return joined[["timestamp", "marked_pnl"]]
+
+
 def pnl_by_symbol(
     totals: pd.DataFrame, latest_mid: pd.DataFrame
 ) -> pd.DataFrame:

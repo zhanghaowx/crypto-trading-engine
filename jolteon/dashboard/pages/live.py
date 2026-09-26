@@ -5,6 +5,7 @@ from jolteon.dashboard.cards import (
     order_book,
     orders_pnl,
     risk_limits,
+    session_performance,
     trade_quality,
 )
 from jolteon.dashboard.state import current_run, refresh_interval
@@ -35,6 +36,13 @@ overview_cards = [
         ":material/insights:",
         fair_price_signals.render,
         details=fair_price_signals.render_details,
+    ),
+    Card(
+        "session-performance",
+        "Session performance",
+        ":material/show_chart:",
+        session_performance.render,
+        load=session_performance.load,
     ),
 ]
 

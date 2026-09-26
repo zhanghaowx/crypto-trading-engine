@@ -2,6 +2,7 @@ import pandas as pd
 import pytest
 
 from jolteon.analysis.pnl import (
+    marked_pnl_over_time,
     realized_pnl,
     signed_cash_flow,
     traded_notional,
@@ -87,3 +88,61 @@ def test_traded_notional_sums_price_times_quantity_over_every_fill():
 
 def test_traded_notional_is_zero_with_no_fills():
     assert traded_notional(pd.DataFrame()) == 0.0
+
+
+def _mids(*points) -> pd.DataFrame:
+    """A mid-price series from `(timestamp, mid_price)` tuples."""
+    return pd.DataFrame(points, columns=["timestamp", "mid_price"])
+
+
+def test_marked_pnl_is_flat_zero_before_any_fill():
+    fills = _fills(("BUY", 100.0, 1.0, 1.0))
+    mids = _mids((1700000000 - 10, 90.0))
+
+    series = marked_pnl_over_time(fills, mids)
+
+    assert list(series["marked_pnl"]) == pytest.approx([0.0])
+
+
+def test_marked_pnl_moves_with_the_mid_after_a_fill():
+    # Buys one unit at 100, paying a $1 fee: net cash is -101. Marked to a
+    # later mid of 110, the unit held is worth 110, for a marked PnL of 9.
+    fills = _fills(("BUY", 100.0, 1.0, 1.0))
+    mids = _mids((1700000000 + 10, 110.0))
+
+    series = marked_pnl_over_time(fills, mids)
+
+    assert list(series["timestamp"]) == [1700000000 + 10]
+    assert list(series["marked_pnl"]) == pytest.approx([9.0])
+
+
+def test_marked_pnl_carries_the_position_forward_between_mid_prices():
+    fills = _fills(("BUY", 100.0, 1.0, 0.0))
+    mids = _mids(
+        (1700000000 - 5, 95.0),
+        (1700000000 + 5, 105.0),
+        (1700000000 + 15, 120.0),
+    )
+
+    series = marked_pnl_over_time(fills, mids)
+
+    assert list(series["marked_pnl"]) == pytest.approx([0.0, 5.0, 20.0])
+
+
+def test_marked_pnl_is_zero_throughout_with_no_fills():
+    mids = _mids((1, 100.0), (2, 105.0))
+
+    series = marked_pnl_over_time(pd.DataFrame(), mids)
+
+    assert list(series["marked_pnl"]) == pytest.approx([0.0, 0.0])
+
+
+def test_marked_pnl_is_empty_with_no_mid_prices():
+    fills = _fills(("BUY", 100.0, 1.0, 0.0))
+
+    series = marked_pnl_over_time(
+        fills, pd.DataFrame(columns=["timestamp", "mid_price"])
+    )
+
+    assert list(series.columns) == ["timestamp", "marked_pnl"]
+    assert series.empty
