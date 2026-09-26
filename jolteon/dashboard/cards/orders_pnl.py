@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
@@ -344,14 +344,6 @@ def _base_asset(symbol: str) -> str:
     return ""
 
 
-def _fills_help(fills: pd.DataFrame) -> str:
-    if "side" not in fills.columns:
-        return "How many of the run's orders were filled."
-    sides = fills["side"].value_counts()
-    buys, sells = int(sides.get("BUY", 0)), int(sides.get("SELL", 0))
-    return f"{buys} buy / {sells} sell."
-
-
 def _render_pnl(model: "OrdersModel") -> None:
     by_symbol = model.pnl
 
@@ -387,13 +379,17 @@ def _render_pnl(model: "OrdersModel") -> None:
                     f"{fmt_usd(row['inventory_value'])} at the latest mid."
                 ),
             )
+    counts = model.fill_counts
     with next(cols):
         metric(
             "Fills",
-            len(model.fills),
+            int(counts.sum()),
             decimals=None,
             border=True,
-            help=_fills_help(model.fills),
+            help=(
+                f"{int(counts.get('BUY', 0))} buy / "
+                f"{int(counts.get('SELL', 0))} sell."
+            ),
         )
     with next(cols):
         metric(
@@ -413,6 +409,11 @@ class OrdersModel:
     pnl: pd.DataFrame
     realized: float = 0.0
     fees: float = 0.0
+    # Counted by the recording, not off `fills`: the dashboard keeps only
+    # the most recent rows of a long table.
+    fill_counts: pd.Series = field(
+        default_factory=lambda: pd.Series(dtype=int)
+    )
 
 
 def load() -> OrdersModel:
@@ -431,6 +432,7 @@ def load() -> OrdersModel:
         ),
         realized_pnl_now(db_path, run_id),
         trade_queries.total_fees(db_path, run_id),
+        trade_queries.fill_counts_by_side(db_path, run_id),
     )
 
 
