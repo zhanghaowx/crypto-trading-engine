@@ -9,10 +9,14 @@ into, so it can run as a completely separate process from the engine itself.
 Usage:
     streamlit run jolteon/dashboard/main.py -- --root /tmp/jolteon
 
-Every engine writes under a directory of that root named after the symbol
-it trades, so the symbols this can show are the directories it finds. The
-Live page reads one of them at a time; the Health page reads them all, so
-an engine that has gone quiet is visible whichever symbol is on screen.
+Every engine writes under a directory of that root named after the exchange
+and symbol it trades, so the symbols this can show are the directories it
+finds. Every run an engine makes is a recording of its own in there, named
+by its run id; whether the run read a live feed or replayed a recording is
+written into the recording, not its name. The Live page reads one
+instrument's newest live-feed run at a time; the Health page reads every
+instrument's, so an engine that has gone quiet is visible whichever symbol
+is on screen.
 
 The engine records every signal as it happens (see
 jolteon/core/sqlite_writer.py), and the database is in WAL mode, so these

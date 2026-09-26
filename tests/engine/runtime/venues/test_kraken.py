@@ -143,3 +143,17 @@ class TestApplication(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertIsInstance(application._exec_service, ExecutionService)
+
+    async def test_a_run_records_under_the_id_it_was_given(self):
+        from jolteon.engine.runtime.venues.kraken import KrakenRuntime
+
+        application = KrakenRuntime(
+            symbol=self.symbol,
+            database_name=f"{tempfile.gettempdir()}/unittest.sqlite",
+            logfile_name=f"{tempfile.gettempdir()}/unittest.log",
+            run_id="20260926T100000Z-abcd1234",
+        )
+
+        self.assertEqual(
+            "20260926T100000Z-abcd1234", application._engine_run.run_id
+        )

@@ -72,3 +72,15 @@ def test_a_paper_run_is_classified_as_simulated_execution(tmp_path):
     )
 
     assert application._engine_run.execution_mode == ExecutionMode.SIMULATED
+
+
+def test_a_run_records_under_the_id_it_was_given(tmp_path):
+    run_id = "20260926T100000Z-abcd1234"
+    application = BinanceUsRuntime(
+        "BTC/USD",
+        str(tmp_path / f"{run_id}.sqlite"),
+        str(tmp_path / f"{run_id}.log"),
+        run_id=run_id,
+    )
+
+    assert application._engine_run.run_id == run_id

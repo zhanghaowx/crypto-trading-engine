@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 import pytz
 
 from jolteon.cli.progress import ProgressBar
+from jolteon.engine.core.engine_run import engine_run_id
 from jolteon.engine.core.health_monitor.health import HealthMonitor
 from jolteon.engine.core.market import Market
 from jolteon.engine.core.parameter.live_parameter_service import (
@@ -67,6 +68,7 @@ signal.signal(signal.SIGINT, graceful_exit)
 async def main():
     global _active_runtime
     started_at = datetime.now(tz=pytz.utc)
+    run_id = engine_run_id(started_at)
 
     parser = argparse.ArgumentParser(description="Jolteon Trading Engine")
     parser.add_argument("--replay-db", help="Path to a SQLite database file")
@@ -175,12 +177,13 @@ async def main():
         runtime = build_runtime(
             symbol,
             use_mock_execution=True,
-            database_name=paths.recording(
-                args.root, exchange.name, symbol, paths.REPLAY
+            database_name=paths.run_recording(
+                args.root, exchange.name, symbol, run_id
             ),
-            logfile_name=paths.log_file(
-                args.root, exchange.name, symbol, paths.REPLAY
+            logfile_name=paths.run_log_file(
+                args.root, exchange.name, symbol, run_id
             ),
+            run_id=run_id,
         )
         _active_runtime = runtime
         profiler = cProfile.Profile()
@@ -239,8 +242,13 @@ async def main():
         runtime = build_runtime(
             symbol,
             use_mock_execution=args.paper,
-            database_name=paths.recording(args.root, exchange.name, symbol),
-            logfile_name=paths.log_file(args.root, exchange.name, symbol),
+            database_name=paths.run_recording(
+                args.root, exchange.name, symbol, run_id
+            ),
+            logfile_name=paths.run_log_file(
+                args.root, exchange.name, symbol, run_id
+            ),
+            run_id=run_id,
             strategy=strategy,
             fair_price_model=fair_price_model,
             parameter_service=parameter_service,

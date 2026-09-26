@@ -74,6 +74,17 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(1, mock_app.run_replay.call_count)
         self.assertEqual("", captured_output.getvalue().split("\n")[-1])
+        # A replay's recording is named by its run id like any other run's;
+        # what it replayed is written into the recording, not its name.
+        run_id = MockApplication.call_args.kwargs["run_id"]
+        self.assertEqual(
+            Path(MockApplication.call_args.kwargs["database_name"]).parts[-3:],
+            ("kraken", "BTC-USD", f"{run_id}.sqlite"),
+        )
+        self.assertEqual(
+            Path(MockApplication.call_args.kwargs["logfile_name"]).parts[-3:],
+            ("kraken", "BTC-USD", f"{run_id}.log"),
+        )
 
     @patch("jolteon.engine.runtime.venues.kraken.KrakenRuntime")
     @patch("jolteon.cli.engine.DatabaseDataSource")
@@ -168,6 +179,15 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
             MockApplication.call_args.kwargs["use_mock_execution"]
         )
         self.assertEqual("", captured_output.getvalue().split("\n")[-1])
+        run_id = MockApplication.call_args.kwargs["run_id"]
+        self.assertEqual(
+            Path(MockApplication.call_args.kwargs["database_name"]).parts[-3:],
+            ("kraken", "BTC-USD", f"{run_id}.sqlite"),
+        )
+        self.assertEqual(
+            Path(MockApplication.call_args.kwargs["logfile_name"]).parts[-3:],
+            ("kraken", "BTC-USD", f"{run_id}.log"),
+        )
 
     @patch("jolteon.engine.runtime.venues.kraken.KrakenRuntime")
     @patch(
@@ -240,6 +260,10 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
 
     @patch("jolteon.engine.runtime.venues.binance_us.BinanceUsRuntime")
     @patch(
+        "jolteon.cli.engine.engine_run_id",
+        return_value="20260926T100000Z-abcd1234",
+    )
+    @patch(
         "argparse.ArgumentParser.parse_args",
         return_value=argparse.Namespace(
             replay_start="",
@@ -253,7 +277,7 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
         ),
     )
     async def test_main_runs_binance_us_paper(
-        self, mock_args, MockApplication
+        self, mock_args, mock_run_id, MockApplication
     ):
         mock_app = MockApplication.return_value
         mock_app.start = AsyncMock(return_value=1.0)
@@ -262,9 +286,19 @@ class TestCryptoTradingEngineCLI(unittest.IsolatedAsyncioTestCase):
 
         mock_app.start.assert_awaited_once()
         self.assertTrue(MockApplication.call_args.kwargs["use_mock_execution"])
+        # One id, minted once from when the process started, names both of
+        # the run's files and is the id the runtime records under.
+        mock_run_id.assert_called_once()
+        self.assertIsInstance(mock_run_id.call_args.args[0], datetime)
+        kwargs = MockApplication.call_args.kwargs
+        self.assertEqual("20260926T100000Z-abcd1234", kwargs["run_id"])
         self.assertEqual(
-            Path(MockApplication.call_args.kwargs["database_name"]).parts[-3:],
-            ("binance-us", "BTC-USD", "live.sqlite"),
+            Path(kwargs["database_name"]).parts[-3:],
+            ("binance-us", "BTC-USD", "20260926T100000Z-abcd1234.sqlite"),
+        )
+        self.assertEqual(
+            Path(kwargs["logfile_name"]).parts[-3:],
+            ("binance-us", "BTC-USD", "20260926T100000Z-abcd1234.log"),
         )
 
     @patch(

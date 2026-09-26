@@ -168,6 +168,37 @@ class TestEngineRuntimeEngineRun(unittest.TestCase):
             )
             self._release_files()
 
+    def test_a_run_given_no_id_mints_one_from_its_start(self):
+        with tempfile.TemporaryDirectory() as folder:
+            app = self._make_app(folder, "minted")
+
+            self.assertRegex(
+                app._engine_run.run_id, r"^\d{8}T\d{6}Z-[0-9a-f]{8}$"
+            )
+            self._release_files()
+
+    def test_a_run_given_an_id_records_every_row_under_it(self):
+        with tempfile.TemporaryDirectory() as folder:
+            app = EngineRuntime(
+                symbol="BTC/USD",
+                exchange="Binance.US",
+                database_name=f"{folder}/named.sqlite",
+                logfile_name=f"{folder}/named.log",
+                run_id="20260926T100000Z-abcd1234",
+            )
+            self._apps.append(app)
+            app._connect_signals()
+            app.stop()
+            self._release_files()
+
+            with closing(sqlite3.connect(f"{folder}/named.sqlite")) as conn:
+                rows = conn.execute(
+                    "SELECT run_id FROM engine_run "
+                    "UNION SELECT run_id FROM session_metadata"
+                ).fetchall()
+
+        self.assertEqual([("20260926T100000Z-abcd1234",)], rows)
+
     def test_graceful_stop_records_the_run_end(self):
         with tempfile.TemporaryDirectory() as folder:
             app = self._make_app(folder, "recorded")
