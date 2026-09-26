@@ -1,9 +1,31 @@
 import copy
 import json
+from pathlib import Path
 
 import pytest
 
 from jolteon.engine.core.replay_manifest import ReplayManifest, utc_timestamp
+
+EXAMPLE_MANIFEST = (
+    Path(__file__).resolve().parents[3]
+    / "data/recordings/binance-us/BTC-USD/replay-example.json"
+)
+
+
+def test_the_checked_in_example_is_a_complete_manifest():
+    """
+    The example is the manifest the docs tell a reader to start from, and
+    only someone holding the private recording can run it. A parameter
+    added to any group would otherwise invalidate it unnoticed, since a
+    manifest has to name every field.
+    """
+    manifest = ReplayManifest.read(EXAMPLE_MANIFEST)
+    assert manifest.document["market"] == {
+        "exchange": "Binance.US",
+        "symbol": "BTC/USD",
+    }
+    assert manifest.instrument is not None
+    assert manifest.start < manifest.end
 
 
 def test_roundtrip(replay_dataset, tmp_path):
