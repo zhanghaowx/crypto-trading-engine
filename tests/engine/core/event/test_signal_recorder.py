@@ -458,17 +458,54 @@ class TestSignalRecorder(unittest.IsolatedAsyncioTestCase):
 
 
 def test_external_sequence_and_instrument_history(tmp_path):
+    from jolteon.engine.core.side import MarketSide
     from jolteon.engine.market_data.core.bbo import BBO
     from jolteon.engine.market_data.core.instrument import InstrumentSpec
+    from jolteon.engine.market_data.core.order_book import (
+        BookModel,
+        RecordedBookUpdate,
+    )
+    from jolteon.engine.market_data.core.trade import Trade
 
     instrument = signal("instrument_feed")
+    book_update = signal("order_book_update_feed")
     bbo = signal("bbo_feed")
+    market_trade = signal("market_trade_feed")
+    exchange_time = datetime(2024, 1, 1, tzinfo=pytz.utc)
     path = tmp_path / "events.sqlite"
     recorder = SignalRecorder(str(path), run_id="sequence-run")
     try:
         recorder.start_recording()
         instrument.send(instrument, instrument=InstrumentSpec("BTC/USD"))
+        book_update.send(
+            book_update,
+            book_update=RecordedBookUpdate(
+                symbol="BTC/USD",
+                model=BookModel.L2,
+                version=1,
+                sequence=1,
+                bids="[[99,1]]",
+                asks="[[101,1]]",
+                is_snapshot=True,
+                exchange_time=exchange_time,
+            ),
+        )
         bbo.send(bbo, bbo=BBO("BTC/USD", 99, 1, 101, 1))
+        market_trade.send(
+            market_trade,
+            market_trade=Trade(
+                exchange_trade_id=1,
+                client_order_id="",
+                symbol="BTC/USD",
+                maker_order_id="",
+                taker_order_id="",
+                side=MarketSide.BUY,
+                price=100.0,
+                fee=0.0,
+                quantity=1.0,
+                transaction_time=exchange_time,
+            ),
+        )
         instrument.send(
             instrument,
             instrument=InstrumentSpec("BTC/USD", price_increment=0.01),
@@ -476,9 +513,45 @@ def test_external_sequence_and_instrument_history(tmp_path):
     finally:
         recorder.close()
     with closing(sqlite3.connect(path)) as conn:
+
+        def sequence(table):
+            return conn.execute(
+                f"SELECT external_sequence FROM {table} ORDER BY rowid"
+            ).fetchall()
+
+        assert sequence("instrument_feed") == [(1,), (5,)]
+        assert sequence("order_book_update_feed") == [(2,)]
+        assert sequence("bbo_feed") == [(3,)]
+        assert sequence("market_trade_feed") == [(4,)]
+
+
+def test_external_sequence_follows_the_payload_not_the_channel(tmp_path):
+    class VenueEvent:
+        EXTERNAL_EVENT = True
+
+        def __init__(self, value):
+            self.value = value
+
+    class EngineEvent:
+        def __init__(self, value):
+            self.value = value
+
+    venue = signal("venue_events")
+    engine = signal("engine_events")
+    path = tmp_path / "events.sqlite"
+    recorder = SignalRecorder(str(path), run_id="sequence-run")
+    try:
+        recorder.start_recording()
+        venue.send(venue, event=VenueEvent(1))
+        engine.send(engine, event=EngineEvent(2))
+        venue.send(venue, event=VenueEvent(3))
+    finally:
+        recorder.close()
+    with closing(sqlite3.connect(path)) as conn:
         assert conn.execute(
-            "SELECT external_sequence FROM instrument_feed ORDER BY rowid"
-        ).fetchall() == [(1,), (3,)]
-        assert conn.execute(
-            "SELECT external_sequence FROM bbo_feed"
-        ).fetchall() == [(2,)]
+            "SELECT external_sequence FROM venue_events ORDER BY rowid"
+        ).fetchall() == [(1,), (2,)]
+        columns = [
+            row[1] for row in conn.execute("PRAGMA table_info(engine_events)")
+        ]
+        assert "external_sequence" not in columns

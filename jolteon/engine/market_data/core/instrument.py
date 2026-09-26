@@ -19,6 +19,7 @@ class InstrumentSpec:
     """
 
     INDEX = ("symbol", "run_id")
+    EXTERNAL_EVENT = True
 
     symbol: str
     base: str = ""
