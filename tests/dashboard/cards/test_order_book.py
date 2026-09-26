@@ -13,10 +13,19 @@ def _script():
 
 
 def _markup(at) -> str:
-    """The ladder's markup, without the stylesheet that ships in the same
+    """The book's markup, without the stylesheet that ships in the same
     block - the CSS names every class the markup does, so counting class
     names across the whole thing counts the rules too."""
     return at.get("html")[-1].body.split("</style>", 1)[-1]
+
+
+def _prices(markup: str, side: str) -> list[str]:
+    """One side's prices, top to bottom."""
+    bids, asks = markup.split(
+        '<div class="jolteon-book-side jolteon-book-asks">'
+    )
+    column = bids if side == "bid" else asks
+    return re.findall(r'jolteon-book-price">([\d,.]+)<', column)
 
 
 def _encode(levels) -> str:
@@ -93,18 +102,42 @@ def _book_db(tmp_path, name="book.sqlite", *, quotes=(), rows=None) -> str:
     return db_path
 
 
-def test_shows_the_ladder_with_both_sides_and_the_spread(tmp_path):
+def test_shows_both_sides_best_price_first_and_the_spread_between(tmp_path):
     at = AppTest.from_function(_script)
     at.session_state["db_path"] = _book_db(tmp_path)
     at.run()
 
     assert not at.exception
     body = _markup(at)
-    assert "jolteon-book-bid" in body and "jolteon-book-ask" in body
-    assert "100.00" in body  # the mid, between 99 and 101
-    assert "spread 2.00" in body
+    assert _prices(body, "bid") == ["99.00", "98.00"]
+    assert _prices(body, "ask") == ["101.00", "102.00"]
+    assert "<strong>100.00</strong>" in body  # the mid, between 99 and 101
+    assert "Spread <b>2.00</b>" in body
     # Total is cumulative away from the spread.
     assert "3.0000" in body and "4.5000" in body
+
+
+def test_each_side_is_headed_and_sized_in_the_pairs_own_currencies(tmp_path):
+    at = AppTest.from_function(_script)
+    at.session_state["db_path"] = _book_db(tmp_path)
+    at.run()
+
+    body = _markup(at)
+    assert "<h3>Bids <span>· USD</span></h3>" in body
+    assert "<h3>Asks <span>· USD</span></h3>" in body
+    assert "<th>Size (BTC)</th>" in body
+    assert "Spread <b>2.00</b> USD" in body
+
+
+def test_depth_grows_from_the_middle_of_the_card_outwards(tmp_path):
+    at = AppTest.from_function(_script)
+    at.session_state["db_path"] = _book_db(tmp_path)
+    at.run()
+
+    body = _markup(at)
+    bids, asks = body.split("jolteon-book-asks")
+    assert "linear-gradient(to left," in bids
+    assert "linear-gradient(to right," in asks
 
 
 def test_marks_the_venue_level_our_quote_shares_a_price_with(tmp_path):
@@ -139,7 +172,8 @@ def test_says_so_when_no_book_has_been_recorded(empty_db_path):
     at.run()
 
     assert not at.exception
-    assert at.info[0].value.startswith("No order book recorded yet")
+    assert not at.info
+    assert at.caption[0].value.startswith("No order book recorded yet")
 
 
 def test_warns_when_the_database_is_missing(missing_db_path):
@@ -177,17 +211,15 @@ def test_a_quote_between_levels_sits_between_them(tmp_path):
     at.run()
 
     assert not at.exception
-    body = _markup(at)
-    prices = re.findall(r'jolteon-book-price">([\d,.]+)<', body)
     # Bids run 99.00, 98.00; ours at 98.50 belongs between them.
-    assert prices[-3:] == ["99.00", "98.50", "98.00"]
+    assert _prices(_markup(at), "bid") == ["99.00", "98.50", "98.00"]
 
 
 def test_a_quote_beyond_the_levels_shown_sits_at_its_own_end(tmp_path):
     """Quoting wide enough to fall outside the shown depth would
-    otherwise read as having no quote resting at all. The ladder runs in
-    price order, so a sell quote out there belongs at the top of it and a
-    buy quote at the bottom."""
+    otherwise read as having no quote resting at all. Each side runs in
+    price order away from the spread, so a quote out there belongs at
+    the bottom of its own column."""
     at = AppTest.from_function(_script)
     at.session_state["db_path"] = _book_db(
         tmp_path, "wide.sqlite", quotes=[("BUY", 1.0), ("SELL", 500.0)]
@@ -196,9 +228,8 @@ def test_a_quote_beyond_the_levels_shown_sits_at_its_own_end(tmp_path):
 
     assert not at.exception
     body = _markup(at)
-    prices = re.findall(r'jolteon-book-price">([\d,.]+)<', body)
-    assert prices[0] == "500.00"
-    assert prices[-1] == "1.00"
+    assert _prices(body, "ask")[-1] == "500.00"
+    assert _prices(body, "bid")[-1] == "1.00"
     assert body.count("jolteon-book-alone") == 2
 
 
@@ -224,10 +255,10 @@ def test_a_one_sided_book_shows_its_levels_without_a_spread(tmp_path):
     def script():
         import streamlit as st
 
-        from jolteon.dashboard.cards.order_book import book_now, ladder_html
+        from jolteon.dashboard.cards.order_book import book_html, book_now
 
         book = book_now(st.session_state["db_path"], "BTC-USD")
-        st.write(ladder_html(book, {}).split("</style>", 1)[-1])
+        st.write(book_html(book, {}, "BTC-USD").split("</style>", 1)[-1])
 
     db_path = _book_db(
         tmp_path, "oneside.sqlite", rows=[(1, [(99.0, 2.0)], [], 1, "l2")]
@@ -239,4 +270,24 @@ def test_a_one_sided_book_shows_its_levels_without_a_spread(tmp_path):
     assert not at.exception
     html = at.markdown[-1].value
     assert "jolteon-book-bid" in html
-    assert "jolteon-book-spread" not in html
+    assert "jolteon-book-mid" not in html
+
+
+def test_a_symbol_that_is_not_a_pair_gets_no_currency_labels(tmp_path):
+    def script():
+        import streamlit as st
+
+        from jolteon.dashboard.cards.order_book import book_html, book_now
+
+        book = book_now(st.session_state["db_path"], "BTC-USD")
+        st.write(book_html(book, {}, "").split("</style>", 1)[-1])
+
+    at = AppTest.from_function(script)
+    at.session_state["db_path"] = _book_db(tmp_path, "unpaired.sqlite")
+    at.run()
+
+    assert not at.exception
+    html = at.markdown[-1].value
+    assert "<h3>Bids</h3>" in html
+    assert "<th>Size</th>" in html
+    assert "Spread <b>2.00</b> · " in html

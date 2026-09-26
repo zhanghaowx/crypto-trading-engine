@@ -13,12 +13,25 @@ SYMBOL = "BTC-USD"
 
 
 def _script():
-    """The card's own body, over the run the page picked."""
+    """The summary row and the card's own body, over the run the page
+    picked, in the order the page draws them."""
     import streamlit as st
 
     from jolteon.dashboard.cards import session_economics
 
-    session_economics.render(
+    model = session_economics.load(
+        st.session_state.db_path, st.session_state.analysis_run_id
+    )
+    session_economics.render_summary(model)
+    session_economics.render(model)
+
+
+def _summary_script():
+    import streamlit as st
+
+    from jolteon.dashboard.cards import session_economics
+
+    session_economics.render_summary(
         session_economics.load(
             st.session_state.db_path, st.session_state.analysis_run_id
         )
@@ -164,7 +177,17 @@ def test_says_nothing_of_a_run_with_no_fills(tmp_path):
     at = _run(db_path)
 
     assert not at.exception
+    # Said once, by the card; the summary row above it draws nothing.
     assert [c.value for c in at.caption] == ["No fills in this run."]
+    assert not at.metric
+
+
+def test_the_summary_row_leaves_a_run_with_no_fills_to_the_card(tmp_path):
+    db_path = _recording(tmp_path, [])
+    at = _run(db_path, script=_summary_script)
+
+    assert not at.exception
+    assert not at.caption
     assert not at.metric
 
 

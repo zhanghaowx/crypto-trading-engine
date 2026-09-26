@@ -22,6 +22,7 @@ import streamlit as st
 from jolteon.dashboard.data.engines import engine_databases
 from jolteon.dashboard.data.sqlite import read_table
 from jolteon.dashboard.ui.cards import surface_rule
+from jolteon.dashboard.ui.page_header import scope_bar, scope_bar_end
 from jolteon.dashboard.ui.primitives import BadgeColor, slug
 from jolteon.engine.core.parameter.parameter_catalog import GROUPS
 from jolteon.engine.core.parameter.parameter_change_result import (
@@ -46,9 +47,13 @@ _REPORTS = "_engine_parameter_reports"
 _ALL_SYMBOLS_LABEL = "All Symbols"
 _SAVE_BAR_KEY = "parameter-save-bar"
 
-_GROUP_NAV_CSS = (
-    Path(__file__).resolve().parents[1] / "static" / "parameter_group_nav.css"
-).read_text()
+_STATIC = Path(__file__).resolve().parents[1] / "static"
+_GROUP_NAV_CSS = (_STATIC / "parameter_group_nav.css").read_text()
+_ROWS_CSS = (_STATIC / "parameter_rows.css").read_text()
+
+# One width for every control, whatever it holds, so the rows line up
+# down the card; wide enough for a number and its step buttons.
+_CONTROL_WIDTH = 220
 
 # A field identified by the scope it is set for as well as by its name.
 Field = tuple[str, str, str]
@@ -234,7 +239,6 @@ class _Note:
 
     label: str
     color: BadgeColor
-    icon: str | None = None
     caption: str | None = None
 
 
@@ -250,7 +254,6 @@ def _unusable_note(definition: ParameterDefinition, stored: Any) -> _Note:
     return _Note(
         "Not usable",
         "red",
-        ":material/error:",
         caption=(
             f"Stored as {stored}, which this parameter cannot take."
             f"{allowed} An engine reading this store refuses it and keeps "
@@ -333,6 +336,7 @@ def _widget(field: Field, definition: ParameterDefinition, value) -> None:
             options=options,
             index=options.index(value),
             key=key,
+            width=_CONTROL_WIDTH,
             label_visibility="collapsed",
             on_change=_on_change,
             args=args,
@@ -342,6 +346,7 @@ def _widget(field: Field, definition: ParameterDefinition, value) -> None:
             label,
             value=bool(value),
             key=key,
+            width=_CONTROL_WIDTH,
             label_visibility="collapsed",
             on_change=_on_change,
             args=args,
@@ -354,6 +359,7 @@ def _widget(field: Field, definition: ParameterDefinition, value) -> None:
             max_value=_as_int(definition.maximum),
             step=int(definition.step or 1),
             key=key,
+            width=_CONTROL_WIDTH,
             label_visibility="collapsed",
             on_change=_on_change,
             args=args,
@@ -368,6 +374,7 @@ def _widget(field: Field, definition: ParameterDefinition, value) -> None:
             # Without a format a value like 0.0005 renders as float noise.
             format=definition.number_format,
             key=key,
+            width=_CONTROL_WIDTH,
             label_visibility="collapsed",
             on_change=_on_change,
             args=args,
@@ -377,6 +384,7 @@ def _widget(field: Field, definition: ParameterDefinition, value) -> None:
             label,
             value=str(value),
             key=key,
+            width=_CONTROL_WIDTH,
             label_visibility="collapsed",
             on_change=_on_change,
             args=args,
@@ -409,7 +417,7 @@ def _state_note(
             caption="Stored, but no engine has reported reading it.",
         )
     if row.status == REJECTED:
-        return _Note("Rejected", "red", ":material/error:", row.reason)
+        return _Note("Rejected", "red", row.reason)
     if row.status != TAKEN:
         # The engine decides what statuses exist, so one this page has
         # never heard of is passed through as it came.
@@ -438,22 +446,32 @@ def _field(
         if unusable is None
         else _unusable_note(definition, unusable)
     )
-    _label_row(definition, note)
-    _widget(field, definition, usable)
-    if note is not None and note.caption:
-        st.caption(note.caption)
+    # One row per field: the name at the start, the control at the end,
+    # and a rule between rows (see parameter_rows.css).
+    with st.container(key=f"param-row-{slug(_widget_key(field))}", gap=None):
+        with st.container(
+            horizontal=True, vertical_alignment="center", gap="medium"
+        ):
+            _label_row(definition, note)
+            _widget(field, definition, usable)
+        if note is not None and note.caption:
+            st.caption(note.caption)
 
 
 def _label_row(definition: ParameterDefinition, note: _Note | None) -> None:
     """
     The field's name, and what it has to say about itself beside it.
 
-    A horizontal container rather than columns: a parameter card is
-    narrow, and a fixed split would squeeze the name to make room for a
-    badge that is usually not there at all.
+    A horizontal container rather than columns: a fixed split would
+    squeeze the name to make room for a badge that is usually not there
+    at all. It takes whatever width the control leaves, which is what
+    puts the control at the row's end.
     """
     with st.container(
-        horizontal=True, vertical_alignment="center", gap="small"
+        horizontal=True,
+        vertical_alignment="center",
+        gap="small",
+        width="stretch",
     ):
         st.markdown(
             f"{_field_label(definition)}",
@@ -461,7 +479,7 @@ def _label_row(definition: ParameterDefinition, note: _Note | None) -> None:
             width="content",
         )
         if note is not None:
-            st.badge(note.label, color=note.color, icon=note.icon)
+            st.badge(note.label, color=note.color)
 
 
 def _push() -> None:
@@ -480,15 +498,31 @@ def _revert() -> None:
 
 
 def _selected_scope(scopes: list[str]) -> str:
-    if len(scopes) == 1:
-        return ALL_SYMBOLS
-    scope = st.segmented_control(
-        "Applies to",
-        options=scopes,
-        format_func=_scope_label,
-        default=ALL_SYMBOLS,
-        key=_SCOPE,
-    )
+    """
+    Which symbol the fields below are set for, in the page's scope bar -
+    alongside what a change here reaches, since that is what makes this
+    page different from the read-only parameters of a finished run.
+    """
+    with scope_bar():
+        st.caption("Applies to", width="content")
+        if len(scopes) == 1:
+            st.markdown(f"**{_ALL_SYMBOLS_LABEL}**", width="content")
+            scope: str | None = ALL_SYMBOLS
+        else:
+            scope = st.segmented_control(
+                "Applies to",
+                options=scopes,
+                format_func=_scope_label,
+                default=ALL_SYMBOLS,
+                key=_SCOPE,
+                label_visibility="collapsed",
+            )
+        st.badge("Reaches the running engine", color="orange")
+        with scope_bar_end():
+            st.caption(
+                "A finished run keeps the values it ran with",
+                width="content",
+            )
     # A segmented control lets the reader clear their own selection.
     return ALL_SYMBOLS if scope is None else scope
 
@@ -499,7 +533,7 @@ def render() -> None:
     staged = _staged()
     symbol = _selected_scope(_scopes(stored))
 
-    st.html(f"<style>{_GROUP_NAV_CSS}</style>")
+    st.html(f"<style>{_GROUP_NAV_CSS}{_ROWS_CSS}</style>")
 
     by_name = {group.__name__: group for group in GROUPS}
     nav_col, fields_col = st.columns([1, 4])
@@ -527,34 +561,55 @@ def render() -> None:
                     stored,
                 )
 
-    if staged:
-        # A markdown table, not `st.dataframe`: the data grid is a lazily
-        # loaded bundle the browser only fetches the first time a table is
-        # shown, so the summary of an edit arrives about half a second
-        # after the edit that staged it.
-        rows = "\n".join(
-            f"| {_staged_label(group_name, field_name)} "
-            f"| {_scope_label(scope)} "
-            f"| {_replaced((scope, group_name, field_name), stored)} "
-            f"| {_shown(_definition(group_name, field_name), value)} |"
-            for (scope, group_name, field_name), value in staged.items()
-        )
-        st.html(_summary_rule())
-        with st.container(horizontal=True, horizontal_alignment="center"):
-            with st.container(key=_SUMMARY_KEY, width="content"):
-                st.markdown(
-                    f"| Parameter | Applies to | From | To |\n"
-                    f"| --- | --- | --- | --- |\n{rows}"
-                )
-
-    st.html(surface_rule([_SAVE_BAR_KEY]))
-    with st.container(border=True, key=_SAVE_BAR_KEY):
-        with st.container(horizontal=True, vertical_alignment="center"):
-            st.button(
-                "Commit",
-                type="primary",
-                disabled=not staged,
-                on_click=_push,
-                icon=":material/upload:",
+        # Under the fields, where the reader's eye is: the review of what
+        # has been staged, and the bar that commits or drops it.
+        if staged:
+            # A markdown table, not `st.dataframe`: the data grid is a lazily
+            # loaded bundle the browser only fetches the first time a table is
+            # shown, so the summary of an edit arrives about half a second
+            # after the edit that staged it.
+            rows = "\n".join(
+                f"| {_staged_label(group_name, field_name)} "
+                f"| {_scope_label(scope)} "
+                f"| {_replaced((scope, group_name, field_name), stored)} "
+                f"| {_shown(_definition(group_name, field_name), value)} |"
+                for (scope, group_name, field_name), value in staged.items()
             )
-            st.button("Revert", disabled=not staged, on_click=_revert)
+            st.html(_summary_rule())
+            with st.container(horizontal=True, horizontal_alignment="center"):
+                with st.container(key=_SUMMARY_KEY, width="content"):
+                    st.markdown(
+                        f"| Parameter | Applies to | From | To |\n"
+                        f"| --- | --- | --- | --- |\n{rows}"
+                    )
+
+        st.html(surface_rule([_SAVE_BAR_KEY]))
+        with st.container(border=True, key=_SAVE_BAR_KEY):
+            with st.container(horizontal=True, vertical_alignment="center"):
+                with st.container(gap=None):
+                    count = len(staged)
+                    plural = "" if count == 1 else "s"
+                    st.markdown(
+                        f"**{count} unsaved change{plural}**"
+                        if staged
+                        else "**No unsaved changes**"
+                    )
+                    st.caption(
+                        "Review the values above before committing them."
+                        if staged
+                        else "An edit is staged here until it is committed."
+                    )
+                st.button(
+                    "Revert",
+                    key="revert-parameters",
+                    disabled=not staged,
+                    on_click=_revert,
+                )
+                st.button(
+                    "Commit",
+                    key="commit-parameters",
+                    type="primary",
+                    disabled=not staged,
+                    on_click=_push,
+                    icon=":material/upload:",
+                )

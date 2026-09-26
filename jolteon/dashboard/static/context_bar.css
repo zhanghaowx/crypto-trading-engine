@@ -1,0 +1,60 @@
+/* The context bar: one bordered row naming what the page below is
+   scoped to. Whatever a page puts in it sits at the start; the run's
+   identity, and a live feed's resting state, sit at the end. */
+.st-key-run-scope-bar {
+  padding: 10px 18px;
+}
+
+.st-key-run-scope-bar [data-testid="stCaptionContainer"] p {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.st-key-run-scope-bar [data-testid="stMarkdownContainer"] p {
+  font-size: 13px;
+}
+
+/* The end group is pushed to the far side of the bar. The flex item is
+   the wrapper Streamlit puts round a keyed container, not the
+   container itself, hence the `:has`. */
+.st-key-run-scope-bar
+  [data-testid="stLayoutWrapper"]:has(> .st-key-run-scope-end) {
+  margin-left: auto;
+  width: auto;
+}
+
+.jolteon-separator {
+  display: inline-block;
+  width: 1px;
+  height: 24px;
+  background: var(--line);
+  vertical-align: middle;
+}
+
+/* Only a page reading a live feed carries the dot. Paused keeps it in
+   place and drains its color, so the control's two states sit in the
+   same spot. */
+.jolteon-live-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--positive);
+  vertical-align: middle;
+}
+
+.jolteon-live-dot.paused {
+  background: var(--line-strong);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .jolteon-live-dot:not(.paused) {
+    animation: jolteon-pulse 2.4s infinite;
+  }
+}
+
+@keyframes jolteon-pulse {
+  0% { box-shadow: 0 0 0 0 var(--positive-soft); }
+  70% { box-shadow: 0 0 0 7px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}

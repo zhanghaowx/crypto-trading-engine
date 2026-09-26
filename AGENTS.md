@@ -41,7 +41,9 @@ jolteon/
 │   ├── services/        Cross-engine questions, such as health
 │   ├── ui/              Generic UI: cards, tables, pagination, colors
 │   ├── cards/           One card each, and what goes inside it
-│   ├── pages/           Pages, each composing cards
+│   ├── screens/         Pages, each composing cards. Not `pages`:
+│   │                    Streamlit takes a folder of that name for
+│   │                    its own legacy multipage layout
 │   └── static/          CSS and images the dashboard serves
 │
 └── cli/             Process entrypoints.

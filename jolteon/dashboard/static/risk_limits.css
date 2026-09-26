@@ -1,0 +1,47 @@
+/* One limit per row: its name and band on one line, the track under
+   them, and what was measured against what under that. The badge and
+   the percentage sit at the row's far end, so a column of rows lines up
+   whatever the names are. The ticks mark the two thresholds the badge
+   changes at, so a reader can see how close to the next band the fill
+   sits. */
+[class*="st-key-risk-limit-"] {
+  padding: 4px 0 10px;
+}
+
+[class*="st-key-risk-limit-"] [data-testid="stHorizontalBlock"] > :last-child {
+  margin-left: auto;
+}
+
+[class*="st-key-risk-limit-"] [data-testid="stMarkdownContainer"] p {
+  font-size: 12px;
+}
+
+[class*="st-key-risk-limit-"] [data-testid="stCaptionContainer"] p {
+  font-size: 10px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.jolteon-limit-track {
+  position: relative;
+  width: 100%;
+  height: 6px;
+  margin: 8px 0 6px;
+  border-radius: 3px;
+  background: var(--subtle);
+  overflow: hidden;
+}
+
+.jolteon-limit-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 300ms ease, background-color 300ms ease;
+}
+
+.jolteon-limit-tick {
+  position: absolute;
+  top: 0;
+  width: 1px;
+  height: 100%;
+  background: var(--tick);
+}

@@ -5,7 +5,7 @@
    closed by hand, since each cell is an element of its own rather than
    a cell in a table. */
 [class*="st-key-row-fill-"] {
-  border-bottom: 1px solid #E2E6EB;
+  border-bottom: 1px solid var(--rule);
   padding: 0;
 }
 
@@ -27,6 +27,7 @@
   line-height: 1.35;
   margin: 0;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 /* The row is a stack of one horizontal block; neither needs the gap
@@ -38,19 +39,27 @@
 }
 
 [class*="st-key-row-fill-"] [data-testid="stElementContainer"] {
-  padding: 3px 0;
+  padding: 5px 0;
+}
+
+/* The header as the table's own band, the way `table.css` draws one. */
+[class*="st-key-fills-table-header"] {
+  background: var(--band);
+  border-radius: var(--radius-control) var(--radius-control) 0 0;
+  padding: 4px 0;
 }
 
 [class*="st-key-fills-table-header"] p {
   font-weight: 500;
-  font-size: 11px;
-  color: #626D7C;
+  font-size: 10px;
+  letter-spacing: 0.2px;
+  color: var(--muted);
 }
 
 /* A badge carries its own generous padding, which sets the row's height
-   on its own once everything beside it has been brought in. */
-[class*="st-key-row-fill-"] [data-testid="stBadge"] {
-  font-size: 11px;
-  padding: 0 6px;
-  line-height: 1.4;
+   on its own once everything beside it has been brought in. Named the
+   way badge.css names a badge, and from the row down, so this wins. */
+[class*="st-key-row-fill-"] [data-testid="stMarkdownContainer"]
+  span.stMarkdownBadge {
+  padding: 1px 6px;
 }

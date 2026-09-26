@@ -6,7 +6,7 @@ _PAGE_PATH = str(
     Path(__file__).resolve().parents[3]
     / "jolteon"
     / "dashboard"
-    / "pages"
+    / "screens"
     / "parameters.py"
 )
 

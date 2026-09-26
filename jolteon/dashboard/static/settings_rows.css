@@ -20,10 +20,22 @@
   overflow: hidden;
 }
 
-%(card)s [data-testid="stHorizontalBlock"] {
+%(card)s > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] {
   align-items: center;
-  min-height: 64px;
-  padding-inline: 1rem;
+  min-height: 72px;
+  padding: 12px 22px;
+}
+
+/* The row's own words: a label a step above the caption explaining it. */
+%(card)s [data-testid="stMarkdownContainer"] p {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+%(card)s [data-testid="stCaptionContainer"] p {
+  font-size: 11px;
+  margin-top: 4px;
+  color: var(--muted);
 }
 
 /* Streamlit's own spacing around a divider sits closer to the row below
@@ -37,4 +49,5 @@
 
 %(card)s hr {
   height: 1px;
+  border-color: var(--line);
 }

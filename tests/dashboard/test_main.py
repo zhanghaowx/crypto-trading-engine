@@ -17,22 +17,38 @@ def test_dashboard_renders_every_section_on_one_page(dashboard):
     at = dashboard.run()
 
     assert not at.exception
+    # The session's figures lead as a row of the page, not a card, so
+    # they carry no title; these are the cards under them.
     assert _card_titles(at) == [
-        "Orders & PnL",
         "Order book",
         "Risk limits",
-        "Trade quality",
         "Fair price signals",
+        "Recent fills",
+        "Trade quality",
     ]
+
+
+def test_no_page_carries_a_heading_of_its_own(dashboard):
+    """The navigation already names every page; the room under the
+    header goes to the page's own content."""
+    at = dashboard.run()
+    assert not at.exception
+    assert not at.title
+
+    for page in ("health", "parameters", "post_trade"):
+        at.switch_page(f"screens/{page}.py").run()
+        assert not at.exception
+        assert not at.title
 
 
 def test_dashboard_warns_in_every_section_when_db_missing(dashboard):
     at = dashboard.run()
 
     assert not at.exception
-    # One warning per section: market data, risk limits, orders & pnl,
-    # trade quality, fair price signals. Health and errors are on a page
-    # of their own, and the viewer settings on the Parameters page.
+    # One warning per card: order book, risk limits, fair price signals,
+    # recent fills, trade quality. The summary row above them says
+    # nothing rather than warn a sixth time; Health and errors are on a
+    # page of their own, and the viewer settings on the Parameters page.
     assert len(at.warning) == 5
 
 
@@ -47,7 +63,7 @@ def test_dashboard_opens_on_the_live_page(dashboard):
 
 def test_parameters_page_holds_the_viewer_settings(dashboard):
     at = dashboard.run()
-    at.switch_page("pages/parameters.py")
+    at.switch_page("screens/parameters.py")
     # The tab the settings live on, named the way a link to them names it.
     at.query_params["tab"] = "Dashboard"
     at.run()
@@ -59,7 +75,7 @@ def test_parameters_page_holds_the_viewer_settings(dashboard):
 
 def test_parameters_page_does_not_render_the_live_sections(dashboard):
     at = dashboard.run()
-    at.switch_page("pages/parameters.py").run()
+    at.switch_page("screens/parameters.py").run()
 
     assert not at.exception
     assert "Order book" not in _card_titles(at)
@@ -69,7 +85,7 @@ def test_post_trade_has_a_page_of_its_own(dashboard):
     """Reading a finished run back is a different job from watching the
     one happening now, so it does not crowd the Live page."""
     at = dashboard.run()
-    at.switch_page("pages/post_trade.py").run()
+    at.switch_page("screens/post_trade.py").run()
 
     assert not at.exception
     assert "Order book" not in _card_titles(at)
@@ -77,10 +93,10 @@ def test_post_trade_has_a_page_of_its_own(dashboard):
 
 def test_health_has_a_page_of_its_own(dashboard):
     at = dashboard.run()
-    at.switch_page("pages/health.py").run()
+    at.switch_page("screens/health.py").run()
 
     assert not at.exception
-    assert _card_titles(at) == ["Health", "Errors"]
+    assert _card_titles(at) == ["Health", "Error log"]
 
 
 def test_the_live_page_no_longer_reports_health(dashboard):
@@ -91,7 +107,7 @@ def test_the_live_page_no_longer_reports_health(dashboard):
     at = dashboard.run()
 
     assert "Health" not in _card_titles(at)
-    assert "Errors" not in _card_titles(at)
+    assert "Error log" not in _card_titles(at)
 
 
 def test_the_health_page_watches_every_engine(dashboard, engines):
@@ -112,7 +128,7 @@ def test_the_health_page_watches_every_engine(dashboard, engines):
     dashboard.session_state["root"] = engines.root
 
     at = dashboard.run()
-    at.switch_page("pages/health.py").run()
+    at.switch_page("screens/health.py").run()
 
     assert not at.exception
     assert "**MD**" in [m.value for m in at.markdown]
@@ -128,7 +144,7 @@ def test_the_health_card_carries_no_accent_while_nothing_is_down(
     dashboard.session_state["root"] = engines.root
 
     at = dashboard.run()
-    at.switch_page("pages/health.py").run()
+    at.switch_page("screens/health.py").run()
 
     assert not at.exception
     rules = " ".join(h.body for h in at.get("html"))
@@ -139,7 +155,9 @@ def test_offers_no_symbol_to_choose_while_one_engine_is_running(dashboard):
     at = dashboard.run()
 
     assert not at.exception
-    assert len(at.segmented_control) == 0
+    # The feed control is a segmented control too; the picker is the one
+    # keyed by the engine it chooses.
+    assert not [c for c in at.segmented_control if c.key == "engine"]
 
 
 def test_offers_every_symbol_being_traded(dashboard, tmp_path, recordings):
@@ -231,8 +249,8 @@ def test_the_symbol_survives_a_page_switch(dashboard, tmp_path, recordings):
     at = dashboard.run()
     at.segmented_control[0].set_value("kraken:ETH/USD").run()
 
-    at.switch_page("pages/parameters.py").run()
-    at.switch_page("pages/live.py").run()
+    at.switch_page("screens/parameters.py").run()
+    at.switch_page("screens/live.py").run()
 
     assert not at.exception
     assert at.session_state["db_path"] == recordings["ETH/USD"]

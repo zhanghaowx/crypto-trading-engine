@@ -41,7 +41,7 @@ button:disabled {cursor:default;opacity:.45} button.primary {background:var(--in
 .header-end{display:flex;align-items:center;gap:14px;margin-left:auto}
 .theme-switch{display:inline-flex;background:var(--subtle);padding:3px;border-radius:6px;gap:2px}.theme-switch button{border:0;background:transparent;min-height:30px;padding:5px 10px 5px 8px;font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px}.theme-switch button[aria-pressed=true]{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px var(--ink-wash)}.theme-dot{width:9px;height:9px;border-radius:50%;background:var(--dot);display:inline-block;flex:none}
 .demo-label {font-size:10px;letter-spacing:1.3px;color:var(--muted);font-weight:600;display:flex;align-items:center;gap:12px}.demo-label span {font-size:11px;letter-spacing:0;font-weight:400;border:1px solid var(--line);padding:5px 8px;border-radius:4px}
-.nav-shell {background:var(--surface);border-bottom:1px solid var(--line)}nav{max-width:1320px;padding:0 0;display:flex;gap:32px;margin:auto;min-height:53px;align-items:stretch}nav a{display:flex;align-items:center;gap:8px;padding:0 3px;color:var(--muted);font-weight:500;border-bottom:2px solid transparent}nav a:hover{color:var(--ink)}nav a[aria-current=page]{color:var(--ink);border-color:var(--accent)}nav .guide-link{margin-left:auto}.nav-dot{width:6px;height:6px;border-radius:50%;background:var(--positive)}
+.nav-shell {background:var(--surface);border-bottom:1px solid var(--line)}nav{max-width:1320px;padding:0 0;display:flex;gap:32px;margin:auto;min-height:53px;align-items:stretch}nav a{display:flex;align-items:center;gap:8px;padding:0 3px;color:var(--muted);font-weight:500;border-bottom:2px solid transparent}nav a:hover{color:var(--ink)}nav a[aria-current=page]{color:var(--ink);border-color:var(--accent)}nav .guide-link{margin-left:auto}.nav-dot{width:6px;height:6px;border-radius:50%;background:var(--negative)}
 main{max-width:1320px;margin:0 auto;padding:34px 0 48px;min-height:calc(100vh - 199px)}h1,h2,h3,p{margin:0}h1{font-size:29px;letter-spacing:-.9px;font-weight:600;line-height:1.3}h2{font-size:15px;font-weight:600;letter-spacing:-.2px}h3{font-size:14px;font-weight:600}p{color:var(--muted);line-height:1.6}.eyebrow{font-size:10px;letter-spacing:1.5px;font-weight:600;color:var(--muted);margin-bottom:8px}.page-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:24px}.page-heading p{margin-top:7px;font-size:13px}.actions,.inline{display:flex;align-items:center;gap:10px}.muted{color:var(--muted)}.small{font-size:12px}.mono{font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace;font-variant-numeric:tabular-nums}.positive{color:var(--positive)}.negative{color:var(--negative)}
 .context{display:flex;align-items:center;gap:20px;border:1px solid var(--line);background:var(--surface);border-radius:var(--radius);padding:14px 18px;margin-bottom:20px;flex-wrap:wrap}.context label{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:12px}.context select{font-weight:600;color:var(--ink);min-width:175px}.context .end{margin-left:auto}.context .separator{height:24px;width:1px;background:var(--line)}.badge{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:500;line-height:1.3;white-space:nowrap}.badge.good{background:var(--positive-soft);color:var(--positive)}.badge.warn{background:var(--warning-soft);color:var(--warning)}.badge.bad{background:var(--negative-soft);color:var(--negative)}.badge.neutral{background:var(--subtle);color:var(--muted)}.badge.info{background:var(--info-soft);color:var(--info)}.dot{width:5px;height:5px;border-radius:50%;background:currentColor}
 .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px}.kpi{border:1px solid var(--line);background:var(--surface);border-radius:var(--radius);padding:20px 22px;position:relative;overflow:hidden}.kpi-label{font-size:12px;color:var(--muted);margin-bottom:12px}.kpi-value{font-size:28px;font-weight:500;letter-spacing:-1px;font-variant-numeric:tabular-nums}.kpi-note{font-size:11px;color:var(--muted);margin-top:10px}.kpi .spark{position:absolute;right:18px;bottom:19px;width:76px;height:30px;opacity:.75}.kpi-note.has-spark{max-width:70%}
@@ -96,3 +96,34 @@ td .badge+.badge{margin-left:4px}
    wordmark is what gives way: the preview label has to stay legible on a
    page full of invented trading numbers. */
 @media(max-width:760px){.brand-name{display:none}.app-header{gap:12px}.workspace-switch{margin-left:0}}
+
+/* A stopped engine is a quiet state. It shares the empty state's neutral
+   surface rather than the warning band: nothing is wrong, nothing is
+   running. */
+.banner.neutral{display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:var(--surface);border-color:var(--line);color:var(--ink)}
+.banner.neutral .chip{margin-left:auto}
+/* A level holding one of our own quotes is marked in the row, not boxed:
+   a small tag before the price and a rule at the row's edge, so the
+   numbers stay in their columns. */
+.tag{display:inline-block;font-size:9px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;line-height:1.3;color:var(--muted);border:1px solid var(--line-strong);border-radius:3px;padding:1px 4px;margin-right:6px;vertical-align:middle}
+tr.own-quote td:first-child{box-shadow:inset 3px 0 0 var(--ink)}
+.signal-row .inline{gap:8px;flex-wrap:wrap}
+.card-head .inline{gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.card-foot .inline{gap:4px}
+.text-button[aria-pressed=true]{color:var(--ink);font-weight:600}
+.context .text-button{margin-right:4px}
+/* Health groups its tiles under the engine they report on, because it is
+   the one page that reads every engine. */
+.engine-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:24px 0 12px}
+.engine-row.first{margin-top:0}
+.engine-row h2{font-size:15px}
+.engine-row .chip{margin-left:auto}
+.health-tile.stopped h3,.health-tile.stopped .eyebrow{color:var(--muted)}
+/* Parameter groups sit under the part of the engine each one configures. */
+.settings-nav h4{font-size:10px;letter-spacing:1.5px;font-weight:600;color:var(--muted);padding:18px 12px 6px;margin:0}
+.settings-nav h4:first-child{padding-top:4px}
+.setting-label{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+@media(max-width:760px){.engine-row .chip,.banner.neutral .chip{margin-left:0}.card-head .inline{justify-content:flex-start}}
+.signal-value .mono{white-space:nowrap}
+@media(max-width:760px){.card-head{flex-wrap:wrap}.card-head .inline{width:100%}}
+.unit{width:auto;min-width:36px;white-space:nowrap}

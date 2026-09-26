@@ -11,7 +11,7 @@ _PAGE_PATH = str(
     Path(__file__).resolve().parents[3]
     / "jolteon"
     / "dashboard"
-    / "pages"
+    / "screens"
     / "post_trade.py"
 )
 
@@ -150,12 +150,28 @@ def test_the_run_still_going_is_not_offered(three_runs, tmp_path):
     assert not at.exception
     picker = at.selectbox[0]
     assert not any("abc123" in option for option in picker.options)
-    # Both ways a run can be over are offered, newest first, worded the
-    # way the Live page words them.
+    # Both ways a run can be over are offered, newest first, each named
+    # by when it started; its status and modes are the bar's badges.
     assert picker.options == [
-        "2025-09-16 06:20:00 UTC · c0ffee11 · Interrupted · Paper · Live feed",
-        "2025-09-16 05:20:00 UTC · def456 · Stopped · Paper · Live feed",
+        "2025-09-16 06:20:00 UTC · c0ffee11",
+        "2025-09-16 05:20:00 UTC · def456",
     ]
+    badges = " ".join(m.value for m in at.markdown if "-badge[" in m.value)
+    assert ":orange-badge[Interrupted]" in badges
+    assert ":blue-badge[Paper]" in badges
+    assert ":green-badge[Live feed]" in badges
+
+
+def test_a_run_no_longer_on_offer_gives_way_to_the_newest(
+    three_runs, tmp_path
+):
+    """A run chosen under one engine is not a run under the next one."""
+    at = _page(three_runs, str(tmp_path / "engines"))
+    at.session_state["analysis_run_id"] = "20260101T000000Z-gone"
+    at.run()
+
+    assert not at.exception
+    assert at.selectbox[0].value == INTERRUPTED
 
 
 def test_opens_on_the_newest_run_that_has_ended(three_runs, tmp_path):
@@ -164,7 +180,7 @@ def test_opens_on_the_newest_run_that_has_ended(three_runs, tmp_path):
     assert not at.exception
     assert at.selectbox[0].value == INTERRUPTED
     assert [e.label.split(": ", 1)[-1] for e in at.expander] == [
-        "Session economics"
+        "Execution economics"
     ]
     # The interrupted run's one fill, not the running run's.
     assert {m.label: m.value for m in at.metric}["Notional"] == "$70.00"
@@ -216,9 +232,9 @@ def test_an_older_recording_says_its_mode_was_never_recorded(
     at = _page(a_run_recorded_without_modes, str(tmp_path / "engines")).run()
 
     assert not at.exception
-    assert at.selectbox[0].options == [
-        "2025-09-16 05:20:00 UTC · def456 · Stopped · Mode not recorded"
-    ]
+    assert at.selectbox[0].options == ["2025-09-16 05:20:00 UTC · def456"]
+    badges = " ".join(m.value for m in at.markdown if "-badge[" in m.value)
+    assert ":gray-badge[Mode not recorded]" in badges
 
 
 @pytest.fixture
@@ -255,10 +271,11 @@ def test_a_replay_says_which_recording_it_was_measured_from(
     at = _page(a_replay_run, str(tmp_path / "engines")).run()
 
     assert not at.exception
-    assert at.selectbox[0].options == [
-        "2025-09-16 05:20:00 UTC · def456 · Stopped · Simulation · Replay"
-    ]
-    # The page's own purpose line comes first; the replay detail follows it.
+    badges = " ".join(m.value for m in at.markdown if "-badge[" in m.value)
+    assert ":blue-badge[Simulation]" in badges
+    assert ":blue-badge[Replay]" in badges
+    # The bar's run identity comes first; the replay detail follows it,
+    # under the bar.
     assert [caption.value for caption in at.caption][1:] == [
         "Replayed `/recordings/live.sqlite` · "
         "2025-09-15 01:33:20 – 2025-09-15 02:33:20 UTC · "
@@ -270,6 +287,6 @@ def test_a_live_run_is_shown_without_a_replay_source(three_runs, tmp_path):
     at = _page(three_runs, str(tmp_path / "engines")).run()
 
     assert not at.exception
-    # Only the page's own purpose line - no replay detail to show for a
-    # run that read a live feed rather than a recording.
+    # The bar's run identity alone - no replay detail to show for a run
+    # that read a live feed rather than a recording.
     assert len(at.caption) == 1

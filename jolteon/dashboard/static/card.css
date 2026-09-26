@@ -11,6 +11,8 @@
 
 %(selector)s {
   position: relative;
+  /* The prototype's card inset: the title row carries the top. */
+  padding: 0 22px 20px;
   transition: box-shadow 300ms ease, border-color 300ms ease;
 }
 
@@ -29,13 +31,19 @@
   background: transparent;
 }
 
+/* The body sits flush with the title above it; the card's own inset is
+   the only one. */
+%(selector)s > [data-testid="stLayoutWrapper"] > [data-testid="stExpander"]
+  > details > [data-testid="stExpanderDetails"] {
+  padding: 0;
+}
+
 /* The summary's own row: the title first, its chevron pushed to the far
    end so it sits with the rest of the chrome. The gutter goes too, so
    the title lines up with the content below it. */
 %(selector)s > [data-testid="stLayoutWrapper"] > [data-testid="stExpander"]
   > details > summary {
-  padding-left: 0;
-  padding-right: 0;
+  padding: 15px 0 12px;
 }
 
 %(selector)s > [data-testid="stLayoutWrapper"] > [data-testid="stExpander"]
@@ -52,6 +60,7 @@
   > details > summary p {
   font-size: 15px;
   font-weight: 600;
+  letter-spacing: -0.2px;
 }
 
 /* The chrome is a later sibling of the expander, lifted onto the summary
@@ -63,9 +72,9 @@
      the summary row starts a padding in from it - hence the offset, and
      the row's own height to centre on, so these icons land on the same
      line as the chevron and the title. */
-  top: 1rem;
+  top: 13px;
   height: 2.25rem;
-  right: 3rem;
+  right: 3.25rem;
   width: auto;
   display: flex;
   align-items: center;

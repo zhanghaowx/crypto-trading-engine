@@ -1,6 +1,9 @@
-"""The ladder: the book drawn out level by level, with our quotes in it."""
+"""The book drawn out level by level, bids beside asks, with our quotes
+in it."""
 
 import math
+import re
+from html import escape
 from pathlib import Path
 
 import streamlit as st
@@ -11,7 +14,7 @@ from jolteon.dashboard.read_models.order_book import (
     our_quotes,
     recorded_symbol,
 )
-from jolteon.dashboard.ui.empty_states import warn_if_no_db
+from jolteon.dashboard.ui.empty_states import empty_state, warn_if_no_db
 from jolteon.dashboard.ui.primitives import NEGATIVE_RGB, POSITIVE_RGB
 from jolteon.engine.market_data.core.order_book import OrderBook, PriceLevel
 
@@ -28,7 +31,15 @@ _DEPTH_TINT = {
     "ask": _tint(NEGATIVE_RGB),
 }
 
-_LADDER_CSS = (
+# Each side's bar grows from the middle of the card outwards - bids from
+# their right edge, asks from their left - so the two sides read as one
+# book folded open at the spread.
+_DEPTH_FROM = {
+    "bid": "to left",
+    "ask": "to right",
+}
+
+_BOOK_CSS = (
     Path(__file__).resolve().parents[1] / "static" / "order_book.css"
 ).read_text()
 
@@ -57,7 +68,7 @@ def _our_row(quote: Quote, side: str) -> str:
     quoting inside the spread puts us at a price the book has no level
     at, and in paper trading our orders never reach the venue's book at
     all."""
-    size = "\u2013" if quote.quantity is None else f"{quote.quantity:,.4f}"
+    size = "–" if quote.quantity is None else f"{quote.quantity:,.4f}"
     return (
         f'<tr class="jolteon-book-row jolteon-book-{side} '
         f'jolteon-book-resting jolteon-book-alone">'
@@ -65,7 +76,7 @@ def _our_row(quote: Quote, side: str) -> str:
         f"<td>{size}</td>"
         # Our own order is no part of the venue's resting depth, so it
         # has no running total to carry.
-        f"<td>\u2013</td>"
+        f"<td>–</td>"
         f"</tr>"
     )
 
@@ -86,8 +97,8 @@ def _ladder_row(
     # the resting size behind the numbers, the way a venue's book does.
     tint = _DEPTH_TINT[side]
     bar = (
-        f"background:linear-gradient(to left,{tint} 0 {fill:.1f}%,"
-        f"transparent {fill:.1f}% 100%)"
+        f"background:linear-gradient({_DEPTH_FROM[side]},"
+        f"{tint} 0 {fill:.1f}%,transparent {fill:.1f}% 100%)"
     )
     return (
         f'<tr class="{classes}" style="{bar}">'
@@ -111,7 +122,7 @@ def _side_rows(
     price, and takes a row of its own where it does not - which is what a
     quote inside the spread always does. A quote further out than the
     levels shown keeps its place in the price order, at the far end of
-    its own side, rather than dropping out of the ladder entirely.
+    its own side, rather than dropping out of the book entirely.
     """
     ahead = (
         (lambda ours, theirs: ours > theirs)
@@ -135,46 +146,64 @@ def _side_rows(
     return rows
 
 
-def ladder_html(book: OrderBook, quotes: dict[str, Quote]) -> str:
+def _currencies(symbol: str) -> tuple[str, str]:
+    """The base and quote currency a symbol names, and nothing at all
+    where the recording does not name it as a pair."""
+    parts = re.split(r"[/-]", symbol, maxsplit=1)
+    return (parts[0], parts[1]) if len(parts) == 2 else ("", "")
+
+
+def _side_html(side: str, rows: list[str], base: str, quote: str) -> str:
+    heading = "Bids" if side == "bid" else "Asks"
+    currency = f" <span>· {escape(quote)}</span>" if quote else ""
+    unit = f" ({escape(base)})" if base else ""
+    return (
+        f'<div class="jolteon-book-side jolteon-book-{side}s">'
+        f"<h3>{heading}{currency}</h3>"
+        f"<table><thead><tr><th>Price</th><th>Size{unit}</th>"
+        f"<th>Total</th></tr></thead>"
+        f"<tbody>{''.join(rows)}</tbody></table></div>"
+    )
+
+
+def book_html(book: OrderBook, quotes: dict[str, Quote], symbol: str) -> str:
     """
-    Returns: The book as a ladder - asks falling towards the spread,
-    bids below it - each level backed by a bar the width of everything
-    resting at it and ahead of it, and our own quote placed in it.
+    Returns: The book as two columns - bids on the left, asks on the
+    right, each best price first - every level backed by a bar the width
+    of everything resting at it and ahead of it, our own quote placed in
+    it, and the mid and spread between the two sides' best prices under
+    them.
     """
     bids = _rows(book.bids(LEVELS))
     asks = _rows(book.asks(LEVELS))
     deepest = max(
         [total for _, total in bids] + [total for _, total in asks] + [0.0]
     )
+    base, quote_currency = _currencies(symbol)
 
-    # Asks are built best price first and shown the other way up, so the
-    # spread sits between the two sides' best prices - and a sell quote
-    # beyond the levels shown, appended last, lands at the very top.
-    ask_rows = "".join(
-        reversed(_side_rows(asks, deepest, "ask", quotes.get("SELL")))
-    )
-    bid_rows = "".join(_side_rows(bids, deepest, "bid", quotes.get("BUY")))
+    bid_rows = _side_rows(bids, deepest, "bid", quotes.get("BUY"))
+    ask_rows = _side_rows(asks, deepest, "ask", quotes.get("SELL"))
 
     best_bid, best_ask = book.best_bid(), book.best_ask()
     if best_bid and best_ask:
         spread = best_ask.price - best_bid.price
         mid = (best_ask.price + best_bid.price) / 2
+        in_currency = f" {escape(quote_currency)}" if quote_currency else ""
         middle = (
-            f'<tr class="jolteon-book-spread"><td colspan="3">'
-            f"{mid:,.2f}"
-            f"<span>spread {spread:,.2f}"
-            f" ({spread / mid * 1e4:,.1f} bps)</span>"
-            f"</td></tr>"
+            f'<div class="jolteon-book-mid"><span>Mid price</span>'
+            f"<strong>{mid:,.2f}</strong>"
+            f"<span>Spread <b>{spread:,.2f}</b>{in_currency}"
+            f" · {spread / mid * 1e4:,.1f} bps</span></div>"
         )
     else:
         middle = ""
 
     return (
-        f"<style>{_LADDER_CSS}</style>"
-        f'<table class="jolteon-book">'
-        f"<thead><tr><th>Price</th><th>Size</th>"
-        f"<th>Total</th></tr></thead>"
-        f"<tbody>{ask_rows}{middle}{bid_rows}</tbody></table>"
+        f"<style>{_BOOK_CSS}</style>"
+        f'<div class="jolteon-book"><div class="jolteon-book-sides">'
+        f"{_side_html('bid', bid_rows, base, quote_currency)}"
+        f"{_side_html('ask', ask_rows, base, quote_currency)}"
+        f"</div>{middle}</div>"
     )
 
 
@@ -183,9 +212,10 @@ def render() -> None:
         return
 
     db_path = st.session_state.db_path
-    book = book_now(db_path, recorded_symbol(db_path))
+    symbol = recorded_symbol(db_path)
+    book = book_now(db_path, symbol)
     if book is None or not book.bbo():
-        st.info("No order book recorded yet that this page can read.")
+        empty_state("No order book recorded yet that this page can read.")
         return
 
-    st.html(ladder_html(book, our_quotes(db_path)))
+    st.html(book_html(book, our_quotes(db_path), symbol))

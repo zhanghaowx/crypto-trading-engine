@@ -108,7 +108,7 @@ def render(
 
     st.html(
         f"<style>{_TABLE_CSS}</style>"
-        f'<table class="jolteon-table">'
+        f'<div class="jolteon-table-wrap"><table class="jolteon-table">'
         f"<thead>{_header(columns, column_help or {}, numeric)}</thead>"
-        f"<tbody>{''.join(rows)}</tbody></table>"
+        f"<tbody>{''.join(rows)}</tbody></table></div>"
     )

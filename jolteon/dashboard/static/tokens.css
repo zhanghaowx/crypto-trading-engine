@@ -1,0 +1,50 @@
+/* The Slate palette and scale, as the prototype defines them
+   (prototype/styles.css is the executable reference; this file carries
+   the same values so every stylesheet here names a role rather than a
+   hex, and a palette change is one edit). The theme in
+   .streamlit/config.toml paints Streamlit's own widgets from the same
+   values; `ui/primitives.py` names the few a badge or a bar has to be
+   handed as a literal. */
+:root {
+  --canvas: #f6f7f9;
+  --surface: #ffffff;
+  --surface-sunken: #fcfcfd;
+  --ink: #20262e;
+  --ink-hover: #38424f;
+  --muted: #626d7c;
+  --line: #e2e6eb;
+  --line-strong: #bdc5cf;
+  --rule: #eef0f3;
+  --band: #f8f9fb;
+  --subtle: #f0f3f6;
+  --selected: #e9edf2;
+  --accent: #ae9417;
+  --accent-soft: #fef3da;
+  --positive: #137552;
+  --positive-soft: #eaf5ef;
+  --negative: #b63e49;
+  --negative-soft: #fbeef0;
+  --warning: #946315;
+  --warning-soft: #fff5df;
+  --warning-track: #b38427;
+  /* The theme's second amber tier - elevated, not yet near the limit -
+     which the prototype's palette has no token for. */
+  --warning-strong: #6f430c;
+  --info: #456aac;
+  --info-soft: #edf2fb;
+  --tick: #aeb8c4;
+  --series: #7c8faa;
+  --ink-wash: #20262e14;
+
+  --radius: 10px;
+  --radius-control: 6px;
+  --radius-badge: 4px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}

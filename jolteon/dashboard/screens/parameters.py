@@ -1,12 +1,6 @@
 import streamlit as st
 
 from jolteon.dashboard.cards import engine_parameters, viewer_settings
-from jolteon.dashboard.ui.page_header import page_heading
-
-page_heading(
-    "Parameters",
-    "Tunables the engine reads, and this dashboard's own display settings.",
-)
 
 _TABS = ("Engine", "Dashboard")
 

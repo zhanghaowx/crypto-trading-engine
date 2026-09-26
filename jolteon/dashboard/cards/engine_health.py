@@ -10,7 +10,7 @@ from jolteon.dashboard.data.sqlite import as_datetime
 from jolteon.dashboard.services.health import heartbeats, is_down
 from jolteon.dashboard.ui.cards import card_grid
 from jolteon.dashboard.ui.empty_states import empty_state, warn_if_no_engines
-from jolteon.dashboard.ui.primitives import SEMANTIC_COLORS, BadgeColor, slug
+from jolteon.dashboard.ui.primitives import BadgeColor, slug
 from jolteon.engine.core.health_monitor.heartbeat import HeartbeatLevel
 
 HEARTBEAT_BADGES: dict[int, tuple[str, BadgeColor]] = {
@@ -23,12 +23,6 @@ HEARTBEAT_BADGES: dict[int, tuple[str, BadgeColor]] = {
 UNKNOWN_BADGE: tuple[str, BadgeColor] = ("UNKNOWN", "gray")
 
 DOWN_BADGE: tuple[str, BadgeColor] = ("DOWN", "red")
-
-
-def _status_dot(color: BadgeColor) -> str:
-    hex_color = SEMANTIC_COLORS[color]
-    style = f"background:{hex_color}; color:{hex_color}"
-    return f'<span class="jolteon-status-dot" style="{style}"></span>'
 
 
 def _describe_age(seconds: float) -> str:
@@ -70,15 +64,13 @@ def _tiles(symbol: str, latest: pd.DataFrame) -> None:
     for row in card_grid(
         rows,
         key=f"health-tiles-{slug(symbol)}",
-        columns=6,
-        min_width=240,
+        columns=4,
+        min_width=200,
         key_fn=lambda row: _tile_key(symbol, row.sender),
     ):
         label, color = _status(row)
         st.markdown(f"**{row.sender}**")
-        with st.container(horizontal=True, vertical_alignment="center", gap=0):
-            st.html(_status_dot(color), width="content")
-            st.badge(label, color=color)
+        st.badge(label, color=color)
         parts = [row.message] if row.message else []
         if is_down(row.quiet_for):
             parts.append(f"No heartbeat for {_describe_age(row.quiet_for)}")

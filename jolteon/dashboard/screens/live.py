@@ -11,17 +11,18 @@ from jolteon.dashboard.state import current_run, refresh_interval
 from jolteon.dashboard.ui.cards import Card, cards_rule, render_cards
 from jolteon.dashboard.ui.engine_selection import select_engine
 from jolteon.dashboard.ui.navigation import watch_nav
-from jolteon.dashboard.ui.page_header import page_heading, run_scope_caption
+from jolteon.dashboard.ui.page_header import context_bar
 
 cards = [
+    # The session's figures lead, as a row of the page rather than a card
+    # on it; the cards under them are what those figures are made of.
     Card(
-        "orders-pnl",
-        "Orders & PnL",
-        ":material/currency_bitcoin:",
-        orders_pnl.render,
+        "summary",
+        "Summary",
+        ":material/summarize:",
+        orders_pnl.render_summary,
         load=orders_pnl.load,
-        actions=orders_pnl.render_header_actions,
-        accent=orders_pnl.accent,
+        frame="bare",
     ),
     Card(
         "order-book",
@@ -39,29 +40,35 @@ cards = [
         width="half",
     ),
     Card(
-        "trade-quality",
-        "Trade quality",
-        ":material/target:",
-        trade_quality.render,
-    ),
-    Card(
         "fair-price-signals",
         "Fair price signals",
         ":material/insights:",
         fair_price_signals.render,
         details=fair_price_signals.render_details,
     ),
+    Card(
+        "recent-fills",
+        "Recent fills",
+        ":material/receipt_long:",
+        orders_pnl.render,
+        load=orders_pnl.load,
+        actions=orders_pnl.render_header_actions,
+    ),
+    Card(
+        "trade-quality",
+        "Trade quality",
+        ":material/target:",
+        trade_quality.render,
+    ),
 ]
 
 st.html(cards_rule(cards))
 
-page_heading("Live", "What this engine is doing right now.")
-
 # Outside the cards' own fragments: they read whichever engine this
 # picks, so it has to be settled before any of them run, and choosing
 # another engine is meant to invalidate every one of them at once.
-select_engine()
-run_scope_caption(current_run())
+with context_bar(current_run(), live=True):
+    select_engine()
 
 # Each card refreshes itself on a timer of its own (see `card.card`), so
 # there is no page-wide fragment here to redraw the lot.

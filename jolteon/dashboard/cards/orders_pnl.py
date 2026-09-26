@@ -24,13 +24,13 @@ from jolteon.dashboard.data.fair_prices import read_fair_prices_for_fills
 from jolteon.dashboard.data.runs import read_run_table
 from jolteon.dashboard.data.sqlite import (
     as_datetime,
+    database_exists,
     max_rowid,
     read_after,
     read_latest_per_group,
 )
 from jolteon.dashboard.state import current_run_id
-from jolteon.dashboard.ui.cards import Accent
-from jolteon.dashboard.ui.empty_states import warn_if_no_db
+from jolteon.dashboard.ui.empty_states import empty_state, warn_if_no_db
 from jolteon.dashboard.ui.pagination import paginate
 from jolteon.dashboard.ui.primitives import (
     MISSING,
@@ -387,16 +387,6 @@ def load() -> OrdersModel:
     )
 
 
-def accent(model: "OrdersModel | None" = None) -> Accent:
-    """The card's edge color: red while the day is down, and nothing at
-    all otherwise - a positive result is the ordinary case, and does not
-    need the whole card to say so."""
-    model = load() if model is None else model
-    if model.fills.empty:
-        return None
-    return "red" if model.realized < 0 else None
-
-
 def render_header_actions(model: "OrdersModel | None" = None) -> None:
     """A download icon for the card title's own row - every raw fill as
     a CSV file, the fastest way to get this page's data out for analysis
@@ -416,33 +406,42 @@ def render_header_actions(model: "OrdersModel | None" = None) -> None:
     )
 
 
+def render_summary(model: "OrdersModel | None" = None) -> None:
+    """
+    The session's figures in one row, above everything they are made of.
+
+    A row of the page rather than a card on it, so it has no title to
+    say why it is empty under - and nothing to say that the cards below
+    do not already: before the first fill, or with no recording to read,
+    it draws nothing at all.
+    """
+    if not database_exists(st.session_state.db_path):
+        return
+    model = load() if model is None else model
+    if not model.fills.empty:
+        _render_pnl(model)
+
+
 def render(model: "OrdersModel | None" = None) -> None:
+    """The fills themselves, newest first, a page at a time."""
     if not warn_if_no_db():
         return
 
     model = load() if model is None else model
     fills = model.fills
-
     if fills.empty:
-        st.info("No fills yet.")
-    else:
-        _render_pnl(model)
+        empty_state("No fills yet.")
+        return
 
-    st.divider()
-
-    st.markdown("**Recent fills**")
-    if fills.empty:
-        st.info("No fills yet.")
-    else:
-        # Paged before the display columns are worked out, not after:
-        # every one of them - the edge, the cash flow, a markout per
-        # horizon - was being computed for a whole session's fills to
-        # show the ten on screen.
-        page, show_pagination = paginate(
-            _newest_first(fills, "transaction_timestamp"),
-            key="recent-fills",
-            page_size=PAGE_SIZE,
-        )
-        page = _derive_visible_markouts(st.session_state.db_path, page)
-        render_fills_list(fills_table(page))
-        show_pagination()
+    # Paged before the display columns are worked out, not after: every
+    # one of them - the edge, the cash flow, a markout per horizon - was
+    # being computed for a whole session's fills to show the ten on
+    # screen.
+    page, show_pagination = paginate(
+        _newest_first(fills, "transaction_timestamp"),
+        key="recent-fills",
+        page_size=PAGE_SIZE,
+    )
+    page = _derive_visible_markouts(st.session_state.db_path, page)
+    render_fills_list(fills_table(page))
+    show_pagination()

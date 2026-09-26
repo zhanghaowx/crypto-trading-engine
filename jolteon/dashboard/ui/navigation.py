@@ -12,7 +12,6 @@ import streamlit as st
 from jolteon.dashboard.services.health import HealthSummary, summary
 
 NAV_TITLE = "Health"
-NAV_ICON = ":material/monitor_heart:"
 
 _ALERT_DOT_CSS = (
     Path(__file__).resolve().parents[1] / "static" / "nav_alert_dot.css"

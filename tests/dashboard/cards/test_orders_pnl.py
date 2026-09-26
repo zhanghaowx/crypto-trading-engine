@@ -14,10 +14,17 @@ from jolteon.dashboard.ui.primitives import MISSING
 def _script():
     from jolteon.dashboard.cards import orders_pnl
 
-    # Header actions render ahead of the card's own body, the same
-    # order the page draws them in.
+    # The summary row leads the page; the fills card's header actions
+    # render ahead of its own body, the same order the page draws them.
+    orders_pnl.render_summary()
     orders_pnl.render_header_actions()
     orders_pnl.render()
+
+
+def _summary_script():
+    from jolteon.dashboard.cards import orders_pnl
+
+    orders_pnl.render_summary()
 
 
 def _metrics(at):
@@ -32,19 +39,37 @@ def test_shows_warning_when_db_missing(missing_db_path):
     at.run()
 
     assert not at.exception
-    assert at.warning
+    # The fills card warns; the summary row above it stays silent rather
+    # than say the same thing twice.
+    assert len(at.warning) == 1
     assert not at.info
 
 
-def test_shows_no_fills_messages_when_empty(empty_db_path):
+def test_says_quietly_that_there_are_no_fills_yet(empty_db_path):
     at = AppTest.from_function(_script)
     at.session_state["db_path"] = empty_db_path
     at.run()
 
     assert not at.exception
     assert not at.warning
-    # One for the PnL figures, one for the list of recent fills.
-    assert [i.value for i in at.info] == ["No fills yet.", "No fills yet."]
+    assert not at.info
+    # Said once, by the fills card: nothing to sum up is not an alert.
+    assert [c.value for c in at.caption] == ["No fills yet."]
+    assert not at.metric
+
+
+def test_the_summary_row_draws_nothing_it_cannot_sum_up(
+    missing_db_path, empty_db_path
+):
+    """A row of the page rather than a card on it, so with no recording
+    and before the first fill it has no title to explain itself under."""
+    for db_path in (missing_db_path, empty_db_path):
+        at = AppTest.from_function(_summary_script)
+        at.session_state["db_path"] = db_path
+        at.run()
+
+        assert not at.exception
+        assert not at.warning and not at.caption and not at.metric
 
 
 def test_renders_pnl_and_recent_fills(populated_db_path):
@@ -165,72 +190,6 @@ def test_marks_inventory_at_zero_without_a_bbo_feed(tmp_path):
     # No mark price available, so total PnL falls back to net cash alone.
     assert metrics["Net cash flow"] == metrics["Total PnL"]
     assert "BTC-USD mark price" not in metrics
-
-
-def _accent_script():
-    import streamlit as st
-
-    from jolteon.dashboard.cards import orders_pnl
-
-    st.write(str(orders_pnl.accent()))
-
-
-def _round_trip_db(tmp_path, sell_price: float) -> str:
-    """A closed round trip: one lot bought at 100 and sold back at
-    `sell_price`, which is what decides whether the card reads as up or
-    down."""
-    db_path = str(tmp_path / f"round-trip-{sell_price}.sqlite")
-    conn = sqlite3.connect(db_path)
-    try:
-        conn.execute(
-            "CREATE TABLE decorated_order_fill "
-            "(timestamp REAL, transaction_timestamp REAL, side TEXT, "
-            "fill_price REAL, fill_qty REAL, fee REAL, symbol TEXT, "
-            "exchange_execution_id TEXT PRIMARY KEY, fair_price_at_fill REAL, "
-            "inventory_before REAL, inventory_after REAL, "
-            "fair_price_100ms REAL, fair_price_1s REAL, fair_price_5s REAL, "
-            "fair_price_30s REAL)"
-        )
-        conn.executemany(
-            "INSERT INTO decorated_order_fill VALUES "
-            "(?, ?, ?, ?, 1.0, 0.0, 'BTC-USD', ?, 100.0, 0.0, 0.0, "
-            "NULL, NULL, NULL, NULL)",
-            [
-                (1700000000, 1700000000, "BUY", 100.0, 1),
-                (1700000001, 1700000001, "SELL", sell_price, 2),
-            ],
-        )
-        conn.commit()
-    finally:
-        conn.close()
-    return db_path
-
-
-def test_accent_is_absent_before_the_first_fill(empty_db_path):
-    at = AppTest.from_function(_accent_script)
-    at.session_state["db_path"] = empty_db_path
-    at.run()
-
-    assert not at.exception
-    assert at.markdown[0].value == "None"
-
-
-def test_accent_is_absent_while_the_round_trips_are_up(tmp_path):
-    at = AppTest.from_function(_accent_script)
-    at.session_state["db_path"] = _round_trip_db(tmp_path, 110.0)
-    at.run()
-
-    assert not at.exception
-    assert at.markdown[0].value == "None"
-
-
-def test_accent_is_red_while_the_round_trips_are_down(tmp_path):
-    at = AppTest.from_function(_accent_script)
-    at.session_state["db_path"] = _round_trip_db(tmp_path, 90.0)
-    at.run()
-
-    assert not at.exception
-    assert at.markdown[0].value == "red"
 
 
 def _pnl_db(tmp_path, name, fills) -> str:
@@ -390,19 +349,18 @@ def _orders_card_script():
     render_cards(
         [
             Card(
-                "orders-pnl",
-                "Orders & PnL",
-                ":material/currency_bitcoin:",
+                "recent-fills",
+                "Recent fills",
+                ":material/receipt_long:",
                 orders_pnl.render,
                 load=orders_pnl.load,
                 actions=orders_pnl.render_header_actions,
-                accent=orders_pnl.accent,
             )
         ]
     )
 
 
-def test_card_shares_one_data_load_across_body_accent_and_download(
+def test_card_shares_one_data_load_across_body_and_download(
     populated_db_path,
 ):
     from jolteon.dashboard.cards import orders_pnl
@@ -427,9 +385,9 @@ def test_card_shares_one_data_load_across_body_accent_and_download(
         assert not at.exception
         assert not at.error
         assert load.call_count == read.call_count == realized.call_count == 1
-        assert _metrics(at)["Realized PnL"] == ":red[-0.10]"
+        assert ":green-badge[BUY]" in [m.value for m in at.markdown]
         assert len(at.get("download_button")) == 1
-        at.button(key="card-orders-pnl-refresh").click().run()
+        at.button(key="card-recent-fills-refresh").click().run()
         assert not at.exception
         assert not at.error
         assert load.call_count == read.call_count == realized.call_count == 2
