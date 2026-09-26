@@ -18,6 +18,7 @@ from jolteon.analysis.pnl import (
     fold_fills,
     pnl_by_symbol,
     signed_cash_flow,
+    traded_notional,
 )
 from jolteon.dashboard.data import trade_queries
 from jolteon.dashboard.data.fair_prices import read_fair_prices_for_fills
@@ -29,14 +30,14 @@ from jolteon.dashboard.data.sqlite import (
     read_latest_per_group,
 )
 from jolteon.dashboard.state import current_run_id
-from jolteon.dashboard.ui.cards import Accent
 from jolteon.dashboard.ui.empty_states import warn_if_no_db
 from jolteon.dashboard.ui.pagination import paginate
 from jolteon.dashboard.ui.primitives import (
     MISSING,
+    NEGATIVE_COLOR,
+    POSITIVE_COLOR,
     SIDE_COLORS,
     fmt_usd,
-    metric,
     row_key,
     sign_color,
 )
@@ -307,55 +308,61 @@ def realized_pnl_now(db_path: str, run_id: str | None = None) -> float:
     return state.total
 
 
-def _render_pnl(model: "OrdersModel") -> None:
-    by_symbol = model.pnl
+_KPI_ROW_CSS = (
+    Path(__file__).resolve().parents[1] / "static" / "kpi_row.css"
+).read_text()
 
-    cols = iter(st.columns(5 + len(by_symbol)))
 
-    total_pnl = by_symbol["total_pnl"].sum()
-    with next(cols):
-        metric(
-            "Total PnL",
-            total_pnl,
-            color=sign_color(total_pnl),
-            border=True,
-        )
-    realized = model.realized
-    with next(cols):
-        metric(
-            "Realized PnL",
-            realized,
-            color=sign_color(realized),
-            border=True,
-        )
-    net_cash = by_symbol["net_cash"].sum()
-    with next(cols):
-        metric(
-            "Net cash flow",
-            net_cash,
-            color=sign_color(net_cash),
-            border=True,
-        )
-    with next(cols):
-        metric(
-            "Inventory value",
-            by_symbol["inventory_value"].sum(),
-            border=True,
-        )
-    with next(cols):
-        metric(
-            "Fees paid",
-            model.fees,
-            border=True,
-        )
-    for symbol, row in by_symbol.iterrows():
-        with next(cols):
-            metric(
-                f"{symbol} position",
-                row["position"],
-                decimals=None,
-                border=True,
-            )
+def _kpi_tile(label: str, value: str, note: str, *, color: str = "") -> str:
+    style = f' style="color:{color}"' if color else ""
+    return (
+        '<article class="jolteon-kpi">'
+        f'<div class="jolteon-kpi-label">{label}</div>'
+        f'<div class="jolteon-kpi-value"{style}>{value}</div>'
+        f'<div class="jolteon-kpi-note">{note}</div>'
+        "</article>"
+    )
+
+
+def _fill_split_note(fills: pd.DataFrame) -> str:
+    """How the session's fills split by side, the way a reader would
+    count them."""
+    buys = int((fills["side"] == "BUY").sum())
+    sells = int((fills["side"] == "SELL").sum())
+    return f"{buys} buy / {sells} sell"
+
+
+def kpi_row_html(model: "OrdersModel") -> str:
+    """The session's headline numbers as the prototype's tile row: big
+    numbers, their own visual weight, and no card wrapping them."""
+    total_pnl = float(model.pnl["total_pnl"].sum())
+    tiles = [
+        _kpi_tile(
+            "Marked PnL",
+            fmt_usd(total_pnl),
+            "Cash flow + inventory at mid",
+            color=POSITIVE_COLOR if total_pnl >= 0 else NEGATIVE_COLOR,
+        ),
+        _kpi_tile(
+            "Traded notional",
+            f"${traded_notional(model.fills):,.2f}",
+            "This session · USD",
+        ),
+        _kpi_tile(
+            "Fills",
+            f"{len(model.fills):,}",
+            _fill_split_note(model.fills),
+        ),
+        _kpi_tile(
+            "Trading fees",
+            f"${model.fees:,.2f}",
+            "Total fees · This session",
+        ),
+    ]
+    return (
+        f"<style>{_KPI_ROW_CSS}</style>"
+        f'<div class="jolteon-kpis">{"".join(tiles)}</div>'
+    )
 
 
 @dataclass(frozen=True)
@@ -387,16 +394,6 @@ def load() -> OrdersModel:
     )
 
 
-def accent(model: "OrdersModel | None" = None) -> Accent:
-    """The card's edge color: red while the day is down, and nothing at
-    all otherwise - a positive result is the ordinary case, and does not
-    need the whole card to say so."""
-    model = load() if model is None else model
-    if model.fills.empty:
-        return None
-    return "red" if model.realized < 0 else None
-
-
 def render_header_actions(model: "OrdersModel | None" = None) -> None:
     """A download icon for the card title's own row - every raw fill as
     a CSV file, the fastest way to get this page's data out for analysis
@@ -416,10 +413,11 @@ def render_header_actions(model: "OrdersModel | None" = None) -> None:
     )
 
 
-def render_summary(model: "OrdersModel | None" = None) -> None:
-    """The card's whole body: the session's PnL at a glance. Lives above
-    the Overview/Fills/Execution quality tabs, since it is what every one
-    of them is ultimately about."""
+def render_kpis(model: "OrdersModel | None" = None) -> None:
+    """The session's PnL at a glance, as a card-free tile row sitting
+    directly under the scope bar. Lives above the Overview/Fills/
+    Execution quality tabs, since it is what every one of them is
+    ultimately about."""
     if not warn_if_no_db():
         return
 
@@ -427,7 +425,7 @@ def render_summary(model: "OrdersModel | None" = None) -> None:
     if model.fills.empty:
         st.info("No fills yet.")
     else:
-        _render_pnl(model)
+        st.html(kpi_row_html(model))
 
 
 def render_fills(model: "OrdersModel | None" = None) -> None:

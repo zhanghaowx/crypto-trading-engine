@@ -13,17 +13,6 @@ from jolteon.dashboard.ui.engine_selection import select_engine
 from jolteon.dashboard.ui.navigation import watch_nav
 from jolteon.dashboard.ui.page_header import page_heading, run_scope_caption
 
-summary_cards = [
-    Card(
-        "orders-pnl",
-        "Orders & PnL",
-        ":material/currency_bitcoin:",
-        orders_pnl.render_summary,
-        load=orders_pnl.load,
-        accent=orders_pnl.accent,
-    ),
-]
-
 overview_cards = [
     Card(
         "order-book",
@@ -69,9 +58,7 @@ quality_cards = [
     ),
 ]
 
-st.html(
-    cards_rule(summary_cards + overview_cards + fills_cards + quality_cards)
-)
+st.html(cards_rule(overview_cards + fills_cards + quality_cards))
 
 page_heading("Live", "What this engine is doing right now.")
 
@@ -81,9 +68,11 @@ page_heading("Live", "What this engine is doing right now.")
 select_engine()
 run_scope_caption(current_run())
 
-# Each card refreshes itself on a timer of its own (see `card.card`), so
-# there is no page-wide fragment here to redraw the lot.
-render_cards(summary_cards)
+# The KPI row carries no card chrome of its own - it is the prototype's
+# `.kpis` strip, sitting directly under the scope bar - so it is kept out
+# of `render_cards` and given a bare fragment instead, just to keep its
+# own refresh timer independent of the rest of the page.
+st.fragment(orders_pnl.render_kpis, run_every=refresh_interval())()
 
 overview_tab, fills_tab, quality_tab = st.tabs(
     ["Overview", "Fills", "Execution quality"]

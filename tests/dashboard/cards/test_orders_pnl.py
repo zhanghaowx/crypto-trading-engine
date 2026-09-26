@@ -8,13 +8,17 @@ from jolteon.dashboard.cards.orders_pnl import (
     fills_table,
 )
 from jolteon.dashboard.data.sqlite import read_table
-from jolteon.dashboard.ui.primitives import MISSING
+from jolteon.dashboard.ui.primitives import (
+    MISSING,
+    NEGATIVE_COLOR,
+    POSITIVE_COLOR,
+)
 
 
-def _summary_script():
+def _kpis_script():
     from jolteon.dashboard.cards import orders_pnl
 
-    orders_pnl.render_summary()
+    orders_pnl.render_kpis()
 
 
 def _fills_script():
@@ -26,14 +30,14 @@ def _fills_script():
     orders_pnl.render_fills()
 
 
-def _metrics(at):
-    """Every metric's rendered value, by its label. A colored metric
-    carries its color in the value's own markdown (`:green[9.90]`)."""
-    return {m.label: m.value for m in at.metric}
+def _kpi_row_html(at) -> str:
+    """The KPI row's own markup, without the stylesheet shipped in the
+    same block."""
+    return at.get("html")[-1].body.split("</style>", 1)[-1]
 
 
-def test_summary_shows_warning_when_db_missing(missing_db_path):
-    at = AppTest.from_function(_summary_script)
+def test_kpis_shows_warning_when_db_missing(missing_db_path):
+    at = AppTest.from_function(_kpis_script)
     at.session_state["db_path"] = missing_db_path
     at.run()
 
@@ -52,8 +56,8 @@ def test_fills_shows_warning_when_db_missing(missing_db_path):
     assert not at.info
 
 
-def test_summary_shows_no_fills_message_when_empty(empty_db_path):
-    at = AppTest.from_function(_summary_script)
+def test_kpis_shows_no_fills_message_when_empty(empty_db_path):
+    at = AppTest.from_function(_kpis_script)
     at.session_state["db_path"] = empty_db_path
     at.run()
 
@@ -72,21 +76,24 @@ def test_fills_shows_no_fills_message_when_empty(empty_db_path):
     assert [i.value for i in at.info] == ["No fills yet."]
 
 
-def test_renders_the_pnl_summary(populated_db_path):
-    at = AppTest.from_function(_summary_script)
+def test_renders_the_kpi_row(populated_db_path):
+    at = AppTest.from_function(_kpis_script)
     at.session_state["db_path"] = populated_db_path
     at.run()
 
     assert not at.exception
     # net cash = -(99.5 * 1.0) - 0.1 = -99.6; inventory marked at mid 100.5
-    # -> inventory_value = 1.0 * 100.5 = 100.5; total_pnl = 0.9. Nothing has
-    # been sold back, so realized PnL is just the fee paid.
-    metrics = _metrics(at)
-    assert metrics["Net cash flow"] == ":red[-99.60]"
-    assert metrics["Realized PnL"] == ":red[-0.10]"
-    assert metrics["Total PnL"] == ":green[0.90]"
-    assert metrics["Inventory value"] == "100.50"
-    assert metrics["BTC-USD position"] == "1.0"
+    # -> inventory_value = 1.0 * 100.5 = 100.5; total_pnl (Marked PnL) = 0.9.
+    markup = _kpi_row_html(at)
+    assert "Marked PnL" in markup
+    assert "+$0.90" in markup
+    assert POSITIVE_COLOR in markup
+    assert "Traded notional" in markup
+    assert "$99.50" in markup
+    assert "Fills" in markup
+    assert "1 buy / 0 sell" in markup
+    assert "Trading fees" in markup
+    assert "$0.10" in markup
 
 
 def test_renders_recent_fills(populated_db_path):
@@ -189,15 +196,16 @@ def test_marks_inventory_at_zero_without_a_bbo_feed(tmp_path):
     conn.commit()
     conn.close()
 
-    at = AppTest.from_function(_summary_script)
+    at = AppTest.from_function(_kpis_script)
     at.session_state["db_path"] = db_path
     at.run()
 
     assert not at.exception
-    metrics = _metrics(at)
-    # No mark price available, so total PnL falls back to net cash alone.
-    assert metrics["Net cash flow"] == metrics["Total PnL"]
-    assert "BTC-USD mark price" not in metrics
+    # No mark price available, so Marked PnL falls back to net cash alone:
+    # -(99.5 * 1.0) - 0.1 fee = -99.60, in the red.
+    markup = _kpi_row_html(at)
+    assert "-$99.60" in markup
+    assert NEGATIVE_COLOR in markup
 
 
 def test_a_fill_without_a_trade_id_still_gets_a_stable_row_key(tmp_path):
@@ -226,18 +234,10 @@ def test_a_fill_without_a_trade_id_still_gets_a_stable_row_key(tmp_path):
     assert "99.50" in [m.value for m in at.markdown]
 
 
-def _accent_script():
-    import streamlit as st
-
-    from jolteon.dashboard.cards import orders_pnl
-
-    st.write(str(orders_pnl.accent()))
-
-
 def _round_trip_db(tmp_path, sell_price: float) -> str:
     """A closed round trip: one lot bought at 100 and sold back at
-    `sell_price`, which is what decides whether the card reads as up or
-    down."""
+    `sell_price`, which is what decides whether the Marked PnL tile reads
+    as up or down."""
     db_path = str(tmp_path / f"round-trip-{sell_price}.sqlite")
     conn = sqlite3.connect(db_path)
     try:
@@ -265,31 +265,27 @@ def _round_trip_db(tmp_path, sell_price: float) -> str:
     return db_path
 
 
-def test_accent_is_absent_before_the_first_fill(empty_db_path):
-    at = AppTest.from_function(_accent_script)
-    at.session_state["db_path"] = empty_db_path
-    at.run()
-
-    assert not at.exception
-    assert at.markdown[0].value == "None"
-
-
-def test_accent_is_absent_while_the_round_trips_are_up(tmp_path):
-    at = AppTest.from_function(_accent_script)
+def test_marked_pnl_tile_is_green_while_the_round_trips_are_up(tmp_path):
+    at = AppTest.from_function(_kpis_script)
     at.session_state["db_path"] = _round_trip_db(tmp_path, 110.0)
     at.run()
 
     assert not at.exception
-    assert at.markdown[0].value == "None"
+    markup = _kpi_row_html(at)
+    assert "+$10.00" in markup
+    assert POSITIVE_COLOR in markup
+    assert NEGATIVE_COLOR not in markup
 
 
-def test_accent_is_red_while_the_round_trips_are_down(tmp_path):
-    at = AppTest.from_function(_accent_script)
+def test_marked_pnl_tile_is_red_while_the_round_trips_are_down(tmp_path):
+    at = AppTest.from_function(_kpis_script)
     at.session_state["db_path"] = _round_trip_db(tmp_path, 90.0)
     at.run()
 
     assert not at.exception
-    assert at.markdown[0].value == "red"
+    markup = _kpi_row_html(at)
+    assert "-$10.00" in markup
+    assert NEGATIVE_COLOR in markup
 
 
 def _pnl_db(tmp_path, name, fills) -> str:
@@ -442,24 +438,6 @@ def test_realized_pnl_starts_again_when_the_recording_is_replaced(tmp_path):
     assert at.markdown[-1].value == "0.00"
 
 
-def _summary_card_script():
-    from jolteon.dashboard.cards import orders_pnl
-    from jolteon.dashboard.ui.cards import Card, render_cards
-
-    render_cards(
-        [
-            Card(
-                "orders-pnl",
-                "Orders & PnL",
-                ":material/currency_bitcoin:",
-                orders_pnl.render_summary,
-                load=orders_pnl.load,
-                accent=orders_pnl.accent,
-            )
-        ]
-    )
-
-
 def _fills_card_script():
     from jolteon.dashboard.cards import orders_pnl
     from jolteon.dashboard.ui.cards import Card, render_cards
@@ -476,38 +454,6 @@ def _fills_card_script():
             )
         ]
     )
-
-
-def test_summary_card_shares_one_data_load_across_body_and_accent(
-    populated_db_path,
-):
-    from jolteon.dashboard.cards import orders_pnl
-
-    at = AppTest.from_function(_summary_card_script)
-    at.session_state["db_path"] = populated_db_path
-    at.session_state["auto_refresh"] = False
-    with (
-        mock.patch.object(orders_pnl, "load", wraps=orders_pnl.load) as load,
-        mock.patch.object(
-            orders_pnl,
-            "read_run_table",
-            wraps=orders_pnl.read_run_table,
-        ) as read,
-        mock.patch.object(
-            orders_pnl,
-            "realized_pnl_now",
-            wraps=orders_pnl.realized_pnl_now,
-        ) as realized,
-    ):
-        at.run()
-        assert not at.exception
-        assert not at.error
-        assert load.call_count == read.call_count == realized.call_count == 1
-        assert _metrics(at)["Realized PnL"] == ":red[-0.10]"
-        at.button(key="card-orders-pnl-refresh").click().run()
-        assert not at.exception
-        assert not at.error
-        assert load.call_count == read.call_count == realized.call_count == 2
 
 
 def test_fills_card_shares_one_data_load_across_body_and_download(

@@ -31,6 +31,14 @@ def signed_cash_flow(fills: pd.DataFrame) -> pd.Series:
     return -direction * fills["fill_price"] * fills["fill_qty"]
 
 
+def traded_notional(fills: pd.DataFrame) -> float:
+    """Price times quantity, summed over every fill - what the session
+    actually traded, independent of which way each fill netted out."""
+    if fills.empty:
+        return 0.0
+    return float((fills["fill_price"] * fills["fill_qty"]).sum())
+
+
 def pnl_by_symbol(
     totals: pd.DataFrame, latest_mid: pd.DataFrame
 ) -> pd.DataFrame:

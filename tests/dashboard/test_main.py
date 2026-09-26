@@ -18,7 +18,6 @@ def test_dashboard_renders_every_section_on_one_page(dashboard):
 
     assert not at.exception
     assert _card_titles(at) == [
-        "Orders & PnL",
         "Order book",
         "Risk limits",
         "Fair price signals",
@@ -31,10 +30,10 @@ def test_dashboard_warns_in_every_section_when_db_missing(dashboard):
     at = dashboard.run()
 
     assert not at.exception
-    # One warning per section: market data, risk limits, orders & pnl,
-    # recent fills, fair price signals, trade quality. Health and errors
-    # are on a page of their own, and the viewer settings on the
-    # Parameters page.
+    # One warning per section: market data, risk limits, fair price
+    # signals, the orders & pnl KPI row, recent fills, trade quality.
+    # Health and errors are on a page of their own, and the viewer
+    # settings on the Parameters page.
     assert len(at.warning) == 6
 
 

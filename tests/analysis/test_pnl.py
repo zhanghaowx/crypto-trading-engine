@@ -1,7 +1,11 @@
 import pandas as pd
 import pytest
 
-from jolteon.analysis.pnl import realized_pnl, signed_cash_flow
+from jolteon.analysis.pnl import (
+    realized_pnl,
+    signed_cash_flow,
+    traded_notional,
+)
 
 
 def _fills(*trades) -> pd.DataFrame:
@@ -74,3 +78,12 @@ def test_buying_pays_cash_out_and_selling_brings_cash_in():
         }
     )
     assert list(signed_cash_flow(fills)) == pytest.approx([-200.0, 100.0])
+
+
+def test_traded_notional_sums_price_times_quantity_over_every_fill():
+    fills = _fills(("BUY", 100.0, 1.0, 0.0), ("SELL", 110.0, 2.0, 0.0))
+    assert traded_notional(fills) == pytest.approx(320.0)
+
+
+def test_traded_notional_is_zero_with_no_fills():
+    assert traded_notional(pd.DataFrame()) == 0.0
