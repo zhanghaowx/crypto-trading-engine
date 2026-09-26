@@ -1,6 +1,6 @@
 /* A parameter as one row: its name, and what it has to say about
-   itself, at the start; its control, at one width whatever it holds, at
-   the end; a hairline between rows. */
+   itself, at the start; its control, at one width whatever it holds,
+   and the unit its value is in, at the end; a hairline between rows. */
 [class*="st-key-param-row-"] {
   padding: 12px 0;
   border-top: 1px solid var(--line);
@@ -14,4 +14,15 @@
 [class*="st-key-param-row-"] [data-testid="stCaptionContainer"] p {
   font-size: 11px;
   color: var(--muted);
+}
+
+/* The unit is the one caption inside the row's horizontal block; held
+   to a minimum width so a one-letter unit and a four-letter one leave
+   the controls above and below each other in line. */
+[class*="st-key-param-row-"]
+  [data-testid="stHorizontalBlock"]
+  [data-testid="stCaptionContainer"]
+  p {
+  min-width: var(--space-8);
+  white-space: nowrap;
 }

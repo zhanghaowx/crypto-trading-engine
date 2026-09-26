@@ -1,12 +1,27 @@
-/* The group list read as a settings nav, not a form: the selected row
-   is picked out by weight and a tinted background, not by color alone,
-   so the native radio circle - redundant once the row itself carries
-   that state - is hidden in favor of the row reading as a button. */
-[data-testid="stRadioGroup"] {
+/* The group list read as a settings nav, not a form: the groups sit
+   under a small heading for the part of the engine they configure, the
+   selected row is picked out by weight and a tinted background, not by
+   color alone, and the native radio circle - redundant once the row
+   itself carries that state - is hidden in favor of the row reading as
+   a button. Scoped to the nav's own key, so a radio anywhere else on
+   the page keeps its circle. */
+.st-key-parameter-group-nav [data-testid="stCaptionContainer"] p {
+  padding: 0 var(--space-3) var(--space-2);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  color: var(--muted);
+}
+
+.st-key-parameter-group-nav [data-testid="stRadio"] {
+  margin-bottom: var(--space-4);
+}
+
+.st-key-parameter-group-nav [data-testid="stRadioGroup"] {
   gap: 5px;
 }
 
-[data-testid="stRadioOption"] {
+.st-key-parameter-group-nav [data-testid="stRadioOption"] {
   display: block;
   width: 100%;
   padding: 10px 12px;
@@ -16,18 +31,21 @@
   font-size: 12px;
 }
 
-[data-testid="stRadioOption"]:hover {
+.st-key-parameter-group-nav [data-testid="stRadioOption"]:hover {
   background: var(--subtle);
   color: var(--ink);
 }
 
-[data-testid="stRadioOption"][data-selected="true"] {
+.st-key-parameter-group-nav
+  [data-testid="stRadioOption"][data-selected="true"] {
   background: var(--selected);
   color: var(--ink);
   font-weight: 600;
 }
 
-[data-testid="stRadioOption"] div:has(> [data-testid="stMarkdownContainer"])
+.st-key-parameter-group-nav
+  [data-testid="stRadioOption"]
+  div:has(> [data-testid="stMarkdownContainer"])
   > div:first-child {
   display: none;
 }
