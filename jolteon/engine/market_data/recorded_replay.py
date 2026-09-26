@@ -7,7 +7,10 @@ from collections import Counter
 from contextlib import closing
 from dataclasses import dataclass
 
-from jolteon.engine.core.parameter.replay_parameters import resolved_parameters
+from jolteon.engine.core.parameter.replay_parameters import (
+    recorded_value,
+    resolved_parameters,
+)
 from jolteon.engine.core.replay_manifest import ReplayManifest
 from jolteon.engine.market_data.core.instrument import InstrumentSpec
 
@@ -76,11 +79,9 @@ def _parameters(rows: list[dict]) -> dict:
         )
         if row["field_name"] in group:
             raise ValueError("Duplicate recorded parameter field")
-        value = row["value"]
-        # SQLite represents booleans as integers.
-        if row["field_name"] in ("dry_run", "stablecoin_pair"):
-            value = bool(value)
-        group[row["field_name"]] = value
+        group[row["field_name"]] = recorded_value(
+            row["group_name"], row["field_name"], row["value"]
+        )
     resolved_parameters(scopes)
     return scopes
 
