@@ -33,6 +33,7 @@ from jolteon.engine.core.parameter.parameter_change_result import (
 from jolteon.engine.core.parameter.parameter_service import ALL_SYMBOLS
 from jolteon.engine.core.parameter.parameter_specification import (
     ParameterDefinition,
+    ParameterGroup,
     definitions,
 )
 from jolteon.engine.core.parameter.parameter_store import (
@@ -43,9 +44,21 @@ from jolteon.engine.core.parameter.parameter_store import (
 _STAGED = "_staged_parameters"
 _SCOPE = "parameter-scope"
 _GROUP_NAV = "parameter-group"
+_GROUP_NAV_KEY = "parameter-group-nav"
 _REPORTS = "_engine_parameter_reports"
 _ALL_SYMBOLS_LABEL = "All Symbols"
 _SAVE_BAR_KEY = "parameter-save-bar"
+
+# The part of the engine a group's package belongs to is the section of
+# the nav that lists it, so a new group lands in place without a list
+# here to keep up to date.
+_RUNTIME_SECTION = "Runtime"
+_SECTIONS = ("Strategy", "Venues", _RUNTIME_SECTION)
+_SECTION_OF_PACKAGE = {
+    "jolteon.engine.strategy": "Strategy",
+    "jolteon.engine.market_data": "Venues",
+    "jolteon.engine.execution": "Venues",
+}
 
 _STATIC = Path(__file__).resolve().parents[1] / "static"
 _GROUP_NAV_CSS = (_STATIC / "parameter_group_nav.css").read_text()
@@ -277,22 +290,20 @@ def _group_title(group_name: str) -> str:
     # "Us" is Binance.US, not a word: a class name can only carry the
     # first letter of an acronym capitalized without reading as a whole
     # word of its own.
-    return " ".join("US" if word == "Us" else word for word in words)
+    words = ["US" if word == "Us" else word for word in words]
+    # Sentence case: the first word and an acronym keep their capitals.
+    return " ".join(
+        word if position == 0 or word.isupper() else word.lower()
+        for position, word in enumerate(words)
+    )
 
 
-def _field_label(definition: ParameterDefinition) -> str:
-    label = definition.name.replace("_", " ").capitalize()
-    if definition.unit:
-        label = f"{label} ({definition.unit})"
-    return label
+def _field_label(field_name: str) -> str:
+    return field_name.replace("_", " ").capitalize()
 
 
 def _staged_label(group_name: str, field_name: str) -> str:
-    # Only the field name needs title-casing: _group_title already
-    # returns a properly cased name, and title-casing it again would
-    # lowercase "US" back down to "Us".
-    field_title = field_name.replace("_", " ").title()
-    return f"{_group_title(group_name)} · {field_title}"
+    return f"{_group_title(group_name)} · {_field_label(field_name)}"
 
 
 _SUMMARY_KEY = "staged-summary"
@@ -323,9 +334,9 @@ def _summary_rule() -> str:
 
 
 def _widget(field: Field, definition: ParameterDefinition, value) -> None:
-    # The label and its tooltip are on the row above, where the field's
-    # state sits beside them.
-    label = _field_label(definition)
+    # The label and its tooltip are drawn beside the field's state; the
+    # widget's own is collapsed and only names it for assistive tech.
+    label = _field_label(definition.name)
     key = _widget_key(field)
     args = (field, definition)
 
@@ -395,42 +406,54 @@ def _as_int(bound: float | None) -> int | None:
     return None if bound is None else int(bound)
 
 
+def _report(field: Field, definition: ParameterDefinition) -> Any | None:
+    symbol, group_name, _ = field
+    reports = st.session_state.get(_REPORTS, {})
+    return reports.get(change_key(group_name, definition.name, symbol))
+
+
 def _state_note(
     field: Field,
     definition: ParameterDefinition,
     stored: dict[Field, Any],
-) -> _Note | None:
-    """Describe a change result and whether its group has been read."""
+) -> _Note:
+    """Where the field's value comes from, and what the engine made of it."""
     symbol, group_name, _ = field
+    report = _report(field, definition) if field in stored else None
+    if report is not None and report.status == REJECTED:
+        return _Note("Rejected", "red", report.reason)
+    if field in _staged():
+        # An edit waiting to be committed is the one thing the reader
+        # has to be told about a field, short of the engine having
+        # refused what is stored for it.
+        return _Note("Pending", "yellow")
     if field not in stored:
-        inherited = (ALL_SYMBOLS, group_name, definition.name) in stored
-        if symbol != ALL_SYMBOLS and inherited:
+        shared = (ALL_SYMBOLS, group_name, definition.name)
+        if symbol != ALL_SYMBOLS and (shared in stored or shared in _staged()):
             return _Note("Inherited", "grey")
-        return None
-
-    reports = st.session_state.get(_REPORTS, {})
-    row = reports.get(change_key(group_name, definition.name, symbol))
-    if row is None:
+        return _Note("Default", "gray")
+    if report is None:
         return _Note(
             "Not picked up",
             "yellow",
             caption="Stored, but no engine has reported reading it.",
         )
-    if row.status == REJECTED:
-        return _Note("Rejected", "red", row.reason)
-    if row.status != TAKEN:
+    if report.status != TAKEN:
         # The engine decides what statuses exist, so one this page has
         # never heard of is passed through as it came.
-        return _Note(row.status, "orange")
-    if _group_has_been_read(row):
-        return None
-    return _Note(
-        "Not read yet",
-        "yellow",
-        caption=(
-            "Accepted, but no component has read the current parameter group."
-        ),
-    )
+        return _Note(report.status, "orange")
+    if not _group_has_been_read(report):
+        return _Note(
+            "Not read yet",
+            "yellow",
+            caption=(
+                "Accepted, but no component has read the current parameter "
+                "group."
+            ),
+        )
+    if symbol == ALL_SYMBOLS:
+        return _Note("Stored", "gray")
+    return _Note("Override", "blue")
 
 
 def _field(
@@ -446,26 +469,26 @@ def _field(
         if unusable is None
         else _unusable_note(definition, unusable)
     )
-    # One row per field: the name at the start, the control at the end,
-    # and a rule between rows (see parameter_rows.css).
+    # One row per field: the name and its state at the start, the
+    # control and its unit at the end, and a rule between rows (see
+    # parameter_rows.css).
     with st.container(key=f"param-row-{slug(_widget_key(field))}", gap=None):
         with st.container(
             horizontal=True, vertical_alignment="center", gap="medium"
         ):
             _label_row(definition, note)
-            _widget(field, definition, usable)
-        if note is not None and note.caption:
+            _control(field, definition, usable)
+        if note.caption:
             st.caption(note.caption)
 
 
-def _label_row(definition: ParameterDefinition, note: _Note | None) -> None:
+def _label_row(definition: ParameterDefinition, note: _Note) -> None:
     """
     The field's name, and what it has to say about itself beside it.
 
     A horizontal container rather than columns: a fixed split would
-    squeeze the name to make room for a badge that is usually not there
-    at all. It takes whatever width the control leaves, which is what
-    puts the control at the row's end.
+    squeeze the name to make room for the badge. It takes whatever width
+    the control leaves, which is what puts the control at the row's end.
     """
     with st.container(
         horizontal=True,
@@ -474,12 +497,24 @@ def _label_row(definition: ParameterDefinition, note: _Note | None) -> None:
         width="stretch",
     ):
         st.markdown(
-            f"{_field_label(definition)}",
+            _field_label(definition.name),
             help=definition.description or None,
             width="content",
         )
-        if note is not None:
-            st.badge(note.label, color=note.color)
+        st.badge(note.label, color=note.color)
+
+
+def _control(field: Field, definition: ParameterDefinition, value) -> None:
+    """The control, and the unit its value is in beside it."""
+    with st.container(
+        horizontal=True,
+        vertical_alignment="center",
+        gap="small",
+        width="content",
+    ):
+        _widget(field, definition, value)
+        if definition.unit:
+            st.caption(definition.unit, width="content")
 
 
 def _push() -> None:
@@ -527,6 +562,58 @@ def _selected_scope(scopes: list[str]) -> str:
     return ALL_SYMBOLS if scope is None else scope
 
 
+def _section(group: type[ParameterGroup]) -> str:
+    package = ".".join(group.__module__.split(".")[:3])
+    return _SECTION_OF_PACKAGE.get(package, _RUNTIME_SECTION)
+
+
+def _sections() -> dict[str, list[type[ParameterGroup]]]:
+    """Each section's groups in the catalog's order; a section holding
+    none is left out rather than headed over nothing."""
+    grouped: dict[str, list[type[ParameterGroup]]] = {
+        section: [] for section in _SECTIONS
+    }
+    for group in GROUPS:
+        grouped[_section(group)].append(group)
+    return {section: groups for section, groups in grouped.items() if groups}
+
+
+def _section_key(section: str) -> str:
+    return f"{_GROUP_NAV}-{slug(section)}"
+
+
+def _choose_group(section_key: str) -> None:
+    st.session_state[_GROUP_NAV] = st.session_state[section_key]
+
+
+def _group_nav() -> type[ParameterGroup]:
+    """
+    Returns: The group whose fields the page shows.
+
+    One radio per section and one selection across them all: each radio
+    is told, before it is drawn, whether the selection is its to show,
+    so choosing a group in one section clears the last section's.
+    """
+    selected = st.session_state.setdefault(_GROUP_NAV, GROUPS[0].__name__)
+    with st.container(key=_GROUP_NAV_KEY, gap=None):
+        for section, groups in _sections().items():
+            names = [group.__name__ for group in groups]
+            key = _section_key(section)
+            st.session_state[key] = selected if selected in names else None
+            st.caption(section)
+            st.radio(
+                section,
+                options=names,
+                index=None,
+                format_func=_group_title,
+                key=key,
+                label_visibility="collapsed",
+                on_change=_choose_group,
+                args=(key,),
+            )
+    return next(group for group in GROUPS if group.__name__ == selected)
+
+
 def render() -> None:
     stored = _stored_values()
     st.session_state[_REPORTS] = _engine_reports()
@@ -535,17 +622,9 @@ def render() -> None:
 
     st.html(f"<style>{_GROUP_NAV_CSS}{_ROWS_CSS}</style>")
 
-    by_name = {group.__name__: group for group in GROUPS}
     nav_col, fields_col = st.columns([1, 4])
     with nav_col:
-        st.radio(
-            "Group",
-            options=list(by_name),
-            format_func=_group_title,
-            key=_GROUP_NAV,
-            label_visibility="collapsed",
-        )
-    group = by_name[st.session_state[_GROUP_NAV]]
+        group = _group_nav()
 
     with fields_col:
         # Before the card itself: a rule arriving after a container has
