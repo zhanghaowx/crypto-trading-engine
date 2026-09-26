@@ -137,3 +137,10 @@ dmypy.json
 
 # Editors
 .vscode/
+
+# Local immutable replay datasets (replay input metadata JSON may be committed)
+/data/recordings/**/*.sqlite
+/data/recordings/**/*.sqlite-*
+
+# Local replay verification outputs
+/data/replay-results/

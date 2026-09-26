@@ -18,7 +18,7 @@ class InstrumentSpec:
     existed instead of refusing to quote at all.
     """
 
-    PRIMARY_KEY = "symbol"
+    INDEX = ("symbol", "run_id")
 
     symbol: str
     base: str = ""

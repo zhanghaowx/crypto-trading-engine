@@ -1,0 +1,123 @@
+{
+  "schema_version": 1,
+  "source": {
+    "path": "replay-source-20260924T034440Z.sqlite",
+    "source_run_id": "20260924T034440Z-e43bf76d",
+    "allow_gaps": false
+  },
+  "market": {
+    "exchange": "Binance.US",
+    "symbol": "BTC/USD"
+  },
+  "interval": {
+    "start": "2026-09-24T06:19:45Z",
+    "end": "2026-09-24T06:19:55Z",
+    "bounds": "[start,end)"
+  },
+  "configuration": {
+    "mode": "fixed",
+    "parameters": {
+      "": {
+        "MarketMakingParameters": {
+          "quote_size": 0.0005,
+          "max_inventory": 0.01,
+          "requote_tolerance": 0.0,
+          "book_depth": 10
+        },
+        "QuoteOffsetParameters": {
+          "edge": 5.0,
+          "half_spread": 50.0
+        },
+        "AdjustedFairPriceParameters": {
+          "max_adjustment": 5.0
+        },
+        "MomentumParameters": {
+          "scale": 1.0,
+          "decay": 0.9,
+          "min_trades": 5
+        },
+        "OrderFlowImbalanceParameters": {
+          "scale": 1.0,
+          "depth": 10
+        },
+        "InventoryAdjustmentParameters": {
+          "skew_at_max_inventory": 5.0
+        },
+        "MicropriceParameters": {
+          "scale": 1.0
+        },
+        "KrakenFeedParameters": {
+          "book_depth": 10,
+          "max_retries": 3,
+          "retry_interval_in_seconds": 5.0,
+          "min_healthy_connection_seconds": 60.0
+        },
+        "KrakenExecutionParameters": {
+          "poll_interval": 1.0,
+          "max_retries": 5
+        },
+        "KrakenFeeSchedule": {
+          "thirty_day_volume": 0.0,
+          "stablecoin_pair": false
+        },
+        "BinanceUsFeedParameters": {
+          "book_depth": 1000,
+          "max_retries": 3,
+          "retry_interval_in_seconds": 5.0,
+          "min_healthy_connection_seconds": 60.0
+        },
+        "BinanceUsFeeSchedule": {
+          "thirty_day_volume": 0.0
+        },
+        "BookFeatureParameters": {
+          "depth": 10
+        },
+        "HeartbeatParameters": {
+          "interval_in_seconds": 10.0,
+          "timeout_in_seconds": 30.0
+        },
+        "RetryParameters": {
+          "max_retries": 3,
+          "delay_seconds": 1.0
+        },
+        "SqliteWriterParameters": {
+          "max_batch": 5000,
+          "shutdown_timeout": 30.0,
+          "busy_timeout_ms": 30000
+        },
+        "LoggingParameters": {
+          "max_logfile_bytes": 10485760,
+          "logfile_backup_count": 5,
+          "max_log_rows": 200000,
+          "prune_interval": 1000
+        },
+        "ParameterPollingSettings": {
+          "interval_in_seconds": 1.0
+        }
+      }
+    }
+  },
+  "initialization": {
+    "policy": "flat-await-inputs",
+    "instrument_override": {
+      "reason": "Use saved BTC/USD rules explicitly; the recording overwrote historical instrument rows. Original-time rules cannot be verified.",
+      "specification": {
+        "symbol": "BTC/USD",
+        "base": "BTC",
+        "quote": "USD",
+        "price_precision": 2,
+        "qty_precision": 5,
+        "price_increment": 0.01,
+        "qty_min": 1e-05,
+        "cost_min": 1.0
+      }
+    }
+  },
+  "execution_simulation": {
+    "model": "current-mock-v1",
+    "latency": null
+  },
+  "playback": {
+    "speed": "unbounded"
+  }
+}

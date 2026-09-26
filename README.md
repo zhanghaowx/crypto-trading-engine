@@ -75,6 +75,9 @@ uv run jolteon --exchange Binance.US --paper --symbol BTC/USD
 
 Binance.US live order submission and remote historical replay are not available.
 
+For deterministic local experiments with explicit inputs and playback speed,
+see [Recorded-market replay](docs/replay.md).
+
 **Another symbol** — `--symbol` takes any pair the venue lists. One engine trades one
 symbol, so trading two means running two engines:
 
