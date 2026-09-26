@@ -180,6 +180,22 @@ def test_fees_and_presence_are_asked_of_the_recording(tmp_path):
     assert trade_queries.total_fees(db_path) == pytest.approx(0.35)
 
 
+def test_fills_are_counted_per_side_by_the_recording(tmp_path):
+    db_path = _recording(
+        tmp_path,
+        [
+            _fill("BUY", 100.0, 100.0, 0.1, 1.0, 0.0),
+            _fill("BUY", 100.0, 100.0, 0.1, 1.0, 0.0),
+            _fill("SELL", 100.0, 100.0, 0.25, 1.0, 0.0),
+        ],
+    )
+
+    counts = trade_queries.fill_counts_by_side(db_path)
+
+    assert counts.to_dict() == {"BUY": 2, "SELL": 1}
+    assert counts.sum() == 3
+
+
 def test_fair_price_movement_is_side_independent(tmp_path):
     db_path = _recording(
         tmp_path,
@@ -201,6 +217,7 @@ def test_a_recording_with_no_fills_answers_with_nothing(tmp_path):
 
     assert not trade_queries.any_fills(db_path)
     assert trade_queries.total_fees(db_path) == 0.0
+    assert trade_queries.fill_counts_by_side(db_path).empty
     assert trade_queries.fill_quality_by_side(db_path).empty
     assert trade_queries.inventory_buckets(db_path).empty
     assert trade_queries.position_and_cash(db_path).empty
@@ -231,6 +248,7 @@ def test_a_recording_that_is_not_there_answers_with_nothing(tmp_path):
 
     assert not trade_queries.any_fills(missing)
     assert trade_queries.fill_quality_by_side(missing).empty
+    assert trade_queries.fill_counts_by_side(missing).empty
     assert trade_queries.total_fees(missing) == 0.0
 
 
@@ -358,6 +376,9 @@ def test_run_scoped_queries_exclude_previous_engine_runs(tmp_path):
 
     assert totals.loc["BTC-USD", "position"] == pytest.approx(-1.0)
     assert trade_queries.total_fees(db_path, "run-b") == pytest.approx(0.25)
+    assert trade_queries.fill_counts_by_side(db_path, "run-b").to_dict() == {
+        "SELL": 1
+    }
     assert quality["fill_count"].sum() == 1
     assert quality.index.tolist() == ["SELL"]
     assert trade_queries.any_fills(db_path, "run-b")

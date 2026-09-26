@@ -275,6 +275,22 @@ def total_fees(db_path: str, run_id: str | None = None) -> float:
     return float(rows.iloc[0]["fees"])
 
 
+def fill_counts_by_side(db_path: str, run_id: str | None = None) -> pd.Series:
+    """How many fills each side made, indexed by side - counted by the
+    recording, so a session longer than the dashboard's table cache is
+    still counted in full. Empty where the recording cannot answer."""
+    run, params = _run_clause(run_id)
+    rows = _query(
+        db_path,
+        f'SELECT side, COUNT(*) AS fill_count FROM "{FILLS}" {_where(run)} '
+        "GROUP BY side ORDER BY side",
+        params,
+    )
+    if rows.empty:
+        return pd.Series(dtype=int)
+    return rows.set_index("side")["fill_count"].astype(int)
+
+
 def _bucket_case(boundaries: tuple[Bucket, ...]) -> tuple[str, str]:
     """
     Returns: The SQL naming which bucket a fill's prior inventory falls

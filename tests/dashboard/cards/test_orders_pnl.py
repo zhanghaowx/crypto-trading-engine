@@ -1,7 +1,6 @@
 import sqlite3
 from unittest import mock
 
-import pandas as pd
 import pytest
 from streamlit.testing.v1 import AppTest
 
@@ -10,7 +9,6 @@ from jolteon.dashboard.cards.orders_pnl import (
     _SHOW_IDS_KEY,
     _base_asset,
     _derive_visible_markouts,
-    _fills_help,
     fills_table,
 )
 from jolteon.dashboard.data.sqlite import read_table
@@ -199,13 +197,6 @@ def test_the_position_is_counted_in_the_pairs_base_asset(symbol, asset):
     assert _base_asset(symbol) == asset
 
 
-def test_the_fill_count_has_no_sides_to_split_when_none_were_recorded():
-    assert (
-        _fills_help(pd.DataFrame({"fill_price": [99.5]}))
-        == "How many of the run's orders were filled."
-    )
-
-
 def test_download_button_present_when_fills_exist(populated_db_path):
     at = AppTest.from_function(_script)
     at.session_state["db_path"] = populated_db_path
@@ -315,6 +306,37 @@ def _add_fills(db_path, fills) -> None:
         conn.commit()
     finally:
         conn.close()
+
+
+def test_the_fill_count_is_the_recordings_not_the_caches(tmp_path):
+    """The dashboard keeps only the most recent rows of a long table, so
+    a count taken off them would quietly shrink as the session went on.
+    Post-trade counts by the recording, and so does this."""
+    db_path = _pnl_db(
+        tmp_path,
+        "many.sqlite",
+        [
+            (
+                i,
+                "BUY" if i % 2 else "SELL",
+                100.0,
+                1.0,
+                0.0,
+                "BTC-USD",
+                f"f{i}",
+            )
+            for i in range(12)
+        ],
+    )
+
+    at = AppTest.from_function(_summary_script)
+    at.session_state["db_path"] = db_path
+    with mock.patch("jolteon.dashboard.data.sqlite._MAX_CACHED_ROWS", 5):
+        at.run()
+
+    assert not at.exception
+    assert _metrics(at)["Fills"] == "12"
+    assert _metric_help(at)["Fills"] == "6 buy / 6 sell."
 
 
 def _realized_script():
