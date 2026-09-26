@@ -4,6 +4,7 @@ from unittest.mock import patch
 from blinker import NamedSignal
 
 from jolteon.engine.core.event.signal import (
+    Signal,
     signal,
     signal_namespace,
     subscribe,
@@ -69,12 +70,15 @@ class TestRunToCompletionDelivery(unittest.TestCase):
         self.tick.connect(self.reacting_receiver)
         self.tick.connect(self.observing_receiver)
         self.reaction.connect(self.on_reaction)
-        receivers_for = NamedSignal.receivers_for
+        # Patched on Signal itself: Signal.receivers_for puts whatever the
+        # blinker base yields back into connection order, so perturbing
+        # the base would leave the delivery order untouched.
+        receivers_for = Signal.receivers_for
 
         for arrange in (list, lambda receivers: list(reversed(receivers))):
             self.calls.clear()
             with patch.object(
-                NamedSignal,
+                Signal,
                 "receivers_for",
                 lambda named_signal, sender: iter(
                     arrange(list(receivers_for(named_signal, sender)))
@@ -127,3 +131,57 @@ class TestRunToCompletionDelivery(unittest.TestCase):
         self.reaction.send(self.reaction)
 
         self.assertEqual(["reaction delivered"], self.calls)
+
+
+class TestConnectionOrderDelivery(unittest.TestCase):
+    """
+    blinker yields receivers in the iteration order of a set of object
+    ids, which differs from one process to the next. Two replays compared
+    across processes need the order the receivers were connected in.
+    """
+
+    def setUp(self):
+        self.calls = list[str]()
+        self.tick = signal("connection_order_tick")
+
+    def first(self, _):
+        self.calls.append("first")
+
+    def second(self, _):
+        self.calls.append("second")
+
+    def test_receivers_run_in_connection_order_whatever_blinker_yields(self):
+        def third(_):
+            self.calls.append("third")
+
+        # Bound methods and a plain function: blinker identifies the two
+        # kinds differently, and both have to be put back in order.
+        for receiver in (self.first, self.second, third):
+            self.tick.connect(receiver)
+        yielded = NamedSignal.receivers_for
+        yielded_order = list[str]()
+
+        def yielded_backwards(named_signal, sender):
+            # blinker's own order is arbitrary; sorting makes the
+            # perturbation the same on every run.
+            receivers = sorted(
+                yielded(named_signal, sender),
+                key=lambda receiver: receiver.__name__,
+                reverse=True,
+            )
+            yielded_order.extend(receiver.__name__ for receiver in receivers)
+            return iter(receivers)
+
+        with patch.object(NamedSignal, "receivers_for", yielded_backwards):
+            self.tick.send(self.tick)
+
+        self.assertEqual(["third", "second", "first"], yielded_order)
+        self.assertEqual(["first", "second", "third"], self.calls)
+
+    def test_a_receiver_connected_for_another_sender_is_still_left_out(self):
+        self.tick.connect(self.first, sender="another sender")
+        self.tick.connect(self.second)
+
+        self.tick.send(self.tick)
+
+        self.assertEqual(["second"], self.calls)
