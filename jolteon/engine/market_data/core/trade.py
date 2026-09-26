@@ -6,6 +6,8 @@ from jolteon.engine.core.side import MarketSide
 
 @dataclass(frozen=True, order=True)
 class Trade:
+    EXTERNAL_EVENT = True
+
     exchange_trade_id: int
     client_order_id: str
     symbol: str

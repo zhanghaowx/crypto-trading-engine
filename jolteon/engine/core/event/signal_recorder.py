@@ -45,7 +45,11 @@ class SignalRecorder:
         INDEX attribute naming the columns its table is indexed on, which
         is created once the first such payload has been recorded. A payload
         that sets RECORDED to False is dispatched to its subscribers but
-        never persisted, for payloads too wide to flatten into a row. The
+        never persisted, for payloads too wide to flatten into a row. A
+        payload that sets EXTERNAL_EVENT to True arrived from outside the
+        engine, such as market data; every such payload is numbered in
+        arrival order as `external_sequence`, so a replay can restore the
+        order they were received in whatever their timestamps say. The
         sender shall invoke the `send` method with exactly one positional
         argument which is the sender, and exactly one keyword argument
         which is the payload.
@@ -139,12 +143,7 @@ class SignalRecorder:
             # The EngineRun row carries its own; nothing else does.
             row_data.setdefault("run_id", self._run_id)
 
-            if name in (
-                "instrument_feed",
-                "bbo_feed",
-                "order_book_update_feed",
-                "market_trade_feed",
-            ):
+            if getattr(data, "EXTERNAL_EVENT", False):
                 self._external_sequence += 1
                 row_data["external_sequence"] = self._external_sequence
 

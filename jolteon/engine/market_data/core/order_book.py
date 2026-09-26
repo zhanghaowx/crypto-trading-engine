@@ -42,6 +42,8 @@ class RecordedBookUpdate:
     compact JSON arrays so SignalRecorder creates a fixed-width table.
     """
 
+    EXTERNAL_EVENT = True
+
     symbol: str
     model: BookModel
     version: int
