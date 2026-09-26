@@ -242,14 +242,38 @@ Parameters with sectioned groups, the unit beside the field, and a badge
 on every field. The stopped-engine state and Health's grouping by engine
 are under way.
 
-The cockpit itself is not a styling pass on those cards. A ladder, a
-chart with fill markers, a status strip that replaces the metric tiles,
-and a three-column grid that fits one screen fight Streamlit's page
-model: vertical blocks, reruns and thin CSS hooks. Carrying the direction
-into production is a decision about the shell - bending Streamlit to it,
-or giving this prototype a read-only source for the recordings and
-letting it be the dashboard - and that decision is still open. The
-workspace split waits on it too: every replay is recorded to
-`<exchange>/<symbol>/replay.sqlite`, and `dashboard/data/engines.py`
-opens only `live.sqlite`, so reading both recordings is the first step
-towards Research whichever shell is chosen.
+### Data the cockpit needs
+
+Checked against the recording on 2026-09-26: every figure the cockpit
+shows is either read by the dashboard already or sitting in the
+recording unread. What was missing, and what was decided:
+
+| Gap | Decision |
+| --- | --- |
+| Replays never appeared: every run of an instrument went into `live.sqlite`, every replay into `replay.sqlite`, and the dashboard opened only the first | Each run is a file of its own, `<exchange>/<symbol>/<run_id>.sqlite`, with its log beside it. Live or replay, paper or real, is the run's recorded metadata, not its file name. The dashboard lists every recording in a directory and follows the newest live-feed run for Live and Health |
+| The parameters a run used are recorded, one complete snapshot per revision, but never read | Arrives with #125. Run detail's frozen-set card is the slot it fills, and stands as a placeholder until then |
+| Marked PnL over time, with the fills on it, was not calculated anywhere | `marked_pnl_series` and `fills_on_series` in `analysis/pnl.py`: fills and mids in, one row per bucket out, no database and no drawing. Reading the fills and mids stays in `dashboard/data`; the chart's windowing belongs in `dashboard/read_models` |
+| Health read only each component's latest heartbeat | A windowed read in `dashboard/data/heartbeats.py`, bucketing in `dashboard/read_models/heartbeat_history.py`, and a row of bars under each component on Health |
+| Nothing recorded which strategy a run ran | `EngineRun.strategy` records the class; `RecordedEngineRun` reads it back; `read_models/strategy.py` gives the plain name. The strip shows it once the context bar work lands |
+
+### The shell
+
+The cockpit is not a styling pass on the existing cards, but it is within
+Streamlit's reach. The order book is already hand-written HTML through
+`st.html`, and the ladder, the position panel and the strip are the same
+technique; the PnL chart with fill markers is a layered chart Streamlit
+draws natively; the three-column grid is `st.columns` with the per-card
+fragments Live already has. What costs effort is density - Streamlit's
+paddings and widget chrome pushed back with scoped CSS, as the current
+cards already do - and a chart redrawing every few seconds, which needs a
+fragment of its own. `st.html` sanitises its markup, so an inline SVG
+renders as nothing: bars and meters are spans, as the heartbeat history
+and the risk row already are.
+
+The other route, giving this prototype a read-only source for the
+recordings and letting it be the dashboard, buys a smoother screen at the
+price of a read API and a second codebase. Which route is a decision
+still open; the data work above serves either. Suggested order: the
+run parameters from #125 first, since with the per-run recordings they
+unblock Research; then the PnL series on the monitor; then the monitor
+migrated to the cockpit card by card.
