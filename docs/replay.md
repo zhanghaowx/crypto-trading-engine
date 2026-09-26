@@ -6,7 +6,8 @@ whether simulated fills are realistic or the strategy is profitable.
 
 ## Run the saved example
 
-From the replay worktree:
+From the repository root, with the private recording placed beside the
+manifest under `data/recordings/binance-us/BTC-USD/`:
 
 ```bash
 uv run jolteon-replay validate --manifest data/recordings/binance-us/BTC-USD/replay-example.json
@@ -46,6 +47,19 @@ start initialize the book; if the run begins before its first snapshot, quotes
 wait until the book arrives. Engine inventory and trading cash start at zero; this
 is the existing unconstrained paper simulator, not a funded spot-account model.
 
+## Timeline
+
+Simulated time is the recorder's timestamp on each external event. A recording
+that carries an external-event sequence is replayed in that order. An older
+recording is ordered by recorder time, then channel, then row, which cannot
+establish the original live delivery order and is reported as a limitation.
+Domain timers due at an event's time fire before the event; a timer created
+while an event is delivered runs after that event's signal cascade. External
+events stop before `end`; timers due exactly at `end` still fire. Playback
+speed only paces delivery against the machine's monotonic clock. Operational
+heartbeats stay on real time and never gate replay trading, so host load
+cannot change a decision between speeds.
+
 ## Results
 
 Each output directory contains:
@@ -53,8 +67,10 @@ Each output directory contains:
 - `recording.sqlite`: the normal engine recording with a new EngineRun identity.
 - `events.jsonl`: semantic outputs, with incidental IDs normalized while preserving
   order/cancel/fill relationships.
-- `result.json`: original manifest, effective input hash/counts, code identity,
-  completeness limitations, real UTC start/end, status and terminal state.
+- `result.json`: original manifest, effective input hash/counts, code identity
+  as the commit plus a hash of every runtime source file so a dirty checkout
+  cannot pass for the same code, completeness limitations, real UTC start/end,
+  status and terminal state.
 - Engine log files.
 
 Comparison checks input identity/configuration before comparing output event
@@ -74,16 +90,23 @@ killed before terminal metadata is written remains `running` and is incomplete.
 Unit tests use virtual pacing and tiny synthetic market events. Normal CI never
 runs the long real recording at 1x. The private recording is an opt-in acceptance
 input: run the short example in four fresh processes and compare all outputs.
-The nearly 24-hour interval in the milestone plan is reserved for extended tests.
 
+That recording is a snapshot of `/tmp/jolteon/binance-us/BTC-USD/live.sqlite`
+taken on 2026-09-25, SHA-256
+`69c15f2305334905691450fcf43b9927d75dfe0b670e570e5429babe63144846`, holding
+source run `20260924T034440Z-e43bf76d` among older runs. Its full interval,
+2026-09-24 03:44:40 to 2026-09-25 03:30:00 UTC, is reserved for extended tests:
+at 1x it takes almost a day. The run was still active when captured, its
+checkout was dirty, and it predates instrument history and the external-event
+sequence, so a comparison on it reports those limitations and exits with `2`.
 
 ## Recording format change
 
-New recording writers append instrument rules instead of replacing a symbol's
-previous row, and store external-event sequence numbers. Start live recording in
-an empty recording directory when adopting this version; existing symbol-keyed
-instrument tables are not migrated. The replay reader still accepts the saved
-legacy recording with explicit limitations.
+Recording writers now append instrument rules instead of replacing a symbol's
+previous row, and stamp every external event with a sequence number. A
+recording an older writer created keeps its symbol-keyed instrument table and
+is not migrated, so do not point a new writer at one. The replay reader still
+accepts such a recording, with the limitations described above.
 
 Difference reports include the current BBO, top three book levels, active parameter
 revision and nearby output events. Accepted parameter revisions are also persisted
