@@ -1,91 +1,92 @@
 # Jolteon UI guidelines
 
-Status: the visual direction is demonstrated by the standalone
-[interactive prototype](static/prototype/index.html), and the production
-screens now carry it: the shared tokens, the header and navigation, the
-context bar with its badges and live state, the summary rows, cards, tables, badges and metrics, the two-sided
-order book, the risk rows, the health summary and tiles, and the parameter
-rows and save bar. What remains is the workspace split itself - Research's
-run library and Compare - which waits on reading replay recordings (see
-the end of this document), and the findings of the second review below:
-a stopped engine shown as live, one figure under two names, and tables
-that colour every cell. Apply this guide to new and revised UI work;
-migrate shared components before introducing page-specific versions of
-these styles.
+This document holds the rules a dashboard screen has to keep whatever it
+looks like: what may never be said of the data, how numbers, colour and
+states behave, and the accessibility floor. It carries no values and no
+layouts. Those are choices, and choices live with the standalone
+[prototype](static/prototype/index.html): its `styles.css` is the
+executable reference for every colour and measure, and its
+[README](static/prototype/README.md) describes the current direction -
+the workspaces, the page anatomy, the type and spacing scale, each
+component's shape - and records the reviews of the production dashboard
+that led to it.
 
-## Review of the current dashboard
+The sorting test for new material: a rule belongs here if it would
+survive a redesign. A contrast ratio, the sign convention for money, or
+"never call stopped data live" outlives any palette or layout. A font
+size, a metric count or a heading decision does not, so it belongs in the
+prototype. When a rule and a rendering disagree, the prototype is right
+about what a thing looks like and this document is right about what may
+never happen. A value stated in both places is a bug in this document.
 
-Reviewed, before the migration, the source and the running dashboard at
-`http://localhost:8501`.
-Live, Health, and Parameters were inspected in rendered screenshots. The
-Post-trade browser capture was still loading its session card; the review of
-its completed content is based on the source.
+Status: production carries the current direction's tokens and shared
+components. The workspace split waits on reading replay recordings, and
+the findings of the second review are demonstrated in the prototype and
+not yet built; the README's migration section says what is left.
 
-| Current behavior | Effect | Proposed direction |
-| --- | --- | --- |
-| Live starts with run metadata; Health starts directly with cards; Parameters starts with tabs | Page hierarchy changes during navigation | Shared title, purpose, scope bar, then content |
-| Live places a tall order book beside a short risk card | Large unused space and session results below the fold | Summary metrics first; compact bid/ask columns beside risk and signals |
-| Parameters displays many groups in three masonry columns | All settings compete for attention; commit controls sit after a long form | Group navigation, aligned field rows, visible change summary |
-| Healthy cards have a strong green edge; no-error/no-fill states use blue alert panels | Normal operation receives too much visual emphasis | Neutral surfaces and compact status badges; quiet empty states |
-| Card CSS names Space Grotesk, the theme defines three font families, and multiple CSS files repeat colors | Changes can drift across cards and pages | One UI family, one number style, shared semantic tokens |
-| Several card titles use title case, while parameter labels use sentence case | Inconsistent voice | Sentence case everywhere, preserving proper names and acronyms |
-| Run metadata uses UTC while health reports use local time | Readers must translate timestamps across pages | Explicit, consistent timezone within a view; UTC by default |
+## Say only what is true
 
-Keep the existing strengths: shared Card rendering, centralized number
-formatting, per-card refresh, visible risk thresholds, run-scoped analysis,
-missing-value markers, and staged parameter changes.
+- Never label recorded, paused or stopped data as live. Only a feed being
+  read right now may pulse or say when it last updated. A pause keeps the
+  indicator in place and drains it. A stopped engine says when it stopped
+  and where its finished run can be read.
+- A stopped engine is not a set of down components. When nothing is
+  running, nothing is down: stopped is a neutral state and raises no
+  alert.
+- An error recorded against a component is not the component being down.
+  An alert follows the component's heartbeat, not the log.
+- A finished run's numbers never refresh. Where cards refresh on their own
+  timers, each keeps its own freshness; a page-level time must not imply
+  every card refreshed. While loading or after an error, keep the last
+  successful observation on screen.
+- A run states its execution mode (paper or real) and its market-data
+  mode (live feed or replay) separately. A replay states both clocks, the
+  data window it read leading the wall clock it spent, and links to the
+  run that captured its data. A finished live session has one clock.
+- Health reads every engine; never imply it shares the engine selected on
+  another page.
+- Parameters names its edit scope - all symbols or one - and says whether
+  a change reaches a running engine or waits for one to start. Stored is
+  not acknowledged: keep default, inherited, overridden, pending, stored
+  and engine-acknowledged states distinct. Show every pending change with
+  its scope, previous value and proposed value before committing; revert
+  restores the stored values; disable commit when nothing has changed or
+  any field is invalid; keep pending changes across navigation.
+  Validation comes from the real parameter definition. Never write
+  parameters into an engine recording.
+- Two runs are comparable only over one data window. When the windows
+  differ, say so before showing the difference.
+- Show a trend only when measured history backs it. Do not invent a
+  percentage change, use an unlabeled comparison period, or let a
+  decorative sparkline imply data. Depth shading uses the book's actual
+  cumulative size, with bid and ask headings visible. A chart's range
+  control changes the underlying scope, not only the picture.
+- Every time on a page names its timezone, one timezone per view, UTC by
+  default.
 
-## Second review, after the migration
+## Numbers
 
-Reviewed on 2026-09-25, against the running dashboard at
-`http://localhost:8501` while its one engine had been stopped for a day.
-The prototype demonstrates each proposed direction: ETH/USD is its
-stopped engine.
+- One figure has one name on every page. What Live calls marked PnL,
+  Research calls marked PnL.
+- Money uses two decimals and grouping separators. Signed money puts the
+  sign before the currency: `+$128.42`, `−$12.30`. Name the currency; do
+  not assume every pair is USD.
+- Asset quantities keep the precision that means something; never round a
+  small position to zero. Prices follow the instrument's precision.
+- An unavailable measurement is `ui.primitives.MISSING` (`–`). Zero is an
+  observed value. Post-trade statistics state their measurement coverage,
+  and partial data shows the valid rows and names the gap.
+- Units live in the column header or beside the field, not inside the
+  label. Numeric columns are right-aligned; labels are left-aligned.
+- A chart names its series, units, time range and timezone, and has
+  meaningful axes.
+- Figures that change in place use tabular numerals so they do not
+  jitter; dense prices, quantities and identifiers may use a monospace
+  stack.
 
-| Current behavior | Effect | Proposed direction |
-| --- | --- | --- |
-| Live shows a stopped engine with a Live feed badge, a green pulse and "Refreshing every 5 s"; Health lists its four components as down; Parameters says an edit reaches the running engine | Three pages say something is running when nothing is, and the navigation wears an alert for an engine that was switched off | Stopped is its own quiet state: the pulse drained beside when it stopped, a Stopped badge, a neutral notice linking to the finished run in Research, tiles that stopped with the engine, and no alert dot |
-| Live's summary is six bare numbers - Total PnL 2.54, Net cash flow 271.23, Inventory value -268.69 - and Post-trade calls the same 2.54 Marked PnL | No currency, no sign, the parts of a total beside it as peers, and two names for one figure | Four metrics with units and signs; cash flow and inventory as the note under marked PnL; the position as a metric of its own; one name on every page |
-| Risk limits stands alone beside a tall order book | A quarter of the screen is empty | Risk and fair-price signals stack in the right column |
-| Fair price signals renders "No usable signal yet" as a red table row | A signal still warming up looks like a failure | A neutral verdict badge beside each signal's contribution, and "–" where there is none yet |
-| Recent fills has fourteen columns: two identifiers, the symbol, and four markout horizons | Too wide to scan, and the symbol repeats the context bar | One markout column with a horizon switch; identifiers behind a toggle; the symbol only in the context bar |
-| Trade quality and Execution economics fill every cell red or green | A table of ordinary results reads as a heat map of alarms | Colour on the signed figure only |
-| Health nests its tiles inside a card, names them after classes (MockExecutionService), and reports local time | Double framing, code names, and a second clock | Tiles grouped under an engine row, plain names, UTC |
-| Parameters lists nineteen groups at equal weight in title case, with the unit in the label (QTY) | Fee schedules compete with quoting rules, and nothing says whether a value is a default, an override, or still unread by the engine | Groups under Strategy, Venues and Runtime in sentence case; the unit beside the field; a state badge on every field |
-| The order book boxes our own quote in a bordered row | The least important thing to read is the heaviest thing on the page | A small "ours" tag on the level |
+## Colour
 
-## Where each thing is defined
-
-This document owns the foundation and the rules: the role a colour plays,
-the invariants, the prohibitions, and the reasoning behind them - the
-things a rendering cannot show and that cannot be derived from looking at
-one. It does not carry values.
-
-The [interactive prototype](static/prototype/index.html) owns the
-implementation detail: the exact token values, the type scale, the
-spacing, and what each screen looks like and how it behaves.
-`static/prototype/styles.css` is the executable reference. Its values
-reach production twice over: `.streamlit/config.toml` paints Streamlit's
-own widgets from them, and `static/tokens.css` repeats them as CSS custom
-properties for the dashboard's own stylesheets, which name a token rather
-than a hex. `tests/dashboard/static/test_tokens.py` holds the token sheet
-to the prototype's values.
-
-When the two disagree, the prototype is right about what a thing looks
-like and this document is right about what may never happen. A value
-stated in both places is a bug in this document: duplication is how the
-brand accent documented here drifted from the prototype's actual value
-with nothing failing to catch it.
-
-The test when sorting new material: a constraint belongs here, a choice
-belongs in the prototype. A contrast ratio and a minimum target size
-outlive any palette, so they are rules. A hex value and a font size do
-not.
-
-## Visual foundation
-
-These are the roles the palette has to fill. The prototype defines what
-each one is.
+The palette has these roles to fill. The prototype defines each value.
 
 | Token | Use |
 | --- | --- |
@@ -100,277 +101,92 @@ each one is.
 | Warning / Warning surface | Elevated risk, stale data |
 | Information / Information surface | Mode badges and keyboard focus |
 
-Use dark text on the brand surface; the accent is not a small-text color or
-a primary button fill. Color accompanies labels, signs, or icons. A sell is
-a side, not an error; its text label establishes the meaning.
+- Colour never carries a meaning alone. A label, a sign or an icon says
+  it; the colour agrees.
+- Red and green are data as well as status: a side, a signed outcome, a
+  price moving. Keep the semantic hues muted enough that a page of
+  ordinary sells does not read as a page of errors. A sell is a side, not
+  an error. Independent signal series use slate or blue, not red or green.
+- Colour the signed figure, not its container. A positive result does not
+  make its card green, and a table of ordinary results does not fill its
+  cells.
+- Colour a delta only where its direction means better or worse. A
+  smaller fee bill is not a loss.
+- Normal is quiet. Healthy status, "no errors recorded", a signal still
+  warming up or too weak to use, and a stopped engine are neutral.
+  Warning is for elevated risk and stale data; negative is for faults.
+- The brand accent is decorative: dark text on the brand surface, never a
+  small-text colour or a primary button fill.
+- Contrast is at least 4.5:1 for normal text and 3:1 for large text and
+  meaningful control indicators.
 
-Red and green are data here, not only status: a side, a signed markout, a
-price moving. Keep the semantic hues muted enough that a page of ordinary
-sells does not read as a page of errors.
-
-One sans-serif family throughout, with system sans-serif fallbacks. Do not
-make font network access a prerequisite for usable layout. Use tabular
-numerals for metrics and a monospace stack for dense prices, quantities and
-identifiers.
-
-| Role | Rule |
-| --- | --- |
-| Page heading | None: the navigation names the page |
-| Card heading | Same weight across every card |
-| Body and controls | The default; hierarchy comes from weight, not family |
-| Context and supporting text | Smaller than body, never below legibility |
-| Compact table headers and metadata | Secondary content only |
-| Summary value | Tabular figures, one step below the page heading |
-
-Use one spacing scale throughout and do not introduce values between its
-steps. Card insets and section gaps share a value. Desktop page gutters are
-wider than mobile ones. Content has a maximum width; do not let a table
-stretch the page past it. Cards, controls and badges each have one radius.
-Use borders rather than decorative shadows.
-
-## Two workspaces
-
-The dashboard is split at the top level by where a run's market data came
-from, because that is what decides how a screen behaves:
-
-| | Trading | Research |
-| --- | --- | --- |
-| Subject | one engine reading a live feed, now | runs that have finished |
-| Refresh | refreshes, and says when it last did | never; the numbers are final |
-| Parameters | editable, and reach the running engine | a frozen input, shown read-only |
-| Health | reported per component | absent; a finished run has no heartbeat |
-| Time | one clock, moving | a data window, and the wall clock a run spent |
-
-Trading holds Health, Live monitor and Parameters. Research holds Runs and
-Compare, with run detail reached by choosing a run rather than by
-navigating to it. Health leads the Trading order because it says whether
-the numbers can be trusted, but the workspace opens on the monitor.
-
-Execution mode - paper or real - is not a workspace. It rides along as a
-badge, because it changes what is at stake rather than how a page works.
-A finished live session belongs to Research alongside replays: the same
-analysis applies to both, and the run states which it was.
-
-Research holds both, so it is named for what it lists. Do not call it
-Replay, which would hide a finished live session inside it, and do not
-label a navigation item with a singular noun that reads as a verb.
-
-## Shared page anatomy
-
-1. Persistent navigation within the current workspace. It names the
-   page; no page repeats its name as a heading of its own, so the room
-   under the header goes to the page's content.
-2. A context bar identifying the scope, mode, run, and either freshness
-   or the data window.
-3. Up to four summary metrics when they help the task.
-4. Primary content in aligned columns, then supporting tables and details.
-
-Health is explicitly cross-engine; do not imply that it shares the selected
-Live engine. Parameters must name its own edit scope, including whether it
-applies to all symbols or one symbol, and must say that a change reaches a
-running engine. A run in Research names its execution mode and its market
-data mode separately. A replay states both clocks and links to the run
-that captured its data. Never label historical or paused data as live, and
-give a live feed a resting state - a pulse and a last-updated time - that
-a finished run never borrows.
-
-An error recorded against a component is not the same as a component being
-down, and the navigation alert follows the component, not the log.
-
-A stopped engine is not a set of down components. When nothing is running,
-nothing is down: a stopped engine is a neutral state that says when it
-stopped and where its finished run can be read, and it raises no alert.
-
-Comparison is what Research is for. Two runs are only comparable over one
-data window; when the windows differ, say so before showing the difference.
-Colour a delta only where its direction means better or worse: a smaller
-fee bill is not a loss.
-
-Preserve per-card freshness when independent fragments refresh at different
-times. A page-level refresh timestamp must not imply every card refreshed.
-Show the last successful observation when loading or errors occur.
-
-## Components
-
-### Cards and metrics
-
-Use the existing `dashboard/ui/cards` abstraction. Card headers share the same
-inset, heading style, and action location. Reserve an action area; avoid
-absolutely positioning controls over long titles. Keep essential context
-visible when details are collapsed. If cards can be hidden, preserve the
-existing discoverable way to restore them.
-
-Each metric has a name, value, unit or scope, and optional explanatory line.
-Show trends only when backed by measured history. Do not invent a percentage
-change or use an unlabeled comparison period. A positive result need not
-make the whole card green. One figure has one name on every page: what
-Live calls marked PnL, Research calls marked PnL.
-
-### Live state, run identity and comparison
-
-A live feed rests behind a pulse and a last-updated time, paired with a
-control that stops it. Paused keeps the indicator in place and drains its
-colour rather than removing it, so both states occupy the same spot.
-Nothing outside a live feed borrows either.
-
-A run states its execution mode and its market data mode as two badges. A
-replay adds the window it read, leading, above the wall clock it spent; the
-run that captured its data is a link, not a sentence. A finished live
-session says its one clock instead.
-
-A parameter set belonging to a finished run is a read-only table with the
-current live value beside it, marked frozen, and says where editing does
-belong. A comparison shows only the parameters that differ, and states how
-many of how many those are.
-
-Targets stay at the documented minimum even inside a dense table: grow the
-hit area with padding absorbed by a negative margin rather than shrinking
-it to fit the row.
-
-### Tables and charts
-
-Use shared table and formatting primitives. Left-align labels; right-align
-numeric headers and cells. Put units in column headers. Use a quiet header
-band, horizontal row separators, and no decorative vertical gridlines.
-
-Money uses two decimals and grouping separators. Signed money places the
-sign before the currency (`+$128.42`, `−$12.30`). Keep meaningful asset
-quantity precision; do not round a small position to zero. Prices follow the
-instrument's precision. Preserve `ui.primitives.MISSING` (`–`) for unavailable
-measurements; zero is an observed value. Include measurement coverage in
-post-trade statistics. Name the currency; do not assume every pair is USD.
-
-Charts need a series label, units, time range and timezone, and meaningful
-axes. Chart range controls must change the underlying scope. Keep red/green
-for signed outcomes or sides; use slate/blue for independent signal series.
-Do not infer data from decorative sparklines. Depth shading must use actual
-cumulative book size, with bid and ask headings visible.
-
-### Parameters
-
-Use task groups rather than rendering every catalog group at equal weight.
-Preserve access to the full production catalog; the prototype shows selected
-groups only. Each field has a persistent label, a unit, and a concise
-explanation. Validation must come from the real parameter definition rather
-than generic prototype constraints.
-
-Keep default, inherited, overridden, pending, stored, and engine-reported
-states distinct. Show all pending changes with scope, previous value, and
-proposed value before committing. Revert restores the last stored values.
-Disable commit when there are no changes or any field is invalid. Preserve
-pending changes across navigation. Stored is not the same as acknowledged
-by the engine. Never write parameters to an engine recording.
-
-### Feedback and states
+## States
 
 | State | Required treatment |
 | --- | --- |
-| Loading | Reserve content space; label the operation; retain last successful data when available |
+| Loading | Reserve the content's space; label the operation; keep the last successful data when there is some |
 | Empty | Neutral title, why there is no data, and the next useful action if one exists |
-| Stale | Warning label, last observation time, and affected scope |
+| Stale | Warning label, last observation time, and the affected scope |
 | Stopped | Neutral badge, when it stopped, and where the finished run is; nothing on the page may read as live |
-| Error | Plain explanation, affected component, and a real recovery action if available |
-| Success | Brief nearby confirmation; do not disrupt navigation |
-| Partial data | Show valid rows and explicitly identify missing coverage |
-| Disabled | Explain dependency when unclear; do not rely solely on faded appearance |
+| Error | Plain explanation, the affected component, and a real recovery action if there is one |
+| Success | Brief confirmation near the task; do not move focus or disrupt navigation |
+| Partial data | Show the valid rows and name the missing coverage |
+| Disabled | Explain the dependency when it is unclear; never rely on a faded appearance alone |
 
-“No errors recorded” is a normal state. Avoid a large blue alert for it.
-A signal that is not yet usable is a normal state too: a neutral verdict
-beside a “–”, never a red row.
-Risk band boundaries remain domain behavior: currently below 70% is OK,
-70% to below 90% is elevated, and 90% and above is near limit. Do not change
-these thresholds as part of a styling task.
+Risk band boundaries are domain behaviour, not styling: below 70% is OK,
+70% to below 90% is elevated, 90% and above is near limit. A styling
+change does not move them.
 
-## Accessibility and responsive behavior
+## Accessibility and layout
 
-Use native buttons, links, forms, headings, table headers and labels. Provide
-visible keyboard focus and an accessible name for every icon action. Keep
-routine focus order aligned with visual order. A dialog must move focus into
-it, support Escape, and restore focus after closing. Announce save feedback
-without moving focus.
+- Use native buttons, links, forms, headings, table headers and labels.
+  Every icon action has an accessible name. Keyboard focus is visible and
+  follows the visual order. A dialog moves focus into itself, closes on
+  Escape and restores focus afterwards. Save feedback is announced without
+  moving focus.
+- Targets are at least 36px high, preferably 44px for touch, even inside a
+  dense table: grow the hit area with padding absorbed by a negative
+  margin rather than shrinking it to fit the row. Compact controls need
+  clear separation.
+- Respect reduced-motion preferences. Check keyboard-only navigation and
+  200% zoom before a layout ships.
+- At narrow widths, cards stack and scope controls wrap. A wide table
+  scrolls inside its container; the document itself never overflows
+  horizontally. Text is never shrunk to fit.
+- A usable layout must not depend on a font loading over the network.
 
-Check 4.5:1 contrast for normal text and 3:1 for large text and meaningful
-control indicators. Never rely on color alone. Make targets at least 36px
-high, preferably 44px for touch; compact controls need clear separation.
-Respect reduced-motion preferences. Check keyboard-only navigation and 200%
-zoom as part of production migration.
+## Streamlit implementation
 
-At narrow widths, stack main cards and wrap scope controls. Summary metrics
-can remain two across until their values stop fitting. Wide tables scroll
-inside their cards; the document itself must not overflow horizontally.
-Group navigation can scroll horizontally. Do not shrink text to fit a table.
+- Streamlit's own widgets are themed from `.streamlit/config.toml`. Any
+  stylesheet of ours names a `static/tokens.css` token, never a hex;
+  `tests/dashboard/static/test_tokens.py` holds the token sheet to the
+  prototype's values. The few literals `ui/primitives.py` has to hand out
+  stay in step with the theme.
+- Custom CSS belongs in `static`, scoped to stable keys, with its
+  limitation documented. No unscoped DOM overrides.
+- Extend shared `ui` components before styling a page. Card-specific
+  content stays in `cards`; a calculation that would make sense without
+  Streamlit stays in `analysis`. Reuse the card lifecycle, refresh
+  behaviour, run selection and read-only recording access. Styling never
+  changes domain semantics.
+- Visual consistency is reviewed against the prototype with screenshots;
+  the coverage suite does not assert it.
 
-## Streamlit implementation and enforcement
+## Review checklist
 
-- Start with `.streamlit/config.toml` for native theme settings, and name
-  `static/tokens.css` tokens in any CSS of ours. Keep manual semantic values
-  in `ui/primitives.py` synchronized with that theme.
-- Extend shared `ui` components before adding styling to a page. Card-specific
-  content stays in `cards`; source-independent calculations stay in `analysis`.
-- Reuse the existing Card lifecycle, refresh behavior, run selection, and
-  read-only recording access. Styling must not change domain semantics.
-- Prefer native Streamlit containers, widgets, badges and theme settings.
-  Any necessary custom CSS belongs in `static`, scoped to stable keys,
-  with its limitation documented. Do not add unscoped DOM overrides.
-- Review new UI against the checklist below. The scoped `AGENTS.md` makes
-  this guide a required input for future dashboard work; visual consistency
-  still requires review and is not asserted by the Python coverage suite.
-
-### Review checklist
-
-- [ ] Page anatomy, scope and timezone follow the shared pattern.
-- [ ] Existing components and tokens are reused; no unexplained new variants.
-- [ ] Numbers, units, signs, precision and missing values are consistent.
-- [ ] Loading, empty, stale, error and partial-data behavior are considered.
-- [ ] Keyboard focus, labels, contrast and narrow layouts are checked.
-- [ ] Settings retain scope, validation, review and engine acknowledgement.
+- [ ] Every label on the page is true of the data under it: live, paused,
+      stopped or finished, and the timezone is named.
+- [ ] One name per figure across pages; numbers carry units, signs,
+      precision and `–` for missing values consistently.
+- [ ] Colour agrees with a label, sign or icon; containers are not filled
+      for ordinary results; normal states are neutral.
+- [ ] Loading, empty, stale, stopped, error and partial-data behaviour are
+      considered.
+- [ ] Keyboard focus, accessible names, contrast and narrow layouts are
+      checked.
+- [ ] Settings keep scope, validation, review and engine acknowledgement.
+- [ ] Existing components and tokens are reused; a deliberate deviation
+      from the prototype's direction is recorded in the change description.
 - [ ] Desktop and mobile screenshots are reviewed where layout changes.
-- [ ] Required architecture and test commands run; blockers are recorded.
-
-## Prototype and rollout
-
-Open `static/prototype/index.html` directly, or serve it locally:
-
-```sh
-.venv/bin/python -m http.server 8765 --bind 127.0.0.1 \
-  --directory jolteon/dashboard/static/prototype
-```
-
-Browse `http://localhost:8765`. No dependencies, build step, engine database,
-API calls or external assets are required. All fixtures are illustrative.
-Controls demonstrate the workspace switch, engine selection - ETH/USD is
-an engine that has stopped, and shows how the monitor, Health and
-Parameters say so - the Live/Paused control on the monitor, the order
-book's `ours` tag, the fills' side filter, markout horizon switch and
-identifier toggle, chart windows, health states across two engines,
-parameter scope, the state badge on every field and staging/review/revert
-with each change's scope named, the Runs source filter, opening a run from
-the table, a replay's link back to the run that captured its data, and
-comparing two runs over one window or two.
-Settings survive page navigation but reset on browser reload.
-
-A palette switcher in the header (Slate / Sage / Morandi) swaps the same
-token set between three complete neutral-and-accent combinations, so the
-layout and content are held constant while only the palette changes. This
-is a side-by-side comparison aid for choosing a direction, not a decision:
-Slate remains the proposal, and is the palette `.streamlit/config.toml`
-carries. Only the neutrals and the brand accent move between the three;
-Positive, Negative, Warning and Information keep their hues, muted for
-Morandi to match its lower-saturation character.
-
-This is a design artifact, not a replacement Streamlit application. Its
-sample fields, charts and status history do not introduce production data
-requirements. The wordmark is a proposed treatment; existing brand assets
-remain available.
-
-Suggested migration order: theme and shared primitives; the workspace
-split and the navigation it implies; page headers and scope bars; Live
-layout; Health and its states; Parameters; the run library, run detail and
-compare. Validate each stage with real empty, populated and stale
-recordings and preserve the existing dashboard's functional tests.
-
-The production dashboard cannot show this split yet. Every replay is
-recorded to `<exchange>/<symbol>/replay.sqlite`, and
-`dashboard/data/engines.py` opens only `live.sqlite`, so no replay has
-ever appeared in it. Reading both recordings is the first production
-step, before any of the layout above.
+- [ ] `uv run poe architecture` and `uv run poe test` pass; blockers are
+      recorded.
