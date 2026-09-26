@@ -1,0 +1,13 @@
+/* Fair price signals. One adjustment per row: its name, then its verdict
+   beside it as a badge, the rows ruled apart the way the prototype's
+   signal rows are - a signal still warming up is an ordinary row here,
+   not a tinted one. The name is set a step below body text, level with
+   the badge beside it. */
+[class*="st-key-signal-row-"] {
+  padding: 7px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+[class*="st-key-signal-row-"] [data-testid="stMarkdownContainer"] p {
+  font-size: 12px;
+}
