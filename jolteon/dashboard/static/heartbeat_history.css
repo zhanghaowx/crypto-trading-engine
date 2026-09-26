@@ -7,7 +7,7 @@
 
    Spans laid out with flex rather than the prototype's SVG rects:
    `st.html` sanitises with DOMPurify's "html" profile, which strips an
-   `<svg>` outright but leaves a styled span alone. The bar count is the
+   an SVG element outright but leaves a styled span alone. The bar count is the
    card's to decide; the width divides between however many it draws. */
 .jolteon-beats {
   display: flex;
