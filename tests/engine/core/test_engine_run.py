@@ -8,6 +8,7 @@ from jolteon.engine.core.engine_run import (
     engine_run_id,
     execution_mode_of,
     market_data_mode_of,
+    strategy_of,
 )
 
 
@@ -78,3 +79,21 @@ def test_a_component_claiming_something_else_leaves_the_mode_unknown():
 def test_modes_are_recorded_as_the_names_they_are_read_back_by():
     assert ExecutionMode.SIMULATED.value == "SIMULATED"
     assert MarketDataMode.RECORDED.value == "RECORDED"
+
+
+class _MeanReversionStrategy:
+    pass
+
+
+def test_a_run_is_recorded_under_the_class_name_of_its_strategy():
+    assert strategy_of(_MeanReversionStrategy()) == "_MeanReversionStrategy"
+
+
+def test_a_run_built_with_no_strategy_records_none():
+    """A run that only records makes no decisions, and says so with an
+    empty name rather than a placeholder a reader might take for one."""
+    assert strategy_of(None) == ""
+    run = EngineRun(
+        "run-a", "Binance.US", "BTC/USD", datetime.now(tz=timezone.utc)
+    )
+    assert run.strategy == ""

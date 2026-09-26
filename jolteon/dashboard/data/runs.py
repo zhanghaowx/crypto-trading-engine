@@ -29,6 +29,9 @@ class RecordedEngineRun:
     # is more common.
     execution_mode: str = ExecutionMode.UNKNOWN
     market_data_mode: str = MarketDataMode.UNKNOWN
+    # The class name of the strategy that ran; "" from a run that ran
+    # none, and from a recording made before runs said which.
+    strategy: str = ""
     # Where a replay's data came from, and which slice of it was read.
     # A live run reads nothing recorded and leaves all of these empty.
     market_data_source: str = ""
@@ -113,6 +116,7 @@ def engine_runs(db_path: str) -> list[RecordedEngineRun]:
                 market_data_mode=_recorded_text(
                     row, "market_data_mode", MarketDataMode.UNKNOWN
                 ),
+                strategy=_recorded_text(row, "strategy", ""),
                 market_data_source=_recorded_text(
                     row, "market_data_source", ""
                 ),

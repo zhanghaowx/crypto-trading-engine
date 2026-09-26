@@ -289,6 +289,62 @@ class TestEngineRunClassification(unittest.TestCase):
         self.assertIsNotNone(recorded[0][2])
 
 
+class _MeanReversionStrategy:
+    pass
+
+
+class TestEngineRunStrategy(unittest.TestCase):
+    """Which strategy a run records: the class it was actually built
+    with, and "" when it was built with none."""
+
+    def setUp(self):
+        self._folder = tempfile.TemporaryDirectory()
+        self._apps: list[EngineRuntime] = []
+
+    def tearDown(self):
+        for app in self._apps:
+            app._signal_recorder.close()
+        root_logger = logging.getLogger()
+        for handler in list(root_logger.handlers):
+            if isinstance(handler, SQLiteHandler):
+                root_logger.removeHandler(handler)
+                handler.close()
+        self._folder.cleanup()
+
+    def _make_app(self, name: str, strategy: object) -> EngineRuntime:
+        app = EngineRuntime(
+            symbol="BTC/USD",
+            exchange="Binance.US",
+            database_name=f"{self._folder.name}/{name}.sqlite",
+            logfile_name=f"{self._folder.name}/{name}.log",
+            strategy=strategy,
+        )
+        self._apps.append(app)
+        return app
+
+    def _recorded_strategy(self, name: str) -> list[tuple]:
+        with closing(
+            sqlite3.connect(f"{self._folder.name}/{name}.sqlite")
+        ) as conn:
+            return conn.execute("SELECT strategy FROM engine_run").fetchall()
+
+    def test_a_run_records_the_class_of_the_strategy_it_ran(self):
+        app = self._make_app("trading", _MeanReversionStrategy())
+        app._connect_signals()
+        app._signal_recorder.flush()
+
+        self.assertEqual(
+            [("_MeanReversionStrategy",)], self._recorded_strategy("trading")
+        )
+
+    def test_a_run_built_with_no_strategy_records_none(self):
+        app = self._make_app("recording", None)
+        app._connect_signals()
+        app._signal_recorder.flush()
+
+        self.assertEqual([("",)], self._recorded_strategy("recording"))
+
+
 class TestReplayInput(unittest.TestCase):
     """What a replay records about the data it read, kept apart from when
     the replay itself ran."""
