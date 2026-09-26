@@ -1,12 +1,6 @@
 const $ = (selector) => document.querySelector(selector);
 const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-const themes = [
-  { id: 'slate', label: 'Slate', dot: '#ae9417' },
-  { id: 'sage', label: 'Sage', dot: '#cb8674' },
-  { id: 'morandi', label: 'Morandi', dot: '#bd8a90' },
-  { id: 'slate-dark', label: 'Slate dark', dot: '#e0c24a' },
-];
-const state = { workspace:'trading', engine:'BTC/USD', layout:'Dashboard', period:'1h', liveTab:'Overview', feed:'Live', fills:'All', horizon:'+1s', showIds:false, health:'Normal', paramTab:'Engine', scope:'All symbols', group:'Market making', values:{}, saved:{}, acked:{}, run:'r7e88a', source:'All', compare:['r5c1d4','r7e88a'] };
+const state = { workspace:'trading', engine:'BTC/USD', period:'1h', feed:'Live', fills:'All', horizon:'+1s', showIds:false, health:'Normal', paramTab:'Engine', scope:'All symbols', group:'Market making', values:{}, saved:{}, acked:{}, run:'r7e88a', source:'All', compare:['r5c1d4','r7e88a'] };
 
 // Two workspaces, because the engine records two independent facts about
 // every run and only one of them changes how the screen behaves: data
@@ -99,15 +93,19 @@ const signedSpan = (n) => `<span class="${n<0?'negative':'positive'}">${signed(n
 const netPnl = (run) => run.gross - run.fees;
 const price = () => state.engine === 'BTC/USD' ? 83947.95 : 3248.62;
 const shortAsset = () => state.engine.split('/')[0];
-// The position is the one number a market maker watches, so it is a
-// summary metric and the risk row is the same figure against its limit.
+// The position is the one number a market maker watches, so it leads the
+// strip and the panel, and the risk row is the same figure against its
+// limit.
 const position = () => state.engine === 'BTC/USD' ? {qty:'−0.0032 BTC', held:'0.0032 / 0.0100 BTC', value:268.69, used:32} : {qty:'−0.0480 ETH', held:'0.0480 / 0.1000 ETH', value:155.93, used:48};
-const spark = (color='var(--positive)') => `<svg class="spark" viewBox="0 0 100 35" aria-hidden="true"><path d="M0 30 L8 26 L15 28 L23 17 L31 21 L40 16 L48 20 L57 9 L66 13 L74 6 L81 9 L90 4 L100 2" fill="none" stroke="${color}" stroke-width="2"/></svg>`;
-const kpi = (label,value,note,positive=false,mini=false) => `<article class="kpi"><div class="kpi-label">${label}</div><div class="kpi-value ${positive?'positive':''}">${value}</div><div class="kpi-note ${mini?'has-spark':''}">${note}</div>${mini?spark():''}</article>`;
 const card = (title,subtitle,body,action='',foot='') => `<section class="card"><div class="card-head"><div><h2>${title}</h2>${subtitle?`<p>${subtitle}</p>`:''}</div>${action}</div>${body}${foot?`<div class="card-foot">${foot}</div>`:''}</section>`;
 const segments = (items,current,attr) => `<div class="segmented">${items.map(x=>`<button ${attr}="${x}" aria-pressed="${x===current}">${x}</button>`).join('')}</div>`;
 const table = (headers,rows,numeric=[]) => `<div class="table-wrap"><table><thead><tr>${headers.map((x,i)=>`<th scope="col" class="${numeric.includes(i)?'num':''}">${x}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map((x,i)=>`<td class="${numeric.includes(i)?'num mono':''}">${x}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
-const engineSelect = (labelled=true) => {const select=`<select id="engine" aria-label="Engine">${engines.map(e=>`<option ${state.engine===e.symbol?'selected':''}>${e.symbol}</option>`).join('')}</select>`;return labelled?`<label>Engine ${select}</label>`:select;};
+const engineSelect = () => `<select id="engine" aria-label="Engine">${engines.map(e=>`<option ${state.engine===e.symbol?'selected':''}>${e.symbol}</option>`).join('')}</select>`;
+// Every page opens on a strip: labelled cells in one row, the scope and
+// the figures a reader checks first, in place of a context bar and a
+// row of metric tiles.
+const cell = (label, value, cls='') => `<div class="strip-item${cls?` ${cls}`:''}"><span class="strip-label">${label}</span><span class="strip-value">${value}</span></div>`;
+const strip = (cells, label) => `<div class="strip" role="region" aria-label="${label}">${cells.join('')}</div>`;
 
 // A replay reads a window of the past during a few minutes of the
 // present, so it has two clocks and neither one stands for the other.
@@ -119,23 +117,6 @@ const sourceBadge = (run) => isReplay(run) ? badge('Replay','info') : badge('Liv
 const statusBadge = (run) => badge(run.status, run.status==='Running'?'good':run.status==='Interrupted'?'warn':'neutral');
 const captureChip = (run) => isReplay(run) ? `<button class="chip" data-open-run="${run.capture}" title="Open the run that captured this data">↩ capture <span class="mono">${run.capture}</span></button>` : '';
 
-const chartPaths = { '15m': '0,127 24,134 48,120 72,124 96,99 120,105 144,97 168,112 192,90 216,94 240,79 264,86 288,75 312,81 336,62 360,72 384,56 408,63 432,45 456,54 480,30 504,37 528,28 552,35 576,20 600,24', '1h':'0,146 24,138 48,144 72,130 96,132 120,110 144,117 168,107 192,117 216,94 240,96 264,101 288,87 312,94 336,61 360,70 384,56 408,62 432,44 456,51 480,32 504,39 528,27 552,30 576,15 600,20', '4h':'0,150 24,147 48,154 72,151 96,137 120,139 144,123 168,129 192,121 216,128 240,97 264,107 288,91 312,103 336,84 360,93 384,69 408,80 432,53 456,69 480,48 504,53 528,34 552,40 576,24 600,20' };
-function chart(period=state.period, labels=null, top=state.engine==='BTC/USD'?128.42:64.21) {
-  const ticks = labels || (period==='15m'?['14:17','14:22','14:27','14:32']:period==='4h'?['10:32','11:52','13:12','14:32']:['13:32','13:52','14:12','14:32']);
-  const width=Math.max(300, Math.min(1320, innerWidth-(innerWidth>760?64:36))-44);
-  const scale=(width-64)/600;
-  const points=chartPaths[period].split(' ').map(p=>{const [x,y]=p.split(',');return `${Number(x)*scale},${y}`;}).join(' ');
-  return `<svg class="chart" viewBox="0 0 ${width} 205" role="img" aria-label="Illustrative marked PnL increases over ${labels?'the whole session':`the selected ${period} window`}, with intermittent declines. Not live data."><defs><linearGradient id="area" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="var(--positive)" stop-opacity=".12"/><stop offset="100%" stop-color="var(--positive)" stop-opacity="0"/></linearGradient></defs>${[20,65,110,155].map((y,i)=>`<line class="chart-grid" x1="0" x2="${600*scale}" y1="${y}" y2="${y}"/><text x="${600*scale+14}" y="${y+4}">$${money(top*(3-i)/3)}</text>`).join('')}<polygon points="0,170 ${points} ${600*scale},170" fill="url(#area)"/><polyline points="${points}" class="chart-line"/>${ticks.map((x,i)=>`<text x="${i*190*scale}" y="199">${x}</text>`).join('')}</svg>`;
-}
-// A level holding one of our own quotes is marked with a small tag in
-// the row rather than boxed: it is the least important thing in the book
-// to read and was the heaviest thing on the page.
-function orderBook() {
- const engine=engineOf();
- const side = (buy) => `<div class="book-side"><h3 class="${buy?'positive':'negative'}">${buy?'Bids':'Asks'} <span class="muted">· USD</span></h3><table><thead><tr><th scope="col" class="num">Price</th><th scope="col" class="num">Size (${shortAsset()})</th><th scope="col" class="num">Total</th></tr></thead><tbody>${Array.from({length:7},(_,i)=>{const ours=i===1;return `<tr class="depth${ours?' own-quote':''}" style="--depth:${(((i+1)*.0238+i*(i+1)*.0031/2)/.2317*100).toFixed(1)}%;--depth-color:${buy?'var(--positive-soft)':'var(--negative-soft)'}"><td class="num ${buy?'positive':'negative'}">${ours?'<span class="tag">ours</span>':''}${money(price()+(buy?-1:1)*(2.57+i*1.91))}</td><td class="num">${(0.0238+i*.0031).toFixed(4)}</td><td class="num">${((i+1)*.0238+i*(i+1)*.0031/2).toFixed(4)}</td></tr>`;}).join('')}</tbody></table></div>`;
- return card('Order book',`${state.engine} · 7 levels per side`,`<div class="book-sides">${side(true)}${side(false)}</div><div class="book-mid"><span class="small muted">Mid price</span><strong class="mono">${money(price())}</strong><span class="small muted">Spread <b class="mono">5.14</b> USD</span></div><div class="book-note"><span>Depth shading shows cumulative size · <span class="tag">ours</span> marks a level holding one of our quotes</span><span class="mono">${(5.14/price()*10000).toFixed(2)} bps</span></div>`,engine.running?badge('Snapshot','neutral'):badge(`Last snapshot · ${engine.stopped}`,'neutral'));
-}
-function risk() { const p=position(); return card('Risk limits','Current usage against configured limits',`<div class="card-body"><div class="risk-row"><div class="risk-label"><span>Inventory</span>${badge('OK','good')}</div><div class="track"><i style="width:${p.used}%"></i></div><div class="risk-meta"><span class="mono">${p.held}</span><span>${p.used}% used</span></div></div></div>`,`<a class="text-button" href="#parameters">View limits ↗</a>`); }
 // A signal that is not yet usable is an ordinary state, not a fault: it
 // says so in a quiet badge, and its contribution is "–" rather than a
 // red row.
@@ -146,15 +127,13 @@ const signalRows = [
   ['Microprice', 'Warming up', 'neutral', null, 0],
 ];
 const signalSummary = () => {const weighted=signalRows.filter(r=>r[3]!==null);return {weighted, combined:weighted.reduce((sum,r)=>sum+r[3],0)};};
-function signals() {
- const {weighted,combined}=signalSummary();
- return card('Fair price signals','Contribution to adjusted fair price',`<div class="card-body">${signalRows.map(([name,verdict,tone,value,w])=>`<div class="signal-row"><span class="inline">${name}${badge(verdict,tone)}</span><span class="signal-value"><span class="signal-meter"><i style="width:${w}%"></i></span><span class="mono ${value===null?'muted':value<0?'negative':'positive'}">${value===null?'–':signed(value)}</span></span></div>`).join('')}</div>`, '', `<span>Combined adjustment · ${weighted.length} of ${signalRows.length} signals weighted</span><strong class="mono ${combined<0?'negative':'positive'}">${signed(combined)}</strong>`);
-}
-// One markout column, switched by horizon, in place of one column per
-// horizon; the identifiers wait behind a toggle. While the engine runs,
-// the newest fills have not lived long enough to be measured at the
-// longer horizons, so those cells are empty rather than zero; a stopped
-// session has had every horizon pass.
+const shortVerdict = {'Too weak to size from':'Too weak'};
+const componentKinds = [['Strategy','Market making'],['Execution','Paper execution'],['Market data','Public feed'],['Configuration','Parameters']];
+const componentDown = () => state.health==='Feed delayed';
+
+// While the engine runs, the newest fills have not lived long enough to
+// be measured at the longer horizons, so those cells are empty rather
+// than zero; a stopped session has had every horizon pass.
 const fillHorizons = ['At fill','+100ms','+1s','+5s','+30s'];
 const markoutBase = {'At fill':0.02,'+100ms':0.01,'+1s':0.04,'+5s':0.03,'+30s':0.05};
 function sampleFills() {
@@ -166,145 +145,14 @@ function sampleFills() {
   return {time:`${hour}:${minute-Math.floor(i/2)}:${String(52-i*5).padStart(2,'0')}`, side:sell?'Sell':'Buy', trade:362859-i*137, order:362858-i*137, price:price()+(sell?3:-3)+i*.31, qty:state.engine==='BTC/USD'?'0.0005':'0.0100', fee:0.08, markout};
  });
 }
-function fills() {
- const engine=engineOf();
- const rows=sampleFills().filter(x=>state.fills==='All'||x.side===state.fills);
- const ids=state.showIds?['Trade','Order']:[];
- const headers=['Time (UTC)','Side',...ids,'Price (USD)',`Quantity (${shortAsset()})`,'Fee (USD)',state.horizon==='At fill'?'Edge at fill (USD)':`Markout ${state.horizon} (USD)`];
- const numeric=headers.map((_,i)=>i).filter(i=>i>=2);
- const cells=(x)=>[x.time,badge(x.side,x.side==='Buy'?'good':'bad'),...(state.showIds?[String(x.trade),String(x.order)]:[]),money(x.price),x.qty,`$${money(x.fee)}`,x.markout[state.horizon]===null?'<span class="muted">–</span>':signedSpan(x.markout[state.horizon])];
- return card('Recent fills',engine.running?'Illustrative executions from this session':`The final fills of run ${engine.run}. Nothing new will arrive.`,table(headers,rows.map(cells),numeric),`<div class="inline">${segments(['All','Buy','Sell'],state.fills,'data-fill')}${segments(fillHorizons,state.horizon,'data-horizon')}</div>`,`<span>${rows.length} sample fills · Newest first · A horizon that has not passed yet is “–”</span><span class="inline"><button class="text-button" id="toggle-ids" aria-pressed="${state.showIds}">${state.showIds?'Hide IDs':'Show IDs'}</button><button class="text-button" id="export">↓ Export sample CSV</button></span>`);
-}
-function quality(buy=126, sell=122, scope='This session') {return card('Execution quality',`Average markout per fill · ${scope}. A missing measurement stays “–”.`,table(['Side','Fills','+100ms (USD)','+1s (USD)','+5s (USD)','+30s (USD)'],[['Buy',String(buy),'+$0.02','+$0.04','+$0.03','−$0.01'],['Sell',String(sell),'+$0.03','+$0.04','+$0.02','–']],[1,2,3,4,5]),'', '<span>Markout is measured against recorded fair prices at each horizon.</span>');}
 
-// Only a page reading a live feed carries the pulse and the control that
-// stops it. A stopped engine keeps the dot's place, drained, and says
-// when it stopped; nothing on the page may call its numbers live.
-function liveContext() {
- const engine=engineOf();
- const live=state.feed==='Live';
- const feedState = engine.running
-  ? `<span class="end live-state">${live?`<span class="live-dot" aria-hidden="true"></span><span class="small">Updated 3s ago</span>`:`<span class="live-dot paused" aria-hidden="true"></span><span class="small muted">Paused · 14:32:08 UTC</span>`}${segments(['Live','Paused'],state.feed,'data-feed')}</span>`
-  : `<span class="end live-state"><span class="live-dot paused" aria-hidden="true"></span><span class="small muted">Stopped ${engine.stopped} · ${engine.ago}</span></span>`;
- return `<section class="context" aria-label="Session context">${engineSelect()}<span class="separator"></span><span class="small">Kraken <span class="muted">/</span> Market making</span>${badge('Paper','info')}${engine.running?badge('Live feed','good'):badge('Stopped','neutral')}${feedState}<span class="small muted mono run-id">Run ${engine.run}</span></section>`;
-}
-function stoppedNotice() {
- const engine=engineOf(); const run=byId(engine.run);
- return `<div class="banner neutral" role="status"><span><strong>Nothing is running for ${state.engine}.</strong> Its last session, <b class="mono">${run.id}</b>, was ${run.status.toLowerCase()} ${engine.stopped} after ${duration(run)}. The figures below are its final state and will not change.</span><button class="chip" data-open-run="${run.id}">Open it in Research →</button></div>`;
-}
-function monitor() {
- if(state.layout==='Cockpit') return cockpit();
- const engine=engineOf(); const running=engine.running; const p=position();
- const run=running?runningRun():byId(engine.run);
- const kpis = running
-  ? kpi('Marked PnL','+$128.42','+$397.11 cash flow · −$268.69 inventory at mid',true,true)+kpi('Position',p.qty,`−$${money(p.value)} at mid · ${p.used}% of limit`)+kpi('Fills','248','126 buy / 122 sell')+kpi('Trading fees','$16.87','Total fees · This session')
-  : kpi('Marked PnL',signed(netPnl(run)),'Final · Cash flow + inventory at the last mid',netPnl(run)>0)+kpi('Position',p.qty,`Final · −$${money(p.value)} at the last mid`)+kpi('Fills',String(run.fills),`${Math.ceil(run.fills/2)} buy / ${Math.floor(run.fills/2)} sell`)+kpi('Trading fees',`$${money(run.fees)}`,'Whole session');
- const performance = card('Session performance', running?'Marked PnL · USD':`Marked PnL · USD · ${dataWindow(run)} UTC`, `<div class="card-body">${running?chart():chart('4h',['12:00','13:20','14:40','16:00'],netPnl(run))}</div>`, running?segments(['15m','1h','4h'],state.period,'data-period'):badge('Final','neutral'), `<span><span class="legend-line"></span> Marked PnL</span><span>${running?'Illustrative trend':'Whole session'} · Time (UTC)</span>`);
- return liveContext()+(running?'':stoppedNotice())+`<div class="kpis">${kpis}</div><div class="tabs" aria-label="Live view">${['Overview','Fills','Execution quality'].map(x=>`<button data-live-tab="${x}" aria-pressed="${state.liveTab===x}">${x}</button>`).join('')}</div>`+(state.liveTab==='Fills'?fills():state.liveTab==='Execution quality'?quality(running?126:Math.ceil(run.fills/2),running?122:Math.floor(run.fills/2),running?'This session':'Whole session'):`<div class="grid">${orderBook()}<div class="stack">${risk()}${signals()}</div></div><div class="wide">${performance}</div>${fills()}`);
-}
-// Three preview states, because a recorded error and an unwell component
-// are different things: a run can log errors and still be healthy, and
-// the log has to stay readable when it is not empty.
-const sampleErrors = [
-  ['14:31:26','Public feed','Error','Heartbeat timeout exceeded · 42 s without a report'],
-  ['14:28:03','Paper execution','Error','Order rejected by venue · price 83,944.12 outside allowed band'],
-  ['14:22:47','Public feed','Warning','Order book snapshot arrived out of sequence · resynchronised from level 1'],
-  ['14:05:12','Parameters','Error','Parameter store locked by another writer · retried after 1 s'],
-  ['13:58:41','Market making','Warning','Quote replaced 14 times in 10 s · requote tolerance may be too tight'],
-];
-function errorRows(warning){
- const shown = warning ? sampleErrors : sampleErrors.slice(1);
- return shown.map(([time,component,level,message])=>[time,component,badge(level,level==='Error'?'bad':'warn'),message]);
-}
-const componentDown = () => state.health==='Feed delayed';
-// Health reads every engine, so its tiles sit under the engine they
-// report on. A stopped engine's components stopped with it: they are
-// not down, and the page does not count them as such.
-const componentKinds = [['STRATEGY','Market making'],['EXECUTION','Paper execution'],['MARKET DATA','Public feed'],['CONFIGURATION','Parameters']];
-function engineTiles(engine, warning) {
- return `<div class="health-grid">${componentKinds.map(([kind,name],i)=>{
-  if(!engine.running) return `<article class="card health-tile stopped"><div class="eyebrow">${kind}</div><h3>${name}</h3>${badge('Stopped','neutral')}<p>Stopped with the engine · ${engine.stopped}</p><p>No heartbeat is expected while it is stopped.</p></article>`;
-  const down=warning&&i===2;
-  return `<article class="card health-tile"><div class="eyebrow">${kind}</div><h3>${name}</h3>${badge(down?'Down':'Normal',down?'bad':'good')}<p>Last seen ${down?'42':'2'} seconds ago</p><svg viewBox="0 0 230 30" role="img" aria-label="Illustrative heartbeat history">${Array.from({length:32},(_,n)=>`<rect x="${n*7.2}" y="5" width="4" height="22" rx="1" fill="${down&&n>24?'var(--negative)':'var(--heartbeat-ok)'}"/>`).join('')}</svg><p>Sample heartbeat history</p></article>`;
- }).join('')}</div>`;
-}
-function engineRow(engine, index) {
- const run=byId(engine.run);
- return `<div class="engine-row${index?'':' first'}"><h2>Kraken · ${engine.symbol}</h2>${engine.running?badge('Running','good'):badge('Stopped','neutral')}<span class="muted small">Run <span class="mono">${run.id}</span> · ${run.exec} · ${engine.running?`started ${run.ran[0]} UTC`:`${run.status.toLowerCase()} ${engine.stopped} · ${engine.ago}`}</span>${engine.running?'':`<button class="chip" data-open-run="${run.id}">Open in Research →</button>`}</div>`;
-}
-function health() {
- const warning=componentDown();
- const quiet=state.health==='Normal';
- const rows=quiet?[]:errorRows(warning);
- const errorCount=rows.filter(r=>r[2].includes('Error')).length;
- const stopped=engines.filter(e=>!e.running), live=engines.filter(e=>e.running);
- return `<section class="context"><span class="small"><strong>All engines</strong> <span class="muted">/ ${engines.length} configured · Kraken · ${live.length} running</span></span><span class="end small muted">Sample snapshot · 14:32:08 UTC</span><label>Preview state <select id="health-state">${['Normal','Errors recorded','Feed delayed'].map(x=>`<option ${state.health===x?'selected':''}>${x}</option>`).join('')}</select></label></section>${warning?'<div class="banner"><strong>Public feed needs attention.</strong> Last heartbeat was 42 seconds ago; the configured timeout is 30 seconds. Prices below may be stale.</div>':''}<div class="kpis">${kpi('Engines running',`${live.length} / ${engines.length}`,stopped.length?`${stopped.map(e=>e.symbol).join(', ')} stopped ${stopped[0].ago}`:'Every configured engine')}${kpi('Components down',warning?'1':'0',warning?'Public feed timed out':'Every running component reports in time')}${kpi('Recorded errors',String(errorCount),quiet?'This sample session':`${rows.length - errorCount} warning${rows.length-errorCount===1?'':'s'} also recorded`)}${kpi('Heartbeat timeout','30 s','Configured threshold')}</div>${engines.map((e,i)=>engineRow(e,i)+engineTiles(e,warning)).join('')}${card('Error log','Recorded errors and warnings across all engines',rows.length?table(['Time (UTC)','Component','Level','Message'],rows):'<div class="empty"><div class="empty-icon">✓</div><h3>No errors recorded</h3><p>Errors will appear here with their engine, timestamp, and message.</p></div>',badge(rows.length?`${errorCount} error${errorCount===1?'':'s'} · ${rows.length-errorCount} warning${rows.length-errorCount===1?'':'s'}`:'0 errors',errorCount?'bad':rows.length?'warn':'neutral'),rows.length?'<span>Newest first · An error does not always mean a component is down.</span>':'')}`;
-}
-// Six states a field can be in, kept apart: the default, an inherited
-// default, a symbol's override, an edit not yet committed, a committed
-// value the engine has not yet read, and one it has.
-function pending(){return scopes.flatMap(scope=>Object.keys(state.values[scope]).filter(k=>state.values[scope][k]!==state.saved[scope][k]).map(k=>[scope,k]));}
-function pendingLabel(){const changes=pending();if(!changes.length)return 'No unsaved changes';const touched=new Set(changes.map(([scope])=>scope)).size;return `${changes.length} unsaved change${changes.length===1?'':'s'}${touched>1?` across ${touched} scopes`:''}`;}
-function fieldState(key){
- const scope=scopeKey(); const held=state.values[scope][key], saved=state.saved[scope][key], acked=state.acked[scope][key];
- if(held!==saved) return badge('Pending','warn');
- if(saved!==acked) return badge('Stored · awaiting engine','info');
- if(scope==='All symbols') return badge('Default','neutral');
- return saved!==state.saved['All symbols'][key] ? badge('Override','info') : badge('Inherited','neutral');
-}
-function settingsFields() {const scope=scopeKey();return groups[state.group].map(([label,help,,unit,step])=>{const key=`${state.group}:${label}`;const id=`field-${label.replaceAll(' ','-')}`;return `<div class="setting"><div><div class="setting-label"><label for="${id}">${label}</label><span data-state-for="${key}">${fieldState(key)}</span></div><p>${help}</p></div><div class="setting-control"><input id="${id}" data-field="${key}" type="number" min="0" step="${step}" value="${state.values[scope][key]}" required><span class="unit">${unitFor(unit)}</span></div></div>`}).join('');}
-function parameters() {
- const engine=engineOf();
- const reaches = state.scope==='All symbols' ? engines.some(e=>e.running) : engine.running;
- const count=pending().length;
- return (state.layout==='Cockpit'?`<div class="cockpit">${statusStrip()}</div>`:'')+`<div class="tabs" aria-label="Parameter type">${['Engine','Dashboard'].map(x=>`<button data-param-tab="${x}" aria-pressed="${state.paramTab===x}">${x}</button>`).join('')}</div>`+(state.paramTab==='Dashboard'?card('Viewer settings','Preferences for this preview only.',`<div class="setting"><div><label for="compact">Compact table rows</label><p>Reduce vertical spacing in data tables.</p></div><input type="checkbox" id="compact" ${document.body.classList.contains('compact')?'checked':''}></div><div class="setting"><div><h3>Time display</h3><p>One explicit timezone across this prototype.</p></div><span class="badge neutral">UTC</span></div>`):`<section class="context" aria-label="Edit scope"><span class="small muted">Applies to</span>${segments(['All symbols',state.engine],scopeKey(),'data-scope')}${reaches?badge('Reaches the running engine','warn'):badge(`${state.engine} is stopped · applies when it next starts`,'neutral')}<span class="end small muted">Polled every 1 s · A finished run keeps the values it ran with</span></section><div class="settings-layout"><aside class="settings-nav" aria-label="Parameter groups">${sections.map(([title,names])=>`<h4>${title}</h4>${names.map(x=>`<button data-group="${x}" aria-pressed="${x===state.group}">${x}</button>`).join('')}`).join('')}<p>Selected groups from the existing parameter catalog.</p></aside><div>${card(state.group,scopeKey()==='All symbols'?'Defaults for every symbol. A symbol may override any of them.':`Values for ${state.engine}. An inherited value follows the default until it is overridden here.`,`<form id="parameter-form">${settingsFields()}</form><details><summary>How changes take effect</summary><p>Committed values are stored apart from the engine's recording, and the engine reads them on its next poll. A field says “awaiting engine” until it has; a stopped engine reads them when it next starts. This prototype only demonstrates the flow.</p></details>`)}<div class="save-bar"><div><p id="pending-label">${pendingLabel()}</p><small>Review the exact values and their scope before applying.</small></div><div class="actions"><button id="revert" ${!count?'disabled':''}>Revert</button><button id="review" class="primary" ${!count?'disabled':''}>Review changes</button></div></div></div></div>`);
-}
+const chartPaths = { '15m': '0,127 24,134 48,120 72,124 96,99 120,105 144,97 168,112 192,90 216,94 240,79 264,86 288,75 312,81 336,62 360,72 384,56 408,63 432,45 456,54 480,30 504,37 528,28 552,35 576,20 600,24', '1h':'0,146 24,138 48,144 72,130 96,132 120,110 144,117 168,107 192,117 216,94 240,96 264,101 288,87 312,94 336,61 360,70 384,56 408,62 432,44 456,51 480,32 504,39 528,27 552,30 576,15 600,20', '4h':'0,150 24,147 48,154 72,151 96,137 120,139 144,123 168,129 192,121 216,128 240,97 264,107 288,91 312,103 336,84 360,93 384,69 408,80 432,53 456,69 480,48 504,53 528,34 552,40 576,24 600,20' };
 
-const horizons=[['At fill',1,1],['+100ms',.9535,1],['+1s',.9185,.998],['+5s',.8665,.992],['+30s',.7905,.974]];
-function economics(run){return horizons.map(([label,factor,share])=>{const gross=run.gross*factor,fees=run.fees*share;return {label,share,gross,fees,net:gross-fees,bps:(gross-fees)/run.notional*10000,adverse:factor===1?null:gross-run.gross};});}
-function economicsCard(run){
- return card('Execution economics','Markout at each horizon, net of fees on measured fills.',table(['Horizon','Measured notional','Gross (USD)','Fees (USD)','Net (USD)','Net (bps)','Adverse selection (USD)'],economics(run).map(r=>[r.label,`${(r.share*100).toFixed(1)}%`,signed(r.gross),`$${money(r.fees)}`,signedSpan(r.net),r.bps.toFixed(2),r.adverse===null?'–':signedSpan(r.adverse)]),[1,2,3,4,5,6]),badge('Final result'),'<span>Measured share is based on availability of recorded fair prices.</span>');
-}
-// The same card on both sides of the workspace split would be wrong:
-// here the values are what the run was handed, and nothing on screen may
-// suggest otherwise.
-function parameterSetCard(run){
- const rows=Object.entries(run.params).map(([key,value])=>{const live=state.saved['BTC/USD'][key];return [key.replace(':',' · '),String(value),live===value?'<span class="muted">same</span>':`<span class="mono">${live}</span>`];});
- return card('Parameters this run used',`Recorded with the run. Read-only.`,table(['Parameter','This run','Current live value'],rows,[1,2]),badge('Frozen','neutral'),`<span>Editing parameters belongs to the running engine, under Trading.</span><a class="text-button" href="#compare">Compare with another run ↗</a>`);
-}
-function runDetail(){
- const run=byId(state.run);
- const options=finished().map(r=>`<option value="${r.id}" ${state.run===r.id?'selected':''}>${r.id} · ${isReplay(r)?'Replay':'Live feed'} · ${dataWindow(r)}</option>`).join('');
- return `<section class="context" aria-label="Run scope"><a class="text-button" href="#runs">← All runs</a><label>Run <select id="run-select">${options}</select></label>${sourceBadge(run)}${badge(run.exec,'info')}${statusBadge(run)}${captureChip(run)}<span class="end clocks"><span><b class="small">Data</b> <span class="mono small">${dataWindow(run)} UTC</span></span><span class="muted small">Ran ${ranWindow(run)} UTC · ${duration(run)}${isReplay(run)?` · ${run.trades.toLocaleString('en-US')} market trades`:''}</span></span></section><div class="kpis">${kpi('Marked PnL',signed(netPnl(run)),'Inventory valued at latest recorded mid',netPnl(run)>0,true)}${kpi('Traded notional',`$${money(run.notional)}`,'Whole run · USD')}${kpi('Trading fees',`$${money(run.fees)}`,'Whole run')}${kpi('Fills',String(run.fills),'Completed executions')}</div><div class="wide">${economicsCard(run)}</div><div class="grid">${parameterSetCard(run)}${quality(Math.ceil(run.fills/2),Math.floor(run.fills/2),'Whole run')}</div><div class="wide">${card('Read the numbers','Different measures answer different questions.','<div class="card-body"><ul class="rules"><li><strong>Marked PnL</strong> combines cash flow with the value of remaining inventory.</li><li><strong>Net markout</strong> subtracts measured-fill fees from gross markout at each horizon.</li><li><strong>Measured share</strong> makes incomplete coverage explicit. Missing data is shown as “–”.</li>'+(isReplay(run)?`<li><strong>Two clocks.</strong> This run read ${dataWindow(run)} of recorded market data, and took ${duration(run)} of wall clock to do it.</li><li><strong>Adverse selection</strong> is what a fill gave back as the market moved on, so it grows with the horizon.</li>`:`<li><strong>One clock.</strong> A live session reads the market as it happens, so its run window is its data window: ${duration(run)} in all.</li><li><strong>Adverse selection</strong> is what a fill gave back as the market moved on, so it grows with the horizon.</li>`)+'</ul></div>')}</div>`;
-}
-function runLibrary(){
- const shown=finished().filter(r=>state.source==='All'||(state.source==='Replay')===isReplay(r));
- const open=isRunning()?runningRun():null;
- const rows=shown.map(r=>[`<button class="link-id mono" data-open-run="${r.id}">${r.id}</button>`,`${sourceBadge(r)} ${badge(r.exec,'info')}`,`<span class="mono">${dataWindow(r)}</span>${isReplay(r)?`<span class="muted small"> · from ${r.capture}</span>`:'<span class="muted small"> · as it ran</span>'}`,`<span class="mono muted">${ranWindow(r)}</span>`,String(r.fills),signedSpan(netPnl(r)),statusBadge(r)]);
- return `<section class="context" aria-label="Library scope">${engineSelect()}<span class="separator"></span><span class="small">Kraken <span class="muted">/</span> Market making</span>${segments(['All','Live feed','Replay'],state.source,'data-source')}<span class="end small muted">${shown.length} finished run${shown.length===1?'':'s'} · All times UTC</span></section><div class="kpis">${kpi('Finished runs',String(finished().length),'Live sessions and replays')}${kpi('Replays',String(runs.filter(isReplay).length),'Over 2 captured windows')}${kpi('Best net PnL',signed(Math.max(...finished().map(netPnl))),'Across every finished run',true)}${kpi('Live sessions',String(runs.filter(r=>!isReplay(r)).length),open?'1 still running':'None running')}</div>${card('Finished runs','Select a run to open it, or compare two of them.',table(['Run','Mode','Data window','Ran','Fills','Net PnL','Status'],rows,[4,5]),`<a class="text-button" href="#compare">Compare two runs ↗</a>`,`<span>${open?`Run <b class="mono">${open.id}</b> is still going and is not measured here.`:`Nothing is running for ${state.engine}; every recorded run has finished.`}</span>${open?'<a class="text-button" href="#monitor">Watch it live ↗</a>':''}`)}`;
-}
-function compare(){
- const [a,b]=state.compare.map(byId);
- const sameWindow=dataWindow(a)===dataWindow(b);
- const select=(side,current)=>`<label>Run ${side} <select data-compare="${side==='A'?0:1}">${finished().map(r=>`<option value="${r.id}" ${current===r.id?'selected':''}>${r.id} · ${isReplay(r)?'Replay':'Live feed'} · ${dataWindow(r)}</option>`).join('')}</select></label>`;
- const delta=(x,y)=>y-x;
- // Only PnL has a direction that means better or worse. Fewer fills is
- // not a loss and a smaller fee bill is not a shortfall, so those deltas
- // carry their sign without carrying a colour.
- const deltaKpi=(label,x,y,format,note,semantic=false)=>{const d=delta(x,y);const sign=d<0?'−':d>0?'+':'';const tone=semantic?(d<0?'negative':'positive'):'mono';return kpi(label,format(y),`${note} · <span class="${tone}">${sign}${format(Math.abs(d)).replace(/^[+−]/,'')}</span> vs A`,false);};
- const rowsA=economics(a),rowsB=economics(b);
- const diffs=Object.keys(a.params).filter(k=>a.params[k]!==b.params[k]);
- return `<section class="context" aria-label="Comparison scope">${select('A',a.id)}${select('B',b.id)}<span class="end small muted">${sameWindow?`Both read ${dataWindow(a)} UTC`:'Different data windows'}</span></section>${sameWindow?'':`<div class="banner"><strong>These runs read different data.</strong> Run A covers ${dataWindow(a)} and run B covers ${dataWindow(b)}, so the difference below is mostly the market, not the parameters. Replay both over one window to compare them.</div>`}<div class="kpis">${deltaKpi('Net PnL',netPnl(a),netPnl(b),v=>signed(v),'Run B',true)}${deltaKpi('Fills',a.fills,b.fills,v=>String(Math.round(v)),'Run B')}${deltaKpi('Traded notional',a.notional,b.notional,v=>`$${money(v)}`,'Run B')}${deltaKpi('Trading fees',a.fees,b.fees,v=>`$${money(v)}`,'Run B')}</div><div class="wide">${card('What differed in the parameters',diffs.length?'Only the values that are not the same in both runs.':'Both runs were handed the same parameters.',diffs.length?table(['Parameter',`A · ${a.id}`,`B · ${b.id}`,'Change'],diffs.map(k=>[k.replace(':',' · '),String(a.params[k]),String(b.params[k]),`<span class="${b.params[k]>a.params[k]?'positive':'negative'}">${b.params[k]>a.params[k]?'↑':'↓'} ${(b.params[k]-a.params[k]).toFixed(4).replace(/\.?0+$/,'')}</span>`]),[1,2,3]):'<div class="empty"><div class="empty-icon">=</div><h3>Identical parameter sets</h3><p>Any difference in the results below came from the data or from the run itself.</p></div>',badge(`${diffs.length} of ${Object.keys(a.params).length} differ`,diffs.length?'info':'neutral'),'<span>A replay is worth running when exactly one thing changes between two of them.</span>')}</div><div class="wide">${card('Net markout by horizon','Run B measured against run A at each horizon.',table(['Horizon',`A · net (USD)`,`B · net (USD)`,'Δ (USD)','Δ (bps)'],rowsA.map((r,i)=>[r.label,signed(r.net),signed(rowsB[i].net),signedSpan(rowsB[i].net-r.net),(rowsB[i].bps-r.bps).toFixed(2)]),[1,2,3,4]),'',`<span>${sameWindow?'Same data, so the difference is the parameters and the run.':'Different data windows — read this comparison with care.'}</span>`)}</div>`;
-}
-function guide() {
- return `<section class="guide-intro"><div><div class="eyebrow">DESIGN SYSTEM / 01</div><h2>Quiet surfaces.<br>Clear decisions.</h2><p>A focused workspace for monitoring an engine, understanding a session, and changing a parameter with confidence.</p></div><div class="guide-principles"><div><strong>01 &nbsp; Context before content</strong><p>Always show the engine, run, mode, and freshness.</p></div><div><strong>02 &nbsp; Live, stopped and finished look different</strong><p>Only a live feed gets a pulse and a refresh control. A stopped engine is quiet, not alarming.</p></div><div><strong>03 &nbsp; Consistency builds trust</strong><p>Repeat the same spacing, number formats, names and component anatomy.</p></div></div></section><div class="wide">${card('Two workspaces','Market data mode decides which one a screen belongs to.',`<div class="card-body"><div class="workspace-compare"><div><div class="eyebrow">TRADING</div><p class="small">One engine reading a live feed, right now.</p><ul class="rules"><li>Refreshes, and says when it last did.</li><li>Parameters are editable and reach the engine.</li><li>Component health matters.</li><li>Paper or real is a badge, not a separate place.</li></ul></div><div><div class="eyebrow">RESEARCH</div><p class="small">Runs that have finished — live sessions and replays alike.</p><ul class="rules"><li>Never refreshes; the numbers are final.</li><li>Parameters are a frozen input, shown read-only.</li><li>A replay states both its clocks and its capture.</li><li>Comparing two runs is the point of the workspace.</li></ul></div></div></div>`)}</div><div class="wide">${card('Two monitor layouts','The same rules, the same data, two answers to what a monitor is for.',`<div class="card-body"><div class="workspace-compare"><div><div class="eyebrow">DASHBOARD</div><p class="small">Cards on a canvas, read top to bottom.</p><ul class="rules"><li>Four summary metrics, then the book, risk and signals, then the tables.</li><li>Fits Streamlit's page model; this is what production carries.</li><li>Scrolls: the fills and the quality tables sit below the fold.</li></ul></div><div><div class="eyebrow">COCKPIT</div><p class="small">One screen, shaped around what a market maker watches.</p><ul class="rules"><li>A status strip: engine, feed, position, PnL, our quotes, fair price, components.</li><li>A price ladder with our quotes tagged and the fair price drawn through it.</li><li>The PnL line with every fill on it, and a dense fills tape.</li><li>Fights Streamlit's page model; a decision about the shell, not a styling pass.</li></ul></div></div></div>`)}</div><div class="grid">${card('Color tokens','A neutral foundation with purposeful accents.',`<div class="card-body swatches">${[['Canvas','--canvas'],['Surface','--surface'],['Text','--ink'],['Secondary','--muted'],['Brand','--accent'],['Positive','--positive'],['Negative','--negative'],['Warning','--warning']].map(([name,token])=>`<div class="swatch"><div class="swatch-color" style="background:var(${token})"></div><strong>${name}</strong><span class="mono">${cssVar(token)}</span></div>`).join('')}</div>`)}${card('Typography','One sans-serif family. Tabular figures for data.',`<div class="card-body"><div class="type-row"><span style="font-size:29px;font-weight:600;letter-spacing:-.9px">Document heading</span><small>29 / 600 · style guide only</small></div><div class="type-row"><h2>Card heading</h2><small>15 / 600</small></div><div class="type-row"><span>Body and controls</span><small>14 / 400–500</small></div><div class="type-row"><span class="muted small">Context and supporting text</span><small>12 / 400</small></div><div class="type-row"><span class="mono positive" style="font-size:26px">+$128.42</span><small>28 / tabular</small></div></div>`)}</div><div class="grid">${card('Status and interaction','Status must remain understandable without color.',`<div class="card-body"><div class="status-samples">${badge('Running','good')}${badge('Live feed','good')}${badge('Replay','info')}${badge('Elevated','warn')}${badge('Down','bad')}${badge('Paper','info')}${badge('Stopped')}${badge('Warming up')}${badge('Frozen')}${badge('Completed')}</div><div class="actions"><button class="primary" id="guide-action">Primary action</button><button id="guide-secondary">Secondary</button><button disabled>Disabled</button></div><p class="small" style="margin-top:16px">One primary action per task. Visible keyboard focus. Labels on all controls. Stopped and warming up are neutral: only a stale feed, an elevated limit or a fault gets a colour.</p></div>`)}${card('Spacing and shape','A shared scale keeps dense screens readable.',`<div class="card-body"><div class="space-samples">${[4,8,12,16,24,32].map(n=>`<div><i style="height:${n}px"></i><span>${n}px</span></div>`).join('')}</div><p class="small" style="margin-top:22px">Cards: 10px radius · Controls: 6px · Card inset: 20–24px<br>Section gap: 20–24px · Desktop page inset: 32px</p></div>`)}</div><div class="grid">${card('Page anatomy','Use this sequence on every page.','<div class="card-body"><ol class="rules"><li>The navigation names the page; no heading repeats it.</li><li>Context bar: engine, mode, run, and either freshness, a stop time or a data window.</li><li>Up to four summary metrics, where meaningful.</li><li>Main task in an aligned grid; details below.</li><li>Quiet empty and stopped states, and explicit error recovery.</li></ol></div>')}${card('Data and accessibility','Make precision and meaning explicit.','<div class="card-body"><ul class="rules"><li>Right-align numbers. Put units in headers. Retain meaningful quantity precision.</li><li>Use + / − for signed money. Missing values are “–”, never zero.</li><li>One figure, one name: what Live calls marked PnL, Research calls marked PnL.</li><li>Label timezone, chart axes, series, and measurement coverage.</li><li>Never label recorded, paused or stopped data as live.</li><li>Stack cards on narrow screens. Scroll wide tables within their card.</li></ul></div>')}</div><div class="wide">${card('Empty state','Absence of data is part of the design.','<div class="empty"><div class="empty-icon">≡</div><h3>No fills in this run</h3><p>Executions will appear here once the selected engine records a fill.</p></div>')}</div>`;
-}
-
-// The cockpit is the other answer to what the monitor should be: the
-// same sample data as the card layout, on one screen, shaped around
-// what a market maker watches - the position against its limit, where
-// our quotes rest against the fair price, and what each fill earned.
-// It is a comparison aid beside the Dashboard layout, not a decision.
+// ---- Live monitor: the cockpit ---------------------------------------
+// The monitor is one screen, shaped around what a market maker watches:
+// the position against its limit, where our quotes rest against the fair
+// price, and what each fill earned. Nothing here scrolls at a desktop
+// width; the detail a reader wants next is a panel away, not a page.
 const panelRow = (label, value) => `<div class="panel-row"><span>${label}</span><span class="mono">${value}</span></div>`;
 const ourQuotes = () => ({bid:price()-2.57-1.91, ask:price()+2.57+1.91});
 function statusStrip() {
@@ -316,26 +164,29 @@ function statusStrip() {
   ? `<span class="live-dot${state.feed==='Live'?'':' paused'}" aria-hidden="true"></span><span>${state.feed==='Live'?'Updated 3s ago':'Paused · 14:32:08 UTC'}</span>${segments(['Live','Paused'],state.feed,'data-feed')}`
   : `<span class="live-dot paused" aria-hidden="true"></span><span class="muted">Stopped ${engine.stopped}</span>`;
  const components = !running ? badge('Stopped','neutral') : componentDown() ? badge('1 of 4 down','bad') : badge('4 of 4 reporting','neutral');
- return `<div class="strip" role="region" aria-label="Engine status">`
-  +`<div class="strip-item"><span class="strip-label">Engine · run <span class="mono">${run.id}</span></span><span class="strip-value">${engineSelect(false)}${badge('Paper','info')}${running?badge('Live feed','good'):badge('Stopped','neutral')}</span></div>`
-  +`<div class="strip-item"><span class="strip-label">Feed</span><span class="strip-value">${feed}</span></div>`
-  +`<div class="strip-item"><span class="strip-label">Position</span><span class="strip-value mono">${p.qty}<span class="track"><i style="width:${p.used}%"></i></span><span class="muted small">${p.used}%</span></span></div>`
-  +`<div class="strip-item"><span class="strip-label">Marked PnL</span><span class="strip-value mono ${marked<0?'negative':'positive'}">${signed(marked)}</span></div>`
-  +`<div class="strip-item"><span class="strip-label">Our quotes · fair</span><span class="strip-value mono"><span class="positive">${money(bid)}</span><span class="muted">/</span><span class="negative">${money(ask)}</span><span class="muted">·</span><span class="info">${money(price()+combined)}</span></span></div>`
-  +`<div class="strip-item grow"><span class="strip-label">Components</span><span class="strip-value">${components}</span></div>`
-  +`</div>`;
+ return strip([
+  cell(`Engine · run <span class="mono">${run.id}</span>`, `${engineSelect()}${badge('Paper','info')}${running?badge('Live feed','good'):badge('Stopped','neutral')}`),
+  cell('Feed', feed),
+  cell('Position', `<span class="mono">${p.qty}</span><span class="track"><i style="width:${p.used}%"></i></span><span class="muted small">${p.used}%</span>`),
+  cell('Marked PnL', `<span class="mono ${marked<0?'negative':'positive'}">${signed(marked)}</span>`),
+  cell('Our quotes · fair', `<span class="mono"><span class="positive">${money(bid)}</span> <span class="muted">/</span> <span class="negative">${money(ask)}</span> <span class="muted">·</span> <span class="info">${money(price()+combined)}</span></span>`),
+  cell('Components', components, 'grow'),
+ ], 'Engine status');
 }
-function cockpitPanel(run) {
+function stoppedNotice() {
+ const engine=engineOf(); const run=byId(engine.run);
+ return `<div class="banner neutral" role="status"><span><strong>Nothing is running for ${state.engine}.</strong> Its last session, <b class="mono">${run.id}</b>, was ${run.status.toLowerCase()} ${engine.stopped} after ${duration(run)}. The figures below are its final state and will not change.</span><button class="chip" data-open-run="${run.id}">Open it in Research →</button></div>`;
+}
+function positionPanel(run) {
  const engine=engineOf(); const running=engine.running; const p=position();
  const {combined}=signalSummary();
  const marked=running?128.42:netPnl(run);
  const cash=marked+p.value;
  const [fills,buys,sells]=running?[248,126,122]:[run.fills,Math.ceil(run.fills/2),Math.floor(run.fills/2)];
  const fees=running?16.87:run.fees;
- const shortVerdict={'Too weak to size from':'Too weak'};
  const signalLines=signalRows.map(([name,verdict,tone,value])=>panelRow(`${name} ${badge(shortVerdict[verdict]||verdict,tone)}`, value===null?'<span class="muted">–</span>':signedSpan(value))).join('');
  const componentLines=componentKinds.map(([,name],i)=>{const down=running&&componentDown()&&i===2;return panelRow(name, running?badge(down?'Down · 42 s ago':'Normal · 2 s ago',down?'bad':'good'):badge('Stopped','neutral'));}).join('');
- return `<section class="card cockpit-panel"><div class="card-head"><div><h2>Position</h2><p>${state.engine} · ${running?'live':'final'}</p></div>${badge('OK','good')}</div><div class="card-body">`
+ return `<section class="card"><div class="card-head"><div><h2>Position</h2><p>${state.engine} · ${running?'live':'final'}</p></div>${badge('OK','good')}</div><div class="card-body">`
   +`<div class="panel-big">${p.qty}</div><div class="panel-sub">−$${money(p.value)} at ${running?'mid':'the last mid'}</div>`
   +`<div class="track"><i style="width:${p.used}%"></i></div><div class="risk-meta"><span class="mono">${p.held}</span><span>${p.used}% of limit</span></div>`
   +`<div class="panel-title">PnL</div><div class="panel-rows">${panelRow('Marked PnL',`<strong>${signedSpan(marked)}</strong>`)}${panelRow('Cash flow',signedSpan(cash))}${panelRow(running?'Inventory at mid':'Inventory at the last mid',signedSpan(-p.value))}${panelRow('Fees',`$${money(fees)}`)}${panelRow('Fills',`${fills} <span class="muted">· ${buys} buy / ${sells} sell</span>`)}</div>`
@@ -366,7 +217,7 @@ function ladder() {
 }
 // The PnL line with every fill on it, so the eye can tell which fills
 // earned it. Buys hang under the line, sells sit above it.
-function cockpitChart(run) {
+function pnlChart(run) {
  const running=isRunning(); const period=running?state.period:'4h';
  const W=560, H=210, sx=(W-70)/600;
  const pts=chartPaths[period].split(' ').map(p=>p.split(',').map(Number)).map(([x,y])=>[x*sx,y]);
@@ -376,16 +227,175 @@ function cockpitChart(run) {
  const markers=pts.filter((_,i)=>i>=2&&i%2===0).map(([x,y],n)=>n%3===0
   ?`<path d="M${(x-4).toFixed(1)},${y-13} L${(x+4).toFixed(1)},${y-13} L${x.toFixed(1)},${y-6} Z" fill="var(--negative)"/>`
   :`<path d="M${(x-4).toFixed(1)},${y+13} L${(x+4).toFixed(1)},${y+13} L${x.toFixed(1)},${y+6} Z" fill="var(--positive)"/>`).join('');
- return `<svg class="cockpit-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Illustrative marked PnL over ${running?`the selected ${period} window`:'the whole session'}, with each fill marked on the line. Not live data."><defs><linearGradient id="cockpit-area" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="var(--positive)" stop-opacity=".12"/><stop offset="100%" stop-color="var(--positive)" stop-opacity="0"/></linearGradient></defs>${[20,65,110,155].map((y,i)=>`<line class="chart-grid" x1="0" x2="${(600*sx).toFixed(1)}" y1="${y}" y2="${y}"/><text x="${(600*sx+10).toFixed(1)}" y="${y+4}">$${money(top*(3-i)/3)}</text>`).join('')}<polygon points="0,170 ${line} ${(600*sx).toFixed(1)},170" fill="url(#cockpit-area)"/><polyline points="${line}" class="chart-line"/>${markers}${ticks.map((x,i)=>`<text x="${(i*190*sx).toFixed(1)}" y="200">${x}</text>`).join('')}</svg>`;
+ return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Illustrative marked PnL over ${running?`the selected ${period} window`:'the whole session'}, with each fill marked on the line. Not live data."><defs><linearGradient id="pnl-area" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="var(--positive)" stop-opacity=".12"/><stop offset="100%" stop-color="var(--positive)" stop-opacity="0"/></linearGradient></defs>${[20,65,110,155].map((y,i)=>`<line class="chart-grid" x1="0" x2="${(600*sx).toFixed(1)}" y1="${y}" y2="${y}"/><text x="${(600*sx+10).toFixed(1)}" y="${y+4}">$${money(top*(3-i)/3)}</text>`).join('')}<polygon points="0,170 ${line} ${(600*sx).toFixed(1)},170" fill="url(#pnl-area)"/><polyline points="${line}" class="chart-line"/>${markers}${ticks.map((x,i)=>`<text x="${(i*190*sx).toFixed(1)}" y="200">${x}</text>`).join('')}</svg>`;
 }
-function fillsTape() {
- const rows=sampleFills();
- return card('Fills tape','Newest first · UTC',`<div class="tape">${table(['Time','Side','Price','Qty','Edge','+1s'],rows.map(x=>[x.time,badge(x.side,x.side==='Buy'?'good':'bad'),money(x.price),x.qty,signedSpan(x.markout['At fill']),x.markout['+1s']===null?'<span class="muted">–</span>':signedSpan(x.markout['+1s'])]),[2,3,4,5])}</div>`,'',`<span>${rows.length} of ${isRunning()?248:byId(engineOf().run).fills} fills</span><button class="text-button" data-open-fills>All fills ↗</button>`);
+function pnlCard(run) {
+ const running=isRunning();
+ return card('Session PnL with fills', running?'Marked PnL · USD':`Marked PnL · USD · ${dataWindow(run)} UTC`, `<div class="card-body">${pnlChart(run)}</div>`, running?segments(['15m','1h','4h'],state.period,'data-period'):badge('Final','neutral'), `<span><span class="legend-line"></span> Marked PnL · <span class="positive">▲</span> buy · <span class="negative">▼</span> sell</span><span>${running?'Illustrative':'Whole session'} · Time (UTC)</span>`);
 }
-function cockpit() {
+// One signed column, switched by horizon, in place of one per horizon;
+// the identifiers wait behind a toggle; the symbol is the strip's.
+function fillsTape(run) {
+ const running=isRunning();
+ const rows=sampleFills().filter(x=>state.fills==='All'||x.side===state.fills);
+ const ids=state.showIds?['Trade','Order']:[];
+ const h=state.horizon;
+ const headers=['Time',...ids,'Side','Price',`Qty (${shortAsset()})`,h==='At fill'?'Edge at fill':`Markout ${h}`];
+ const numeric=headers.map((_,i)=>i).filter(i=>i>=1+ids.length+1);
+ const cells=(x)=>[x.time,...(state.showIds?[String(x.trade),String(x.order)]:[]),badge(x.side,x.side==='Buy'?'good':'bad'),money(x.price),x.qty,x.markout[h]===null?'<span class="muted">–</span>':signedSpan(x.markout[h])];
+ const total=running?248:run.fills;
+ return card('Fills', running?'Newest first · UTC':`Final fills of run ${run.id} · UTC`, `<div class="tape">${table(headers,rows.map(cells),numeric)}</div>`, `<div class="inline">${segments(['All','Buy','Sell'],state.fills,'data-fill')}${segments(fillHorizons,state.horizon,'data-horizon')}</div>`, `<span>${rows.length} of ${total} fills · a horizon not yet passed is “–”</span><span class="inline"><button class="text-button" id="toggle-ids" aria-pressed="${state.showIds}">${state.showIds?'Hide IDs':'Show IDs'}</button><button class="text-button" id="export">↓ Export CSV</button></span>`);
+}
+function quality(buy=126, sell=122, scope='This session') {return card('Execution quality',`Average markout per fill · ${scope}`,table(['Side','Fills','+100ms','+1s','+5s','+30s'],[['Buy',String(buy),'+$0.02','+$0.04','+$0.03','−$0.01'],['Sell',String(sell),'+$0.03','+$0.04','+$0.02','–']],[1,2,3,4,5]),'', '<span>USD, against recorded fair prices at each horizon · a missing measurement stays “–”</span>');}
+function monitor() {
  const engine=engineOf(); const running=engine.running; const run=running?runningRun():byId(engine.run);
- const performance=card('Session PnL with fills','Marked PnL · USD',`<div class="card-body">${cockpitChart(run)}</div>`, running?segments(['15m','1h','4h'],state.period,'data-period'):badge('Final','neutral'), `<span><span class="legend-line"></span> Marked PnL · <span class="positive">▲</span> buy · <span class="negative">▼</span> sell</span><span>${running?'Illustrative':'Whole session'} · Time (UTC)</span>`);
- return `<div class="cockpit">${statusStrip()}${running?'':stoppedNotice()}<div class="cockpit-grid">${cockpitPanel(run)}${ladder()}<div class="stack cockpit-right">${performance}${fillsTape()}</div></div></div>`;
+ const [buys,sells]=running?[126,122]:[Math.ceil(run.fills/2),Math.floor(run.fills/2)];
+ return statusStrip()+(running?'':stoppedNotice())+`<div class="cockpit-grid">${positionPanel(run)}<div class="stack">${ladder()}${quality(buys,sells,running?'This session':'Whole session')}</div><div class="stack">${pnlCard(run)}${fillsTape(run)}</div></div>`;
+}
+
+// ---- Health -----------------------------------------------------------
+// Health reads every engine, so it opens on the totals and then gives
+// each engine a card of its components. A stopped engine's components
+// stopped with it: they are not down, and the page does not count them.
+const sampleErrors = [
+  ['14:31:26','Public feed','Error','Heartbeat timeout exceeded · 42 s without a report'],
+  ['14:28:03','Paper execution','Error','Order rejected by venue · price 83,944.12 outside allowed band'],
+  ['14:22:47','Public feed','Warning','Order book snapshot arrived out of sequence · resynchronised from level 1'],
+  ['14:05:12','Parameters','Error','Parameter store locked by another writer · retried after 1 s'],
+  ['13:58:41','Market making','Warning','Quote replaced 14 times in 10 s · requote tolerance may be too tight'],
+];
+function errorRows(warning){
+ const shown = warning ? sampleErrors : sampleErrors.slice(1);
+ return shown.map(([time,component,level,message])=>[time,component,badge(level,level==='Error'?'bad':'warn'),message]);
+}
+const heartbeatBars = (down) => `<svg class="beats" viewBox="0 0 230 16" role="img" aria-label="Illustrative heartbeat history">${Array.from({length:32},(_,n)=>`<rect x="${n*7.2}" y="2" width="4" height="12" rx="1" fill="${down&&n>24?'var(--negative)':'var(--heartbeat-ok)'}"/>`).join('')}</svg>`;
+function engineCard(engine, warning) {
+ const run=byId(engine.run);
+ const rows=componentKinds.map(([kind,name],i)=>{
+  if(!engine.running) return [name,kind,badge('Stopped','neutral'),`<span class="muted">${engine.stopped}</span>`,'<span class="muted small">none expected while stopped</span>'];
+  const down=warning&&i===2;
+  return [name,kind,badge(down?'Down':'Normal',down?'bad':'good'),down?'42 s ago':'2 s ago',heartbeatBars(down)];
+ });
+ return `<section class="card"><div class="card-head"><div><h2>Kraken · ${engine.symbol} ${engine.running?badge('Running','good'):badge('Stopped','neutral')}</h2><p>Run <span class="mono">${run.id}</span> · ${run.exec} · ${engine.running?`started ${run.ran[0]} UTC`:`${run.status.toLowerCase()} ${engine.stopped} · ${engine.ago}`}</p></div>${engine.running?'':`<button class="chip" data-open-run="${run.id}">Open in Research →</button>`}</div>${table(['Component','Kind','State','Last seen','Heartbeat history'],rows)}</section>`;
+}
+function health() {
+ const warning=componentDown();
+ const quiet=state.health==='Normal';
+ const rows=quiet?[]:errorRows(warning);
+ const errorCount=rows.filter(r=>r[2].includes('Error')).length;
+ const live=engines.filter(e=>e.running), stopped=engines.filter(e=>!e.running);
+ const summary=strip([
+  cell('Engines', `<strong>${live.length} / ${engines.length}</strong> running${stopped.length?` <span class="muted">· ${stopped.map(e=>e.symbol).join(', ')} stopped ${stopped[0].ago}</span>`:''}`),
+  cell('Components down', warning?badge('1 · Public feed timed out','bad'):badge('0 · every running component reports in time','neutral')),
+  cell('Recorded errors', `<strong>${errorCount}</strong>${rows.length-errorCount?` <span class="muted">· ${rows.length-errorCount} warning${rows.length-errorCount===1?'':'s'}</span>`:''}`),
+  cell('Heartbeat timeout', '30 s'),
+  cell('Snapshot', '<span class="mono">14:32:08 UTC</span>'),
+  cell('Preview state', `<select id="health-state" aria-label="Preview state">${['Normal','Errors recorded','Feed delayed'].map(x=>`<option ${state.health===x?'selected':''}>${x}</option>`).join('')}</select>`, 'grow'),
+ ], 'Health summary');
+ return summary+(warning?'<div class="banner"><strong>Public feed needs attention.</strong> Last heartbeat was 42 seconds ago; the configured timeout is 30 seconds. Prices on the monitor may be stale.</div>':'')+`<div class="grid">${engines.map(e=>engineCard(e,warning)).join('')}</div>`+card('Error log','Recorded errors and warnings across all engines · newest first',rows.length?table(['Time (UTC)','Component','Level','Message'],rows):'<div class="empty"><div class="empty-icon">✓</div><h3>No errors recorded</h3><p>Errors will appear here with their engine, timestamp, and message.</p></div>',badge(rows.length?`${errorCount} error${errorCount===1?'':'s'} · ${rows.length-errorCount} warning${rows.length-errorCount===1?'':'s'}`:'0 errors',errorCount?'bad':rows.length?'warn':'neutral'),rows.length?'<span>An error does not always mean a component is down.</span>':'');
+}
+
+// ---- Parameters -------------------------------------------------------
+// Six states a field can be in, kept apart: the default, an inherited
+// default, a symbol's override, an edit not yet committed, a committed
+// value the engine has not yet read, and one it has.
+function pending(){return scopes.flatMap(scope=>Object.keys(state.values[scope]).filter(k=>state.values[scope][k]!==state.saved[scope][k]).map(k=>[scope,k]));}
+function pendingLabel(){const changes=pending();if(!changes.length)return 'No unsaved changes';const touched=new Set(changes.map(([scope])=>scope)).size;return `${changes.length} unsaved change${changes.length===1?'':'s'}${touched>1?` across ${touched} scopes`:''}`;}
+function fieldState(key){
+ const scope=scopeKey(); const held=state.values[scope][key], saved=state.saved[scope][key], acked=state.acked[scope][key];
+ if(held!==saved) return badge('Pending','warn');
+ if(saved!==acked) return badge('Stored · awaiting engine','info');
+ if(scope==='All symbols') return badge('Default','neutral');
+ return saved!==state.saved['All symbols'][key] ? badge('Override','info') : badge('Inherited','neutral');
+}
+function settingsFields() {const scope=scopeKey();return groups[state.group].map(([label,help,,unit,step])=>{const key=`${state.group}:${label}`;const id=`field-${label.replaceAll(' ','-')}`;return `<div class="setting"><div><div class="setting-label"><label for="${id}">${label}</label><span data-state-for="${key}">${fieldState(key)}</span></div><p>${help}</p></div><div class="setting-control"><input id="${id}" data-field="${key}" type="number" min="0" step="${step}" value="${state.values[scope][key]}" required><span class="unit">${unitFor(unit)}</span></div></div>`}).join('');}
+function parameters() {
+ const engine=engineOf();
+ const reaches = state.scope==='All symbols' ? engines.some(e=>e.running) : engine.running;
+ const count=pending().length;
+ const viewer=card('Viewer settings','Preferences for this preview only.',`<div class="setting"><div><label for="compact">Compact table rows</label><p>Reduce vertical spacing in data tables.</p></div><input type="checkbox" id="compact" ${document.body.classList.contains('compact')?'checked':''}></div><div class="setting"><div><h3>Time display</h3><p>One explicit timezone across this prototype.</p></div><span class="badge neutral">UTC</span></div>`);
+ const scopeStrip=strip([
+  cell('Applies to', segments(['All symbols',state.engine],scopeKey(),'data-scope')),
+  cell('Reach', reaches?badge('Reaches the running engine','warn'):badge(`${state.engine} is stopped · applies when it next starts`,'neutral')),
+  cell('Polled', 'every 1 s'),
+  cell('Finished runs', '<span class="muted">keep the values they ran with</span>', 'grow'),
+ ], 'Edit scope');
+ const editor=`<div class="settings-layout"><aside class="settings-nav" aria-label="Parameter groups">${sections.map(([title,names])=>`<h4>${title}</h4>${names.map(x=>`<button data-group="${x}" aria-pressed="${x===state.group}">${x}</button>`).join('')}`).join('')}<p>Selected groups from the existing parameter catalog.</p></aside><div>${card(state.group,scopeKey()==='All symbols'?'Defaults for every symbol. A symbol may override any of them.':`Values for ${state.engine}. An inherited value follows the default until it is overridden here.`,`<form id="parameter-form">${settingsFields()}</form><details><summary>How changes take effect</summary><p>Committed values are stored apart from the engine's recording, and the engine reads them on its next poll. A field says “awaiting engine” until it has; a stopped engine reads them when it next starts. This prototype only demonstrates the flow.</p></details>`)}<div class="save-bar"><div><p id="pending-label">${pendingLabel()}</p><small>Review the exact values and their scope before applying.</small></div><div class="actions"><button id="revert" ${!count?'disabled':''}>Revert</button><button id="review" class="primary" ${!count?'disabled':''}>Review changes</button></div></div></div></div>`;
+ return statusStrip()+`<div class="tabs" aria-label="Parameter type">${['Engine','Dashboard'].map(x=>`<button data-param-tab="${x}" aria-pressed="${state.paramTab===x}">${x}</button>`).join('')}</div>`+(state.paramTab==='Dashboard'?viewer:scopeStrip+editor);
+}
+
+// ---- Research ---------------------------------------------------------
+const horizons=[['At fill',1,1],['+100ms',.9535,1],['+1s',.9185,.998],['+5s',.8665,.992],['+30s',.7905,.974]];
+function economics(run){return horizons.map(([label,factor,share])=>{const gross=run.gross*factor,fees=run.fees*share;return {label,share,gross,fees,net:gross-fees,bps:(gross-fees)/run.notional*10000,adverse:factor===1?null:gross-run.gross};});}
+function economicsCard(run){
+ return card('Execution economics','Markout at each horizon, net of fees on measured fills',table(['Horizon','Measured','Gross (USD)','Fees (USD)','Net (USD)','Net (bps)','Adverse selection (USD)'],economics(run).map(r=>[r.label,`${(r.share*100).toFixed(1)}%`,signed(r.gross),`$${money(r.fees)}`,signedSpan(r.net),r.bps.toFixed(2),r.adverse===null?'–':signedSpan(r.adverse)]),[1,2,3,4,5,6]),badge('Final result'),'<span>Measured share is the notional with a recorded fair price close enough to measure against.</span>');
+}
+// The same card on both sides of the workspace split would be wrong:
+// here the values are what the run was handed, and nothing on screen may
+// suggest otherwise.
+function parameterSetCard(run){
+ const rows=Object.entries(run.params).map(([key,value])=>{const live=state.saved['BTC/USD'][key];return [key.replace(':',' · '),String(value),live===value?'<span class="muted">same</span>':`<span class="mono">${live}</span>`];});
+ return card('Parameters this run used','Recorded with the run · read-only',table(['Parameter','This run','Current live value'],rows,[1,2]),badge('Frozen','neutral'),`<span>Editing belongs to the running engine, under Trading.</span><a class="text-button" href="#compare">Compare with another run ↗</a>`);
+}
+function readTheNumbers(run){
+ return card('Read the numbers','Different measures answer different questions','<div class="card-body"><ul class="rules"><li><strong>Marked PnL</strong> combines cash flow with the value of remaining inventory.</li><li><strong>Net markout</strong> subtracts measured-fill fees from gross markout at each horizon.</li><li><strong>Measured share</strong> makes incomplete coverage explicit. Missing data is shown as “–”.</li>'+(isReplay(run)?`<li><strong>Two clocks.</strong> This run read ${dataWindow(run)} of recorded market data, and took ${duration(run)} of wall clock to do it.</li>`:`<li><strong>One clock.</strong> A live session reads the market as it happens, so its run window is its data window: ${duration(run)} in all.</li>`)+'<li><strong>Adverse selection</strong> is what a fill gave back as the market moved on, so it grows with the horizon.</li></ul></div>');
+}
+function runDetail(){
+ const run=byId(state.run);
+ const options=finished().map(r=>`<option value="${r.id}" ${state.run===r.id?'selected':''}>${r.id} · ${isReplay(r)?'Replay':'Live feed'} · ${dataWindow(r)}</option>`).join('');
+ const head=strip([
+  cell('Run', `<select id="run-select" aria-label="Run">${options}</select><a class="text-button" href="#runs">← All runs</a>`),
+  cell('Mode', `${sourceBadge(run)}${badge(run.exec,'info')}${statusBadge(run)}${captureChip(run)}`),
+  cell('Data window', `<span class="mono">${dataWindow(run)} UTC</span>`),
+  cell('Ran', `<span class="mono">${ranWindow(run)}</span> <span class="muted">· ${duration(run)}${isReplay(run)?` · ${run.trades.toLocaleString('en-US')} market trades`:''}</span>`),
+  cell('Marked PnL', `<span class="mono">${signedSpan(netPnl(run))}</span>`),
+  cell('Notional', `<span class="mono">$${money(run.notional)}</span>`),
+  cell('Fees', `<span class="mono">$${money(run.fees)}</span>`),
+  cell('Fills', `<span class="mono">${run.fills}</span>`, 'grow'),
+ ], 'Run scope');
+ return head+`<div class="grid-wide"><div class="stack">${economicsCard(run)}${quality(Math.ceil(run.fills/2),Math.floor(run.fills/2),'Whole run')}</div><div class="stack">${parameterSetCard(run)}${readTheNumbers(run)}</div></div>`;
+}
+function runLibrary(){
+ const shown=finished().filter(r=>state.source==='All'||(state.source==='Replay')===isReplay(r));
+ const open=isRunning()?runningRun():null;
+ const rows=shown.map(r=>[`<button class="link-id mono" data-open-run="${r.id}">${r.id}</button>`,`${sourceBadge(r)} ${badge(r.exec,'info')}`,`<span class="mono">${dataWindow(r)}</span>${isReplay(r)?`<span class="muted small"> · from ${r.capture}</span>`:'<span class="muted small"> · as it ran</span>'}`,`<span class="mono muted">${ranWindow(r)}</span>`,String(r.fills),`$${money(r.notional)}`,signedSpan(netPnl(r)),statusBadge(r)]);
+ const head=strip([
+  cell('Engine', `${engineSelect()}<span class="muted">Kraken / Market making</span>`),
+  cell('Source', segments(['All','Live feed','Replay'],state.source,'data-source')),
+  cell('Finished runs', `<strong>${finished().length}</strong> <span class="muted">· ${runs.filter(isReplay).length} replays over 2 captured windows</span>`),
+  cell('Best net PnL', `<span class="mono positive">${signed(Math.max(...finished().map(netPnl)))}</span>`),
+  cell('Live sessions', `<strong>${runs.filter(r=>!isReplay(r)).length}</strong> <span class="muted">· ${open?'1 still running':'none running'}</span>`),
+  cell('Times', 'UTC', 'grow'),
+ ], 'Library scope');
+ return head+card('Finished runs',`${shown.length} shown · select a run to open it, or compare two of them`,table(['Run','Mode','Data window','Ran','Fills','Notional','Net PnL','Status'],rows,[4,5,6]),`<a class="text-button" href="#compare">Compare two runs ↗</a>`,`<span>${open?`Run <b class="mono">${open.id}</b> is still going and is not measured here.`:`Nothing is running for ${state.engine}; every recorded run has finished.`}</span>${open?'<a class="text-button" href="#monitor">Watch it live ↗</a>':''}`);
+}
+function compare(){
+ const [a,b]=state.compare.map(byId);
+ const sameWindow=dataWindow(a)===dataWindow(b);
+ const select=(side,current)=>`<select data-compare="${side==='A'?0:1}" aria-label="Run ${side}">${finished().map(r=>`<option value="${r.id}" ${current===r.id?'selected':''}>${r.id} · ${isReplay(r)?'Replay':'Live feed'} · ${dataWindow(r)}</option>`).join('')}</select>`;
+ // Only PnL has a direction that means better or worse. Fewer fills is
+ // not a loss and a smaller fee bill is not a shortfall, so those deltas
+ // carry their sign without carrying a colour.
+ const delta=(x,y,format,semantic=false)=>{const d=y-x;const sign=d<0?'−':d>0?'+':'';const tone=semantic?(d<0?'negative':'positive'):'muted';return `<span class="mono">${format(y)}</span> <span class="small ${tone}">${sign}${format(Math.abs(d)).replace(/^[+−]/,'')} vs A</span>`;};
+ const rowsA=economics(a),rowsB=economics(b);
+ const diffs=Object.keys(a.params).filter(k=>a.params[k]!==b.params[k]);
+ const head=strip([
+  cell('Run A', select('A',a.id)),
+  cell('Run B', select('B',b.id)),
+  cell('Data window', sameWindow?`<span class="mono">${dataWindow(a)} UTC</span> <span class="muted">· both</span>`:badge('Different windows','warn')),
+  cell('Net PnL · B', delta(netPnl(a),netPnl(b),v=>signed(v),true)),
+  cell('Fills · B', delta(a.fills,b.fills,v=>String(Math.round(v)))),
+  cell('Notional · B', delta(a.notional,b.notional,v=>`$${money(v)}`)),
+  cell('Fees · B', delta(a.fees,b.fees,v=>`$${money(v)}`), 'grow'),
+ ], 'Comparison scope');
+ const params=card('What differed in the parameters',diffs.length?'Only the values that are not the same in both runs':'Both runs were handed the same parameters',diffs.length?table(['Parameter',`A · ${a.id}`,`B · ${b.id}`,'Change'],diffs.map(k=>[k.replace(':',' · '),String(a.params[k]),String(b.params[k]),`<span class="${b.params[k]>a.params[k]?'positive':'negative'}">${b.params[k]>a.params[k]?'↑':'↓'} ${(b.params[k]-a.params[k]).toFixed(4).replace(/\.?0+$/,'')}</span>`]),[1,2,3]):'<div class="empty"><div class="empty-icon">=</div><h3>Identical parameter sets</h3><p>Any difference in the results came from the data or from the run itself.</p></div>',badge(`${diffs.length} of ${Object.keys(a.params).length} differ`,diffs.length?'info':'neutral'),'<span>A replay is worth running when exactly one thing changes between two of them.</span>');
+ const markouts=card('Net markout by horizon','Run B measured against run A at each horizon',table(['Horizon',`A · net (USD)`,`B · net (USD)`,'Δ (USD)','Δ (bps)'],rowsA.map((r,i)=>[r.label,signed(r.net),signed(rowsB[i].net),signedSpan(rowsB[i].net-r.net),(rowsB[i].bps-r.bps).toFixed(2)]),[1,2,3,4]),'',`<span>${sameWindow?'Same data, so the difference is the parameters and the run.':'Different data windows — read this comparison with care.'}</span>`);
+ return head+(sameWindow?'':`<div class="banner"><strong>These runs read different data.</strong> Run A covers ${dataWindow(a)} and run B covers ${dataWindow(b)}, so the difference below is mostly the market, not the parameters. Replay both over one window to compare them.</div>`)+`<div class="grid">${params}${markouts}</div>`;
+}
+
+// ---- Style guide ------------------------------------------------------
+function guide() {
+ return `<section class="guide-intro"><div><div class="eyebrow">DESIGN SYSTEM / 02</div><h2>One screen.<br>Every number in its place.</h2><p>A cockpit for watching an engine trade: the position, the quotes against the fair price and what each fill earned, without scrolling.</p></div><div class="guide-principles"><div><strong>01 &nbsp; Context before content</strong><p>Every page opens on a strip that names the engine, run, mode and freshness.</p></div><div><strong>02 &nbsp; Live, stopped and finished look different</strong><p>Only a live feed gets a pulse and a refresh control. A stopped engine is quiet, not alarming.</p></div><div><strong>03 &nbsp; Dense, not crowded</strong><p>Small type, tight insets, one scale of spacing, and a rule between every row.</p></div></div></section><div class="grid">${card('Two workspaces','Market data mode decides which one a screen belongs to',`<div class="card-body"><div class="workspace-compare"><div><div class="eyebrow">TRADING</div><p class="small">One engine reading a live feed, right now.</p><ul class="rules"><li>Refreshes, and says when it last did.</li><li>Parameters are editable and reach the engine.</li><li>Component health matters.</li><li>Paper or real is a badge, not a separate place.</li></ul></div><div><div class="eyebrow">RESEARCH</div><p class="small">Runs that have finished — live sessions and replays alike.</p><ul class="rules"><li>Never refreshes; the numbers are final.</li><li>Parameters are a frozen input, shown read-only.</li><li>A replay states both its clocks and its capture.</li><li>Comparing two runs is the point of the workspace.</li></ul></div></div></div>`)}${card('Page anatomy','The same sequence on every page','<div class="card-body"><ol class="rules"><li>The navigation names the page; no heading repeats it.</li><li>A status strip: labelled cells with the scope, the mode, the freshness or the data window, and the figures a reader checks first.</li><li>Panels in an aligned grid, sized to fit one screen at a desktop width.</li><li>Tables and detail below, dense, ruled between rows.</li><li>Quiet empty and stopped states, and explicit error recovery.</li></ol></div>')}</div><div class="grid">${card('Color tokens','Slate: a neutral foundation with purposeful accents',`<div class="card-body swatches">${[['Canvas','--canvas'],['Surface','--surface'],['Text','--ink'],['Secondary','--muted'],['Brand','--accent'],['Positive','--positive'],['Negative','--negative'],['Warning','--warning']].map(([name,token])=>`<div class="swatch"><div class="swatch-color" style="background:var(${token})"></div><strong>${name}</strong><span class="mono">${cssVar(token)}</span></div>`).join('')}</div>`)}${card('Typography','One sans-serif family, tabular figures, a monospace stack for prices',`<div class="card-body"><div class="type-row"><span class="panel-big">−0.0032 BTC</span><small>26 / 500 · the panel's figure</small></div><div class="type-row"><h2>Card heading</h2><small>13 / 600</small></div><div class="type-row"><span class="strip-label">Strip label</span><small>10 / 600 · letter-spaced</small></div><div class="type-row"><span>Body and controls</span><small>12 / 400–500</small></div><div class="type-row"><span class="mono positive">+$128.42</span><small>monospace · tabular</small></div></div>`)}</div><div class="grid">${card('Status and interaction','Status must remain understandable without color',`<div class="card-body"><div class="status-samples">${badge('Running','good')}${badge('Live feed','good')}${badge('Replay','info')}${badge('Elevated','warn')}${badge('Down','bad')}${badge('Paper','info')}${badge('Stopped')}${badge('Warming up')}${badge('Frozen')}${badge('Completed')}</div><div class="actions"><button class="primary" id="guide-action">Primary action</button><button id="guide-secondary">Secondary</button><button disabled>Disabled</button></div><p class="small" style="margin-top:12px">One primary action per task. Visible keyboard focus. Labels on all controls. Stopped and warming up are neutral: only a stale feed, an elevated limit or a fault gets a colour.</p></div>`)}${card('Spacing and shape','A shared scale keeps dense screens readable',`<div class="card-body"><div class="space-samples">${[4,8,12,16,24,32].map(n=>`<div><i style="height:${n}px"></i><span>${n}px</span></div>`).join('')}</div><p class="small" style="margin-top:16px">Cards: 10px radius · Controls: 6px · Badges: 4px<br>Card inset: 12–16px · Grid gap: 16px · Row height: 26–32px</p></div>`)}</div><div class="grid">${card('Data and accessibility','Make precision and meaning explicit','<div class="card-body"><ul class="rules"><li>Right-align numbers. Put units in headers. Retain meaningful quantity precision.</li><li>Use + / − for signed money. Missing values are “–”, never zero.</li><li>One figure, one name: what Live calls marked PnL, Research calls marked PnL.</li><li>Label timezone, chart axes, series, and measurement coverage.</li><li>Never label recorded, paused or stopped data as live.</li><li>Stack panels on narrow screens. Scroll wide tables within their card.</li></ul></div>')}${card('Empty state','Absence of data is part of the design','<div class="empty"><div class="empty-icon">≡</div><h3>No fills in this run</h3><p>Executions will appear here once the selected engine records a fill.</p></div>')}</div>`;
 }
 
 const views = {monitor,health,parameters,runs:runLibrary,run:runDetail,compare,guide};
@@ -396,8 +406,7 @@ function renderNav(page){
  $('#workspace-switch').innerHTML=workspaces.map(w=>`<button data-workspace="${w.id}" aria-pressed="${w.id===workspace}">${w.label}</button>`).join('');
  const down=componentDown();
  const items=navItems[workspace].map(([id,label])=>`<a href="#${id}" data-page="${id}"${id===page||(page==='run'&&id==='runs')?' aria-current="page"':''}${id==='health'&&down?' aria-label="Health · 1 component down"':''}>${label}${id==='health'&&down?' <span class="nav-dot" aria-hidden="true"></span>':''}</a>`).join('');
- const layoutSwitch=workspace==='trading'?`<span class="layout-switch"><span>Monitor layout</span>${segments(['Dashboard','Cockpit'],state.layout,'data-layout')}</span>`:'';
- $('#nav').innerHTML=items+layoutSwitch+`<span class="workspace-note">${workspaces.find(w=>w.id===workspace).note}</span><a href="#guide" data-page="guide" class="guide-link"${page==='guide'?' aria-current="page"':''}>Style guide <span aria-hidden="true">↗</span></a>`;
+ $('#nav').innerHTML=items+`<span class="workspace-note">${workspaces.find(w=>w.id===workspace).note}</span><a href="#guide" data-page="guide" class="guide-link"${page==='guide'?' aria-current="page"':''}>Style guide <span aria-hidden="true">↗</span></a>`;
 }
 function render() {
  const active=document.activeElement;
@@ -406,50 +415,22 @@ function render() {
  if(pages[page].workspace)state.workspace=pages[page].workspace;
  document.title=`Jolteon · ${pages[page].title}`;
  renderNav(page);
- const heading=pages[page].workspace?'':`<div class="page-heading"><div><div class="eyebrow">FOUNDATIONS</div><h1>${pages[page].title}</h1><p>${pages[page].description}</p></div><div class="actions"><span class="badge neutral">Version 1.1 · Proposed</span></div></div>`;
+ const heading=pages[page].workspace?'':`<div class="page-heading"><div><div class="eyebrow">FOUNDATIONS</div><h1>${pages[page].title}</h1><p>${pages[page].description}</p></div><div class="actions"><span class="badge neutral">Version 2.0 · Cockpit</span></div></div>`;
  $('#main').innerHTML=heading+views[page]();
  if(focusSelector){const replacement=$(focusSelector);if(replacement&&!replacement.disabled)replacement.focus({preventScroll:true});}
 }
 function go(page){if(location.hash.slice(1)===page)render();else location.hash=page;}
-function applyTheme(id, {announce=true}={}) {
- document.documentElement.dataset.theme = id;
- document.querySelectorAll('#theme-switch button').forEach(b=>b.setAttribute('aria-pressed', String(b.dataset.themeChoice===id)));
- try { localStorage.setItem('jolteon-proto-theme', id); } catch {}
- render();
- if (announce) toast(`Palette set to ${themes.find(t=>t.id===id).label}. This choice stays in this browser only.`);
-}
-function applyLayout(id, {announce=true}={}) {
- state.layout=id;
- try { localStorage.setItem('jolteon-proto-layout', id); } catch {}
- render();
- if (announce) toast(id==='Cockpit'?'Cockpit layout: the same data on one screen. A comparison aid; Dashboard remains the direction.':'Dashboard layout.');
-}
-function initLayout() {
- let saved = 'Dashboard';
- try { saved = localStorage.getItem('jolteon-proto-layout') || 'Dashboard'; } catch {}
- state.layout = saved==='Cockpit' ? 'Cockpit' : 'Dashboard';
-}
-function initTheme() {
- $('#theme-switch').innerHTML = themes.map(t=>`<button data-theme-choice="${t.id}" aria-pressed="false" aria-label="${t.label} palette"><span class="theme-dot" style="--dot:${t.dot}"></span><span>${t.label}</span></button>`).join('');
- let saved = 'slate';
- try { saved = localStorage.getItem('jolteon-proto-theme') || 'slate'; } catch {}
- if (!themes.some(t=>t.id===saved)) saved = 'slate';
- applyTheme(saved, {announce:false});
-}
 let toastTimer, ackTimer;
 function toast(text) {$('#toast').textContent=text;$('#toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').classList.remove('visible'),3500);}
 function updatePending(){const count=pending().length;$('#pending-label').textContent=pendingLabel();$('#review').disabled=!count;$('#revert').disabled=!count;}
 document.addEventListener('click',e=>{
  const b=e.target.closest('button');if(!b)return;
- if(b.dataset.themeChoice){applyTheme(b.dataset.themeChoice);return;}
  if(b.dataset.workspace){state.workspace=b.dataset.workspace;go(workspaces.find(w=>w.id===state.workspace).home);return;}
  if(b.dataset.openRun){state.run=b.dataset.openRun;go('run');return;}
  if(b.dataset.feed){state.feed=b.dataset.feed;render();toast(state.feed==='Live'?'Updates resumed. This page follows the running engine.':'Updates paused. Values below are a snapshot, not live.');return;}
  if(b.dataset.scope){state.scope=b.dataset.scope==='All symbols'?'All symbols':'Symbol';render();return;}
- if(b.dataset.layout){applyLayout(b.dataset.layout);return;}
- if('openFills' in b.dataset){state.liveTab='Fills';applyLayout('Dashboard',{announce:false});return;}
  if(b.id==='toggle-ids'){state.showIds=!state.showIds;render();return;}
- for(const [attr,key] of [['period','period'],['liveTab','liveTab'],['fill','fills'],['horizon','horizon'],['paramTab','paramTab'],['group','group'],['source','source']])if(b.dataset[attr]){state[key]=b.dataset[attr];render();return;}
+ for(const [attr,key] of [['period','period'],['fill','fills'],['horizon','horizon'],['paramTab','paramTab'],['group','group'],['source','source']])if(b.dataset[attr]){state[key]=b.dataset[attr];render();return;}
  if(b.id==='revert'){for(const scope of scopes)state.values[scope]={...state.saved[scope]};render();toast('Sample changes reverted.');}
  if(b.id==='review'){
   if(!$('#parameter-form').reportValidity())return;
@@ -491,5 +472,4 @@ document.addEventListener('input',e=>{
 });
 document.addEventListener('submit',e=>e.preventDefault());
 window.addEventListener('hashchange',()=>{render();window.scrollTo(0,0);$('#main').focus({preventScroll:true});});
-initLayout();
-initTheme();
+render();

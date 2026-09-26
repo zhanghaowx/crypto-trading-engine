@@ -19,10 +19,12 @@ prototype. When a rule and a rendering disagree, the prototype is right
 about what a thing looks like and this document is right about what may
 never happen. A value stated in both places is a bug in this document.
 
-Status: production carries the current direction's tokens and shared
-components. The workspace split waits on reading replay recordings, and
-the findings of the second review are demonstrated in the prototype and
-not yet built; the README's migration section says what is left.
+Status: the direction is the cockpit the prototype shows, chosen on
+2026-09-26 over the card layout production carries. Production has the
+tokens, the shared components and the second review's card-level fixes;
+carrying the cockpit itself into production is a decision about the
+shell that is still open, and the README's migration section says so.
+The workspace split waits on reading replay recordings.
 
 ## Say only what is true
 
