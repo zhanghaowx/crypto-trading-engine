@@ -1,0 +1,38 @@
+/* A component's recent heartbeats, one bar per interval it should have
+   sent one in, oldest on the left: the prototype's heartbeat history.
+   Filled where a heartbeat arrived, hollow where none did, and in the
+   negative colour for the silence a component now down has kept since
+   its last one - so a component that has been flapping reads differently
+   from one that has just stopped.
+
+   Spans laid out with flex rather than the prototype's SVG rects:
+   `st.html` sanitises with DOMPurify's "html" profile, which strips an
+   `<svg>` outright but leaves a styled span alone. The bar count is the
+   card's to decide; the width divides between however many it draws. */
+.jolteon-beats {
+  display: flex;
+  gap: 3px;
+  width: 100%;
+  max-width: 230px;
+  height: 12px;
+  margin-top: 6px;
+}
+
+.jolteon-beat {
+  flex: 1 1 0;
+  min-width: 0;
+  box-sizing: border-box;
+  border-radius: 1px;
+}
+
+.jolteon-beat-seen {
+  background: var(--heartbeat-ok);
+}
+
+.jolteon-beat-missed {
+  border: 1px solid var(--line);
+}
+
+.jolteon-beat-down {
+  background: var(--negative);
+}
