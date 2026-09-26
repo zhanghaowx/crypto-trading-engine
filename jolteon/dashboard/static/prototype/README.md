@@ -32,9 +32,10 @@ treatment; existing brand assets remain available.
 
 ## What to try
 
-The workspace switch; the engine selection, where ETH/USD is an engine that
-has stopped and shows how the monitor, Health and Parameters say so; the
-Live/Paused control on the monitor; the order book's `ours` tag; the fills'
+The workspace switch; the monitor layout switch in the Trading navigation
+(Dashboard or Cockpit, below); the engine selection, where ETH/USD is an
+engine that has stopped and shows how the monitor, Health and Parameters
+say so; the Live/Paused control on the monitor; the order book's `ours` tag; the fills'
 side filter, markout horizon switch and identifier toggle; the Health
 preview states across both engines, including the populated error log; the
 parameter scope switch and the state badge on every field (default,
@@ -44,14 +45,18 @@ Runs source filter; opening a run from the table; a replay's capture link
 back to the run that recorded its data; and Compare with two runs over one
 window and then over two.
 
-The palette switcher in the header (Slate / Sage / Morandi) swaps the same
-token set between three complete neutral-and-accent combinations, so the
-layout and content are held constant while only the palette changes. It is
-a comparison aid, not a decision: Slate is the direction, and the palette
-`.streamlit/config.toml` carries. Only the neutrals and the brand accent
-move between the three; Positive, Negative, Warning and Information keep
-their hues, muted for Morandi to match its lower-saturation character. The
-chosen palette is remembered in this browser only.
+The palette switcher in the header (Slate / Sage / Morandi / Slate dark)
+swaps the same token set between complete neutral-and-accent combinations,
+so the layout and content are held constant while only the palette
+changes. It is a comparison aid, not a decision: Slate is the direction,
+and the palette `.streamlit/config.toml` carries. Only the neutrals and
+the brand accent move between the three light palettes; Positive,
+Negative, Warning and Information keep their hues, muted for Morandi to
+match its lower-saturation character. Slate dark inverts Slate for a
+screen watched for hours beside other terminals: the same roles, so every
+rule about them holds, with the surfaces drawn in ink (the primary button,
+the toast, the guide's opening) inverting with it. The chosen palette is
+remembered in this browser only.
 
 ## The current direction
 
@@ -171,6 +176,41 @@ The parameters a finished run used are a read-only table with the
 current live value beside each, marked Frozen. Compare shows only the
 parameters that differ, and how many of how many.
 
+## The cockpit, for comparison
+
+The Trading navigation carries a second monitor layout, Cockpit, beside
+the Dashboard layout above. It is the other answer to what a monitor is
+for: the same sample data on one screen, shaped around what a market
+maker watches, and a comparison aid rather than a decision. The choice is
+remembered in this browser only.
+
+- **A status strip** across the top: the engine and its run, the feed's
+  pulse with the Live/Paused control, the position against its limit,
+  marked PnL, our two quotes with the fair price beside them, and how
+  many components are reporting. Parameters carries the same strip in
+  this layout; Health does not, because Health reads every engine and
+  the strip is one engine's.
+- **A price ladder** in the middle: one column of prices with the
+  market's bids and asks on either side, depth shading from cumulative
+  size, our resting quotes tagged `ours` at their level, and the adjusted
+  fair price drawn as a dashed line through the ladder, so where we quote
+  and where we think the price is are read together.
+- **The PnL line with every fill on it**, buys under the line and sells
+  above it, and a dense fills tape beneath with a link back to the full
+  fills table in the Dashboard layout.
+- **A position panel** on the left with the limit bar, the PnL broken
+  into cash flow, inventory and fees, each signal's verdict and
+  contribution, and every component's state.
+- Denser type and insets than the card layout. The same tokens, the same
+  rules: a stopped engine drains the strip and marks the ladder as its
+  last snapshot; a warming signal is a neutral badge; only the signed
+  figure is coloured.
+
+In production this is a decision about the shell, not a styling pass: a
+ladder, a chart with markers and a persistent strip fight Streamlit's
+page model, and the prototype is already a working front-end that would
+need only a read-only source for the recordings.
+
 ## Why it looks this way
 
 Two reviews of the production dashboard at `http://localhost:8501`, with
@@ -217,9 +257,10 @@ The same review noted that this direction is a calm dashboard, not a
 trading cockpit: a single-screen monitor with a price ladder showing our
 quotes against the fair price, PnL with fills overlaid, a persistent
 status strip and a dark theme would serve a market maker watching for
-hours better than cards that scroll. That is a larger choice, and it
-turns on whether Streamlit stays the shell. It is recorded here so the
-next redesign starts from it rather than from the card layout.
+hours better than cards that scroll. That layout is now built beside the
+Dashboard layout (see "The cockpit, for comparison") so the two can be
+judged on the same data. Choosing it is a larger decision, because it
+turns on whether Streamlit stays the shell.
 
 ## Migration
 
