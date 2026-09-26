@@ -172,6 +172,20 @@ def test_bps_columns_read_as_numbers_beside_the_dollars(flat_run, tables):
     assert body.count('<th class="jolteon-num"') == 7
 
 
+def test_signed_dollars_are_coloured_in_the_figure_not_the_cell(
+    flat_run, tables
+):
+    """Gross, net and adverse selection are signed, so each carries its
+    sign in the colour of its text - and nothing fills the cell around
+    it, whatever its size against the rest of the column."""
+    at = _run(flat_run)
+
+    body = at.get("html")[0].body.split("</style>", 1)[-1]
+    assert '<td class="jolteon-num jolteon-positive">+$3.00</td>' in body
+    assert "rgba(" not in body
+    assert all(style == "" for row in tables(at)[0]["styles"] for style in row)
+
+
 def test_says_nothing_of_a_run_with_no_fills(tmp_path):
     db_path = _recording(tmp_path, [])
     at = _run(db_path)

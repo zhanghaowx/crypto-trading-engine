@@ -4,7 +4,8 @@ Plain HTML rather than Streamlit's data grid. The grid is drawn to a
 canvas, rules every cell on both axes and cannot be restyled, so a table
 of a handful of rows read as a spreadsheet dropped into the card rather
 than as part of it. These are small, read-only tables; plain HTML carries
-them, and carries the shading and the per-column explanations with them.
+them, and carries the colour of a signed figure and the per-column
+explanations with them.
 """
 
 from html import escape
@@ -14,32 +15,20 @@ from typing import Callable, Mapping, Sequence
 import pandas as pd
 import streamlit as st
 
-from jolteon.dashboard.ui.primitives import NEGATIVE_RGB, POSITIVE_RGB
-
 _TABLE_CSS = (
     Path(__file__).resolve().parents[1] / "static" / "table.css"
 ).read_text()
 
-# How deep a shaded cell is tinted at its column's largest magnitude. Well
-# below the data grid's own shading: a hairline already separates the
-# rows, so the tint only has to rank the numbers, not draw the cell.
-_MIN_TINT = 0.05
-_MAX_TINT = 0.22
 
-
-def shade(value: float, scale: float) -> str:
+def sign_class(value: float) -> str:
     """
-    Returns: A background tint for a signed cell, deeper the further
-    `value` sits from zero relative to `scale` (its column's own largest
-    magnitude) - so the standout numbers in a row of tightly-packed
-    figures read through color rather than through size.
+    Returns: The class that colours a signed cell's figure - the winning
+    colour at or above zero, where a formatted figure wears a plus, the
+    losing one below - and nothing for a value that is not there.
     """
-    if pd.isna(value) or not scale:
+    if pd.isna(value):
         return ""
-    intensity = min(abs(value) / scale, 1.0)
-    r, g, b = POSITIVE_RGB if value >= 0 else NEGATIVE_RGB
-    alpha = _MIN_TINT + (_MAX_TINT - _MIN_TINT) * intensity
-    return f"background-color: rgba({r}, {g}, {b}, {alpha:.2f})"
+    return "jolteon-positive" if value >= 0 else "jolteon-negative"
 
 
 def _header(
@@ -71,8 +60,9 @@ def render(
     """
     Draw `frame` as a table.
 
-    `shaded_columns` are tinted by `shade` and formatted with `format_fn`.
-    `numeric_columns` are read as numbers without being tinted - for a
+    `shaded_columns` carry their sign in the colour of the figure, by
+    `sign_class`, and are formatted with `format_fn`.
+    `numeric_columns` are read as numbers without being coloured - for a
     column already carrying its own formatting, or one measured in units
     `format_fn` does not speak. Both align right and share one set of
     digit widths, so the decimal points line up down the column.
@@ -82,9 +72,6 @@ def render(
     columns = list(frame.columns)
     shaded = set(shaded_columns)
     numeric = shaded | set(numeric_columns)
-    scales = {
-        column: frame[column].abs().max(skipna=True) for column in shaded
-    }
 
     rows = []
     for _, row in frame.iterrows():
@@ -92,11 +79,11 @@ def render(
         for column in columns:
             value = row[column]
             if column in shaded:
-                style = shade(value, scales[column])
+                sign = sign_class(value)
+                classes = f"jolteon-num {sign}" if sign else "jolteon-num"
                 shown = format_fn(value) if format_fn else value
                 cells.append(
-                    f'<td class="jolteon-num" style="{style}">'
-                    f"{escape(str(shown))}</td>"
+                    f'<td class="{classes}">{escape(str(shown))}</td>'
                 )
             else:
                 style = row_style(row) if row_style else ""

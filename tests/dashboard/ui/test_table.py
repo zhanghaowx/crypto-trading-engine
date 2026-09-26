@@ -1,6 +1,6 @@
 from streamlit.testing.v1 import AppTest
 
-from jolteon.dashboard.ui.table import shade
+from jolteon.dashboard.ui.table import sign_class
 
 
 def table_script():
@@ -38,37 +38,66 @@ def numeric_script():
     )
 
 
-def _alpha(style: str) -> float:
-    return float(style.split(",")[-1].rstrip(") "))
+def missing_script():
+    import pandas as pd
+
+    from jolteon.dashboard.ui import table
+
+    table.render(
+        pd.DataFrame({"Horizon": ["+1s"], "Edge": [float("nan")]}),
+        shaded_columns=["Edge"],
+        format_fn=lambda value: "–" if pd.isna(value) else f"{value:+.2f}",
+    )
 
 
-def test_a_shaded_cell_deepens_with_its_distance_from_zero():
-    faint, full = shade(1.0, 10.0), shade(10.0, 10.0)
-
-    assert "rgba(19, 117, 82" in faint
-    assert "rgba(19, 117, 82" in full
-    assert _alpha(faint) < _alpha(full)
-
-
-def test_a_negative_cell_is_shaded_the_losing_color():
-    assert "rgba(182, 62, 73" in shade(-5.0, 10.0)
+def test_a_cell_is_coloured_by_its_sign_alone():
+    """Zero sits with the positives, the side a formatted figure puts
+    its plus on, so a figure and its colour never disagree."""
+    assert sign_class(10.0) == "jolteon-positive"
+    assert sign_class(0.1) == "jolteon-positive"
+    assert sign_class(0.0) == "jolteon-positive"
+    assert sign_class(-5.0) == "jolteon-negative"
 
 
-def test_nothing_is_shaded_without_a_scale_or_a_value():
-    assert shade(1.0, 0.0) == ""
-    assert shade(float("nan"), 10.0) == ""
+def test_a_missing_value_is_not_coloured():
+    assert sign_class(float("nan")) == ""
 
 
-def test_the_table_renders_its_rows_and_shades_its_numbers(tables):
+def test_the_table_renders_its_rows_and_colours_its_numbers(tables):
     at = AppTest.from_function(table_script).run()
 
     assert not at.exception
     table = tables(at)[0]
     assert table["columns"] == ["Side", "Edge"]
     assert table["rows"] == [["BUY", "+2.00"], ["SELL", "-1.00"]]
-    # The winning row's number is tinted green, the losing one's red.
-    assert "rgba(19, 117, 82" in table["styles"][0][1]
-    assert "rgba(182, 62, 73" in table["styles"][1][1]
+    # The winning figure is green and the losing one red, in the text
+    # alone: the cell carries no tint, however large the figure.
+    body = at.get("html")[-1].body
+    assert '<td class="jolteon-num jolteon-positive">+2.00</td>' in body
+    assert '<td class="jolteon-num jolteon-negative">-1.00</td>' in body
+    assert table["styles"][0][1] == ""
+    assert table["styles"][1][1] == ""
+
+
+def test_a_signed_columns_colour_is_on_its_text_not_its_cell():
+    at = AppTest.from_function(table_script).run()
+
+    css = at.get("html")[-1].body.split("</style>", 1)[0]
+    assert (
+        ".jolteon-table td.jolteon-positive { color: var(--positive); }" in css
+    )
+    assert (
+        ".jolteon-table td.jolteon-negative { color: var(--negative); }" in css
+    )
+    assert "background-color" not in css
+
+
+def test_a_missing_figure_in_a_signed_column_is_left_uncoloured():
+    at = AppTest.from_function(missing_script).run()
+
+    assert not at.exception
+    body = at.get("html")[-1].body
+    assert '<td class="jolteon-num">–</td>' in body
 
 
 def test_a_row_style_tints_the_columns_that_are_not_numbers(tables):

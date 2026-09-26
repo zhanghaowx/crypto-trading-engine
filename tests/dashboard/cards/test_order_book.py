@@ -19,13 +19,24 @@ def _markup(at) -> str:
     return at.get("html")[-1].body.split("</style>", 1)[-1]
 
 
+OURS = '<span class="jolteon-book-ours">ours</span>'
+
+
 def _prices(markup: str, side: str) -> list[str]:
-    """One side's prices, top to bottom."""
+    """One side's prices, top to bottom, whether or not ours is tagged
+    in front of them."""
     bids, asks = markup.split(
         '<div class="jolteon-book-side jolteon-book-asks">'
     )
     column = bids if side == "bid" else asks
-    return re.findall(r'jolteon-book-price">([\d,.]+)<', column)
+    return re.findall(
+        r'jolteon-book-price">(?:' + re.escape(OURS) + r")?([\d,.]+)<",
+        column,
+    )
+
+
+def _css(at) -> str:
+    return at.get("html")[-1].body.split("</style>", 1)[0]
 
 
 def _encode(levels) -> str:
@@ -149,10 +160,37 @@ def test_marks_the_venue_level_our_quote_shares_a_price_with(tmp_path):
 
     assert not at.exception
     body = _markup(at)
-    # The venue's own level is outlined rather than given a marker of
-    # its own, and keeps its size and running total.
+    # The venue's own level is tagged rather than given a row of its
+    # own, and keeps its size and running total.
     assert body.count("jolteon-book-resting") == 2
     assert "jolteon-book-alone" not in body
+    # One tag per marked row, in front of the price so the figures still
+    # line up down the column.
+    assert body.count(OURS) == 2
+    assert f'<td class="jolteon-book-price">{OURS}98.00</td>' in body
+    assert f'<td class="jolteon-book-price">{OURS}102.00</td>' in body
+    assert _prices(body, "bid") == ["99.00", "98.00"]
+    assert _prices(body, "ask") == ["101.00", "102.00"]
+
+
+def test_our_quote_is_tagged_and_ruled_rather_than_boxed(tmp_path):
+    """The quote is the least important thing on the page to read, so
+    it gets a small tag and a rule down the row's leading edge - not an
+    outline, and not a bold row."""
+    at = AppTest.from_function(_script)
+    at.session_state["db_path"] = _book_db(
+        tmp_path, "tagged.sqlite", quotes=[("BUY", 98.0)]
+    )
+    at.run()
+
+    css = _css(at)
+    assert (
+        ".jolteon-book-resting td:first-child {\n"
+        "  box-shadow: inset 3px 0 0 var(--ink);" in css
+    )
+    assert "text-transform: uppercase" in css
+    assert "outline:" not in css
+    assert ".jolteon-book-resting {" not in css
 
 
 def test_nothing_is_marked_while_we_have_no_quotes_resting(tmp_path):
@@ -164,6 +202,7 @@ def test_nothing_is_marked_while_we_have_no_quotes_resting(tmp_path):
     body = _markup(at)
     assert "jolteon-book-resting" not in body
     assert "jolteon-book-alone" not in body
+    assert OURS not in body
 
 
 def test_says_so_when_no_book_has_been_recorded(empty_db_path):
@@ -200,7 +239,9 @@ def test_a_quote_inside_the_spread_takes_a_row_of_its_own(tmp_path):
     assert not at.exception
     body = _markup(at)
     assert body.count("jolteon-book-alone") == 2
-    assert "99.50" in body and "100.50" in body
+    assert body.count(OURS) == 2
+    assert f'<td class="jolteon-book-price">{OURS}99.50</td>' in body
+    assert f'<td class="jolteon-book-price">{OURS}100.50</td>' in body
 
 
 def test_a_quote_between_levels_sits_between_them(tmp_path):

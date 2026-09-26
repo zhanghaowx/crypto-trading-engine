@@ -65,18 +65,30 @@
 .jolteon-book-bid .jolteon-book-price { color: var(--positive); }
 .jolteon-book-ask .jolteon-book-price { color: var(--negative); }
 
-/* Where our own quote rests: the row is outlined, which reads at a
-   glance without spending a column on a marker or a word. The outline
-   takes its own side's colour, the one the price beside it is already
-   drawn in. An outline rather than a border: collapsed borders are
-   resolved against the neighbouring cell's. */
-.jolteon-book-resting {
-  font-weight: 600;
-  outline-offset: -1px;
+/* Where our own quote rests: a small tag before the price and a rule
+   down the row's leading edge, and no more. Our quote is the least
+   important thing on the page to read, so it is marked rather than
+   framed - an outlined, bolded row was the heaviest thing in the card.
+   The rule is an inset shadow rather than a border: collapsed borders
+   are resolved against the neighbouring cell's. */
+.jolteon-book-resting td:first-child {
+  box-shadow: inset 3px 0 0 var(--ink);
 }
 
-.jolteon-book-bid.jolteon-book-resting { outline: 1px solid var(--positive); }
-.jolteon-book-ask.jolteon-book-resting { outline: 1px solid var(--negative); }
+.jolteon-book-ours {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 1px 4px;
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  line-height: 1.3;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
 
 .jolteon-book-mid {
   display: flex;
