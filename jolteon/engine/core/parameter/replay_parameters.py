@@ -16,6 +16,27 @@ from jolteon.engine.core.parameter.parameter_service import (
 from jolteon.engine.core.parameter.parameter_specification import definitions
 from jolteon.engine.core.time.time_manager import time_manager
 
+# SQLite has no boolean type, so a True recorded into a run's parameters
+# reads back as 1. Every other type survives the round trip as it is.
+_BOOLEAN_FIELDS = {
+    (group.__name__, definition.name)
+    for group in GROUPS
+    for definition in definitions(group)
+    if definition.value_type is bool
+}
+
+
+def recorded_value(group_name: str, field_name: str, value: object) -> object:
+    """
+    Returns: A parameter value read back from a recording, as the type
+    its field declares. Anything that is not a recorded boolean is left
+    as it stands for `resolved_parameters` to accept or reject.
+    """
+    if (group_name, field_name) in _BOOLEAN_FIELDS and type(value) is int:
+        if value in (0, 1):
+            return bool(value)
+    return value
+
 
 def resolved_parameters(scopes: dict, revision: int = 0) -> ParameterValues:
     if not isinstance(scopes, dict) or "" not in scopes:
